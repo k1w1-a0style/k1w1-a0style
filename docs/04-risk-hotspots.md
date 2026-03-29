@@ -2,6 +2,48 @@
 
 ## Top-Risiken (priorisiert)
 
+
+## Hook-Refactoring-Audit (Patch 618) — priorisierte Hotspots ohne Grossumbau
+
+### Methodik (kurz)
+- Repo-weites Inventar fuer `use*.ts` / `use*.tsx` mit Fokus auf Hook-Dateien (Tests ausgeklammert).
+- Bewertung nach: Groesse/Dichte, Verantwortungsbreite, Seiteneffekt-Intensitaet, externe IOs (Netzwerk/Storage/Navigation), Testbarkeit, Vertragsnaehe (Build/Auth/Workflow/Preview/Keystore).
+- Klassifikation:
+  - **A** = hoher Refactoring-Bedarf / hohes Risiko
+  - **B** = mittlerer Refactoring-Bedarf
+  - **C** = gross, aber aktuell stabil genug
+  - **D** = eher unkritisch
+
+### Priorisierte Hook-Liste (A/B/C/D)
+
+| Klasse | Hook | Warum relevant | Empfohlener naechster Schnitt (ohne Umbau in Patch 618) |
+|---|---|---|---|
+| **A** | `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` (~1073 LoC) | Sehr breite Mischverantwortung: Repo/Branch CRUD, Pull/Push, EAS-Link, Secrets-Sync, Sync-Status, viele UI-Dialogstates + Async-Orchestrierung. Hohe Regressionsflaeche bei Selection-/Stale-Request-Kanten. | (1) Repo-IO-Orchestrierung (`create/rename/delete/pull/push`) in service-nahe Adapter kapseln, (2) Pull/Push-Modal-State in separaten UI-State-Hook, (3) EAS-Link-Status/Write als eigener Hook-Contract. |
+| **A** | `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` (~945 LoC) | Dispatch + Polling + Chain-Run-Korrelation + Artifact-Read + Persistenz in einem Hook. Timer-/Generation-Guards stabilisieren bereits viel, aber Kopplung bleibt hoch. | (1) Run-Lookup/Polling-FSM auslagern, (2) Artifact-Query separat (read-only + retry policy), (3) Dispatch/Chain-Command vom Header-UI-State trennen. |
+| **A** | `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts` (~948 LoC) | Starke Mischung aus Storage-Hydration, Token-/Secret-Handling, Connectivity-Tests, EAS-Verifikation, Navigation/Busy-Guard, UI-Visibility-Toggles. Viele persistente Seiteneffekte. | (1) Persistenz-Layer (`load/save conn lights + tokens`) als Modul, (2) Test-Aktionen pro Provider (`testGitHub/testExpo/testSupabase/testEas`) isolieren, (3) reiner Form/UI-State in eigenen Hook ziehen. |
+| **A** | `screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts` (~717 LoC) | Auth-/Keystore-/Workflow-nahe Vertragslogik plus Edge-Calls, Fokus-Effekte, Wizard-UI in einem Block. Hohe Sensitivitaet fuer Build/Auth/Keystore-Vertrag. | (1) Edge-IO-Adapter fuer Keystore/Signing/Preview klar trennen, (2) Schritt-Readiness als pure selector/helper, (3) Fehlernormalisierung vereinheitlichen. |
+| **A** | `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts` (~1096 LoC) | Grosser Runner mit Modal-/Step-State, Apply-/Rerun-/Patch-/Sync-Orchestrierung; viele Statuswechsel und Seiteneffekte. | (1) Step-Runner-Pipeline (pure step plan) trennen, (2) Apply-Operationen + Ergebnis-Mapping als eigenes Modul, (3) Modal-/Preview-State entkoppeln. |
+| **B** | `hooks/useChatAIFlow.ts` (~1010 LoC) | Gross und orchestration-lastig (Planner/Builder/Validator/Explain), aber in juengeren Patches bereits mehrfach stabilisiert; dennoch hohe kognitive Last. | Weitere kleine pure-function-Extraktionen (Input-Routing, status/error mapping), keine Vertragsaenderung an Orchestrierung. |
+| **B** | `screens/AppInfoScreen/hooks/useAppInfoScreen.ts` (~568 LoC) | Viele Verantwortungen (App-Meta, Backup/Restore, Secrets Import/Export, Icon), aber geringere kritische Laufzeitkopplung als A-Hooks. | Secure-Backup-Commands vs. App-Meta-Edit-State trennen; Storage-Reads/Writes in Helper-Layer. |
+| **C** | `hooks/usePreview.ts` (~606 LoC) | Gross, aber in Patch 615 bewusst fail-closed gehaertet (Legacy-Operatorgrenze, Remote-SoT). Sehr sensibler Vertrags-Hook. | **Nicht jetzt gross refactoren**; nur mikro-sichere pure helper extractions bei konkretem Bug. |
+| **C** | `screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts` (~651 LoC) | Build-Flow mit mehreren juengsten Vertragsfixes (Push-/Dispatch-/Filter-Truthfulness). | **Nicht jetzt gross refactoren**; nur fokussierte Regression-fixes an nachweisbaren Kanten. |
+| **C** | `hooks/useGitHubActionsLogs.ts` (~365 LoC) | Nicht riesig, aber timing-/abort-sensibel; mehrere Patches haben Request-Version-/Pending-Guards gehaertet. | **Vorerst stabil halten**; nur kleine testgetriebene Anpassungen an Polling/Abort-Kanten. |
+| **D** | `hooks/useBuildStatus.ts`, `hooks/useNotifications.ts`, `screens/CodeScreen/hooks/useCodeScreen.ts` | Ueberschaubare Breite, weniger kritische gekoppelte IO-Verantwortung. | Kein prioritaerer Refactorbedarf. |
+
+### Ehrliche "nicht jetzt"-Liste (stabil, aber sensibel)
+1. `hooks/usePreview.ts`: juengst gehaerteter fail-closed Preview-/Legacy-Vertrag; grosser Umbau jetzt waere regressionsanfaellig.
+2. `screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen.ts`: mehrere frische Build-Vertragsfixes (Dispatch/Push/Filter); zuerst Stabilitaetsfenster halten.
+3. `hooks/useGitHubActionsLogs.ts`: Polling-/Abort-Rennen wurden in kurzer Folge korrigiert; nur kleine, testgedeckte Aenderungen zulassen.
+
+### Empfohlene Refactoring-Reihenfolge (naechste Patches)
+1. **A1:** `useGitHubReposScreen` — zuerst IO/UI-State trennen, danach EAS-Link-Unterpfad.
+2. **A2:** `useCiLiteWorkflow` — Polling/Lookup-FSM von Dispatch/Artifact/Modal entkoppeln.
+3. **A3:** `useConnectionsScreen` — Persistenz + Provider-Tests + UI-State in drei Schichten schneiden.
+4. **A4:** `useCredentialsWizardScreen` — IO-Adapter + Step-Selectors + Error-Normalization.
+5. **A5:** `useDiagnosticFixRunner` — Runner-Pipeline vs. Modal/UI-State.
+6. **B-Hooks** (`useChatAIFlow`, `useAppInfoScreen`) nur in kleinen pure-function-Schnitten nachziehen.
+7. **C-Hooks** (`usePreview`, `useEnhancedBuildScreen`, `useGitHubActionsLogs`) erst nach Stabilitaetsfenster und nur bei konkretem Incident.
+
 ## R1 — Branch-Fallback auf `main` im kritischen Pfad
 **Risiko:** Build/Workflow können gegen falschen Branch laufen, obwohl User andere Auswahl erwartet.  
 **Auswirkung:** Falscher Commit/Workflow-Kontext, inkonsistente Diagnosen.
