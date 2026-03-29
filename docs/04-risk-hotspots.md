@@ -16,6 +16,7 @@
 **Update (Patch 612):** Der Build-Start-Flow ist zusaetzlich auf der Repo-Sync-Kante fail-closed gehaertet: Im `out_of_sync`-Pfad fuehrt ein fehlgeschlagenes `pushFilesToRepo(...)` jetzt zu sofortigem Abbruch; Workflow-Autofix/Bootstrap und Dispatch laufen danach nicht mehr an.
 **Update (Patch 613):** Dispatch-/Bootstrap-Semantik ist jetzt getrennt: normale Dispatch-Pfade (`triggerWorkflow`, `github-workflow-dispatch`) sind mutation-free/fail-closed und signalisieren fehlende Workflows als `missing_workflow` statt stillen Repo-Writes.
 **Update (Patch 614):** Build-Screen-Filter fuer Workflow-Runs ist jetzt UI-truthful: bei aktivem Profilfilter ohne Treffer bleibt die Liste leer (`[]`) statt auf alle Runs zurueckzufallen; ein expliziter Empty State macht den Nulltreffer klar sichtbar.
+**Update (Patch 616):** Globale Warnungsunterdrueckung in `App.tsx` wurde auf ein enges Minimum reduziert: breite Ignore-Strings (`Require cycle:`, `VirtualizedLists should never be nested`) sind entfernt, damit Dev-Signale fuer Architektur-/Renderprobleme wieder sichtbar bleiben; nur ein klar dokumentierter Reanimated-Dev-Noise-Restpunkt bleibt bewusst aktiv.
 
 **Fix-Vorschlag:**
 1. Harten Branch-Guard einführen: wenn Branch leer ⇒ blockieren mit UI-Fehler.
