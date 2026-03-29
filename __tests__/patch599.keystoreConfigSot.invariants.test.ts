@@ -12,9 +12,13 @@ describe("patch599 keystore verify_jwt config SoT invariants", () => {
 
     expect(rootConfig).toContain("[functions.android-keystore-status]");
     expect(rootConfig).toMatch(/\[functions\.android-keystore-status\][\s\S]*?verify_jwt\s*=\s*true/);
+
+    expect(rootConfig).toContain("[functions.android-keystore-export]");
+    expect(rootConfig).toMatch(/\[functions\.android-keystore-export\][\s\S]*?verify_jwt\s*=\s*true/);
   });
 
   it("removes function-local keystore config files to avoid split-brain", () => {
+    expect(fs.existsSync(path.join(process.cwd(), "supabase/functions/android-keystore-export/config.toml"))).toBe(false);
     expect(fs.existsSync(path.join(process.cwd(), "supabase/functions/android-keystore-generate/config.toml"))).toBe(false);
     expect(fs.existsSync(path.join(process.cwd(), "supabase/functions/android-keystore-status/config.toml"))).toBe(false);
   });
