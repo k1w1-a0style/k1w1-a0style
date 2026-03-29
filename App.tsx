@@ -53,8 +53,10 @@ import { CustomDrawerContent } from "./components/CustomDrawer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 LogBox.ignoreLogs([
-  "Require cycle:",
-  "VirtualizedLists should never be nested",
+  // Patch 616: Keep this as a temporary, narrowly scoped dev-noise suppressor
+  // for a known Reanimated listener warning that is not actionable in app code.
+  // Removal condition: drop this rule as soon as upstream/library updates stop
+  // emitting this warning in local dev without functional impact.
   "Sending `onAnimatedValueUpdate` with no listeners registered.",
 ]);
 
