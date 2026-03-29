@@ -17,6 +17,17 @@ export type RawFile = {
   [key: string]: unknown;
 };
 
+type UnknownRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): UnknownRecord | null =>
+  typeof value === 'object' && value !== null ? (value as UnknownRecord) : null;
+
+const getRecordString = (value: unknown, key: string): string | null => {
+  const rec = asRecord(value);
+  const v = rec?.[key];
+  return typeof v === 'string' ? v : null;
+};
+
 // ---- Parser / Fallbacks ----
 function extractJsonFallback(input: string): string | null {
   if (!input) return null;
@@ -113,8 +124,8 @@ function extractFileArray(parsed: unknown): RawFile[] | null {
   if (!parsed) return null;
   if (Array.isArray(parsed)) return parsed as RawFile[];
 
-  if (typeof parsed === 'object') {
-    const obj = parsed as any;
+  const obj = asRecord(parsed);
+  if (obj) {
     const candidates = ['files', 'data', 'json', 'output', 'result'];
     for (const key of candidates) {
       const value = obj?.[key];
@@ -122,8 +133,10 @@ function extractFileArray(parsed: unknown): RawFile[] | null {
     }
 
     // Map-Form: { files: { "path": "content" } }
-    if (obj?.files && typeof obj.files === 'object' && !Array.isArray(obj.files)) {
-      return Object.entries(obj.files).map(([path, content]) => ({ path, content }));
+    const filesValue = obj.files;
+    const filesRecord = asRecord(filesValue);
+    if (filesRecord && !Array.isArray(filesValue)) {
+      return Object.entries(filesRecord).map(([path, content]) => ({ path, content }));
     }
   }
 
@@ -133,14 +146,16 @@ function extractFileArray(parsed: unknown): RawFile[] | null {
 function unwrapToParsable(raw: unknown): unknown {
   if (!raw) return null;
 
-  if (typeof raw === 'object' && raw && typeof (raw as any).text === 'string') {
-    const s = String((raw as any).text);
+  const text = getRecordString(raw, 'text');
+  if (text) {
+    const s = String(text);
     const jsonBlock = extractJsonFallback(s) ?? s;
     return safeJsonParseSilent(jsonBlock) ?? raw;
   }
 
-  if (typeof raw === 'object' && raw && typeof (raw as any).output_text === 'string') {
-    const s = String((raw as any).output_text);
+  const outputText = getRecordString(raw, 'output_text');
+  if (outputText) {
+    const s = String(outputText);
     const jsonBlock = extractJsonFallback(s) ?? s;
     return safeJsonParseSilent(jsonBlock) ?? raw;
   }
@@ -163,13 +178,15 @@ export type NormalizeAiResponseResult = {
 // ---- Hauptfunktion ----
 export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseResult | null {
   const parsed = unwrapToParsable(raw);
+  const rawText = getRecordString(raw, 'text');
+  const rawOutputText = getRecordString(raw, 'output_text');
   const responseText =
     typeof raw === 'string'
       ? raw
-      : typeof (raw as any)?.text === 'string'
-        ? String((raw as any).text)
-        : typeof (raw as any)?.output_text === 'string'
-          ? String((raw as any).output_text)
+      : typeof rawText === 'string'
+        ? String(rawText)
+        : typeof rawOutputText === 'string'
+          ? String(rawOutputText)
           : undefined;
 
   if (!parsed) {

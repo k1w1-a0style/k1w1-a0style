@@ -7,20 +7,30 @@ import { getSupabaseAnonKey } from "./supabaseAnonKeyStorage";
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
 
+type RuntimeProcess = {
+  env?: Record<string, string | undefined>;
+};
+
+const getRuntimeProcess = (): RuntimeProcess | null => {
+  if (typeof process === "undefined") return null;
+  return process as RuntimeProcess;
+};
+
 const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   try {
-    const anyProcess = process as any;
+    const runtimeProcess = getRuntimeProcess();
+    if (!runtimeProcess) return;
 
-    if (!anyProcess.env) {
-      anyProcess.env = {};
+    if (!runtimeProcess.env) {
+      runtimeProcess.env = {};
     }
 
-    if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_URL) {
-      anyProcess.env.EXPO_PUBLIC_SUPABASE_URL = url;
+    if (!runtimeProcess.env.EXPO_PUBLIC_SUPABASE_URL) {
+      runtimeProcess.env.EXPO_PUBLIC_SUPABASE_URL = url;
     }
 
-    if (!anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-      anyProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = anonKey;
+    if (!runtimeProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
+      runtimeProcess.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = anonKey;
     }
   } catch (e) {
     // Do not leak details (URL/key) into logs.
@@ -48,12 +58,9 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
       let supabaseAnonKey = await getSupabaseAnonKey();
 
       // 2) Fallback: bestehende Runtime-Env
-      if (!supabaseUrl && typeof process !== "undefined") {
-        supabaseUrl = (process as any).env?.EXPO_PUBLIC_SUPABASE_URL;
-      }
-      if (!supabaseAnonKey && typeof process !== "undefined") {
-        supabaseAnonKey = (process as any).env?.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-      }
+      const runtimeProcess = getRuntimeProcess();
+      if (!supabaseUrl) supabaseUrl = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_URL ?? null;
+      if (!supabaseAnonKey) supabaseAnonKey = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null;
 
       if (!supabaseUrl || !supabaseAnonKey) {
         // ✅ FIX: Setze initPromise erst NACH dem Error werfen

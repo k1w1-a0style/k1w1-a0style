@@ -2,6 +2,42 @@
 
 ## Top-Risiken (priorisiert)
 
+### `as any`-Audit (Patch 619) — priorisierte Abbaustrategie
+
+- **Inventar (repo-weit):** 260 `as any`-Vorkommen (`rg -n "as any" --glob "!node_modules"`).
+- **Kategorisierung (grob):**
+  - **A Runtime/Domain/Validation/Config/Networking/Normalizer:** 61
+  - **B UI/State/Component-Glue:** 29
+  - **C Tests/Mocks/Fixtures:** 163
+  - **D Styles/Theming/Interop + Tooling-nahe Reste:** 7+
+- **Wichtig:** Nicht jeder Cast hat dasselbe Risiko. Patch 619 reduziert bewusst nur A-Hotspots mit kleinem, robustem Fix ohne Verhaltensumbau.
+
+#### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
+
+| Klasse | Fundstelle | Risiko | Patch-619-Status |
+|---|---|---|---|
+| **A** | `lib/validators.ts` (`CONFIG as any` fuer Pfad-/Dateigroessen-Policy) | Validierungsgrenzen koennen still ausufern/fehlschlagen, wenn Policy-Typen verdeckt werden. | **Abgebaut** (direkte, getypte Config-Zugriffe). |
+| **A** | `lib/supabase.ts` (`process as any` fuer Runtime-Env) | Credentials-/Init-Pfad in produktivem Runtime-Flow; blindes Any verschleiert Env-Shape-Fehler. | **Abgebaut** (getypter Runtime-Env-Adapter). |
+| **A** | `lib/supabaseEdge.ts` (`process as any`) | Edge-URL-Resolution fuer produktive Netzwerkrouten. | **Abgebaut** (kleiner `getRuntimeEnv`-Helper). |
+| **A** | `lib/normalizer.ts` (mehrere `raw/parsed as any`) | KI-Payload-Normalisierung im Laufzeitpfad; Any kaschiert Strukturfehler/Fallback-Pfade. | **Abgebaut** (Record-Guards + enge Getter). |
+| **A** | `lib/diagnostics/buildPipelineDiagnostics.ts` (`readJsonFile<any>`, Canonical-Profile-Cast) | Build-/Config-Diagnostik trifft operative Entscheidungen; Any verschleiert JSON-Shape. | **Abgebaut** (kleine `EasConfig`-Typen + null-safe Reads). |
+| **A** | `project/services/projectArchiveService.ts` (`res:any`, `project as any`) | Import/Export-Pfad + Privacy-Reset (`chatHistory`) im Runtime-Flow. | **Abgebaut** (typed return + direkte Property-Nutzung). |
+| **B** | `screens/ConnectionsScreen/utils/validation.ts` (`value as any.message`) | Fehlertext-Sanitizing fuer Credentials/UI; mittleres Risiko bei falschem Fehlerpfad. | **Abgebaut** (unknown->message Guard). |
+| **C** | `components/*`, `screens/*` Icon-/Style-Casts | Vor allem UI-Interop/Styling, begrenzter Runtime-Schaden. | Offen (niedrige Prioritaet). |
+| **D** | `__tests__/*`, `lib/__tests__/*` | Test-Mocks/Fixtures, kein produktiver Laufzeitpfad. | Offen (bewusst toleriert). |
+
+#### Offene, riskante Restpunkte (bewusst nicht in Patch 619)
+1. `lib/diagnostics/ciAutoFix.ts` (`error as any`) — Runtime-Errorpfade, aber kleiner separater Patch sinnvoll, um Message-/Error-Contract testgetrieben zu haerten.
+2. `supabase/functions/*` (`helpers.ts`, `k1w1-handler`, `github-workflow-logs`) — Edge-Runtime-nahe Any-Reste; wegen Auth-/Edge-Vertrag nur separat und mit fokussierten Function-Tests anfassen.
+3. `lib/secretRedaction.ts` (`replacement as any`) — Interop-naher String-Replace-Cast, mittleres Risiko; separat mit kleinem Typ-Wrapper bereinigen.
+4. `lib/notificationService.ts` (`Constants as any`) — Third-party/Expo-Interop, eher C/E; nur mit klarer Expo-Typstrategie reduzieren.
+
+#### Empfohlene naechste Reihenfolge
+1. `lib/diagnostics/ciAutoFix.ts`
+2. `supabase/functions/...` (k1w1-handler / workflow-logs / create_codesandbox)
+3. `lib/secretRedaction.ts`
+4. danach UI-/Interop-Casts in kleinen thematischen Patches
+
 
 ## Hook-Refactoring-Audit (Patch 618) — priorisierte Hotspots ohne Grossumbau
 

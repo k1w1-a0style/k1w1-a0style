@@ -2,8 +2,15 @@ import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction"
 
 const MAX_ALERT_CHARS = 180;
 
+const getMessageFromUnknown = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value !== "object" || !value) return null;
+  const message = (value as { message?: unknown }).message;
+  return typeof message === "string" ? message : null;
+};
+
 export const safeAlertText = (value: unknown, fallback = "Fehler"): string => {
-  const raw = typeof value === "string" ? value : (value as any)?.message;
+  const raw = getMessageFromUnknown(value);
   const msg = String(raw || fallback);
   return truncateWithMarker(redactSecrets(msg), MAX_ALERT_CHARS, "…<gekürzt>");
 };
