@@ -62,7 +62,7 @@ Stand: **2026-03-29 (Patch 619)**
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.
-- [ ] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path zentral festhalten (`npm ci` + `typecheck` + `lint:ci` + `test:silent`, inkl. Voraussetzungen, erwarteter Signale und Hinweis auf externen `http-proxy`-Warn-Noise).
+- [x] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path ist jetzt zentral dokumentiert (`docs/FRESH_CHECKOUT_GREEN_PATH.md`) inkl. Voraussetzungen, `npm ci` + `typecheck` + `lint:ci` + `test:silent`, erwarteter Signale und externem `http-proxy`-Warn-Noise (Patch 625).
 - [x] **Workflow-Ref-Hardening ausbauen:** zusätzliche Invariants/Jest-Guards gegen implizite Default-Deploypfade. (Patch 420)
 - [x] **Android-Keystore-Status konsistent zur Helper-Struktur gezogen:** `android-keystore-status` nutzt jetzt wie `generate`/`export` eine lokale `helpers.ts` statt Inline-Duplikate (Patch 439).
 - [x] **Polling-/Hook-Stabilität für `useBuildStatus` gehärtet:** unnötige Effect-Resets bei Status- und Callback-Identity-Wechsel entfernt (`statusRef`/`callbacksRef`), Polling bleibt ruhiger (Patch 439).
@@ -71,6 +71,7 @@ Stand: **2026-03-29 (Patch 619)**
 - [x] **Build-Start-Flow-`any` selektiv reduziert:** `buildStartService` nutzt für Edge-Invoke-Payload jetzt ein lokales, enges Payload-Narrowing statt mehrfacher `as any`-Zugriffe; Build-Fehler- und Job-ID-Mapping bleiben verhaltensgleich (Patch 446).
 - [x] **Edge-Shared-Validation-/Runtime-`any` selektiv reduziert:** `_shared/auth.ts` und `_shared/cors.ts` nutzen getypte Runtime-Globals statt `globalThis as any`; `_shared/validation.ts` hat engere Fehler-/Payload-Typen für Trigger/Workflow-Dispatch (Patch 447).
 - [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots (z. B. einige ältere Edge-Helfer und nicht-flow-kritische App-Hilfsmodule) weiter nur dort anfassen, wo reale Build-/Repo-/CI-/Diagnostic-Vertragsrisiken bestehen (kein Broad Cleanup).
+- [x] **Selektiver Runtime-`as any`-Hotspot (`lib/diagnostics/ciAutoFix.ts`) abgebaut:** Error-Pfade laufen dort jetzt ohne `as any` ueber `unknown`+Narrowing (`toErrorMessage`) und halten denselben Verhalten-/Fehlervertrag ohne Broad-Cleanup bei (Patch 625).
 
 ## Wichtige Vertrags-Reminder
 

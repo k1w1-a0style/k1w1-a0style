@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-03-17 (Patch 477)**
+Stand: **2026-03-30 (Patch 625)**
 
 Dieser Index priorisiert operative Navigation. Historische Details bleiben im Patchlog.
 
@@ -14,6 +14,7 @@ Dieser Index priorisiert operative Navigation. Historische Details bleiben im Pa
 
 ## 2) Betrieb / Qualität
 
+- `docs/FRESH_CHECKOUT_GREEN_PATH.md` — zentraler Verifikationspfad fuer frische Checkouts
 - `docs/04-testing-smoke-plan.md` — Smoke-Plan
 - `docs/06-build-readiness.md` — Build-Gate/Readiness
 - `docs/07-diagnostics-fix-playbook.md` — Diagnostics-/Fix-Playbook
