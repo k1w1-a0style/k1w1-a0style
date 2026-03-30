@@ -62,3 +62,30 @@ export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";
 };
+
+export type StorageLike = {
+  multiSet: (entries: Array<[string, string]>) => Promise<unknown>;
+  multiRemove: (keys: string[]) => Promise<unknown>;
+  setItem: (key: string, value: string) => Promise<unknown>;
+  removeItem: (key: string) => Promise<unknown>;
+};
+
+export const persistEntriesWithFallback = async (
+  storage: StorageLike,
+  entries: Array<[string, string]>,
+): Promise<void> => {
+  if (!entries.length) return;
+  await storage.multiSet(entries).catch(async () => {
+    await Promise.all(entries.map(([key, value]) => storage.setItem(key, value).catch(() => {})));
+  });
+};
+
+export const removeEntriesWithFallback = async (
+  storage: StorageLike,
+  keys: string[],
+): Promise<void> => {
+  if (!keys.length) return;
+  await storage.multiRemove(keys).catch(async () => {
+    await Promise.all(keys.map((key) => storage.removeItem(key).catch(() => {})));
+  });
+};

@@ -54,6 +54,8 @@ import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
   hasExpoProject,
+  persistEntriesWithFallback,
+  removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "./useConnectionsScreenHelpers";
 
@@ -109,20 +111,14 @@ export function useConnectionsScreen() {
 
   const persistConnLights = useCallback(
     async (entries: Array<[string, string]>): Promise<void> => {
-      if (!entries.length) return;
-      await AsyncStorage.multiSet(entries).catch(async () => {
-        await Promise.all(entries.map(([key, value]) => AsyncStorage.setItem(key, value).catch(() => {})));
-      });
+      await persistEntriesWithFallback(AsyncStorage, entries);
     },
     [],
   );
 
   const removeConnLights = useCallback(
     async (keys: string[]): Promise<void> => {
-      if (!keys.length) return;
-      await AsyncStorage.multiRemove(keys).catch(async () => {
-        await Promise.all(keys.map((key) => AsyncStorage.removeItem(key).catch(() => {})));
-      });
+      await removeEntriesWithFallback(AsyncStorage, keys);
     },
     [],
   );

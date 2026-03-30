@@ -3,6 +3,8 @@ import {
   deriveSupabaseRefFromUrl,
   hasExpoProject,
   isPersistedEasState,
+  persistEntriesWithFallback,
+  removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 
@@ -63,5 +65,29 @@ describe("useConnectionsScreenHelpers", () => {
   it("derives supabase project ref only from supabase hosts", () => {
     expect(deriveSupabaseRefFromUrl("https://abc123.supabase.co/rest/v1")).toBe("abc123");
     expect(deriveSupabaseRefFromUrl("https://example.com/rest/v1")).toBe("");
+  });
+
+  it("persists/removes storage entries with fallback when multi operations fail", async () => {
+    const storage = {
+      multiSet: jest.fn(async () => {
+        throw new Error("no multi set");
+      }),
+      multiRemove: jest.fn(async () => {
+        throw new Error("no multi remove");
+      }),
+      setItem: jest.fn(async () => undefined),
+      removeItem: jest.fn(async () => undefined),
+    };
+
+    await persistEntriesWithFallback(storage, [
+      ["k1", "v1"],
+      ["k2", "v2"],
+    ]);
+    expect(storage.multiSet).toHaveBeenCalledTimes(1);
+    expect(storage.setItem).toHaveBeenCalledTimes(2);
+
+    await removeEntriesWithFallback(storage, ["k1", "k2"]);
+    expect(storage.multiRemove).toHaveBeenCalledTimes(1);
+    expect(storage.removeItem).toHaveBeenCalledTimes(2);
   });
 });
