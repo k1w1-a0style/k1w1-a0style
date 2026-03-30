@@ -3,6 +3,7 @@
 ## Schnellstart Doku
 
 - Einstieg / Navigationsknoten: `docs/INDEX.md`
+- Fresh-Checkout Verifikation (Green Path): `docs/FRESH_CHECKOUT_GREEN_PATH.md`
 - Operatives Gesamtbild: `docs/00-overview.md`
 - Offene Punkte (laufend): `docs/TODO.md`
 - Patch-Ablauf: `docs/WORKFLOW_PATCHING.md`

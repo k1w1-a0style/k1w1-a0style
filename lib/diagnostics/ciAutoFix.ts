@@ -32,6 +32,12 @@ export type SecretsCheck = {
   missing: string[];
 };
 
+const toErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+};
+
 const buildWorkflowMessage = (params: {
   detectedState: ManagedWorkflowDetectedState;
   applyState: ManagedWorkflowApplyState;
@@ -144,7 +150,7 @@ export async function autoFixCIWorkflows(params: {
           applyState: "updated",
         }),
       });
-    } catch (error) {
+    } catch (error: unknown) {
       results.push({
         path: entry.path,
         changed: false,
@@ -154,9 +160,7 @@ export async function autoFixCIWorkflows(params: {
           detectedState,
           applyState: "update_failed",
         }),
-        error: String(
-          (error as any)?.message || error || "Unknown workflow update failure",
-        ),
+        error: toErrorMessage(error, "Unknown workflow update failure"),
       });
     }
   }
@@ -214,8 +218,8 @@ export async function autoFixCIWorkflows(params: {
         message: ".gitignore already ignores patch ZIPs",
       });
     }
-  } catch (e) {
-    const msg = String((e as any)?.message || e || "");
+  } catch (e: unknown) {
+    const msg = toErrorMessage(e, "");
     const looksMissing =
       msg.includes("404") || msg.toLowerCase().includes("not found");
     if (!looksMissing) {
@@ -245,16 +249,14 @@ export async function autoFixCIWorkflows(params: {
           applyState: "updated",
           message: "Update pushed (.gitignore created for patch ZIP guard)",
         });
-      } catch (error) {
+      } catch (error: unknown) {
         results.push({
           path: giPath,
           changed: false,
           detectedState: "missing",
           applyState: "update_failed",
           message: "Update failed (.gitignore was missing)",
-          error: String(
-            (error as any)?.message || error || "Unknown .gitignore update failure",
-          ),
+          error: toErrorMessage(error, "Unknown .gitignore update failure"),
         });
       }
     }

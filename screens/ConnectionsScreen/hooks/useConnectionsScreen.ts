@@ -158,71 +158,82 @@ export function useConnectionsScreen() {
   }, []);
 
   const testEas = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    // No EAS Project ID -> nothing to test.
-    if (!easProjectId?.trim()) {
-      await saveConnEasStatus({ ok: false, state: "missing" });
-      return;
-    }
+    if (!hydrated) return;
 
-    // EAS project validation requires an authenticated Expo request.
-    // exp.host expects @owner/slug and will return 400 for UUID project IDs.
-    if (!expoToken?.trim()) {
-      await saveConnEasStatus({ ok: false, state: "unknown" });
-      Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
-      return;
-    }
-
-    setIsTestingEas(true);
     try {
-      const id = easProjectId.trim();
-      const resp = await fetchWithTimeout(
-        `https://api.expo.dev/v2/projects/${encodeURIComponent(id)}`,
-        {
-          timeoutMs: 12_000,
-          timeoutMessage: "EAS-Projektprüfung hat das Zeitlimit erreicht. Bitte Expo-Verbindung erneut testen.",
-          headers: {
-            Authorization: `Bearer ${expoToken.trim()}`,
-            Accept: "application/json",
-          },
-        },
-      );
+      await withBusyGuard(async () => {
+        // No EAS Project ID -> nothing to test.
+        if (!easProjectId?.trim()) {
+          await saveConnEasStatus({ ok: false, state: "missing" });
+          return;
+        }
 
-      if (!resp.ok) {
-        await saveConnEasStatus({
-          ok: false,
-          state: classifyVerificationError({ statusCode: resp.status }),
-        });
-        Alert.alert("EAS Test", `EAS Test failed (${resp.status})`);
-        return;
-      }
+        // EAS project validation requires an authenticated Expo request.
+        // exp.host expects @owner/slug and will return 400 for UUID project IDs.
+        if (!expoToken?.trim()) {
+          await saveConnEasStatus({ ok: false, state: "unknown" });
+          Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
+          return;
+        }
 
-      const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
-      const hasProject = Boolean(
-        json?.data?.id ||
-          json?.data?.project?.id ||
-          json?.data?.project?.slug ||
-          json?.data?.slug ||
-          json?.data?.name,
-      );
-      await saveConnEasStatus({
-        ok: hasProject,
-        state: hasProject ? "verified" : "unknown",
-        verifiedAt: hasProject ? new Date().toISOString() : null,
+        setIsTestingEas(true);
+        try {
+          const id = easProjectId.trim();
+          const resp = await fetchWithTimeout(
+            `https://api.expo.dev/v2/projects/${encodeURIComponent(id)}`,
+            {
+              timeoutMs: 12_000,
+              timeoutMessage: "EAS-Projektprüfung hat das Zeitlimit erreicht. Bitte Expo-Verbindung erneut testen.",
+              headers: {
+                Authorization: `Bearer ${expoToken.trim()}`,
+                Accept: "application/json",
+              },
+            },
+          );
+
+          if (!resp.ok) {
+            await saveConnEasStatus({
+              ok: false,
+              state: classifyVerificationError({ statusCode: resp.status }),
+            });
+            Alert.alert("EAS Test", `EAS Test failed (${resp.status})`);
+            return;
+          }
+
+          const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
+          const hasProject = Boolean(
+            json?.data?.id ||
+              json?.data?.project?.id ||
+              json?.data?.project?.slug ||
+              json?.data?.slug ||
+              json?.data?.name,
+          );
+          await saveConnEasStatus({
+            ok: hasProject,
+            state: hasProject ? "verified" : "unknown",
+            verifiedAt: hasProject ? new Date().toISOString() : null,
+          });
+          if (!hasProject) {
+            Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
+          }
+        } catch (e: unknown) {
+          await saveConnEasStatus({
+            ok: false,
+            state: classifyVerificationError({ error: e }),
+          });
+          Alert.alert("EAS Test", `EAS Test failed (${safeAlertText(e)})`);
+        } finally {
+          setIsTestingEas(false);
+        }
       });
-      if (!hasProject) {
-        Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
-      }
     } catch (e: unknown) {
-      await saveConnEasStatus({
-        ok: false,
-        state: classifyVerificationError({ error: e }),
-      });
-      Alert.alert("EAS Test", `EAS Test failed (${safeAlertText(e)})`);
-    } finally {
-      setIsTestingEas(false);
+      if (isBusyGuardActiveError(e)) {
+        Alert.alert("Bitte warten", e.message);
+      } else {
+        Alert.alert("EAS Test", safeAlertText(e));
+      }
     }
-  }, [hydrated, easProjectId, expoToken, saveConnEasStatus]);
+  }, [hydrated, easProjectId, expoToken, saveConnEasStatus, withBusyGuard]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).
