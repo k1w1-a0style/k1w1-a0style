@@ -62,7 +62,7 @@ Stand: **2026-03-29 (Patch 619)**
 
 - [ ] **MD-/Notes-Cleanup abschließen (Kernflächen):** README / INDEX / OVERVIEW / SCREEN-INDEX / PRODUCT-FLOWS weiter konsistent halten, Redundanzen klein halten, operative Navigation priorisieren.
 - [ ] **Dokument-SoT scharf halten:** Kern-MDs als Navigations- und Vertragsfläche; Verlaufsdetails primär in Patchnotes/Patchlog.
-- [ ] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path festhalten (`npm ci` + `typecheck` + `lint:ci` + `test:silent`, inkl. Voraussetzungen).
+- [ ] **Trust-Follow-up dokumentieren:** frischer Checkout als Green-Path zentral festhalten (`npm ci` + `typecheck` + `lint:ci` + `test:silent`, inkl. Voraussetzungen, erwarteter Signale und Hinweis auf externen `http-proxy`-Warn-Noise).
 - [x] **Workflow-Ref-Hardening ausbauen:** zusätzliche Invariants/Jest-Guards gegen implizite Default-Deploypfade. (Patch 420)
 - [x] **Android-Keystore-Status konsistent zur Helper-Struktur gezogen:** `android-keystore-status` nutzt jetzt wie `generate`/`export` eine lokale `helpers.ts` statt Inline-Duplikate (Patch 439).
 - [x] **Polling-/Hook-Stabilität für `useBuildStatus` gehärtet:** unnötige Effect-Resets bei Status- und Callback-Identity-Wechsel entfernt (`statusRef`/`callbacksRef`), Polling bleibt ruhiger (Patch 439).

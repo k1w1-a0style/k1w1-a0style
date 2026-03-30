@@ -1,210 +1,211 @@
-# Deep Scan Review (kritisch) — 2026-03-30
+# Deep Scan Review (Follow-up, evidenzbasiert) — 2026-03-30
 
 ## Ziel & Scope
 
-Diese Review deckt das gesamte Projekt **k1w1-a0style** ab, mit Fokus auf:
+Diese Follow-up-Analyse ersetzt keine Detail-Fixplanung, sondern verifiziert die bisherige Review gegen den **aktuellen Repo-Stand**.
+Fokus:
 
-1. Architektur- und Vertragskonsistenz (App, Edge, Workflows, Docs)
-2. Laufzeit- und Sicherheitsrisiken in den Kernflüssen
-3. Test-/CI-Vertrauensniveau inkl. Flake-Risiko
-4. Konkreter, priorisierter **Fixplan** (ohne direkte Codeänderungen in diesem Auftrag)
+1. offene Punkte aus `docs/TODO.md` einzeln und mit Beleg einstufen,
+2. Truthfulness-/Flake-Hotspot technisch schärfer einordnen,
+3. Aussagen aus der bisherigen Review in **belastbar vs. Indiz** trennen,
+4. externe Betriebsrestpunkte klar von Repo-Code-Restpunkten trennen.
 
----
+## Verifikationsbasis
 
-## Methodik (Deep Scan)
+Querprüfung über:
 
-Ausgeführt wurden:
-
-- Kontext- und Systemdokumente gelesen (`README.md`, `docs/PROJECT_CONTEXT.md`, `docs/SYSTEM_README.md`, `docs/TODO.md`)
-- Vollständige Standard-Qualitätschecks:
-  - `npm run typecheck`
-  - `npm run lint:ci`
-  - `npm run test:silent`
-- Erweiterte Flow-/Contract-Checks über die Shell-Skripte:
-  - `check_managed_workflows.sh`
-  - `check_workflow_template_drift.sh`
-  - `check_eas_manual_trigger_controls.sh`
-  - `check_eas_production_credentials.sh`
-  - `check_eas_strict_lockfile_policy.sh`
-  - `check_edge_helper_visibility.sh`
-  - `check_k1w1_handler_providers.sh`
-  - `check_patch_docs_sync.sh`
-  - `check_supabase_deploy_workflow.sh`
-  - `check_workflow_edge_contracts.sh`
-  - `check_legacy_disabled_edges.sh`
-  - `check_supabase_rls_hardening.sh`
-  - `check_edge_rate_limit_retention.sh`
-- Fokussierter Re-Run des einzigen roten Punktes:
-  - `npm run test:silent -- --runInBand __tests__/localRemoteDiffSection.truthfulness.test.tsx`
-
----
-
-## Executive Summary
-
-### Gesamturteil
-
-**Technischer Zustand: gut bis sehr gut, aber nicht “voll grün reproduzierbar” wegen einer erkennbaren Test-Flakiness im Gesamtlauf.**
-
-### Wichtigste Beobachtungen
-
-- **Typecheck + Lint sind grün.**
-- **Alle kritischen Workflow-/Edge-/Security-Contract-Checks sind grün.**
-- **Gesamter Jest-Lauf hat 1 Fail (Timeout in einem UI-Truthfulness-Test), der isoliert reproduziert nicht fehlschlägt** ⇒ klassischer Flake-/Timing-Kandidat.
-- Die Dokumentations- und Vertragslage ist für ein großes System überraschend konsistent; die bekannten Hardening-Serien (Patch 4xx–6xx) sind in den Prüfroutinen sichtbar stabilisiert.
-
----
-
-## Kritische Flow-Prüfung
-
-## 1) Repo/Branch/Selection-Truthfulness
-
-**Status:** weitgehend robust, aber mit verbliebener Test-Instabilität.
-
-- Positiv:
-  - Starke Vertragsabdeckung in Tests und TODO-/Patch-Historie zu stale async guards, selection SoT und truthfulness.
-- Risiko:
-  - Timeout im Test `localRemoteDiffSection.truthfulness` im Vollparallel-Lauf zeigt Last-/Scheduler-Sensitivität.
-
-**Bewertung:** kein akuter Produktblocker nach aktuellem Scan, aber **CI-Vertrauen sinkt**, solange dieser Flake nicht systematisch entschärft ist.
-
-## 2) Build-/CI-/Workflow-Orchestrierung
-
-**Status:** stark abgesichert.
-
-- Sämtliche Workflow-Drift-/Contract-Checks laufen erfolgreich.
-- Manual Trigger, Lockfile-Policy, Production-Credential-Invarianten und Edge-Workflow-Contracts sind stabil.
-
-**Bewertung:** aktuell **hohes Vertrauen** in die Pipeline-Verträge.
-
-## 3) Edge/Auth/Security-Flows
-
-**Status:** stabil mit guter fail-closed Tendenz.
-
-- RLS-Hardening, Legacy-Disablement und Retention-Contracts schlagen nicht an.
-- Provider-Mapping und Edge-Helper-Visibility sind konsistent.
-
-**Bewertung:** aktuell **kein unmittelbarer kritischer Gap** aus den automatisierten Kontrollen sichtbar.
-
-## 4) Docs-/SoT-/Patch-Governance
-
-**Status:** überdurchschnittlich diszipliniert.
-
-- Patch-Dokument-Sync-Check ist grün.
-- TODO/Patchlog-Strategie ist klar (historisch detailliert, operative Restliste vorhanden).
-
-**Bewertung:** gute Grundlage, um regressionsarm weiterzuarbeiten.
-
----
-
-## Befundliste (priorisiert)
-
-## P1 — Flaky Test im Gesamtlauf (Timeout)
-
-**Befund:**
-- `npm run test:silent` meldet 1 Fail:
+- `docs/reviews/deep-scan-review-2026-03-30.md` (Ausgangslage)
+- `docs/TODO.md`
+- `PROJECT_CHECKLOG.md`
+- `docs/04-risk-hotspots.md`
+- `README.md`
+- `package.json`
+- `jest.setup.js`
+- Hotspots in Code/Test:
   - `__tests__/localRemoteDiffSection.truthfulness.test.tsx`
-  - Timeout in Testfall: `blocks stale diff loads from an old repo/branch after a context switch`
-- Isolierter Run (`--runInBand`) ist grün.
+  - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx`
+  - `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
+  - `screens/EnhancedBuildScreen/components/BuildHistorySection.tsx`
+  - `docs/TESTING_GUIDE.md`
 
-**Interpretation:**
-- Sehr wahrscheinlich Timing-/Konkurrenzflakiness (nicht stabil reproduzierbarer Produktdefekt).
-- Mögliche Ursachen: ausstehende async operations, fake/real timer mix, unzureichende deterministic waits, parallel suite interference.
+Zusätzlich ausgeführte Verifikation:
 
-**Auswirkung:**
-- Mittel bis hoch auf CI-Vertrauen, niedrig auf unmittelbare Runtime-Sicherheit.
-
----
-
-## P2 — Testlaufzeit und Parallel-Last als Drift-Verstärker
-
-**Befund:**
-- Sehr große Testmenge (256 Suiten im Lauf); der Gesamtlauf dauert mehrere Minuten.
-- Lange Läufe erhöhen Wahrscheinlichkeit zeitlicher Flakes.
-
-**Interpretation:**
-- Nicht zwingend Fehlkonfiguration, aber “time-to-signal” und Flake-Risiko steigen.
-
-**Auswirkung:**
-- Mittel auf Entwicklergeschwindigkeit und Merge-Vertrauen.
+- `npm run typecheck`
+- `npm run lint:ci`
+- `npm run test:silent`
+- 12x Serienlauf der Truthfulness-Suite (`--runInBand`) zur Flake-Prüfung
 
 ---
 
-## P3 — NPM-Umgebungswarnung (`http-proxy`)
+## Follow-up-Verifikation der offenen Punkte
 
-**Befund:**
-- Wiederholte Warnung: `npm warn Unknown env config "http-proxy"`.
-- Bereits in Projekt-Historie als externer Umgebungsrestpunkt dokumentiert.
+### Kompakte Einstufungstabelle
 
-**Interpretation:**
-- Kein Repo-Code-Bug, aber potenzieller Noise-Faktor in CI/Local.
-
-**Auswirkung:**
-- Niedrig technisch, mittel für Signalqualität in Logs.
-
----
-
-## Fixplan (detailliert, priorisiert)
-
-## Phase 1 (sofort, 0.5–1 Tag) — CI-Vertrauen wiederherstellen
-
-1. **Flaky-Test hart deterministisch machen** (`localRemoteDiffSection.truthfulness`).
-   - Async-Pfade explizit kontrollieren (deferred resolution + cleanup).
-   - Timer-Strategie vereinheitlichen (entweder konsequent fake timers + controlled advances oder real timers + robust await/waitFor).
-   - Test-Isolation stärken (`beforeEach/afterEach`: mocks, timers, unhandled promises).
-
-2. **Stabilitäts-Gate ergänzen** für den betroffenen Testblock.
-   - Mehrfachausführung im CI-Probe-Job (z. B. 10x Loop nur für die Suite) als temporärer Nachweis bis stabil.
-
-3. **Timeout-Policy des Einzelfalls dokumentieren**
-   - Falls höhere Timeout-Werte nötig sind: nur lokal für betroffene Tests, mit Begründung, nicht global.
-
-**Akzeptanzkriterien:**
-- 0/20 Flakes im wiederholten isolierten Lauf.
-- 3 aufeinanderfolgende grüne Voll-Läufe in CI.
+| Punkt | Status | Evidenz | Risiko | Empfehlung |
+|---|---|---|---|---|
+| BuildScreen-Restpunkt Export-Wording (`Copy JSON` / `Share CSV`) | **bewusst optional** | UI ist funktional, nur Label-Mix DE/EN in `BuildHistorySection.tsx` | niedrig (Kosmetik) | nur bei echtem UX-Bedarf umbenennen |
+| MD-/Notes-Cleanup Kernflächen | **teilweise offen** | Kernnav existiert (`README` + `docs/INDEX`), aber Alt-/Spezialdokus mit veraltetem Stand vorhanden (`docs/TESTING_GUIDE.md`) | niedrig bis mittel (Orientierung/Trust) | kleinen docs-only Sweep mit Fokus auf Kernpfade |
+| Dokument-SoT scharf halten | **teilweise offen** | starke Patch-/Checklog-Disziplin, aber sehr lange changelog-lastige README erschwert SoT-Lesen | mittel (Signal/Rauschen) | README stärker auf Navigation/Status kürzen, Verlauf in Patchlog belassen |
+| Trust-Follow-up / Green-Path frischer Checkout | **teilweise offen** | TODO fordert explizite Green-Path-Doku; `package.json` Scripts klar, aber zentrale frische-Checkout-Anleitung ist fragmentiert/teils veraltet | mittel (Onboarding, reproduzierbare Verifikation) | kompakten „Fresh Checkout Green Path“ zentral dokumentieren |
+| Rest-`any` selektiv abbauen | **bestätigt offen** | `docs/04-risk-hotspots.md` listet verbleibende Runtime-Hotspots explizit | mittel (punktuelle Runtime-/Error-Contract-Risiken) | A-Restpunkte weiter in kleinen testgetriebenen Patches |
+| CS-REST-001 Busy-UX für `testEas` | **bestätigt offen (klein)** | `testEas` nutzt nicht `withBusyGuard`; frühes `return` bei `busyRef.current` ohne explizites Busy-Feedback | niedrig bis mittel (UX-Uneindeutigkeit) | Busy-Verhalten für `testEas` an Guard-/Feedback-Semantik angleichen |
 
 ---
 
-## Phase 2 (kurzfristig, 1–2 Tage) — Testsignal schärfen
+## A) Truthfulness-/Flaky-Hotspot: technische Neubewertung
 
-1. **Testprofil aufteilen** (schnelle Vertrags-/Invariant-Suiten vs. schwere Integrations-/UI-Suiten).
-2. **Optionales CI-Sharding prüfen**, falls Laufzeit weiterhin hoch bleibt.
-3. **Flake-Monitoring-Notiz** in `PROJECT_CHECKLOG.md` etablieren (wann/welche Suite/Hostlast betroffen).
+### Befund
 
-**Akzeptanzkriterien:**
-- Schnellere frühe Rückmeldung (Fast-Lane).
-- Reproduzierbare Zuordnung von Timing-Flakes.
+- Die Suite `__tests__/localRemoteDiffSection.truthfulness.test.tsx` ist aktuell grün (auch im Volltestlauf).
+- Ein 12x-Serienlauf in `--runInBand` war vollständig grün.
+- `jest.setup.js` setzt global 20s Timeout, nutzt aggressive Cleanup-/Mock-Resets und blockt echte Netzwerkkonnektivität.
+- `LocalRemoteDiffSection.tsx` enthält umfangreiche asynchrone Guard-Mechanik (`genRef`, `previewReqRef`, `mountedRef`, `truthKey`, Kontext-/Fingerprint-Invalidierung).
+
+### Einordnung: Test-Determinismus vs. Runtime-Defekt
+
+**Stärkerer Befund:** aktuell eher **Test-Determinismus-/Scheduling-Thema** als klarer Runtime-Produktdefekt.
+
+Begründung:
+
+1. Die Komponente enthält bereits explizite stale-request Guards für Kontextwechsel.
+2. Der historische Fix ist im Checklog dokumentiert (Patch 494), inkl. genau dieser Race-/Stale-Thematik.
+3. Der Fehler trat laut Ausgangsreview als Timeout im Vollparallel-Lauf auf, nicht als stabil reproduzierbarer Logikfehler.
+4. Re-Tests liefern derzeit keinen reproduzierbaren Produktfehler.
+
+### Stärkste Hypothese
+
+Die wahrscheinlichste Ursache bleibt **last-/scheduler-sensitive Test-Interaktion** (nicht deterministische Await-/Render-Reihenfolge unter Vollsuite-Last), nicht ein grundsätzlich falscher Produktionszustand in `LocalRemoteDiffSection`.
+
+### Kleinste plausible nächste Maßnahme
+
+- Nur die betroffene Suite minimal härten (ohne Runtime-Verhalten zu ändern):
+  - explizite helper für stabile Synchronisationspunkte (`waitFor` auf klaren UI-Endzustand nach jeder kritischen Aktion),
+  - optional CI-Probe-Loop für diese Suite (temporär),
+  - keine globalen Timeout-Erhöhungen.
+
+### Regressions-Hotspot?
+
+**Ja, als Prozess-Hotspot** (nicht zwingend als Runtime-Regressions-Hotspot):
+
+- Checklog führt den Bereich bereits als geschlossenen Hardening-Punkt,
+- die Deep-Scan-Ausgangsreview meldete später erneut Flake-Symptom,
+- aktuell ist es nicht reproduzierbar rot.
+
+Interpretation: „geschlossen“ war fachlich plausibel, aber die Stelle bleibt sensibel für Testumgebung/Parallelität.
 
 ---
 
-## Phase 3 (mittelfristig, 2–4 Tage) — Operative Robustheit & Hygiene
+## B) Einzeleinstufung der TODO-Open-Items
 
-1. **NPM-Warnungsquelle auf Runner-/Host-Ebene bereinigen** (nicht im App-Code), damit Logs ruhiger werden.
-2. **Dokumentierte “Trust Follow-up”-Schritte finalisieren** (bereits als offener Punkt in TODO sichtbar).
-3. **Rest-`any`-Hotspots weiterhin selektiv abbauen** (nur flow-kritische Bereiche, kein broad cleanup).
+### 1) BuildScreen-Restpunkt (optional): deutsches Wording Export-Aktionen
 
-**Akzeptanzkriterien:**
-- Deutlich weniger Log-Noise.
-- Klarer, dokumentierter Green-Path für frischen Checkout + Qualitätschecks.
+- **Status:** bewusst optional.
+- **Begründung:** In `BuildHistorySection.tsx` sind Labels `Copy JSON` / `Share CSV` englisch, restlicher Screen überwiegend deutsch.
+- **Risiko/Auswirkung:** niedrig, rein sprachliche Konsistenz.
+- **Priorität:** P4 (kosmetisch).
+- **Kleinster nächster Schritt:** zwei Label-Strings lokalisieren, keine Logikänderung.
+
+### 2) MD-/Notes-Cleanup Kernflächen
+
+- **Status:** teilweise offen.
+- **Begründung:** Kernnavigation ist vorhanden, aber z. B. `docs/TESTING_GUIDE.md` enthält klar veraltete/umgebungsfremde Angaben (Pfad `/vercel/sandbox`, alte Testsuite-Größen).
+- **Risiko/Auswirkung:** mittel für Vertrauen in Doku, niedrig für Runtime.
+- **Priorität:** P3.
+- **Kleinster nächster Schritt:** 1 kompakter docs-only Patch: veraltete Guide-Inhalte als „historisch“ markieren oder auf aktuellen Green-Path umstellen.
+
+### 3) Dokument-SoT scharf halten
+
+- **Status:** teilweise offen.
+- **Begründung:** SoT-Disziplin ist grundsätzlich gut (Patch-/Checklog stark), aber operative Kernaussagen sind durch sehr lange Verlaufsblöcke schwerer auffindbar.
+- **Risiko/Auswirkung:** mittel für Wartbarkeit und schnelle Verifikation.
+- **Priorität:** P3.
+- **Kleinster nächster Schritt:** README weiter auf „Status + Navigation + Verträge“ fokussieren; Historie konsequent im Patchlog halten.
+
+### 4) Trust-Follow-up / Green-Path frischer Checkout
+
+- **Status:** teilweise offen.
+- **Begründung:** TODO fordert expliziten Green-Path (`npm ci`, Typecheck, Lint, Tests). Die Bausteine sind vorhanden, aber nicht als ein kurzer verbindlicher Ablauf an einer zentralen Stelle.
+- **Risiko/Auswirkung:** mittel für Onboarding-/Audit-Reproduzierbarkeit.
+- **Priorität:** P2.
+- **Kleinster nächster Schritt:** kurze zentrale „Fresh Checkout Checklist“ (Voraussetzungen + 4 Befehle + erwartete Signale + bekannte externe Warnung `http-proxy`).
+
+### 5) Rest-`any` selektiv abbauen
+
+- **Status:** bestätigt offen.
+- **Begründung:** `docs/04-risk-hotspots.md` dokumentiert offene A-Restpunkte explizit und priorisiert; dieser Punkt ist weder vergessen noch künstlich offen.
+- **Risiko/Auswirkung:** mittel (selektive Runtime-/Error-Pfade).
+- **Priorität:** P2.
+- **Kleinster nächster Schritt:** nächster A-Punkt (`lib/diagnostics/ciAutoFix.ts`) mit engem Testscope.
+
+### 6) CS-REST-001: Busy-UX für `testEas` konsistent
+
+- **Status:** bestätigt offen (kleiner UX-Rest).
+- **Begründung:** `testEas` läuft außerhalb `withBusyGuard`; bei aktivem `busyRef` wird nur früh returned. Dadurch ist das Verhalten korrekt konservativ, aber Busy-Feedback nicht im selben Muster wie andere Test-/Save-Aktionen.
+- **Risiko/Auswirkung:** niedrig bis mittel (UX-Wahrheit/Bedienklarheit), kein harter Security-/Build-Vertrag.
+- **Priorität:** P2/P3 (klein, aber usernah).
+- **Kleinster nächster Schritt:** `testEas` auf dieselbe Busy-Feedback-Semantik ziehen (z. B. dedizierter Hinweis bei Busy-Kollision statt stillem Return).
 
 ---
 
-## Konkrete nächste Schritte (empfohlen)
+## Evidenzbasierte Neubewertung
 
-1. Flaky-Test als **Patch mit kleinem Scope** priorisieren (nur Test/Helper, kein Produktverhalten ändern).
-2. Danach vollständigen Green-Run (`typecheck`, `lint:ci`, `test:silent`) erneut ausführen.
-3. Ergebnis + Flake-Nachweis in Checklog/Patchnote dokumentieren.
+### Wo die bisherige Review zu grob ist
+
+1. **Flake-Punkt zu pauschal:** „Flaky-Test“ stimmt als Symptom, aber die Trennung zwischen Runtime-Defekt und Testdeterminismus war zu wenig explizit.
+2. **Offene TODO-Punkte nicht einzeln klassifiziert:** optional / extern / nicht bestätigt war noch nicht hart getrennt.
+3. **Dokumentationsrestpunkte zu allgemein:** fehlende konkrete Gegenbeispiele (z. B. veraltete Test-Doku).
+
+### Welche Aussagen belastbar sind
+
+- Qualitätssignale (`typecheck`, `lint:ci`, `test:silent`) sind aktuell grün.
+- Security-/Workflow-Hardening ist im Repo breit durch Invariants + Checks verankert.
+- Offene TODO-Reste sind überwiegend kleine, klar begrenzte Punkte (kein großer verdeckter Architekturbruch sichtbar).
+
+### Welche Aussagen nur Indizien sind
+
+- „Der Truthfulness-Block ist endgültig stabil“ wäre aktuell überzogen; es gibt **kein** aktuelles Rot-Signal, aber die Historie zeigt Sensitivität.
+- „Dokument-SoT ist vollständig scharf“ ist ebenfalls nur teilweise belegt; es gibt weiterhin Alt-/Noise-Reste.
 
 ---
 
-## Risiko-Matrix (kurz)
+## Nicht bestätigte oder bewusst externe Punkte
 
-- **Security/Edge/Auth:** niedriges aktuelles Risiko (Checks grün)
-- **Build-/Workflow-Verträge:** niedriges aktuelles Risiko (Checks grün)
-- **Test-Vertrauen/Delivery:** mittleres Risiko (ein Flaky-Kandidat)
-- **Dokumentations-/SoT-Drift:** niedrig bis mittel (derzeit gut kontrolliert)
+### Nicht bestätigt (im aktuellen Stand)
+
+- Ein aktueller reproduzierbarer Runtime-Produktdefekt im `LocalRemoteDiffSection` konnte in dieser Verifikation **nicht bestätigt** werden.
+- Ein akuter Build-/Workflow-Vertragsbruch aus den aktuellen TODO-Restpunkten ist nicht sichtbar.
+
+### Bewusst außerhalb Repo-Code
+
+- Operative Supabase-/Operator-Schritte (Claim-Vergabe, Secret-Rotation, produktive Betriebsführung) bleiben weiterhin **außerhalb Repo-Code**, konsistent zur TODO-Klassifikation.
+- Die `npm warn Unknown env config "http-proxy"`-Warnung bleibt ein externer Umgebungsrestpunkt (bereits so dokumentiert), kein belastbarer Repo-Code-Fixpunkt.
 
 ---
 
-## Abschluss
+## Weitere echte, derzeit unterbewertete Restpunkte (klein, aber real)
 
-Das Projekt ist in einem **reiferen, klar gehärteten Zustand**. Der entscheidende verbleibende Qualitätshebel ist derzeit nicht Architektur oder Security, sondern **Testdeterminismus im Vollparallel-Lauf**. Wenn Phase 1 umgesetzt wird, ist die nächste Entwicklungswelle mit deutlich besserem Merge-Vertrauen möglich.
+1. **Veraltete Test-/Onboarding-Doku (`docs/TESTING_GUIDE.md`)**
+   - Konkrete veraltete Inhalte vorhanden.
+   - Priorität: P3 (Trust/Onboarding, nicht Runtime).
+
+2. **Busy-UX-Inkonsistenz für `testEas`**
+   - Bereits in TODO benannt, im Code sichtbar.
+   - Priorität: P2/P3 (kleiner, klarer UX-Fix).
+
+Keine zusätzlichen „neuen Großbaustellen“ wurden künstlich aufgemacht.
+
+---
+
+## Konkrete nächste Schritte
+
+1. **Kleiner UX-Patch (P2/P3):** `testEas` Busy-Kollisionsfeedback konsistent machen.
+2. **Kleiner Docs-Patch (P2/P3):** „Fresh Checkout Green Path“ zentral und knapp dokumentieren.
+3. **Kleiner Docs-Cleanup (P3):** `docs/TESTING_GUIDE.md` auf aktuellen, realen Stand ziehen oder klar als historisch markieren.
+4. **Danach selektiv Runtime-Hotspots (P2):** nächster `any`-A-Punkt mit engem Testfokus.
+5. **Truthfulness-Hotspot beobachten:** keine künstliche Wiedereröffnung; nur bei erneutem CI-Symptom gezielt nachschärfen.
+
+---
+
+## Schlussfazit (nüchtern)
+
+Das Projekt wirkt im aktuellen Stand technisch stabil und stark gehärtet. Die offenen Punkte sind mehrheitlich **klein**, klar eingrenzbar und teilweise bewusst optional bzw. extern-operativ. Der zentrale Truthfulness-/Flake-Punkt ist derzeit eher ein **Determinismus-/Testumgebungs-Thema** als ein bestätigter Produktdefekt; er bleibt ein Beobachtungs-Hotspot, aber kein Anlass für breitflächigen Umbau.
