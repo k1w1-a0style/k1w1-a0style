@@ -33,27 +33,65 @@ class NotificationService {
   private permissionGranted: boolean = false;
   private expoPushToken: string | null = null;
 
-  private getConstantsSource(): any {
-    const constantsMaybeDefault = (Constants as any)?.default;
+  private getConstantsSource(): Record<string, unknown> {
+    const constantsSource = Constants as unknown as Record<string, unknown>;
+    const constantsMaybeDefault = constantsSource.default;
     if (constantsMaybeDefault && typeof constantsMaybeDefault === "object") {
-      return constantsMaybeDefault;
+      return constantsMaybeDefault as Record<string, unknown>;
     }
-    return Constants as any;
+    return constantsSource;
   }
 
   private resolveProjectId(): string | null {
     const constantsSource = this.getConstantsSource();
-    const candidates = [
-      constantsSource?.easConfig?.projectId,
-      constantsSource?.expoConfig?.extra?.eas?.projectId,
-      constantsSource?.manifest2?.extra?.expoClient?.extra?.eas?.projectId,
+    const easConfig =
+      constantsSource.easConfig && typeof constantsSource.easConfig === "object"
+        ? (constantsSource.easConfig as Record<string, unknown>)
+        : null;
+    const expoConfig =
+      constantsSource.expoConfig && typeof constantsSource.expoConfig === "object"
+        ? (constantsSource.expoConfig as Record<string, unknown>)
+        : null;
+    const expoExtra =
+      expoConfig?.extra && typeof expoConfig.extra === "object"
+        ? (expoConfig.extra as Record<string, unknown>)
+        : null;
+    const easExtra =
+      expoExtra?.eas && typeof expoExtra.eas === "object"
+        ? (expoExtra.eas as Record<string, unknown>)
+        : null;
+    const manifest2 =
+      constantsSource.manifest2 && typeof constantsSource.manifest2 === "object"
+        ? (constantsSource.manifest2 as Record<string, unknown>)
+        : null;
+    const manifest2Extra =
+      manifest2?.extra && typeof manifest2.extra === "object"
+        ? (manifest2.extra as Record<string, unknown>)
+        : null;
+    const expoClient =
+      manifest2Extra?.expoClient && typeof manifest2Extra.expoClient === "object"
+        ? (manifest2Extra.expoClient as Record<string, unknown>)
+        : null;
+    const expoClientExtra =
+      expoClient?.extra && typeof expoClient.extra === "object"
+        ? (expoClient.extra as Record<string, unknown>)
+        : null;
+    const expoClientEas =
+      expoClientExtra?.eas && typeof expoClientExtra.eas === "object"
+        ? (expoClientExtra.eas as Record<string, unknown>)
+        : null;
+
+    const candidates: unknown[] = [
+      easConfig?.projectId,
+      easExtra?.projectId,
+      expoClientEas?.projectId,
     ];
 
     const projectId = candidates.find(
       (candidate) => typeof candidate === "string" && candidate.trim().length > 0,
     );
 
-    return projectId ?? null;
+    return typeof projectId === "string" ? projectId : null;
   }
 
   /**
@@ -101,9 +139,17 @@ class NotificationService {
         const projectId = this.resolveProjectId();
 
         // ✅ Android ohne FCM/Firebase: Push Token nicht abrufen (verhindert FirebaseApp-Init Warnungen)
+        const expoConfig =
+          constantsSource.expoConfig && typeof constantsSource.expoConfig === "object"
+            ? (constantsSource.expoConfig as Record<string, unknown>)
+            : null;
+        const androidConfig =
+          expoConfig?.android && typeof expoConfig.android === "object"
+            ? (expoConfig.android as Record<string, unknown>)
+            : null;
         const androidGoogleServices =
-          constantsSource?.expoConfig?.android?.googleServicesFile ||
-          constantsSource?.expoConfig?.android?.googleServicesPath;
+          androidConfig?.googleServicesFile ||
+          androidConfig?.googleServicesPath;
 
         const isJest = typeof process !== "undefined" && !!process.env.JEST_WORKER_ID;
 

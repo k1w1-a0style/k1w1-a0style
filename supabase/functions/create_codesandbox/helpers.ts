@@ -46,7 +46,8 @@ export function safeErrorMessage(err: unknown): string {
   if (typeof err === "string") return sanitizeErrorTextLocal(err);
   if (err && typeof err === "object" && "message" in err) {
     try {
-      return sanitizeErrorTextLocal(String((err as any).message));
+      const message = err.message;
+      return sanitizeErrorTextLocal(String(message));
     } catch {
       return "Unknown error";
     }

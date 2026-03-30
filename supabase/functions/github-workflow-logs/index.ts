@@ -22,6 +22,30 @@ function isParsedBodyError(
   return !result.ok;
 }
 
+type NotReadyPayload = { ok: false; reason: string; status?: string };
+
+function asErrorLike(input: unknown): {
+  status?: number;
+  body?: string | NotReadyPayload;
+  code?: string;
+  message?: string;
+  notReady?: boolean;
+} {
+  if (!input || typeof input !== "object") return {};
+  const record = input as Record<string, unknown>;
+  return {
+    status: typeof record.status === "number" ? record.status : undefined,
+    body:
+      typeof record.body === "string" ||
+        (record.body && typeof record.body === "object")
+        ? (record.body as string | NotReadyPayload)
+        : undefined,
+    code: typeof record.code === "string" ? record.code : undefined,
+    message: typeof record.message === "string" ? record.message : undefined,
+    notReady: record.notReady === true,
+  };
+}
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -152,23 +176,23 @@ Deno.serve(async (req) => {
       logsText: text,
     });
   } catch (e) {
-    const anyE = e as any;
+    const errorLike = asErrorLike(e);
     // Handle "not ready" signals from fetchLogsZip (logs still being prepared)
-    if (anyE && anyE.notReady === true && anyE.body) {
-      return jsonOk(req, anyE.body, anyE.status ?? 200);
+    if (errorLike.notReady === true && errorLike.body) {
+      return jsonOk(req, errorLike.body, errorLike.status ?? 200);
     }
-    if (anyE && typeof anyE.status === "number") {
+    if (typeof errorLike.status === "number") {
       return jsonErr(
         req,
         "GitHub workflow logs fetch failed",
-        { status: anyE.status, body: anyE.body ?? "" },
+        { status: errorLike.status, body: errorLike.body ?? "" },
         502,
       );
     }
     return jsonErr(
       req,
       "Internal error",
-      { message: String(anyE?.message ?? e), code: anyE?.code },
+      { message: String(errorLike.message ?? e), code: errorLike.code },
       500,
     );
   }

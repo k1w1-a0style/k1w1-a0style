@@ -1,3 +1,5 @@
+- Patch 628: `as any`-Durchlauf 2 reduziert weitere Runtime-/Edge-Restpunkte (`notificationService`, `github-workflow-logs`, `create_codesandbox`) mit engen Guards/Narrowings; codefokussierter Scan ohne Doku/README von 212 auf 208.
+
 - Patch 627: erster konservativer `as any`-Abbau auf aktuellem Stand mit Fokus auf Runtime-/Edge-Helper (`k1w1-handler`, `android-keystore-generate`, Template-Diagnostics, Project-Materializer, Repo-Utils); Netto-Reduktion im Scan von 291 auf 285 ohne Vertragsumbau.
 
 - Patch 626: kleiner, evidenzbasierter Cleanup-/Hardening-Nachzug ohne Broad-Refactor — `docs/PROJECT_TODO.md` ist jetzt explizit als historische Liste markiert (aktive Restpunkt-SoT bleibt `docs/TODO.md`), `docs/TODO.md` schliesst den Restpunkt CS-REST-001 mit dem bereits vorhandenen `testEas`-Busy-Guard-/Feedback-Stand final, und `lib/secretRedaction.ts` entfernt den verbleibenden Runtime-`as any`-Cast in `replaceAllSafe(...)` bei unveraenderter Redaction-Semantik; Risk-Hotspots-/README-/INDEX-/Checklog-/Patchnote-Stand sind synchron.

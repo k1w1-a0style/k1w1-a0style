@@ -21,6 +21,13 @@
   - `lib/diagnostics/templates/runHardChecklist.ts` und `lib/projectMaterializer.ts` (Dateiinhalt-Lesezugriffe ohne `(f as any)?.content`),
   - `screens/GitHubReposScreen/utils/repos.ts` (`dedupeReposById` ohne `(r as any)?.id`).
 
+**Update (Patch 628, 2026-03-30, Durchlauf 2):**
+- Im naechsten gezielten A-Pass wurden weitere produktionsnahe Restpunkte reduziert:
+  - `lib/notificationService.ts` (Expo-Constants-Zugriff ohne `Constants as any`),
+  - `supabase/functions/github-workflow-logs/index.ts` (Error-Narrowing ohne `e as any`),
+  - `supabase/functions/create_codesandbox/helpers.ts` (`safeErrorMessage` ohne `(err as any).message`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **212** auf **208** `as any`.
+
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 
 | Klasse | Fundstelle | Risiko | Patch-619-Status |
