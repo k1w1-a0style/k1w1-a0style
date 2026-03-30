@@ -251,3 +251,29 @@ Das Projekt wirkt im aktuellen Stand technisch stabil und stark gehärtet. Die o
 - **Nicht bestätigt:** echter produktiver Dead-Code-Block, der sofort gelöscht werden sollte.
 - **Beobachtung:** mehrere große Workflow-/Template-String-Dateien enthalten absichtlich eingebettete `console.*`/Shell-Fragmente (Template-Inhalt, kein Runtime-Logger-Leak).
 - **Empfehlung:** bei künftigen Scans `templates/**` und `shared/workflows/**` bei Log-Regex getrennt auswerten, um False-Positives sauber zu isolieren.
+
+### Test-Audit (Korrektheit + Verbesserungsmöglichkeiten, finaler Nachzug)
+
+#### Bereits als Fix-Beispiel umgesetzt
+
+- **Determinismus-Fix:** `__tests__/buildReadinessGate.ciLiteFreshness.test.ts`
+  - Problem: Test nutzte mehrfach direkt `Date.now()` (Fixture + Assertions), was in Grenzfällen zeitabhängig sein kann.
+  - Fix: feste Zeitbasis (`FIXED_NOW`) + `jest.spyOn(Date, "now").mockReturnValue(FIXED_NOW)` + Restore in `afterEach`.
+  - Nutzen: reproduzierbarere Laufzeit, klarere Failure-Ursachen, weniger Flake-Risiko.
+
+#### Weitere sinnvolle Test-Verbesserungen (mit Begründung + Fixoption)
+
+1. **P1 (Test-Qualität): zentrale typed Test-Fixtures statt wiederholtem `as any`**
+   - Betroffene Stellen: z. B. `lib/__tests__/buildStartService.integration.test.ts`, `__tests__/useDiagnosticFixRunner.fixSemantics.test.tsx`, `__tests__/repoSyncOrchestration.test.ts`.
+   - Begründung: viele `as any` kaschieren Vertragsdrift und schwächen Refactor-Sicherheit.
+   - Fixoption: `test/fixtures/*.ts` mit strikt typisierten Factory-Helpern (`makeProjectData`, `makeProjectFile`, `makeWorkflowRun`) und schrittweise Migration.
+
+2. **P2 (Test-Wartbarkeit): Zeit-/Freshness-Tests systematisch auf feste Uhr umstellen**
+   - Betroffene Muster: `Date.now()` in Build-Readiness-/CI-Freshness-/History-Tests.
+   - Begründung: verteilte Zeitquellen erschweren Diagnose bei sporadischen Grenzfehlern.
+   - Fixoption: kleines `withFixedNow(...)` Test-Utility oder per-Suite-`Date.now`-Mock als Standardmuster.
+
+3. **P2 (Signal/Rauschen): Invariant-Regex-Scans um False-Positive-Filter ergänzen**
+   - Betroffene Muster: Log-/Console-Scans treffen teils Template-Stringinhalte.
+   - Begründung: echte Runtime-Funde gehen leichter im Output-Rauschen unter.
+   - Fixoption: Scanpfade in Invariant-Suites stärker auf Runtime-Code fokussieren und Templates separat berichten.
