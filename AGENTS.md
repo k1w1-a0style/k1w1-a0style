@@ -72,6 +72,29 @@ Jeder Patch aktualisiert:
 - `PROJECT_CHECKLOG.md`
 - ggf. `README.md` / `docs/TODO.md` (wenn relevant)
 
+## Verbindlicher Doku-/SoT-Abgleich vor Abschluss
+
+Vor Abschluss **immer aktiv gegenprüfen** (kein „ggf.“) bei:
+- `README.md`
+- `docs/TODO.md`
+- `docs/INDEX.md`
+- `docs/TESTING_GUIDE.md`
+- `docs/FRESH_CHECKOUT_GREEN_PATH.md`
+- `PROJECT_CHECKLOG.md`
+- `docs/patches/PATCHLOG_ROOT.md`
+- betroffene `docs/reviews/*.md` / Status-MDs im Patch-Scope
+
+Pflicht dabei:
+1. Patch-/Stand-Header konsistent?
+2. offene vs. geschlossene Punkte konsistent?
+3. README/TODO/INDEX/Patchlog/Checklog/Review ohne Widerspruch?
+
+Pflicht im Abschlussbericht:
+- welche MD-Dateien geprüft wurden,
+- welche geändert wurden,
+- welche bewusst unverändert blieben,
+- kurze Begründung pro unverändertem Kern-MD.
+
 ## Cleanup
 
 - Backup-/Rest-Dateien (z.B. `*.bak*`, `*.orig`, `*.rej`, `*~`) nicht im Repo lassen – bei Bedarf entfernen.
@@ -95,4 +118,3 @@ Jeder Patch aktualisiert:
 
 - Erst Code + Docs durchsuchen.
 - Dann eine Hypothese formulieren und minimal testen.
-
