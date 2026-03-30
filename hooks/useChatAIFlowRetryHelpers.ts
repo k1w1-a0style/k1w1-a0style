@@ -29,3 +29,11 @@ export const isRetryableBuilderError = (errorText: string): boolean => {
     errorText,
   );
 };
+
+export const shouldRetryBuilderAttempt = (params: {
+  attempt: number;
+  maxAttempts: number;
+  errorText: string;
+}): boolean => {
+  return params.attempt < params.maxAttempts && isRetryableBuilderError(params.errorText);
+};

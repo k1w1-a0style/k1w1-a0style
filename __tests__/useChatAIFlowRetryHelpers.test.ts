@@ -3,6 +3,7 @@ import {
   parseRetryAfterMs,
   readOrchestratorErrorText,
   readOrchestratorRuntimeNote,
+  shouldRetryBuilderAttempt,
 } from "../hooks/useChatAIFlowRetryHelpers";
 
 describe("useChatAIFlowRetryHelpers", () => {
@@ -32,5 +33,29 @@ describe("useChatAIFlowRetryHelpers", () => {
     expect(isRetryableBuilderError("HTTP 429 rate limit")).toBe(true);
     expect(isRetryableBuilderError("ECONNRESET")).toBe(true);
     expect(isRetryableBuilderError("validation failed")).toBe(false);
+  });
+
+  it("retries only while attempts remain and error is retryable", () => {
+    expect(
+      shouldRetryBuilderAttempt({
+        attempt: 1,
+        maxAttempts: 3,
+        errorText: "429 rate limit",
+      }),
+    ).toBe(true);
+    expect(
+      shouldRetryBuilderAttempt({
+        attempt: 3,
+        maxAttempts: 3,
+        errorText: "429 rate limit",
+      }),
+    ).toBe(false);
+    expect(
+      shouldRetryBuilderAttempt({
+        attempt: 1,
+        maxAttempts: 3,
+        errorText: "validation failed",
+      }),
+    ).toBe(false);
   });
 });

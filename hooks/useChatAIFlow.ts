@@ -26,10 +26,10 @@ import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResul
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
-  isRetryableBuilderError,
   parseRetryAfterMs,
   readOrchestratorErrorText,
   readOrchestratorRuntimeNote,
+  shouldRetryBuilderAttempt,
 } from "./useChatAIFlowRetryHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
@@ -500,8 +500,11 @@ export function useChatAIFlow({
           if (ai?.ok) break;
 
           const errText = readOrchestratorErrorText(ai);
-          const shouldRetry =
-            attempt < BUILDER_RETRY_MAX_ATTEMPTS && isRetryableBuilderError(errText);
+          const shouldRetry = shouldRetryBuilderAttempt({
+            attempt,
+            maxAttempts: BUILDER_RETRY_MAX_ATTEMPTS,
+            errorText: errText,
+          });
           if (!shouldRetry) break;
 
           const backoffMs = computeBuilderRetryDelayMs(attempt, errText);
