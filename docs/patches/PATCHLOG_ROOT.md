@@ -1,3 +1,5 @@
+- Patch 630: weiterer `as any`-Durchlauf reduziert kleine UI-/Interop-Casts (Navigation-/Icon-/Diff-/WebView-/Template-Glue) ohne Refactor; codefokussierter Scan ohne Doku/README von 197 auf 187.
+
 - Patch 629: `as any`-Durchlauf 3 reduziert kleine UI-/Glue-Restcasts (`polyfills`, Wizard/Diagnostic new-arch-Flags, WorkflowRunDetailModal, ApiKeysSection, LocalRemoteDiffSection`) ohne Architekturumbau; codefokussierter Scan ohne Doku/README von 208 auf 197.
 
 - Patch 628: `as any`-Durchlauf 2 reduziert weitere Runtime-/Edge-Restpunkte (`notificationService`, `github-workflow-logs`, `create_codesandbox`) mit engen Guards/Narrowings; codefokussierter Scan ohne Doku/README von 212 auf 208.

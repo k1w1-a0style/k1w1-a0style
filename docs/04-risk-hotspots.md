@@ -36,6 +36,17 @@
   - `screens/SettingsScreen/components/ApiKeysSection.tsx` (`PROVIDER_METADATA` ohne Cast),
   - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx` (lokale Datei-Content-Zugriffe ohne `(f as any).content`).
 - Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **208** auf **197** `as any`.
+**Update (Patch 630, 2026-03-30, Durchlauf 4):**
+- Weitere kleine UI-/Interop-Glue-Casts reduziert, ohne Vertragsumbau:
+  - `components/CustomHeader.tsx` (Navigation-Calls ohne `as any`),
+  - `components/CustomDrawer/index.tsx` (Profil-Read ohne `projectData as any`),
+  - `components/FileItem.tsx` und `screens/DiagnosticScreen/components/FixRunModal.tsx` (Ionicon-Namen ohne `icon as any`),
+  - `screens/GitHubReposScreen/components/DiffFilesSection.tsx` (Finite-Checks ohne `as any`),
+  - `screens/CodeScreen/components/WebCodeEditor.tsx` (`postMessage` ohne `webRef.current as any`),
+  - `screens/EnhancedBuildScreen/components/ChecklistSection.tsx` (`FIX_ORDER.indexOf(...)` ohne `id as any`),
+  - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-JSON ohne `as any[]`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **197** auf **187** `as any`.
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

@@ -40,7 +40,7 @@ export const CORE_TEMPLATE_FILES: readonly string[] = [
 
 export const loadCoreTemplateFiles = (templateId: CoreTemplateId = "navigation"): TemplateFile[] => {
   try {
-    const template = (
+    const templateUnknown = (
       templateId === "full"
         ? require("../../../templates/expo-sdk54-full.json")
         : templateId === "navigation"
@@ -48,7 +48,8 @@ export const loadCoreTemplateFiles = (templateId: CoreTemplateId = "navigation")
           : templateId === "crud"
             ? require("../../../templates/expo-sdk54-crud.json")
             : require("../../../templates/expo-sdk54-base.json")
-    ) as any[];
+    ) as unknown;
+    const template = Array.isArray(templateUnknown) ? templateUnknown : [];
     if (!Array.isArray(template)) return [];
 
     const mapped = template

@@ -7,6 +7,10 @@ import { theme } from "../../../theme";
 import type { FixStep } from "../types";
 import { ProgressBar } from "./ProgressBar";
 
+function toIoniconName(name: string): keyof typeof Ionicons.glyphMap {
+  return (name in Ionicons.glyphMap ? name : "ellipse-outline") as keyof typeof Ionicons.glyphMap;
+}
+
 export function FixRunModal(props: {
   visible: boolean;
   title: string;
@@ -103,7 +107,7 @@ export function FixRunModal(props: {
                   key={s.key}
                   style={[styles.stepRow, isActive && styles.stepRowActive]}
                 >
-                  <Ionicons name={icon as any} size={16} color={color} />
+                  <Ionicons name={toIoniconName(icon)} size={16} color={color} />
                   <View style={{ flex: 1 }}>
                     <Text
                       style={[

@@ -6,6 +6,10 @@ import { TreeNode } from "./FileTree";
 
 import { styles } from "./FileItem.styles";
 
+function toIoniconName(name: string): keyof typeof Ionicons.glyphMap {
+  return (name in Ionicons.glyphMap ? name : "document-outline") as keyof typeof Ionicons.glyphMap;
+}
+
 interface FileItemProps {
   node: TreeNode;
   onPress: () => void;
@@ -218,7 +222,7 @@ export const FileItem: React.FC<FileItemProps> = memo(
         )}
 
         <View style={[styles.iconContainer, { backgroundColor: `${color}15` }]}>
-          <Ionicons name={icon as any} size={22} color={color} />
+          <Ionicons name={toIoniconName(icon)} size={22} color={color} />
         </View>
 
         <View style={styles.fileInfo}>
@@ -271,4 +275,3 @@ export const FileItem: React.FC<FileItemProps> = memo(
 );
 
 FileItem.displayName = "FileItem";
-
