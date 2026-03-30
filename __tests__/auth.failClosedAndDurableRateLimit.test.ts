@@ -50,7 +50,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts role checks only from verified Supabase auth user response", async () => {
+  it("does not trust auth user.role over verified JWT role claims", async () => {
     const token = jwtWithPayload({ role: "anon", sub: "user-1" });
     const req = new Request("http://localhost/edge", {
       headers: { Authorization: `Bearer ${token}` },
@@ -66,6 +66,36 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
         SUPABASE_SERVICE_ROLE_KEY: "srv-key",
       },
       () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["authenticated"] }),
+    );
+
+    expect(result?.status).toBe(403);
+    expect(await result?.text()).toContain("verified JWT role is not allowed");
+  });
+
+  it("accepts build_admin from verified JWT claim even when auth user.role is authenticated", async () => {
+    const token = jwtWithPayload({
+      role: "build_admin",
+      app_metadata: { role: "build_admin" },
+      sub: "user-2",
+    });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+      new Response(JSON.stringify({
+        id: "user-2",
+        role: "authenticated",
+        app_metadata: { role: "build_admin" },
+      }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", "build_admin"] }),
     );
 
     expect(result).toBeNull();
