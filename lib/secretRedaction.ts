@@ -13,10 +13,12 @@ const REDACTED_JWT = '<redacted-jwt>';
 function replaceAllSafe(
   input: string,
   re: RegExp,
-  replacement: string | ((substring: string, ...args: any[]) => string)
+  replacement: string | ((substring: string, ...args: string[]) => string),
 ): string {
   try {
-    return (input as any).replace(re, replacement as any);
+    return typeof replacement === "string"
+      ? input.replace(re, replacement)
+      : input.replace(re, replacement);
   } catch {
     return input;
   }
