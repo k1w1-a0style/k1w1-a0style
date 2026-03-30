@@ -720,7 +720,8 @@ export function useCiLiteWorkflow() {
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
       if (dispatching) return;
-      if (!githubRepo || !githubRepo.includes("/")) {
+      const repoParts = splitRepoFullName(githubRepo);
+      if (!repoParts) {
         Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
         return;
       }
@@ -759,10 +760,11 @@ export function useCiLiteWorkflow() {
         }
         setTargetRef(targetBranch);
 
-        const repoParts = splitRepoFullName(githubRepo);
-        const sourceHeadSha = repoParts
-          ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
-          : null;
+        const sourceHeadSha = await getBranchHeadSha(
+          repoParts.owner,
+          repoParts.repo,
+          targetBranch,
+        ).catch(() => null);
 
         const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
