@@ -133,17 +133,16 @@ export function useConnectionsScreen() {
     setEasOk(ok);
     setEasState(state);
     setEasLastVerifiedAt(verifiedAt);
-    await AsyncStorage.multiSet([
+    await persistEntriesWithFallback(AsyncStorage, [
       [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
       [STORAGE_KEYS.CONN_EAS_STATE, state],
-    ]).catch(async () => {
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false").catch(() => {});
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_STATE, state).catch(() => {});
-    });
+    ]);
     if (verifiedAt) {
-      await AsyncStorage.setItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt).catch(() => {});
+      await persistEntriesWithFallback(AsyncStorage, [
+        [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt],
+      ]);
     } else {
-      await AsyncStorage.removeItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => {});
+      await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
     }
   }, []);
 
