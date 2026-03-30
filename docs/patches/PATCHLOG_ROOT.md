@@ -1,3 +1,5 @@
+- Patch 631: `as any`-Durchlauf 5 reduziert verbleibende kleine UI-/Style-/Interop-Casts (Glow-/Icon-/Template-/WebView-Glue); codefokussierter Scan ohne Doku/README von 187 auf 178.
+
 - Patch 630: weiterer `as any`-Durchlauf reduziert kleine UI-/Interop-Casts (Navigation-/Icon-/Diff-/WebView-/Template-Glue) ohne Refactor; codefokussierter Scan ohne Doku/README von 197 auf 187.
 
 - Patch 629: `as any`-Durchlauf 3 reduziert kleine UI-/Glue-Restcasts (`polyfills`, Wizard/Diagnostic new-arch-Flags, WorkflowRunDetailModal, ApiKeysSection, LocalRemoteDiffSection`) ohne Architekturumbau; codefokussierter Scan ohne Doku/README von 208 auf 197.

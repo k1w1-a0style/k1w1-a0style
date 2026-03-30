@@ -21,6 +21,8 @@ import { useOneClickDeploy } from "./hooks/useOneClickDeploy";
 import { st } from "./index.styles";
 import { styles } from "../../styles/enhancedBuildScreenStyles";
 
+type IconName = keyof typeof Ionicons.glyphMap;
+
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
   const navigation = useNavigation<any>();
@@ -45,7 +47,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           id: "go_repo",
           label: "Repo wählen",
           badge: badgeFor("repo"),
-          icon: "logo-github" as any,
+          icon: "logo-github" as IconName,
           onPress: () => navigation.navigate("GitHubRepos"),
         },
       ];
@@ -58,7 +60,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           id: "go_tokens",
           label: "Tokens setzen",
           badge: badgeFor("tokens"),
-          icon: "link-outline" as any,
+          icon: "link-outline" as IconName,
           onPress: () => navigation.navigate("Connections"),
         },
       ];
@@ -71,7 +73,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           id: "go_wizard",
           label: "Wizard öffnen",
           badge: badgeFor("signing_key"),
-          icon: "key-outline" as any,
+          icon: "key-outline" as IconName,
           onPress: () => navigation.navigate("CredentialsWizard"),
         },
       ];
@@ -85,7 +87,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           id: "go_diag",
           label: "Diagnostic starten",
           badge: badgeFor("diagnostic"),
-          icon: "flask-outline" as any,
+          icon: "flask-outline" as IconName,
           onPress: () => navigation.navigate("Diagnostic", { autoRun: true }),
         },
       ];

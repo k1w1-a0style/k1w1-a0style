@@ -47,6 +47,15 @@
   - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-JSON ohne `as any[]`).
 - Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **197** auf **187** `as any`.
 
+**Update (Patch 631, 2026-03-30, Durchlauf 5):**
+- Verbleibende kleine UI-/Style-/Interop-Casts weiter reduziert:
+  - `components/ChatHeaderActions.tsx`, `components/CustomDrawer/PulseDot.tsx`, `components/CiLiteHeaderButton/styles.ts`, `components/CiLiteHeaderButton/components/StatusIndicators.tsx` (Glow-Styles ohne `as any`),
+  - `screens/EnhancedBuildScreen/index.tsx` (Checklist-Chip-Icons ohne `as any`),
+  - `screens/CodeScreen/components/WebCodeEditor.tsx` (`postMessage`-Zugriff ohne Any-Cast),
+  - `screens/EnhancedBuildScreen/components/ChecklistSection.tsx` (`FIX_ORDER.indexOf`-Cast entfernt),
+  - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-Require als `unknown` statt `as any[]`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **187** auf **178** `as any`.
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

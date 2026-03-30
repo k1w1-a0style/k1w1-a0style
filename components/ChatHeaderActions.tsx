@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.palette.primary,
     marginLeft: 8,
-    ...(theme.glow.primarySubtle as any),
+    ...theme.glow.primarySubtle,
   },
 
   modalOverlay: {
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: `${theme.palette.primary}22`,
-    ...(theme.glow.primarySubtle as any),
+    ...theme.glow.primarySubtle,
   },
 
   menuTitle: {
