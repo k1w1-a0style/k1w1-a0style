@@ -22,6 +22,11 @@ function jwtWithPayload(payload: Record<string, unknown>): string {
   return `x.${body}.y`;
 }
 
+function jwtWithUtf8Payload(payload: Record<string, unknown>): string {
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return `x.${body}.y`;
+}
+
 describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -87,6 +92,35 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
         id: "user-2",
         role: "authenticated",
         app_metadata: { role: "build_admin" },
+      }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", "build_admin"] }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("accepts build_admin from verified JWT when payload contains non-ascii claims", async () => {
+    const token = jwtWithUtf8Payload({
+      role: "build_admin",
+      app_metadata: { role: "build_admin" },
+      user_metadata: { display_name: "Jörg 🔒" },
+      sub: "user-utf8",
+    });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+      new Response(JSON.stringify({
+        id: "user-utf8",
+        role: "authenticated",
       }), { status: 200 }),
     );
 
