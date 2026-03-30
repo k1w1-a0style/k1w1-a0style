@@ -33,3 +33,7 @@ Konservativer erster Abbau von `as any` mit Fokus auf produktionsnahe Runtime-/H
 - `npm run test:silent`
 - `git diff --check`
 - fokussiert: `npm run test:silent -- --runInBand k1w1Handler.providers.invariants.test.ts`
+
+## Spaeterer Review-Follow-up
+- **Patch 634 (2026-03-30)** hat fuer denselben Materializer-Pfad einen separaten Runtime-Guard-Fix nachgezogen:
+  `materializeProjectFiles(...)` ruft `readProjectFileContent(...)` jetzt erst nach Objekt-Guard auf, damit malformed Hydration-Eintraege weiter fail-safe ignoriert werden.

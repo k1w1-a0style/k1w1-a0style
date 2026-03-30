@@ -68,6 +68,11 @@
   - `lib/__tests__/validators.test.ts` (`validateZipImport(...)`-Testdaten ohne `as any`).
 - Codefokussierter Scan (ohne `docs/**`/`README.md`/`PROJECT_CHECKLOG.md`) sank von **165** auf **150** `as any`.
 
+**Update (Patch 634, 2026-03-30, Review-Follow-up):**
+- `lib/projectMaterializer.ts` wurde auf den fail-safe-Hydration-Vertrag nachgeschaerft: `materializeProjectFiles(...)` guardet File-Eintraege jetzt explizit als Objektkandidaten, bevor `readProjectFileContent(...)` aufgerufen wird.
+- Dadurch werden `null`/primitive/malformed Eintraege aus rohen Storage-/JSON-Hydration-Pfaden wieder robust ignoriert, statt ueber `file.content` zu crashen.
+- Regression ist ueber `__tests__/projectMaterializer.failSafe.regression.test.ts` abgesichert.
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

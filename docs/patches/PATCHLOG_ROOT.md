@@ -1,3 +1,5 @@
+- Patch 634: PR-504-Review-Follow-up fix fuer einen echten Materializer-Regressionpfad — `lib/projectMaterializer.ts::materializeProjectFiles(...)` prueft `project.files`-Eintraege jetzt zuerst auf brauchbare Objektkandidaten und ruft `readProjectFileContent(...)` erst danach auf; damit werden `null`/primitive/malformed Hydration-Eintraege wieder fail-safe ignoriert statt bei `file.content` zu crashen. Neuer Regressionstest `__tests__/projectMaterializer.failSafe.regression.test.ts` deckt den Crash-/Skip-Vertrag explizit ab; README/INDEX/TODO/Checklog auf denselben Patchstand synchronisiert.
+
 - Patch 633: kleiner `as any`-Durchlauf im Test-Scope (`tokenEstimator`/`validators`) mit typkonformen Literalen statt Any-Casts; codefokussierter Scan ohne Doku/README/PROJECT_CHECKLOG von 165 auf 150.
 
 - Patch 632: Durchlauf 6 entfernt die letzten `as any`-Fragmente in produktionsnahen UI-Hilfsskripten (`scripts/ui/*`); codefokussierter Scan ohne Doku/README und ohne `PROJECT_CHECKLOG.md` von 167 auf 165.
