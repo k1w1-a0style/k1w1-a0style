@@ -25,6 +25,12 @@ import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
+import {
+  isRetryableBuilderError,
+  parseRetryAfterMs,
+  readOrchestratorErrorText,
+  readOrchestratorRuntimeNote,
+} from "./useChatAIFlowRetryHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
@@ -32,32 +38,6 @@ const BUILDER_RETRY_BACKOFF_MS = 700;
 const BUILDER_RETRY_MAX_ATTEMPTS = 3;
 const BUILDER_RETRY_MAX_BACKOFF_MS = 3_500;
 export const CHAT_AI_REQUEST_TIMEOUT_MS = 45_000;
-
-const readErrorText = (result: OrchestratorResult | null | undefined): string => {
-  if (!result) return "";
-  return [result.error, ...(result.errors ?? [])].filter(Boolean).join("\n");
-};
-
-const readRuntimeNote = (result: OrchestratorResult | null | undefined): string => {
-  const note = typeof result?.runtimeNote === "string" ? result.runtimeNote.trim() : "";
-  return note;
-};
-
-const parseRetryAfterMs = (errorText: string): number | null => {
-  const secondsMatch = errorText.match(/retry-?after[^\d]*(\d+(?:\.\d+)?)\s*s/i);
-  if (secondsMatch) return Math.round(Number(secondsMatch[1]) * 1000);
-
-  const millisecondsMatch = errorText.match(/retry-?after[^\d]*(\d+)\s*ms/i);
-  if (millisecondsMatch) return Number(millisecondsMatch[1]);
-
-  return null;
-};
-
-const isRetryableBuilderError = (errorText: string): boolean => {
-  return /\b429\b|\brate\s*limit\b|\b503\b|overloaded|timeout|timed\s*out|ECONNRESET|network/i.test(
-    errorText,
-  );
-};
 
 export const computeBuilderRetryDelayMs = (
   attempt: number,
@@ -385,7 +365,7 @@ export function useChatAIFlow({
 
   const announceRuntimeNote = useCallback(
     (result: OrchestratorResult | null | undefined) => {
-      const note = readRuntimeNote(result);
+      const note = readOrchestratorRuntimeNote(result);
       if (!note) return;
 
       addChatMessage({
@@ -519,7 +499,7 @@ export function useChatAIFlow({
 
           if (ai?.ok) break;
 
-          const errText = readErrorText(ai);
+          const errText = readOrchestratorErrorText(ai);
           const shouldRetry =
             attempt < BUILDER_RETRY_MAX_ATTEMPTS && isRetryableBuilderError(errText);
           if (!shouldRetry) break;
