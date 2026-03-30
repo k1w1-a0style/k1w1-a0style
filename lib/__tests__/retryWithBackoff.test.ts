@@ -228,31 +228,27 @@ describe('retryWithBackoff', () => {
     });
 
     it('should use exponential backoff', async () => {
-      jest.useRealTimers(); // Use real timers for this test
-      
-      let callCount = 0;
-      const delays: number[] = [];
-      let lastCallTime = Date.now();
-      
-      const operation = jest.fn().mockImplementation(() => {
-        const now = Date.now();
-        if (callCount > 0) {
-          delays.push(now - lastCallTime);
-        }
-        lastCallTime = now;
-        callCount++;
-        return Promise.reject(new Error('Fail'));
-      });
+      const operation = jest.fn()
+        .mockRejectedValueOnce(new Error('Fail 1'))
+        .mockRejectedValueOnce(new Error('Fail 2'))
+        .mockResolvedValueOnce('success');
 
-      // Use only 2 retries to keep test fast
-      await expect(retryWithBackoff(operation, 2)).rejects.toThrow('Fail');
+      const retryPromise = retryWithBackoff(operation, 3);
+      await Promise.resolve();
+      expect(operation).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(999);
+      expect(operation).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(1);
       expect(operation).toHaveBeenCalledTimes(2);
-      
-      // First delay should be around 1000ms (with some tolerance)
-      if (delays.length > 0) {
-        expect(delays[0]).toBeGreaterThanOrEqual(900);
-        expect(delays[0]).toBeLessThan(1500);
-      }
+
+      await jest.advanceTimersByTimeAsync(1999);
+      expect(operation).toHaveBeenCalledTimes(2);
+
+      await jest.advanceTimersByTimeAsync(1);
+      await expect(retryPromise).resolves.toBe('success');
+      expect(operation).toHaveBeenCalledTimes(3);
     });
 
 
