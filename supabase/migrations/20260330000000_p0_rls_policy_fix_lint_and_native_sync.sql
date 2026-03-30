@@ -20,6 +20,9 @@ DROP POLICY IF EXISTS "Service role full access lint_jobs"
 
 -- Add explicit fail-closed policy for anon and authenticated.
 -- service_role is unaffected (rolbypassrls = true).
+DROP POLICY IF EXISTS "deny_anon_authenticated_lint_jobs"
+  ON public.lint_jobs;
+
 CREATE POLICY "deny_anon_authenticated_lint_jobs"
   ON public.lint_jobs
   FOR ALL
@@ -31,6 +34,9 @@ CREATE POLICY "deny_anon_authenticated_lint_jobs"
 -- RLS was disabled entirely; anon/authenticated had full table access.
 ALTER TABLE public.native_sync_jobs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "deny_anon_authenticated_native_sync_jobs"
+  ON public.native_sync_jobs;
+
 CREATE POLICY "deny_anon_authenticated_native_sync_jobs"
   ON public.native_sync_jobs
   FOR ALL
@@ -41,6 +47,9 @@ CREATE POLICY "deny_anon_authenticated_native_sync_jobs"
 -- ── 3) native_sync_reports ──────────────────────────────────
 -- Same situation as native_sync_jobs.
 ALTER TABLE public.native_sync_reports ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "deny_anon_authenticated_native_sync_reports"
+  ON public.native_sync_reports;
 
 CREATE POLICY "deny_anon_authenticated_native_sync_reports"
   ON public.native_sync_reports
