@@ -41,6 +41,11 @@ void SUPPORTED_PROVIDER_DEFAULT_KEYS;
 
 const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
 
+function asRecord(input: unknown): Record<string, unknown> | null {
+  if (!input || typeof input !== "object") return null;
+  return input as Record<string, unknown>;
+}
+
 function resolveProviderModelForRuntime(
   provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface",
   selectedModel: string,
@@ -59,33 +64,32 @@ function resolveProviderModelForRuntime(
 // ----------------- Helpers -----------------
 
 export function parseRequestBody(body: unknown): HandlerRequestBody {
-  if (!body || typeof body !== "object") {
+  const record = asRecord(body);
+  if (!record) {
     throw new Error("Invalid request body");
   }
-  const b = body as any;
-
-  if (!b.provider || typeof b.provider !== "string") {
+  if (typeof record.provider !== "string" || !record.provider.trim()) {
     throw new Error("Missing provider");
   }
-  if (!b.messages || !Array.isArray(b.messages)) {
+  if (!Array.isArray(record.messages)) {
     throw new Error("Missing messages");
   }
 
-  const provider = b.provider as string;
+  const provider = record.provider;
   const quality = (
-    b.quality === "quality" ||
-    b.quality === "speed" ||
-    b.quality === "balanced" ||
-    b.quality === "review"
-      ? b.quality
+    record.quality === "quality" ||
+    record.quality === "speed" ||
+    record.quality === "balanced" ||
+    record.quality === "review"
+      ? record.quality
       : "speed"
   ) as "speed" | "balanced" | "quality" | "review";
 
   return {
     provider,
-    messages: b.messages as ChatMessage[],
-    mode: typeof b.mode === "string" ? b.mode : "builder",
-    model: typeof b.model === "string" ? b.model : undefined,
+    messages: record.messages as ChatMessage[],
+    mode: typeof record.mode === "string" ? record.mode : "builder",
+    model: typeof record.model === "string" ? record.model : undefined,
     quality,
   };
 }

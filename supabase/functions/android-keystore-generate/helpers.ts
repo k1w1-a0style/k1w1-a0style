@@ -25,6 +25,15 @@ export { requireDurableRateLimit } from "../_shared/auth.ts";
 
 
 export type Mode = "development" | "preview" | "production";
+type StorageBucketsQuery = {
+  from: (
+    table: "storage.buckets",
+  ) => {
+    insert: (payload: { id: string; name: string; public: boolean }) => {
+      select: (columns: "id") => { maybeSingle: () => Promise<{ error?: { message?: string } | null }> };
+    };
+  };
+};
 
 // Back-compat: older clients send "dev" instead of "development".
 export function resolveMode(input: string): Mode {
@@ -113,7 +122,7 @@ export async function encryptText(text: string, masterKey: string): Promise<stri
 }
 
 export async function ensureBucketExists(
-  supabase: any,
+  supabase: StorageBucketsQuery & { storage: { createBucket: (bucket: string, options: { public: boolean; fileSizeLimit: string }) => Promise<{ error?: { message?: string } | null }> } },
   bucket: string,
 ): Promise<void> {
   // Best-effort: try storage API, fallback to inserting into storage.buckets.
@@ -132,7 +141,7 @@ export async function ensureBucketExists(
 
   // Fallback: insert directly into storage.buckets (works in Supabase Postgres).
   try {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("storage.buckets")
       .insert({ id: bucket, name: bucket, public: false })
       .select("id")

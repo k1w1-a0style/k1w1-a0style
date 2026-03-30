@@ -109,7 +109,7 @@ export function dedupeReposById(repos: GitHubRepo[]): GitHubRepo[] {
   const result: GitHubRepo[] = [];
 
   for (const r of repos) {
-    const id = (r as any)?.id;
+    const id = r?.id;
     if (id === undefined || id === null) {
       result.push(r);
       continue;

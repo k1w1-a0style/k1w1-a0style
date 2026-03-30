@@ -12,6 +12,15 @@
   - **D Styles/Theming/Interop + Tooling-nahe Reste:** 7+
 - **Wichtig:** Nicht jeder Cast hat dasselbe Risiko. Patch 619 reduziert bewusst nur A-Hotspots mit kleinem, robustem Fix ohne Verhaltensumbau.
 
+**Update (Patch 627, 2026-03-30):**
+- Neuer Scanstand: **285** `as any`-Vorkommen (statt 291 direkt vor Patch 627).
+- In dieser Runde wurden weitere kleine Runtime-/Helper-Hotspots ohne Vertragsumbau reduziert:
+  - `supabase/functions/k1w1-handler/helpers.ts` (`parseRequestBody` ohne `body as any`, jetzt Record-Narrowing),
+  - `supabase/functions/android-keystore-generate/helpers.ts` (`ensureBucketExists` ohne `supabase as any`, jetzt enger Query-Typ),
+  - `lib/diagnostics/templates/patchers/easJson.ts` (`p.defaults as any` entfernt),
+  - `lib/diagnostics/templates/runHardChecklist.ts` und `lib/projectMaterializer.ts` (Dateiinhalt-Lesezugriffe ohne `(f as any)?.content`),
+  - `screens/GitHubReposScreen/utils/repos.ts` (`dedupeReposById` ohne `(r as any)?.id`).
+
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 
 | Klasse | Fundstelle | Risiko | Patch-619-Status |
