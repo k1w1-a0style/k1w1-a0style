@@ -51,6 +51,10 @@ import type { TemplateFile, RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
 import { getEasLinkWriteNotice, getRepoSuccessNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
+import {
+  buildRepoBranchContextKey,
+  getEasLinkNeutralMessage,
+} from "./useGitHubReposScreenHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -159,11 +163,10 @@ export function useGitHubReposScreen() {
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
   const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
-  const easLinkContextKey = useMemo(() => {
-    const repo = (activeRepo || "").trim();
-    const branch = (activeBranch || "").trim();
-    return repo && branch ? `${repo}@@${branch}` : null;
-  }, [activeRepo, activeBranch]);
+  const easLinkContextKey = useMemo(
+    () => buildRepoBranchContextKey(activeRepo, activeBranch),
+    [activeRepo, activeBranch],
+  );
   const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
 
   // Manage Modal (used for branch operations)
@@ -203,9 +206,7 @@ export function useGitHubReposScreen() {
     setEasLinkStatus(
       getEasLinkPresentation(
         "unknown",
-        easLinkContextKey
-          ? "Pruefstatus fuer die aktuelle Repo-/Branch-Auswahl noch nicht geladen."
-          : "Repo oder Branch sind noch nicht ausgewaehlt.",
+        getEasLinkNeutralMessage(easLinkContextKey),
       ),
     );
   }, [easLinkContextKey]);
@@ -816,7 +817,11 @@ export function useGitHubReposScreen() {
       return;
     }
 
-    const contextKey = `${activeRepo}@@${branch}`;
+    const contextKey = buildRepoBranchContextKey(activeRepo, branch);
+    if (!contextKey) {
+      setEasLinkStatus(getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt."));
+      return;
+    }
     const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
 
     setIsEasLinking(true);
