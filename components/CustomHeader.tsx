@@ -13,6 +13,9 @@ import { useProject } from "../contexts/ProjectContext";
 import ChatHeaderActions from "./ChatHeaderActions";
 import CiLiteHeaderButton from "./CiLiteHeaderButton";
 
+type ParentNavLike = { navigate?: (screen: string, params?: Record<string, unknown>) => void };
+type NavLike = { navigate?: (screen: string) => void };
+
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const title = options.title ?? "k1w1";
   const { activeRepo, activeBranch } = useGitHub();
@@ -35,8 +38,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     // If we have a valid last preview URL, jump directly to fullscreen.
     if (last?.url && !isExpired) {
       // Drawer header props are typed to drawer routes; fullscreen preview is on a parent stack.
-      // Cast to any to avoid the 'never' navigation type trap.
-      const parentNav = navigation.getParent() as any;
+      const parentNav = navigation.getParent() as ParentNavLike | undefined;
       parentNav?.navigate?.("PreviewFullscreen", {
         url: last.url,
         title: projectData?.name || "Preview",
@@ -45,7 +47,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     }
 
     // Otherwise open the normal preview screen (it can generate a new preview).
-    (navigation as any).navigate?.("Preview");
+    (navigation as NavLike).navigate?.("Preview");
   };
 
   return (

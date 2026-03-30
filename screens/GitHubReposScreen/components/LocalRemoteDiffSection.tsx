@@ -192,7 +192,7 @@ export function LocalRemoteDiffSection(props: {
     const list = Array.isArray(projectFiles) ? projectFiles : [];
     return list
       .filter((f) => f && typeof f.path === "string")
-      .map((f) => ({ path: String(f.path), content: String((f as any).content ?? "") }));
+      .map((f) => ({ path: String(f.path), content: String(f.content ?? "") }));
   }, [projectFiles]);
 
   const contextKey = useMemo(() => `${activeRepo ?? ""}@@${branch}`, [activeRepo, branch]);
@@ -402,7 +402,7 @@ export function LocalRemoteDiffSection(props: {
 
   const localMap = useMemo(() => {
     const m = new Map<string, string>();
-    for (const f of local) m.set(normalizeRepoPath(String(f.path || "")), String((f as any)?.content ?? ""));
+    for (const f of local) m.set(normalizeRepoPath(String(f.path || "")), String(f.content ?? ""));
     return m;
   }, [local]);
 

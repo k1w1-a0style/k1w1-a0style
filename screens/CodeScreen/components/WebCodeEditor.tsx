@@ -237,7 +237,7 @@ export const WebCodeEditor = ({
 
   const postToWeb = useCallback((msg: OutboundMsg) => {
     const data = JSON.stringify(msg);
-    const postMessageFn: undefined | ((d: string) => void) = (webRef.current as any)?.postMessage;
+    const postMessageFn = webRef.current?.postMessage;
 
     if (typeof postMessageFn === "function") {
       postMessageFn(data);

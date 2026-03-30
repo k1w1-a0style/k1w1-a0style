@@ -1,6 +1,8 @@
 import type { ChecklistItem } from "../templateChecklistTypes";
 import { ensureObj } from "../jsonUtils";
 
+type EasProfileDefaults = { android: { buildType: "apk" } };
+
 export function patchEasJson(
   raw: string,
 ): {
@@ -24,14 +26,14 @@ export function patchEasJson(
     obj.build = ensureObj(obj.build);
 
     // Required profiles: preview + production
-    const needProfiles = [
+    const needProfiles: ReadonlyArray<{ name: "preview" | "production"; defaults: EasProfileDefaults }> = [
       { name: "preview", defaults: { android: { buildType: "apk" } } },
       { name: "production", defaults: { android: { buildType: "apk" } } },
-    ] as const;
+    ];
 
     for (const p of needProfiles) {
       if (!obj.build[p.name] || typeof obj.build[p.name] !== "object") {
-        obj.build[p.name] = p.defaults as any;
+        obj.build[p.name] = p.defaults;
         changed = true;
         p0.push({
           severity: "P0",
@@ -63,4 +65,3 @@ export function patchEasJson(
 }
 
 // -------------------- Defaults --------------------
-

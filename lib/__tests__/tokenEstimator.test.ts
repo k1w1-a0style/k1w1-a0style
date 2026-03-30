@@ -21,11 +21,11 @@ describe('tokenEstimator', () => {
     });
 
     it('should return 0 for null input', () => {
-      expect(estimateTokens(null as any)).toBe(0);
+      expect(estimateTokens(null as unknown as string)).toBe(0);
     });
 
     it('should return 0 for undefined input', () => {
-      expect(estimateTokens(undefined as any)).toBe(0);
+      expect(estimateTokens(undefined as unknown as string)).toBe(0);
     });
 
     it('should estimate tokens using default ratio', () => {
@@ -37,25 +37,25 @@ describe('tokenEstimator', () => {
     it('should estimate tokens for groq provider', () => {
       const text = 'Hello World'; // 11 characters
       // Groq ratio is 4, so 11/4 = 2.75, ceil = 3
-      expect(estimateTokens(text, 'groq' as any)).toBe(3);
+      expect(estimateTokens(text, 'groq')).toBe(3);
     });
 
     it('should estimate tokens for openai provider', () => {
       const text = 'Hello World!!'; // 13 characters
       // OpenAI ratio is 3.8, so 13/3.8 = 3.42, ceil = 4
-      expect(estimateTokens(text, 'openai' as any)).toBe(4);
+      expect(estimateTokens(text, 'openai')).toBe(4);
     });
 
     it('should estimate tokens for anthropic provider', () => {
       const text = 'Hello World!!'; // 13 characters
       // Anthropic ratio is 4.2, so 13/4.2 = 3.09, ceil = 4
-      expect(estimateTokens(text, 'anthropic' as any)).toBe(4);
+      expect(estimateTokens(text, 'anthropic')).toBe(4);
     });
 
     it('should use default ratio for unknown provider', () => {
       const text = 'Hello World'; // 11 characters
       // Default ratio is 4
-      expect(estimateTokens(text, 'unknown_provider' as any)).toBe(3);
+      expect(estimateTokens(text, 'unknown_provider')).toBe(3);
     });
 
     it('should handle long text', () => {
@@ -95,7 +95,7 @@ describe('tokenEstimator', () => {
     it('should use specified provider', () => {
       const texts = ['Hello World!!', 'Test']; // 13 + 4 = 17 characters
       // OpenAI: 13/3.8=3.42->4, 4/3.8=1.05->2, total = 6
-      expect(estimateTokensForArray(texts, 'openai' as any)).toBe(6);
+      expect(estimateTokensForArray(texts, 'openai')).toBe(6);
     });
 
     it('should handle array with empty strings', () => {
@@ -124,9 +124,9 @@ describe('tokenEstimator', () => {
     it('should use provider-specific ratio', () => {
       const text = 'a'.repeat(38); // 38 characters
       // OpenAI: 38/3.8 = 10 tokens
-      expect(exceedsTokenLimit(text, 10, 'openai' as any)).toBe(false);
+      expect(exceedsTokenLimit(text, 10, 'openai')).toBe(false);
       // Groq: 38/4 = 9.5 -> 10 tokens
-      expect(exceedsTokenLimit(text, 10, 'groq' as any)).toBe(false);
+      expect(exceedsTokenLimit(text, 10, 'groq')).toBe(false);
     });
 
     it('should return false for empty text', () => {

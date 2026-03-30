@@ -151,7 +151,7 @@ describe('Validators', () => {
         { path: 'screens/Home.tsx', content: 'export default function Home() { return null; }' },
       ];
 
-      const result = validateZipImport(files as any);
+      const result = validateZipImport(files);
       expect(result.valid).toBe(true);
       expect(result.validFiles).toHaveLength(2);
       expect(result.invalidFiles).toHaveLength(0);
@@ -164,7 +164,7 @@ describe('Validators', () => {
         { path: 'screens/Home.tsx', content: 'ok' },
       ];
 
-      const result = validateZipImport(files as any);
+      const result = validateZipImport(files);
       expect(result.valid).toBe(false);
 
       expect(result.validFiles).toHaveLength(2);
@@ -180,7 +180,7 @@ describe('Validators', () => {
         { path: 'components/Small.tsx', content: 'ok' },
       ];
 
-      const result = validateZipImport(files as any);
+      const result = validateZipImport(files);
       expect(result.valid).toBe(false);
       expect(result.validFiles).toHaveLength(1);
       expect(result.validFiles[0].path).toBe('components/Small.tsx');
@@ -194,20 +194,20 @@ describe('Validators', () => {
         content: 'x',
       }));
 
-      const result = validateZipImport(files as any);
+      const result = validateZipImport(files);
       expect(result.valid).toBe(false);
       expect(result.errors.some(e => e.includes('Zu viele Dateien'))).toBe(true);
     });
 
     it('sollte normalisierte Pfade zurückgeben', () => {
       const files = [{ path: 'components//Button.tsx', content: 'x' }];
-      const result = validateZipImport(files as any);
+      const result = validateZipImport(files);
       expect(result.valid).toBe(true);
       expect(result.validFiles[0].path).toBe('components/Button.tsx');
     });
 
     it('sollte leere ZIP-Inhalte ablehnen', () => {
-      const result = validateZipImport([] as any);
+      const result = validateZipImport([]);
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('ZIP enthält keine Dateien');
     });

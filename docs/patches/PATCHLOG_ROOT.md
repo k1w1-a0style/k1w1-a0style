@@ -1,3 +1,17 @@
+- Patch 633: kleiner `as any`-Durchlauf im Test-Scope (`tokenEstimator`/`validators`) mit typkonformen Literalen statt Any-Casts; codefokussierter Scan ohne Doku/README/PROJECT_CHECKLOG von 165 auf 150.
+
+- Patch 632: Durchlauf 6 entfernt die letzten `as any`-Fragmente in produktionsnahen UI-Hilfsskripten (`scripts/ui/*`); codefokussierter Scan ohne Doku/README und ohne `PROJECT_CHECKLOG.md` von 167 auf 165.
+
+- Patch 631: `as any`-Durchlauf 5 reduziert verbleibende kleine UI-/Style-/Interop-Casts (Glow-/Icon-/Template-/WebView-Glue); codefokussierter Scan ohne Doku/README von 187 auf 178.
+
+- Patch 630: weiterer `as any`-Durchlauf reduziert kleine UI-/Interop-Casts (Navigation-/Icon-/Diff-/WebView-/Template-Glue) ohne Refactor; codefokussierter Scan ohne Doku/README von 197 auf 187.
+
+- Patch 629: `as any`-Durchlauf 3 reduziert kleine UI-/Glue-Restcasts (`polyfills`, Wizard/Diagnostic new-arch-Flags, WorkflowRunDetailModal, ApiKeysSection, LocalRemoteDiffSection`) ohne Architekturumbau; codefokussierter Scan ohne Doku/README von 208 auf 197.
+
+- Patch 628: `as any`-Durchlauf 2 reduziert weitere Runtime-/Edge-Restpunkte (`notificationService`, `github-workflow-logs`, `create_codesandbox`) mit engen Guards/Narrowings; codefokussierter Scan ohne Doku/README von 212 auf 208.
+
+- Patch 627: erster konservativer `as any`-Abbau auf aktuellem Stand mit Fokus auf Runtime-/Edge-Helper (`k1w1-handler`, `android-keystore-generate`, Template-Diagnostics, Project-Materializer, Repo-Utils); Netto-Reduktion im Scan von 291 auf 285 ohne Vertragsumbau.
+
 - Patch 626: kleiner, evidenzbasierter Cleanup-/Hardening-Nachzug ohne Broad-Refactor — `docs/PROJECT_TODO.md` ist jetzt explizit als historische Liste markiert (aktive Restpunkt-SoT bleibt `docs/TODO.md`), `docs/TODO.md` schliesst den Restpunkt CS-REST-001 mit dem bereits vorhandenen `testEas`-Busy-Guard-/Feedback-Stand final, und `lib/secretRedaction.ts` entfernt den verbleibenden Runtime-`as any`-Cast in `replaceAllSafe(...)` bei unveraenderter Redaction-Semantik; Risk-Hotspots-/README-/INDEX-/Checklog-/Patchnote-Stand sind synchron.
 - Patch 625: Deep-Scan-P1-Restpunkte mit kleinem Scope geschlossen — zentraler Fresh-Checkout-Green-Path als neue SoT (`docs/FRESH_CHECKOUT_GREEN_PATH.md`) eingefuehrt und in README/INDEX/TESTING_GUIDE verankert, `docs/TESTING_GUIDE.md` auf aktuellen realen Verify-Flow ohne historische Umgebungsartefakte umgestellt, `testEas` im Connections-Hook auf dieselbe Busy-Guard-Feedback-Semantik wie die anderen Test-/Save-Aktionen gehoben (kein stilles Busy-Return mehr), und der naechste selektive Runtime-`as any`-Hotspot in `lib/diagnostics/ciAutoFix.ts` ueber `unknown`+Narrowing (`toErrorMessage`) abgebaut; Risiko-/TODO-Doku auf den neuen Stand synchronisiert.
 - Patch 624: live-vs-repo-Drift zum bereits ausgefuehrten P0-RLS-/Policy-Hotfix geschlossen — neue Migration `20260330000000_p0_rls_policy_fix_lint_and_native_sync.sql` kanonisiert exakt den Live-Stand fuer genau drei Tabellen: `public.lint_jobs` (fehlerhafte PUBLIC-Policy entfernt, deny fuer `anon`/`authenticated`) sowie `public.native_sync_jobs`/`public.native_sync_reports` (RLS aktiviert + jeweilige deny-Policy fuer `anon`/`authenticated`). Kein weiterer Scope.

@@ -56,7 +56,7 @@ export const styles = StyleSheet.create({
     borderColor: `${theme.palette.primary}2a`,
     backgroundColor: theme.palette.card,
     padding: 14,
-    ...(theme.glow.primarySubtle as any),
+    ...theme.glow.primarySubtle,
   },
   modalHeaderRow: {
     flexDirection: "row",
@@ -381,7 +381,7 @@ export const styles = StyleSheet.create({
   actionBtnPrimary: {
     backgroundColor: theme.palette.primary,
     borderColor: theme.palette.primary,
-    ...(theme.glow.primarySubtle as any),
+    ...theme.glow.primarySubtle,
   },
   actionBtnPressed: {
     opacity: 0.85,

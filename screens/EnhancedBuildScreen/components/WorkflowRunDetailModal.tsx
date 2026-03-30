@@ -51,7 +51,8 @@ export function WorkflowRunDetailModal({
   onOpenUrl: (url: string) => void;
   match?: MatchInfo | null;
 }): React.ReactElement {
-  const title = (run as any)?.display_title || run?.name || "Workflow";
+  const runRecord = run as (WorkflowRun & { display_title?: string; event?: string }) | null;
+  const title = runRecord?.display_title || run?.name || "Workflow";
   const status = run?.status ? String(run.status) : "";
   const conclusion = run?.conclusion ? String(run.conclusion) : null;
   const actor = details?.actor?.login || details?.triggering_actor?.login || null;
@@ -124,7 +125,7 @@ export function WorkflowRunDetailModal({
               <Text style={s.sectionTitle}>Infos</Text>
               <InfoRow label="Repo" value={details?.repository?.full_name || match?.repoName || "-"} />
               <InfoRow label="Branch" value={run?.head_branch || match?.branch || "-"} />
-              <InfoRow label="Event" value={details?.event || (run as any)?.event || "-"} />
+              <InfoRow label="Event" value={details?.event || runRecord?.event || "-"} />
               <InfoRow label="Actor" value={actor || "-"} />
               <InfoRow label="Started" value={run?.created_at ? new Date(run.created_at).toLocaleString() : "-"} />
               <InfoRow label="Updated" value={run?.updated_at ? new Date(run.updated_at).toLocaleString() : "-"} />

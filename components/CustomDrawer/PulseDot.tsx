@@ -89,7 +89,7 @@ const PulseDot: React.FC<PulseDotProps> = ({
           transform: [{ scale }],
           opacity,
         },
-        active ? (theme.glow.primarySubtle as any) : null,
+        active ? theme.glow.primarySubtle : null,
       ]}
     />
   );

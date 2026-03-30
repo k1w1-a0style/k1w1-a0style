@@ -16,6 +16,11 @@ import { patchAppConfigJs } from "./patchers/appConfigJs";
 import { patchEasJson } from "./patchers/easJson";
 
 import type { ProjectFile } from "../../../shared/types/project";
+
+function readProjectFileContent(file: ProjectFile): string {
+  return typeof file.content === "string" ? file.content : String(file.content ?? "");
+}
+
 export function runTemplateHardChecklist(
   files: ProjectFile[],
   options: TemplateChecklistOptions = {},
@@ -34,7 +39,7 @@ export function runTemplateHardChecklist(
   for (const f of files ?? []) {
     const p = normalizePath(String(f?.path ?? ""));
     if (!p) continue;
-    const c = typeof f?.content === "string" ? f.content : String((f as any)?.content ?? "");
+    const c = readProjectFileContent(f);
     map.set(p, { path: p, content: c });
   }
 
@@ -175,4 +180,3 @@ export function runTemplateHardChecklist(
 
   return { files: out, report: { ok, issues, summary } };
 }
-

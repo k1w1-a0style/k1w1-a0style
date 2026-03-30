@@ -9,6 +9,10 @@ export type MaterializeOptions = {
   packageName?: string;
 };
 
+function readProjectFileContent(file: ProjectFile): string {
+  return typeof file.content === "string" ? file.content : String(file.content ?? "");
+}
+
 /**
  * Make project metadata (name/slug/android.package) reflect inside config files.
  * This is CRITICAL for new projects: otherwise UI state != repo files.
@@ -26,7 +30,7 @@ export function materializeProjectFiles(
 
   for (const f of files ?? []) {
     const p = normalizePath(String(f?.path ?? ""));
-    const c = typeof f?.content === "string" ? f.content : String((f as any)?.content ?? "");
+    const c = readProjectFileContent(f);
     if (!p) continue;
     const pf = { path: p, content: c };
     map.set(p, pf);

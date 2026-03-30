@@ -12,6 +12,63 @@
   - **D Styles/Theming/Interop + Tooling-nahe Reste:** 7+
 - **Wichtig:** Nicht jeder Cast hat dasselbe Risiko. Patch 619 reduziert bewusst nur A-Hotspots mit kleinem, robustem Fix ohne Verhaltensumbau.
 
+**Update (Patch 627, 2026-03-30):**
+- Neuer Scanstand: **285** `as any`-Vorkommen (statt 291 direkt vor Patch 627).
+- In dieser Runde wurden weitere kleine Runtime-/Helper-Hotspots ohne Vertragsumbau reduziert:
+  - `supabase/functions/k1w1-handler/helpers.ts` (`parseRequestBody` ohne `body as any`, jetzt Record-Narrowing),
+  - `supabase/functions/android-keystore-generate/helpers.ts` (`ensureBucketExists` ohne `supabase as any`, jetzt enger Query-Typ),
+  - `lib/diagnostics/templates/patchers/easJson.ts` (`p.defaults as any` entfernt),
+  - `lib/diagnostics/templates/runHardChecklist.ts` und `lib/projectMaterializer.ts` (Dateiinhalt-Lesezugriffe ohne `(f as any)?.content`),
+  - `screens/GitHubReposScreen/utils/repos.ts` (`dedupeReposById` ohne `(r as any)?.id`).
+
+**Update (Patch 628, 2026-03-30, Durchlauf 2):**
+- Im naechsten gezielten A-Pass wurden weitere produktionsnahe Restpunkte reduziert:
+  - `lib/notificationService.ts` (Expo-Constants-Zugriff ohne `Constants as any`),
+  - `supabase/functions/github-workflow-logs/index.ts` (Error-Narrowing ohne `e as any`),
+  - `supabase/functions/create_codesandbox/helpers.ts` (`safeErrorMessage` ohne `(err as any).message`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **212** auf **208** `as any`.
+
+**Update (Patch 629, 2026-03-30, Durchlauf 3):**
+- Weitere kleine, lokale B-/Glue-Casts ohne Hook-Umbau reduziert:
+  - `polyfills.ts` (`globalThis`/console-Zuweisungen ohne `as any`),
+  - `screens/CredentialsWizardScreen/index.tsx` und `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts` (`nativeFabricUIManager` ohne `global as any`),
+  - `screens/EnhancedBuildScreen/components/WorkflowRunDetailModal.tsx` (`run`-Felder ohne `run as any`),
+  - `screens/SettingsScreen/components/ApiKeysSection.tsx` (`PROVIDER_METADATA` ohne Cast),
+  - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx` (lokale Datei-Content-Zugriffe ohne `(f as any).content`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **208** auf **197** `as any`.
+**Update (Patch 630, 2026-03-30, Durchlauf 4):**
+- Weitere kleine UI-/Interop-Glue-Casts reduziert, ohne Vertragsumbau:
+  - `components/CustomHeader.tsx` (Navigation-Calls ohne `as any`),
+  - `components/CustomDrawer/index.tsx` (Profil-Read ohne `projectData as any`),
+  - `components/FileItem.tsx` und `screens/DiagnosticScreen/components/FixRunModal.tsx` (Ionicon-Namen ohne `icon as any`),
+  - `screens/GitHubReposScreen/components/DiffFilesSection.tsx` (Finite-Checks ohne `as any`),
+  - `screens/CodeScreen/components/WebCodeEditor.tsx` (`postMessage` ohne `webRef.current as any`),
+  - `screens/EnhancedBuildScreen/components/ChecklistSection.tsx` (`FIX_ORDER.indexOf(...)` ohne `id as any`),
+  - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-JSON ohne `as any[]`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **197** auf **187** `as any`.
+
+**Update (Patch 631, 2026-03-30, Durchlauf 5):**
+- Verbleibende kleine UI-/Style-/Interop-Casts weiter reduziert:
+  - `components/ChatHeaderActions.tsx`, `components/CustomDrawer/PulseDot.tsx`, `components/CiLiteHeaderButton/styles.ts`, `components/CiLiteHeaderButton/components/StatusIndicators.tsx` (Glow-Styles ohne `as any`),
+  - `screens/EnhancedBuildScreen/index.tsx` (Checklist-Chip-Icons ohne `as any`),
+  - `screens/CodeScreen/components/WebCodeEditor.tsx` (`postMessage`-Zugriff ohne Any-Cast),
+  - `screens/EnhancedBuildScreen/components/ChecklistSection.tsx` (`FIX_ORDER.indexOf`-Cast entfernt),
+  - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-Require als `unknown` statt `as any[]`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **187** auf **178** `as any`.
+
+**Update (Patch 632, 2026-03-30, Durchlauf 6):**
+- Letzte verbleibende `as any`-Codefragmente ausserhalb von Tests/Docs in Script-Generatoren entfernt:
+  - `scripts/ui/k1w1_ui_polish_templates.sh`
+  - `scripts/ui/apply_ui_polish_fix_dev_toggle_v2.sh`
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **167** auf **165** `as any` (zusaetzlich ohne `PROJECT_CHECKLOG.md`) (Rest ist aktuell vor allem Historie in Doku/Checklog bzw. Testtexte).
+
+**Update (Patch 633, 2026-03-30, Test-Scope):**
+- Konservativer Test-Cleanup ohne Runtime-Vertragsaenderung:
+  - `lib/__tests__/tokenEstimator.test.ts` (Provider-Literale direkt typkonform; null/undefined ueber `unknown as string` statt `any`),
+  - `lib/__tests__/validators.test.ts` (`validateZipImport(...)`-Testdaten ohne `as any`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`/`PROJECT_CHECKLOG.md`) sank von **165** auf **150** `as any`.
+
+
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 
 | Klasse | Fundstelle | Risiko | Patch-619-Status |
@@ -257,3 +314,13 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 ```txt
 (no matches)
 ```
+
+
+**Update (Patch 629, 2026-03-30, Durchlauf 3):**
+- Weitere kleine, lokale B-/Glue-Casts ohne Hook-Umbau reduziert:
+  - `polyfills.ts` (`globalThis`/console-Zuweisungen ohne `as any`),
+  - `screens/CredentialsWizardScreen/index.tsx` und `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts` (`nativeFabricUIManager` ohne `global as any`),
+  - `screens/EnhancedBuildScreen/components/WorkflowRunDetailModal.tsx` (`run`-Felder ohne `run as any`),
+  - `screens/SettingsScreen/components/ApiKeysSection.tsx` (`PROVIDER_METADATA` ohne Cast),
+  - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx` (lokale Datei-Content-Zugriffe ohne `(f as any).content`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **208** auf **197** `as any`.

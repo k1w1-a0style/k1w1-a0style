@@ -47,7 +47,7 @@ export function StatusLamp({ state, size = 10 }: { state: StepState; size?: numb
           width: size, height: size, borderRadius: size / 2,
           backgroundColor: color, transform: [{ scale }], opacity,
         },
-        glowStyle as any,
+        glowStyle ?? null,
       ]}
     />
   );

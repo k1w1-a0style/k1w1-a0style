@@ -204,7 +204,7 @@ export function ChecklistSection({
     if (allOk) return items;
 
     const fixIndex = (id: string) => {
-      const idx = FIX_ORDER.indexOf(id as any);
+      const idx = FIX_ORDER.indexOf(id as (typeof FIX_ORDER)[number]);
       return idx === -1 ? 1000 : idx;
     };
 
@@ -247,4 +247,3 @@ export function ChecklistSection({
     </View>
   );
 }
-

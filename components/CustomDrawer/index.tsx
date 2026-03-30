@@ -14,6 +14,16 @@ import { theme } from "../../theme";
 import { PulseDot } from "./PulseDot";
 import { styles, HAIRLINE } from "./styles";
 
+function getProfileChipValue(projectData: unknown): string | null {
+  if (!projectData || typeof projectData !== "object") return null;
+  const record = projectData as Record<string, unknown>;
+  const preferred = record.preferredBuildProfile;
+  if (typeof preferred === "string" && preferred.trim()) return preferred;
+  const build = record.buildProfile;
+  if (typeof build === "string" && build.trim()) return build;
+  return null;
+}
+
 export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   props,
 ) => {
@@ -30,9 +40,7 @@ export const CustomDrawerContent: React.FC<DrawerContentComponentProps> = (
   }, [activeRepo, activeBranch]);
 
   const profileChip = useMemo(() => {
-    const p =
-      (projectData as any)?.preferredBuildProfile ??
-      (projectData as any)?.buildProfile;
+    const p = getProfileChipValue(projectData);
     return p ? `Profil: ${String(p)}` : "Profil: auto";
   }, [projectData]);
 

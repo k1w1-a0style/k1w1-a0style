@@ -33,6 +33,11 @@ function buildBlobUrl(owner: string, repo: string, ref: string, filename: string
   return `https://github.com/${owner}/${repo}/blob/${r}/${filename}`;
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
 export function DiffFilesSection(props: {
   activeRepo: string | null;
   activeBranch: string | null;
@@ -189,6 +194,8 @@ export function DiffFilesSection(props: {
               const headRef = (headBranch || baseRef).trim();
               const refForFile = (String(f.status || "").toLowerCase() === "removed") ? baseRef : headRef;
               const url = parsed ? buildBlobUrl(parsed.owner, parsed.repo, refForFile, f.filename) : "";
+              const additions = toFiniteNumber(f.additions);
+              const deletions = toFiniteNumber(f.deletions);
 
               return (
                 <TouchableOpacity
@@ -206,11 +213,11 @@ export function DiffFilesSection(props: {
                     {f.filename}
                   </Text>
 
-                  {Number.isFinite(f.additions as any) ? (
-                    <Text style={{ fontSize: 11, color: theme.palette.primary }}>{`+${f.additions}`}</Text>
+                  {additions !== null ? (
+                    <Text style={{ fontSize: 11, color: theme.palette.primary }}>{`+${additions}`}</Text>
                   ) : null}
-                  {Number.isFinite(f.deletions as any) ? (
-                    <Text style={{ fontSize: 11, color: theme.palette.error }}>{`-${f.deletions}`}</Text>
+                  {deletions !== null ? (
+                    <Text style={{ fontSize: 11, color: theme.palette.error }}>{`-${deletions}`}</Text>
                   ) : null}
                 </TouchableOpacity>
               );
