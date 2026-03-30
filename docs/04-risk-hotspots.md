@@ -56,6 +56,12 @@
   - `screens/GitHubReposScreen/hooks/templateFiles.ts` (Template-Require als `unknown` statt `as any[]`).
 - Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **187** auf **178** `as any`.
 
+**Update (Patch 632, 2026-03-30, Durchlauf 6):**
+- Letzte verbleibende `as any`-Codefragmente ausserhalb von Tests/Docs in Script-Generatoren entfernt:
+  - `scripts/ui/k1w1_ui_polish_templates.sh`
+  - `scripts/ui/apply_ui_polish_fix_dev_toggle_v2.sh`
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **167** auf **165** `as any` (zusaetzlich ohne `PROJECT_CHECKLOG.md`) (Rest ist aktuell vor allem Historie in Doku/Checklog bzw. Testtexte).
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

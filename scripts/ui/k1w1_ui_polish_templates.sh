@@ -53,7 +53,7 @@ if not m_useproj:
     die("Could not find useProject() destructuring in ChatHeaderActions.tsx")
 
 inject_block = """
-  const templateId = (projectData?.templateId as any) ?? "auto";
+  const templateId = (projectData?.templateId as unknown) ?? "auto";
   const effectiveTemplateId = resolveEffectiveTemplateId(templateId);
   const TEMPLATE_LABEL: Record<string, string> = {
     auto: "Auto",

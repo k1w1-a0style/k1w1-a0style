@@ -124,7 +124,7 @@ if chat.exists():
     s2 = s
     s2 = re.sub(
         r"resolveEffectiveTemplateId\(\s*([^)]+?)\s*\)",
-        lambda m: f"resolveEffectiveTemplateId({m.group(1).strip()}, (projectData?.files || []) as any)" if "resolveEffectiveTemplateId(" in s and m.group(1).count(",")==0 else m.group(0),
+        lambda m: f"resolveEffectiveTemplateId({m.group(1).strip()}, (projectData?.files || []))" if "resolveEffectiveTemplateId(" in s and m.group(1).count(",")==0 else m.group(0),
         s2
     )
 
