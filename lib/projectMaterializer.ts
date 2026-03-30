@@ -9,7 +9,16 @@ export type MaterializeOptions = {
   packageName?: string;
 };
 
-function readProjectFileContent(file: ProjectFile): string {
+type ProjectFileLike = {
+  path?: unknown;
+  content?: unknown;
+};
+
+function isProjectFileLike(file: unknown): file is ProjectFileLike {
+  return !!file && typeof file === "object";
+}
+
+function readProjectFileContent(file: ProjectFileLike): string {
   return typeof file.content === "string" ? file.content : String(file.content ?? "");
 }
 
@@ -29,9 +38,10 @@ export function materializeProjectFiles(
   const map = new Map<string, ProjectFile>();
 
   for (const f of files ?? []) {
-    const p = normalizePath(String(f?.path ?? ""));
-    const c = readProjectFileContent(f);
+    if (!isProjectFileLike(f)) continue;
+    const p = normalizePath(String(f.path ?? ""));
     if (!p) continue;
+    const c = readProjectFileContent(f);
     const pf = { path: p, content: c };
     map.set(p, pf);
   }
