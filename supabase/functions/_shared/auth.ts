@@ -70,7 +70,9 @@ function decodeJwtPayload(token: string): JwtPayload | null {
   try {
     const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const pad = "=".repeat((4 - (normalized.length % 4)) % 4);
-    const payload = JSON.parse(atob(`${normalized}${pad}`));
+    const decoded = atob(`${normalized}${pad}`);
+    const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes));
     if (!payload || typeof payload !== "object") return null;
     return payload as JwtPayload;
   } catch {

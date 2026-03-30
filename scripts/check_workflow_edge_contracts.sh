@@ -214,6 +214,8 @@ require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"
 require_fixed "$AUTH_SHARED" "export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
 require_fixed "$AUTH_SHARED" "export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
 require_fixed "$AUTH_SHARED" "export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED" 'const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));'
+require_fixed "$AUTH_SHARED" 'const payload = JSON.parse(new TextDecoder().decode(bytes));'
 require_fixed "$AUTH_SHARED" 'const getSigningAdminSecret = (): string | null =>'
 require_fixed "$AUTH_SHARED" "export function requireSigningAdminKey(req: Request): Response | null {"
 require_fixed "$AUTH_SHARED" 'missing: ["K1W1_EDGE_ADMIN_KEY"]'
