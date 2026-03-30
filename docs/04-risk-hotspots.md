@@ -62,6 +62,12 @@
   - `scripts/ui/apply_ui_polish_fix_dev_toggle_v2.sh`
 - Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **167** auf **165** `as any` (zusaetzlich ohne `PROJECT_CHECKLOG.md`) (Rest ist aktuell vor allem Historie in Doku/Checklog bzw. Testtexte).
 
+**Update (Patch 633, 2026-03-30, Test-Scope):**
+- Konservativer Test-Cleanup ohne Runtime-Vertragsaenderung:
+  - `lib/__tests__/tokenEstimator.test.ts` (Provider-Literale direkt typkonform; null/undefined ueber `unknown as string` statt `any`),
+  - `lib/__tests__/validators.test.ts` (`validateZipImport(...)`-Testdaten ohne `as any`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`/`PROJECT_CHECKLOG.md`) sank von **165** auf **150** `as any`.
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

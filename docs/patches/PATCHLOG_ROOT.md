@@ -1,3 +1,5 @@
+- Patch 633: kleiner `as any`-Durchlauf im Test-Scope (`tokenEstimator`/`validators`) mit typkonformen Literalen statt Any-Casts; codefokussierter Scan ohne Doku/README/PROJECT_CHECKLOG von 165 auf 150.
+
 - Patch 632: Durchlauf 6 entfernt die letzten `as any`-Fragmente in produktionsnahen UI-Hilfsskripten (`scripts/ui/*`); codefokussierter Scan ohne Doku/README und ohne `PROJECT_CHECKLOG.md` von 167 auf 165.
 
 - Patch 631: `as any`-Durchlauf 5 reduziert verbleibende kleine UI-/Style-/Interop-Casts (Glow-/Icon-/Template-/WebView-Glue); codefokussierter Scan ohne Doku/README von 187 auf 178.
