@@ -33,6 +33,13 @@ describe("useGitHubReposScreenHelpers", () => {
       }).status,
     ).toBe("missing_branch");
 
+    expect(
+      resolveSyncStatusPrecheck({
+        activeRepo: "owner-only",
+        activeBranch: "main",
+      }).status,
+    ).toBe("invalid_repo");
+
     const ready = resolveSyncStatusPrecheck({
       activeRepo: "owner/repo",
       activeBranch: "main",

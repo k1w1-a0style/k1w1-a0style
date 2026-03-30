@@ -228,7 +228,10 @@ export function useGitHubReposScreen() {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now() });
       return;
     }
-    if (precheck.status === "invalid_repo") return;
+    if (precheck.status === "invalid_repo") {
+      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
+      return;
+    }
     if (precheck.status === "missing_branch") {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
       return;

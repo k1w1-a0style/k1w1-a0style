@@ -209,3 +209,45 @@ Keine zusätzlichen „neuen Großbaustellen“ wurden künstlich aufgemacht.
 ## Schlussfazit (nüchtern)
 
 Das Projekt wirkt im aktuellen Stand technisch stabil und stark gehärtet. Die offenen Punkte sind mehrheitlich **klein**, klar eingrenzbar und teilweise bewusst optional bzw. extern-operativ. Der zentrale Truthfulness-/Flake-Punkt ist derzeit eher ein **Determinismus-/Testumgebungs-Thema** als ein bestätigter Produktdefekt; er bleibt ein Beobachtungs-Hotspot, aber kein Anlass für breitflächigen Umbau.
+
+---
+
+## Addendum (aktueller Nachscan, 2026-03-30, Patch 635)
+
+### Was zusätzlich geprüft wurde
+
+- Laufzeit-/Hook-Hotspots (Größencheck):
+  `hooks/useChatAIFlow.ts` (993), `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` (1087), `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts` (941), `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts` (1066), `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` (906), `screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts` (698).
+- Rest-`as any` Inventar (codefokussiert, ohne `docs/**`, `README.md`, `PROJECT_CHECKLOG.md`).
+- TODO/FIXME/HACK-Scan.
+- Konsistenzcheck für Doku-Sync mit `node scripts/docsLint.js` und `bash scripts/check_patch_docs_sync.sh`.
+
+### Ampelsystem (kritische Follow-ups)
+
+| Prio | Befund | Ort | Warum relevant | Fixmöglichkeit |
+|---|---|---|---|---|
+| P0 | **Kein neuer bestätigter P0-Produktdefekt** | Nachscan gesamt | Security-/Workflow-Contracts bleiben durch Invariants/Scripts abgesichert. | Weiter so: fail-closed Checks + Invariants nicht aufweichen. |
+| P1 | **Monolithische Hook-Hotspots bleiben wartungsriskant** | `hooks/useChatAIFlow.ts`, `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts` | Hohe Änderungsfläche erhöht Regressionswahrscheinlichkeit trotz Tests. | Weitere kleine pure-logic Extraktionen (Notice-/Mapping-/Guard-Blöcke), jeweils mit fokussierten Unit-Tests und ohne Flow-Umbau. |
+| P2 | **Testlastige `as any`-Reste** (größtenteils in Tests) | u. a. `lib/__tests__/buildStartService.integration.test.ts`, `__tests__/useDiagnosticFixRunner.fixSemantics.test.tsx`, `__tests__/repoSyncOrchestration.test.ts` | Kein akuter Runtime-Defekt, aber Typvertragsrauschen in Regressionstests. | Selektiver Test-Typing-Cleanup in kleinen Chargen (Fixtures/Factories enger typisieren). |
+| P2 | **Docs-Navigations-/SoT-Rauschen** | `README.md` (sehr lange Historienblöcke), verteilt in Patch-/Review-Notizen | Erschwert schnellen Einstieg trotz guter Datenlage. | README weiter als Navigations-SoT kürzen; historische Tiefe in Patchlog/Reviews belassen. |
+
+### ASNI-Einträge (Action / Scope / Need / Impact)
+
+1. **A:** `refreshSyncStatus` invalid-repo Fehlerstatus setzen.
+   **S:** `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+   **N:** Verhindert stale Sync-Lampe bei ungueltigem `owner/repo`.
+   **I:** Kleine Correctness-/UX-Härtung, regressionsarm.
+2. **A:** `invalid_repo` Precheck-Test ergänzen.
+   **S:** `__tests__/useGitHubReposScreenHelpers.test.ts`
+   **N:** Deterministischer Nachweis des neuen Guard-Zweigs.
+   **I:** Höhere Refactor-Sicherheit.
+3. **A:** Monolith-Hook-Extraktionen weiter priorisieren.
+   **S:** Hook-Hotspots (siehe Ampel P1).
+   **N:** Wartbarkeit und Review-Fähigkeit verbessern.
+   **I:** Mittelfristig geringere Regressionen bei Feature-Fixes.
+
+### Dead-Code-/Cleanup-Kandidaten (kritisch geprüft)
+
+- **Nicht bestätigt:** echter produktiver Dead-Code-Block, der sofort gelöscht werden sollte.
+- **Beobachtung:** mehrere große Workflow-/Template-String-Dateien enthalten absichtlich eingebettete `console.*`/Shell-Fragmente (Template-Inhalt, kein Runtime-Logger-Leak).
+- **Empfehlung:** bei künftigen Scans `templates/**` und `shared/workflows/**` bei Log-Regex getrennt auswerten, um False-Positives sauber zu isolieren.
