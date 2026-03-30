@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: 2026-03-29 (Patch 617)
+Stand: 2026-03-29 (Patch 620)
 
 ## Aktiv und workflow-relevant
 
@@ -15,7 +15,7 @@ Stand: 2026-03-29 (Patch 617)
 | `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: `save_preview` nutzt jetzt explizit `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")`, `preview_page` bleibt public secret-link |
 | `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, `raw` bzw. `ok:false,error` · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")` |
 | `create_codesandbox` | Erzeugt browserfaehige CodeSandbox-Preview | `ok`, `sandboxUrl`/API-Result oder strukturierter Fehler · Auth: expliziter legacy-scoped Admin-Guard `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")` |
-| `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role=service_role`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
+| `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-generate` | Generiert/signiert Android-Keystore-Material serverseitig (branch-unabhaengig, Scope `repo + mode`) | `ok`, `repo`, `mode`, `alias`, `bucket`, `path` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-status` | Liefert Keystore-Record-/Storage-Status für Repo/Mode | `ok`, `exists`, optional `record` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `test` | Legacy-Testroute (stray/stub) | bewusst fail-closed: scoped Legacy-Guard `requireScopedEdgeAuth(... scope: "test", adminSecretEnv: "K1W1_EDGE_ADMIN_KEY", allowAdmin: true)` und danach immer `410` mit `code: legacy_test_route_disabled` |
@@ -38,7 +38,8 @@ Stand: 2026-03-29 (Patch 617)
 - Patch 591 bereinigt den Keystore-Generate-Vertrag: `android-keystore-generate` erwartet/antwortet kein `branch` mehr; Route bleibt absichtlich branch-unabhaengig auf `repo + mode`.
 - `release-build.yml` ist bewusst ein manueller Direktpfad und nicht dieselbe App-SoT wie `eas-build.yml`.
 - `android-keystore-export` bleibt die Referenz fuer den dedizierten Keystore-Secret-Scope; `android-keystore-generate` und `android-keystore-status` nutzen jetzt denselben scoped Secret-Pfad plus fail-closed JWT-RBAC (`service_role|build_admin`).
-- Der build_admin-Claim wird nicht im Repo erzeugt: `requireJwtRole(...)` liest den verifizierten Rollenwert ausschliesslich aus Supabase Auth (`GET /auth/v1/user`, `user.role` fallback `user.app_metadata.role`), daher kommt `build_admin` nur aus externem Betriebs-/Provisioning-Prozess.
+- Der build_admin-Claim wird nicht im Repo erzeugt: `requireJwtRole(...)` priorisiert nach erfolgreicher Verifikation den Rollenwert aus dem verifizierten JWT-Claim (`role`, danach `app_metadata.role`) und nutzt `GET /auth/v1/user` nur noch defensiv als Fallback; damit bleibt der externe `build_admin`-Provisioning-Vertrag erhalten, ohne `user.role=authenticated`-Drift.
+- Patch 622 schliesst den verbleibenden Live-Decode-Drift im selben Pfad: JWT-Payload-Decoding ist jetzt UTF-8-sicher (`TextDecoder`), damit ein valider `build_admin`-Claim nicht durch Non-ASCII-Nebenclaims im Token verloren geht und der finale `allowedRoles`-Vergleich (`service_role|build_admin`) in Workflow-/Keystore-Operatorrouten stabil greift.
 - Patch 597 zieht den App-Caller-Vertrag des Credentials Wizards final nach: Requests an `android-keystore-status`/`android-keystore-generate` laufen nur noch mit `Authorization: Bearer <Supabase user JWT>` **und** `x-k1w1-admin-key` (lokaler `androidKeystoreExportAdminKey`).
 - Patch 598 reduziert den verbleibenden generischen Legacy-Guard-Scope: `requireAdminKey(...)` akzeptiert nur noch `K1W1_EDGE_ADMIN_KEY` (kein stiller `SIGNING_ADMIN_KEY`-Fallback), und die verbliebenen Legacy-Routen (`k1w1-handler`, `create_codesandbox`, `save_preview` sowie disabled lint/native-sync Stubs) sind auf explizite `requireScopedEdgeAuth(... adminSecretEnv: "K1W1_EDGE_ADMIN_KEY")`-Vertraege gezogen.
 - Patch 599 beseitigt den aktuellen Keystore-Config-Split-Brain: die funktionslokalen Config-Dateien fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt, damit `supabase/config.toml` als einzige fail-closed SoT (`verify_jwt=true`) gilt und kein lokaler `verify_jwt=false`-Schattenzustand mehr existiert.

@@ -1,4 +1,4 @@
-import { requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
+import { getJwtPayload, requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -19,6 +19,11 @@ function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T 
 
 function jwtWithPayload(payload: Record<string, unknown>): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `x.${body}.y`;
+}
+
+function jwtWithUtf8Payload(payload: Record<string, unknown>): string {
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   return `x.${body}.y`;
 }
 
@@ -50,7 +55,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts role checks only from verified Supabase auth user response", async () => {
+  it("does not trust auth user.role over verified JWT role claims", async () => {
     const token = jwtWithPayload({ role: "anon", sub: "user-1" });
     const req = new Request("http://localhost/edge", {
       headers: { Authorization: `Bearer ${token}` },
@@ -68,6 +73,67 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["authenticated"] }),
     );
 
+    expect(result?.status).toBe(403);
+    expect(await result?.text()).toContain("verified JWT role is not allowed");
+  });
+
+  it("accepts build_admin from verified JWT claim even when auth user.role is authenticated", async () => {
+    const token = jwtWithPayload({
+      role: "build_admin",
+      app_metadata: { role: "build_admin" },
+      sub: "user-2",
+    });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+      new Response(JSON.stringify({
+        id: "user-2",
+        role: "authenticated",
+        app_metadata: { role: "build_admin" },
+      }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", "build_admin"] }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("keeps utf-8 role decoding intact (would fail on legacy atob+JSON.parse decoder)", async () => {
+    const unicodeRole = "build_ädmin";
+    const token = jwtWithUtf8Payload({
+      role: unicodeRole,
+      app_metadata: { role: unicodeRole },
+      user_metadata: { display_name: "Jörg 🔒" },
+      sub: "user-utf8",
+    });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+      new Response(JSON.stringify({
+        id: "user-utf8",
+        role: "authenticated",
+      }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", unicodeRole] }),
+    );
+
+    expect(getJwtPayload(req)?.role).toBe(unicodeRole);
     expect(result).toBeNull();
   });
 
