@@ -26,16 +26,14 @@
 | **C** | `components/*`, `screens/*` Icon-/Style-Casts | Vor allem UI-Interop/Styling, begrenzter Runtime-Schaden. | Offen (niedrige Prioritaet). |
 | **D** | `__tests__/*`, `lib/__tests__/*` | Test-Mocks/Fixtures, kein produktiver Laufzeitpfad. | Offen (bewusst toleriert). |
 
-#### Offene, riskante Restpunkte (Stand nach Patch 625)
+#### Offene, riskante Restpunkte (Stand nach Patch 626)
 1. `supabase/functions/*` (`helpers.ts`, `k1w1-handler`, `github-workflow-logs`) — Edge-Runtime-nahe Any-Reste; wegen Auth-/Edge-Vertrag nur separat und mit fokussierten Function-Tests anfassen.
-2. `lib/secretRedaction.ts` (`replacement as any`) — Interop-naher String-Replace-Cast, mittleres Risiko; separat mit kleinem Typ-Wrapper bereinigen.
-3. `lib/notificationService.ts` (`Constants as any`) — Third-party/Expo-Interop, eher C/E; nur mit klarer Expo-Typstrategie reduzieren.
+2. `lib/notificationService.ts` (`Constants as any`) — Third-party/Expo-Interop, eher C/E; nur mit klarer Expo-Typstrategie reduzieren.
 
 #### Empfohlene naechste Reihenfolge
 1. `supabase/functions/...` (k1w1-handler / workflow-logs / create_codesandbox)
-2. `lib/secretRedaction.ts`
-3. `lib/notificationService.ts`
-4. danach UI-/Interop-Casts in kleinen thematischen Patches
+2. `lib/notificationService.ts`
+3. danach UI-/Interop-Casts in kleinen thematischen Patches
 
 
 ## Hook-Refactoring-Audit (Patch 618) — priorisierte Hotspots ohne Grossumbau

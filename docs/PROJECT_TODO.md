@@ -1,6 +1,11 @@
 # PROJECT TODO
 
 > Stand: 2026-03-15
+>
+> **Wichtiger Hinweis (seit 2026-03-30 / Patch 626):**
+> Diese Datei ist eine **historische Projekt-/Patch-Historienliste**.
+> Die **aktive Source of Truth fuer offene operative Restpunkte** ist `docs/TODO.md`.
+> Neue offene Punkte bitte dort erfassen; diese Datei nur noch fuer Kontext/Historie fortschreiben.
 
 ## ✅ Erledigt (aktueller Stand)
 

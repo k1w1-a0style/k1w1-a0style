@@ -21,13 +21,16 @@
 
 # TODO
 
-Stand: **2026-03-30 (Patch 625)**
+Stand: **2026-03-30 (Patch 626)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **CS-REST-001 sauber geschlossen (Busy-UX `testEas`):** `testEas` laeuft nun ueber denselben globalen Busy-Guard wie die anderen Connection-Tests und gibt bei Busy-Kollision explizites Nutzerfeedback (`Bitte warten`) statt stillem Return; Restpunkt ist damit kein offener UX-Drift mehr (Patch 626).
+- [x] **`docs/PROJECT_TODO.md` als historische Altliste markiert (SoT klargezogen):** laufende operative Restpunkte bleiben ausschliesslich in `docs/TODO.md`; `docs/PROJECT_TODO.md` bleibt bewusst als Archiv-/Historienkontext bestehen, aber nicht mehr als zweite aktive Wahrheit (Patch 626).
+- [x] **Naechster kleiner Runtime-`as any`-Hotspot abgebaut (`lib/secretRedaction.ts`):** `replaceAllSafe(...)` nutzt jetzt den nativen `String.replace`-Vertrag ohne Runtime-`as any`-Casts; Verhalten bleibt gleich, Typing ist enger (Patch 626).
 - [x] **`as any`-Audit mit Risiko-Priorisierung und gezieltem Runtime-Abbau:** repo-weites Inventar klassifiziert (A/B/C/D), die gefaehrlichsten klein/sicher behebbaren Runtime-Casts entfernt (`validators`, `supabase`, `supabaseEdge`, `normalizer`, `buildPipelineDiagnostics`, `projectArchiveService`, `Connections validation`, `config`), und offene Restpunkte ehrlich als naechste Reihenfolge in `docs/04-risk-hotspots.md` dokumentiert (Patch 619).
 - [x] **Strukturierten Hook-Refactoring-Audit durchgefuehrt (ohne Grossumbau):** `docs/04-risk-hotspots.md` enthaelt jetzt ein priorisiertes A/B/C/D-Hook-Inventar mit konkreten Schnittvorschlaegen pro Top-Kandidat (Repo/CI-Lite/Connections/Wizard/Diagnostic) und expliziter „nicht jetzt anfassen“-Liste fuer sensible Vertrags-Hooks (`usePreview`, `useEnhancedBuildScreen`, `useGitHubActionsLogs`) (Patch 618).
 - [x] **Chat-Nachfix für PR #272 + #273 vollständig geschlossen:** Meta-/lokale Full-line-Kommandos (`cat <pfad>` / `zeige datei <pfad>`) laufen stabil auf unverändertem `rawInput`; Attachment-Hinweis bleibt auf den normalen AI-Pfad begrenzt; Attachment-only (leerer `rawInput`, sinnvoller `aiInput`) wird nicht mehr still verworfen, inkl. Pending-Plan-Handoff-Fallback auf `aiInput` (Patch 461).
@@ -365,7 +368,7 @@ Akzeptanz:
   _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
 - [x] **CS-455-D (P2)** EAS-Link-Start setzt Lampe nicht mehr optimistisch auf grün; bleibt bis echter EAS-Verifikation neutral/false ✅ *(patch 455)*  
   _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
-- [ ] **CS-REST-001 (P2)** Optionaler Feinschliff: konsistente Busy-UX auch für EAS-Test (`testEas`) auf denselben globalen Guard/Spinner zusammenführen (derzeit parallel-blockiert via `busyRef`, aber eigener `isTestingEas`-Pfad).  
+- [x] **CS-REST-001 (P2)** Optionaler Feinschliff: konsistente Busy-UX auch für EAS-Test (`testEas`) auf denselben globalen Guard/Spinner zusammenführen (Busy-Kollision zeigt jetzt explizites Feedback statt stillem Return). ✅ *(patch 626)*
   _Ort_: `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts`
 
 ### Supabase (Audit / Ops)

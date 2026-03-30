@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-03-30 (Patch 625)**
+Stand: **2026-03-30 (Patch 626)**
 
 Dieser Index priorisiert operative Navigation. Historische Details bleiben im Patchlog.
 
@@ -29,6 +29,7 @@ Dieser Index priorisiert operative Navigation. Historische Details bleiben im Pa
 - `docs/patches/PATCHLOG_ROOT.md` — append-only Patchübersicht
 - `docs/patches/patch_*.md` — einzelne Patchnotizen
 - `PROJECT_CHECKLOG.md` — kurzer laufender Checklog
+- `docs/PROJECT_TODO.md` — **historische** TODO-/Patchliste (aktive Restpunkte: `docs/TODO.md`)
 
 ## 4) Verlässliche Referenzpunkte
 
