@@ -178,8 +178,8 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
   }
 
   const verified = await verifyJwtViaSupabaseAuth(req);
-  if (verified.ok === false) {
-    if (verified.reason === "server_misconfigured") {
+  if (!verified.ok) {
+    if ("reason" in verified && verified.reason === "server_misconfigured") {
       return errorResponse(
         "JWT verification is unavailable due to server auth misconfiguration.",
         req,
