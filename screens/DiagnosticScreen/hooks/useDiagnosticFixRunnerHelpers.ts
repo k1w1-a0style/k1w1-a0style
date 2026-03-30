@@ -39,12 +39,14 @@ export const shouldSyncPatchToGitHub = (params: {
   if (!parseOwnerRepo(linkedRepo)) return false;
 
   const touched = collectPatchTouchedPaths(patch);
-  return touched.some((p) => {
-    if (p === "eas.json") return true;
-    if (p === "eas-project.json") return true;
-    if (p === "package.json") return true;
-    if (p === "app.json" || p === "app.config.js" || p === "app.config.ts") return true;
-    if (p.startsWith(".github/workflows/")) return true;
-    return false;
-  });
+  return touched.some(isSyncRelevantPath);
+};
+
+export const isSyncRelevantPath = (path: string): boolean => {
+  if (path === "eas.json") return true;
+  if (path === "eas-project.json") return true;
+  if (path === "package.json") return true;
+  if (path === "app.json" || path === "app.config.js" || path === "app.config.ts") return true;
+  if (path.startsWith(".github/workflows/")) return true;
+  return false;
 };

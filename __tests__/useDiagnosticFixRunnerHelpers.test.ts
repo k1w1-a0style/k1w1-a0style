@@ -1,5 +1,6 @@
 import {
   collectPatchTouchedPaths,
+  isSyncRelevantPath,
   normalizeFilesForCompare,
   sameProjectFiles,
   shouldSyncPatchToGitHub,
@@ -70,5 +71,11 @@ describe("useDiagnosticFixRunnerHelpers", () => {
         syncFixesToGitHub: false,
       }),
     ).toBe(false);
+  });
+
+  it("maps sync-relevant file paths explicitly", () => {
+    expect(isSyncRelevantPath(".github/workflows/ci.yml")).toBe(true);
+    expect(isSyncRelevantPath("app.config.ts")).toBe(true);
+    expect(isSyncRelevantPath("src/App.tsx")).toBe(false);
   });
 });
