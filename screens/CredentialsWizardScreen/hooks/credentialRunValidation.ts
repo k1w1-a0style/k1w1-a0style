@@ -50,3 +50,11 @@ export const validateWizardRunInputs = (params: {
 
   return null;
 };
+
+export const isWizardRunInputReady = (params: {
+  supabaseUrl: string;
+  adminKey: string;
+  repoFullName: string;
+}): boolean => {
+  return validateWizardRunInputs(params) === null;
+};

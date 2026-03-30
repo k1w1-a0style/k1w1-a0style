@@ -1,4 +1,7 @@
-import { validateWizardRunInputs } from "../screens/CredentialsWizardScreen/hooks/credentialRunValidation";
+import {
+  isWizardRunInputReady,
+  validateWizardRunInputs,
+} from "../screens/CredentialsWizardScreen/hooks/credentialRunValidation";
 
 describe("credentialRunValidation", () => {
   it("returns missing-input issue when required values are absent", () => {
@@ -50,5 +53,23 @@ describe("credentialRunValidation", () => {
         repoFullName: "owner/repo",
       }),
     ).toBeNull();
+  });
+
+  it("exposes readiness as a simple boolean", () => {
+    expect(
+      isWizardRunInputReady({
+        supabaseUrl: "https://a.supabase.co",
+        adminKey: "edge-admin-key-abcdefghijklmnopqrstuvwxyz123456",
+        repoFullName: "owner/repo",
+      }),
+    ).toBe(true);
+
+    expect(
+      isWizardRunInputReady({
+        supabaseUrl: "https://a.supabase.co",
+        adminKey: "short",
+        repoFullName: "owner/repo",
+      }),
+    ).toBe(false);
   });
 });

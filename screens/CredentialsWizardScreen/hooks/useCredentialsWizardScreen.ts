@@ -27,8 +27,6 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
 import {
-  isLikelyValidRepoFullName,
-  isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
@@ -42,7 +40,7 @@ import {
   normalizeModeForUi,
   normalizeModeForApi,
 } from "./credentialHelpers";
-import { validateWizardRunInputs } from "./credentialRunValidation";
+import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import {
   formatWizardBusyLabel,
   resolveWizardStatusPresentation,
@@ -183,12 +181,11 @@ export function useCredentialsWizardScreen() {
   );
 
   const canRun = useMemo(() => {
-    return (
-      Boolean(supabaseUrl && adminKey && repoFullName) &&
-      isLikelyValidSupabaseUrl(supabaseUrl) &&
-      isLikelyValidAdminKey(adminKey) &&
-      isLikelyValidRepoFullName(repoFullName)
-    );
+    return isWizardRunInputReady({
+      supabaseUrl,
+      adminKey,
+      repoFullName,
+    });
   }, [supabaseUrl, adminKey, repoFullName]);
 
   const ensureCanRunOrAlert = useCallback((): boolean => {
