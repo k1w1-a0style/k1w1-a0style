@@ -73,6 +73,10 @@
 - Dadurch werden `null`/primitive/malformed Eintraege aus rohen Storage-/JSON-Hydration-Pfaden wieder robust ignoriert, statt ueber `file.content` zu crashen.
 - Regression ist ueber `__tests__/projectMaterializer.failSafe.regression.test.ts` abgesichert.
 
+**Update (Patch 636, 2026-03-30, Test-Audit-Nachzug):**
+- `__tests__/buildReadinessGate.ciLiteFreshness.test.ts` nutzt nun eine feste Zeitbasis (`FIXED_NOW`) plus `Date.now`-Spy/Restore.
+- Ergebnis: Freshness-Tests sind deterministischer und weniger anfällig für Zeitdrift.
+
 
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 

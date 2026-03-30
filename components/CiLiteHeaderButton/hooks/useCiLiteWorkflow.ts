@@ -32,7 +32,12 @@ import {
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
-import { buildArtifactFetchContextKey } from "./useCiLiteWorkflowHelpers";
+import {
+  buildArtifactFetchContextKey,
+  getAutofixChainSkipReason,
+  getCiLiteWorkflowErrorMessage,
+  splitRepoFullName,
+} from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 
 type CiLiteArtifactJson = {
@@ -63,52 +68,6 @@ function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
     source_sha: readSha("source_sha"),
     github_sha: readSha("github_sha"),
   };
-}
-
-
-function getAutofixChainSkipReason(lines: string[]): string | null {
-  if (!Array.isArray(lines) || lines.length === 0) return null;
-  const joined = lines.join("\n");
-
-  if (/No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Kein TARGET_BRANCH im Autofix-Run";
-  }
-  if (/Ref\s+looks\s+like\s+a\s+SHA.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref wurde als SHA statt Branch erkannt";
-  }
-  if (/Unsafe\s+ref.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref enthält unsichere Zeichen";
-  }
-  if (/CI\s*Lite\s+chain-?run\s+disabled\s+for.*regex:/i.test(joined)) {
-    return "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt";
-  }
-  if (/is\s+not\s+a\s+remote\s+branch.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref existiert nicht als Remote-Branch";
-  }
-
-  return null;
-}
-
-function splitRepoFullName(repoFullName: string): { owner: string; repo: string } | null {
-  const [owner, repo] = String(repoFullName || "").trim().split("/");
-  if (!owner || !repo) return null;
-  return { owner, repo };
-}
-
-function getErrorMessage(error: unknown, fallback = ""): string {
-  if (error instanceof Error && typeof error.message === "string") {
-    return error.message;
-  }
-  if (typeof error === "string") return error;
-  if (
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  return fallback;
 }
 
 export function useCiLiteWorkflow() {
@@ -675,7 +634,7 @@ export function useCiLiteWorkflow() {
             return true;
           }
         } catch (e: unknown) {
-          setLocalError(getErrorMessage(e, String(e)));
+          setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
           setChainWaiting(false);
           stopRunLookup();
           return true;
@@ -761,7 +720,8 @@ export function useCiLiteWorkflow() {
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
       if (dispatching) return;
-      if (!githubRepo || !githubRepo.includes("/")) {
+      const repoParts = splitRepoFullName(githubRepo);
+      if (!repoParts) {
         Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
         return;
       }
@@ -800,10 +760,11 @@ export function useCiLiteWorkflow() {
         }
         setTargetRef(targetBranch);
 
-        const repoParts = splitRepoFullName(githubRepo);
-        const sourceHeadSha = repoParts
-          ? await getBranchHeadSha(repoParts.owner, repoParts.repo, targetBranch).catch(() => null)
-          : null;
+        const sourceHeadSha = await getBranchHeadSha(
+          repoParts.owner,
+          repoParts.repo,
+          targetBranch,
+        ).catch(() => null);
 
         const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
@@ -880,7 +841,7 @@ export function useCiLiteWorkflow() {
               return true;
             }
           } catch (e: unknown) {
-            setLocalError(getErrorMessage(e, String(e)));
+            setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
             stopRunLookup();
             return true;
           }
@@ -898,7 +859,7 @@ export function useCiLiteWorkflow() {
           scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
       } catch (e: unknown) {
-        setLocalError(getErrorMessage(e, String(e)));
+        setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
         stopRunLookup();
       } finally {
         setDispatching(false);

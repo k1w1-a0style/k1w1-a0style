@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-30 (Patch 634)**
+Stand: **2026-03-30 (Patch 637)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -29,6 +29,9 @@ Stand: **2026-03-30 (Patch 634)**
 ## Aktuell (Priorität)
 
 - [x] **PR-504-Review-Regressionspunkt in `materializeProjectFiles(...)` geschlossen:** invalid/malformed `project.files`-Eintraege (`null`, primitive Werte, unvollstaendige Objekte) werden wieder fail-safe ignoriert, `readProjectFileContent(...)` wird erst nach Objekt-Guard aufgerufen, und ein gezielter Regressionstest (`__tests__/projectMaterializer.failSafe.regression.test.ts`) sichert den Crash-/Skip-Vertrag (Patch 634).
+- [x] **GitHubRepos Sync-Status bleibt bei ungueltigem Repo-Slug nicht stale:** `refreshSyncStatus` behandelt `resolveSyncStatusPrecheck(...).status === "invalid_repo"` jetzt explizit als Fehlerstatus (`error: 1`, `checkedAt`) statt stillem Return; der `invalid_repo`-Precheck-Zweig ist in `__tests__/useGitHubReposScreenHelpers.test.ts` regressionsfest abgedeckt (Patch 635).
+- [x] **Test-Determinismus fuer CI-Freshness-Guard nachgezogen:** `__tests__/buildReadinessGate.ciLiteFreshness.test.ts` nutzt eine feste Uhrbasis (`FIXED_NOW`) plus `Date.now`-Spy/Restore statt verstreuter Echtzeitaufrufe; Deep-Scan-Review enthaelt dazu den finalen Test-Audit-Block mit weiteren priorisierten Verbesserungsoptionen (Patch 636).
+- [x] **PR-506 Doku-/Review-SoT konsolidiert:** Kern-MD-Standheader (`INDEX`/`TESTING_GUIDE`/`FRESH_CHECKOUT_GREEN_PATH`) harmonisiert, Deep-Scan-Hauptteil auf aktuellen TODO-Status korrigiert (keine ueberholten „offen“-Aussagen mehr fuer geschlossene Punkte), und `AGENTS.md` um verbindlichen Kern-MD-/SoT-Abgleich plus Abschlussbericht-Pflichtangaben nachgeschaerft (Patch 637).
 - [x] **CS-REST-001 sauber geschlossen (Busy-UX `testEas`):** `testEas` laeuft nun ueber denselben globalen Busy-Guard wie die anderen Connection-Tests und gibt bei Busy-Kollision explizites Nutzerfeedback (`Bitte warten`) statt stillem Return; Restpunkt ist damit kein offener UX-Drift mehr (Patch 626).
 - [x] **`docs/PROJECT_TODO.md` als historische Altliste markiert (SoT klargezogen):** laufende operative Restpunkte bleiben ausschliesslich in `docs/TODO.md`; `docs/PROJECT_TODO.md` bleibt bewusst als Archiv-/Historienkontext bestehen, aber nicht mehr als zweite aktive Wahrheit (Patch 626).
 - [x] **Naechster kleiner Runtime-`as any`-Hotspot abgebaut (`lib/secretRedaction.ts`):** `replaceAllSafe(...)` nutzt jetzt den nativen `String.replace`-Vertrag ohne Runtime-`as any`-Casts; Verhalten bleibt gleich, Typing ist enger (Patch 626).

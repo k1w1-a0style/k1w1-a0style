@@ -27,8 +27,6 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
 
 import {
-  isLikelyValidRepoFullName,
-  isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
   sanitizeWizardHttpDebug,
 } from "../utils/security";
@@ -42,6 +40,7 @@ import {
   normalizeModeForUi,
   normalizeModeForApi,
 } from "./credentialHelpers";
+import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import {
   formatWizardBusyLabel,
   resolveWizardStatusPresentation,
@@ -182,39 +181,21 @@ export function useCredentialsWizardScreen() {
   );
 
   const canRun = useMemo(() => {
-    return (
-      Boolean(supabaseUrl && adminKey && repoFullName) &&
-      isLikelyValidSupabaseUrl(supabaseUrl) &&
-      isLikelyValidAdminKey(adminKey) &&
-      isLikelyValidRepoFullName(repoFullName)
-    );
+    return isWizardRunInputReady({
+      supabaseUrl,
+      adminKey,
+      repoFullName,
+    });
   }, [supabaseUrl, adminKey, repoFullName]);
 
   const ensureCanRunOrAlert = useCallback((): boolean => {
-    const url = (supabaseUrl || "").trim();
-    const key = (adminKey || "").trim();
-    const repo = (repoFullName || "").trim();
-
-    if (!url || !key || !repo) {
-      Alert.alert("Fehlt was", "Supabase URL, Repo oder Admin-Key fehlen. Bitte erst oben setzen.");
-      return false;
-    }
-
-    if (!isLikelyValidSupabaseUrl(url)) {
-      Alert.alert(
-        "Supabase URL ungültig",
-        "Bitte eine HTTPS URL angeben (z.B. https://<project>.supabase.co) und keine Leerzeichen."
-      );
-      return false;
-    }
-
-    if (!isLikelyValidRepoFullName(repo)) {
-      Alert.alert("Repo ungültig", "Repo muss im Format owner/repo sein (z.B. k1w1-a0style/k1w1-a0style).");
-      return false;
-    }
-
-    if (!isLikelyValidAdminKey(key)) {
-      Alert.alert("Admin-Key wirkt ungültig", "Admin-Key ist zu kurz oder enthält Leerzeichen.");
+    const issue = validateWizardRunInputs({
+      supabaseUrl,
+      adminKey,
+      repoFullName,
+    });
+    if (issue) {
+      Alert.alert(issue.title, issue.message);
       return false;
     }
 

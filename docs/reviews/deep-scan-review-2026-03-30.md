@@ -44,11 +44,11 @@ Zusätzlich ausgeführte Verifikation:
 | Punkt | Status | Evidenz | Risiko | Empfehlung |
 |---|---|---|---|---|
 | BuildScreen-Restpunkt Export-Wording (`Copy JSON` / `Share CSV`) | **bewusst optional** | UI ist funktional, nur Label-Mix DE/EN in `BuildHistorySection.tsx` | niedrig (Kosmetik) | nur bei echtem UX-Bedarf umbenennen |
-| MD-/Notes-Cleanup Kernflächen | **teilweise offen** | Kernnav existiert (`README` + `docs/INDEX`), aber Alt-/Spezialdokus mit veraltetem Stand vorhanden (`docs/TESTING_GUIDE.md`) | niedrig bis mittel (Orientierung/Trust) | kleinen docs-only Sweep mit Fokus auf Kernpfade |
-| Dokument-SoT scharf halten | **teilweise offen** | starke Patch-/Checklog-Disziplin, aber sehr lange changelog-lastige README erschwert SoT-Lesen | mittel (Signal/Rauschen) | README stärker auf Navigation/Status kürzen, Verlauf in Patchlog belassen |
-| Trust-Follow-up / Green-Path frischer Checkout | **teilweise offen** | TODO fordert explizite Green-Path-Doku; `package.json` Scripts klar, aber zentrale frische-Checkout-Anleitung ist fragmentiert/teils veraltet | mittel (Onboarding, reproduzierbare Verifikation) | kompakten „Fresh Checkout Green Path“ zentral dokumentieren |
+| MD-/Notes-Cleanup Kernflächen | **im Kern geschlossen** | Kern-MDs (`README`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT_GREEN_PATH`) auf aktuellen Stand gezogen | niedrig (Rest = laufende Pflege) | nur noch punktuell bei neuen Patch-Scope-Änderungen nachziehen |
+| Dokument-SoT scharf halten | **verbessert, laufende Daueraufgabe** | Patch-/Checklog-Disziplin ist stark; Kernwidersprüche wurden bereinigt | niedrig bis mittel (Signal/Rauschen) | README langfristig weiter auf Navigation/Status fokussieren |
+| Trust-Follow-up / Green-Path frischer Checkout | **geschlossen** | Green-Path ist zentral dokumentiert und aktuell (`docs/FRESH_CHECKOUT_GREEN_PATH.md`) | niedrig | als verbindliche Referenz beibehalten |
 | Rest-`any` selektiv abbauen | **bestätigt offen** | `docs/04-risk-hotspots.md` listet verbleibende Runtime-Hotspots explizit | mittel (punktuelle Runtime-/Error-Contract-Risiken) | A-Restpunkte weiter in kleinen testgetriebenen Patches |
-| CS-REST-001 Busy-UX für `testEas` | **bestätigt offen (klein)** | `testEas` nutzt nicht `withBusyGuard`; frühes `return` bei `busyRef.current` ohne explizites Busy-Feedback | niedrig bis mittel (UX-Uneindeutigkeit) | Busy-Verhalten für `testEas` an Guard-/Feedback-Semantik angleichen |
+| CS-REST-001 Busy-UX für `testEas` | **geschlossen** | in `docs/TODO.md` als erledigt markiert (Patch 626), Busy-Kollisionen haben explizites Feedback | niedrig | beobachten, kein akuter Restpunkt |
 
 ---
 
@@ -107,27 +107,27 @@ Interpretation: „geschlossen“ war fachlich plausibel, aber die Stelle bleibt
 
 ### 2) MD-/Notes-Cleanup Kernflächen
 
-- **Status:** teilweise offen.
-- **Begründung:** Kernnavigation ist vorhanden, aber z. B. `docs/TESTING_GUIDE.md` enthält klar veraltete/umgebungsfremde Angaben (Pfad `/vercel/sandbox`, alte Testsuite-Größen).
-- **Risiko/Auswirkung:** mittel für Vertrauen in Doku, niedrig für Runtime.
-- **Priorität:** P3.
-- **Kleinster nächster Schritt:** 1 kompakter docs-only Patch: veraltete Guide-Inhalte als „historisch“ markieren oder auf aktuellen Green-Path umstellen.
+- **Status:** im Kern geschlossen.
+- **Begründung:** Kern-MDs wurden auf denselben Patchstand gezogen; die früher veralteten Stand-Header sind bereinigt.
+- **Risiko/Auswirkung:** niedrig für Runtime, niedrig bis mittel für laufende Pflege.
+- **Priorität:** P3 (nur kontinuierliche Pflege).
+- **Kleinster nächster Schritt:** keine Sondermaßnahme; bei jedem Patch den Kern-MD-Sync strikt mitlaufen lassen.
 
 ### 3) Dokument-SoT scharf halten
 
-- **Status:** teilweise offen.
-- **Begründung:** SoT-Disziplin ist grundsätzlich gut (Patch-/Checklog stark), aber operative Kernaussagen sind durch sehr lange Verlaufsblöcke schwerer auffindbar.
-- **Risiko/Auswirkung:** mittel für Wartbarkeit und schnelle Verifikation.
+- **Status:** verbessert, aber als Daueraufgabe laufend.
+- **Begründung:** zentrale Widersprüche sind bereinigt; verbleibender Optimierungsbedarf ist Struktur-/Lesbarkeit, nicht fachliche Inkonsistenz.
+- **Risiko/Auswirkung:** mittel für Wartbarkeit, niedrig für Runtime.
 - **Priorität:** P3.
-- **Kleinster nächster Schritt:** README weiter auf „Status + Navigation + Verträge“ fokussieren; Historie konsequent im Patchlog halten.
+- **Kleinster nächster Schritt:** bei Gelegenheit README-Historienblock weiter kürzen, ohne Informationsverlust.
 
 ### 4) Trust-Follow-up / Green-Path frischer Checkout
 
-- **Status:** teilweise offen.
-- **Begründung:** TODO fordert expliziten Green-Path (`npm ci`, Typecheck, Lint, Tests). Die Bausteine sind vorhanden, aber nicht als ein kurzer verbindlicher Ablauf an einer zentralen Stelle.
-- **Risiko/Auswirkung:** mittel für Onboarding-/Audit-Reproduzierbarkeit.
-- **Priorität:** P2.
-- **Kleinster nächster Schritt:** kurze zentrale „Fresh Checkout Checklist“ (Voraussetzungen + 4 Befehle + erwartete Signale + bekannte externe Warnung `http-proxy`).
+- **Status:** geschlossen.
+- **Begründung:** der Green-Path ist zentral und aktuell dokumentiert (`docs/FRESH_CHECKOUT_GREEN_PATH.md` + `docs/TESTING_GUIDE.md`).
+- **Risiko/Auswirkung:** niedrig.
+- **Priorität:** P3 (Erhalt).
+- **Kleinster nächster Schritt:** nur bei Prozessänderungen aktualisieren.
 
 ### 5) Rest-`any` selektiv abbauen
 
@@ -139,11 +139,11 @@ Interpretation: „geschlossen“ war fachlich plausibel, aber die Stelle bleibt
 
 ### 6) CS-REST-001: Busy-UX für `testEas` konsistent
 
-- **Status:** bestätigt offen (kleiner UX-Rest).
-- **Begründung:** `testEas` läuft außerhalb `withBusyGuard`; bei aktivem `busyRef` wird nur früh returned. Dadurch ist das Verhalten korrekt konservativ, aber Busy-Feedback nicht im selben Muster wie andere Test-/Save-Aktionen.
-- **Risiko/Auswirkung:** niedrig bis mittel (UX-Wahrheit/Bedienklarheit), kein harter Security-/Build-Vertrag.
-- **Priorität:** P2/P3 (klein, aber usernah).
-- **Kleinster nächster Schritt:** `testEas` auf dieselbe Busy-Feedback-Semantik ziehen (z. B. dedizierter Hinweis bei Busy-Kollision statt stillem Return).
+- **Status:** geschlossen.
+- **Begründung:** ist in `docs/TODO.md` als erledigt dokumentiert (Patch 626), inkl. explizitem Busy-Feedback.
+- **Risiko/Auswirkung:** niedrig.
+- **Priorität:** keine aktive Restpriorität.
+- **Kleinster nächster Schritt:** nur Regression beobachten.
 
 ---
 
@@ -184,13 +184,13 @@ Interpretation: „geschlossen“ war fachlich plausibel, aber die Stelle bleibt
 
 ## Weitere echte, derzeit unterbewertete Restpunkte (klein, aber real)
 
-1. **Veraltete Test-/Onboarding-Doku (`docs/TESTING_GUIDE.md`)**
-   - Konkrete veraltete Inhalte vorhanden.
-   - Priorität: P3 (Trust/Onboarding, nicht Runtime).
+1. **Test-`as any`-Dichte in mehreren Suiten**
+   - Kein akuter Runtime-Defekt, aber schwächerer Typvertrag in Refactor-nahen Tests.
+   - Priorität: P2.
 
-2. **Busy-UX-Inkonsistenz für `testEas`**
-   - Bereits in TODO benannt, im Code sichtbar.
-   - Priorität: P2/P3 (kleiner, klarer UX-Fix).
+2. **README-Lesbarkeit (lange Historienblöcke)**
+   - Fachlich konsistent, aber operativ schwerer scanbar.
+   - Priorität: P3.
 
 Keine zusätzlichen „neuen Großbaustellen“ wurden künstlich aufgemacht.
 
@@ -198,14 +198,80 @@ Keine zusätzlichen „neuen Großbaustellen“ wurden künstlich aufgemacht.
 
 ## Konkrete nächste Schritte
 
-1. **Kleiner UX-Patch (P2/P3):** `testEas` Busy-Kollisionsfeedback konsistent machen.
-2. **Kleiner Docs-Patch (P2/P3):** „Fresh Checkout Green Path“ zentral und knapp dokumentieren.
-3. **Kleiner Docs-Cleanup (P3):** `docs/TESTING_GUIDE.md` auf aktuellen, realen Stand ziehen oder klar als historisch markieren.
-4. **Danach selektiv Runtime-Hotspots (P2):** nächster `any`-A-Punkt mit engem Testfokus.
-5. **Truthfulness-Hotspot beobachten:** keine künstliche Wiedereröffnung; nur bei erneutem CI-Symptom gezielt nachschärfen.
+1. **Selektiver Test-Typing-Pass (P2):** `as any`-intensive Test-Fixtures in kleinen Paketen straffen.
+2. **README-Lesbarkeits-Pass (P3):** Historienblock behutsam kürzen, SoT-Links prominent halten.
+3. **Truthfulness-Hotspot beobachten:** keine künstliche Wiedereröffnung; nur bei erneutem CI-Symptom gezielt nachschärfen.
 
 ---
 
 ## Schlussfazit (nüchtern)
 
 Das Projekt wirkt im aktuellen Stand technisch stabil und stark gehärtet. Die offenen Punkte sind mehrheitlich **klein**, klar eingrenzbar und teilweise bewusst optional bzw. extern-operativ. Der zentrale Truthfulness-/Flake-Punkt ist derzeit eher ein **Determinismus-/Testumgebungs-Thema** als ein bestätigter Produktdefekt; er bleibt ein Beobachtungs-Hotspot, aber kein Anlass für breitflächigen Umbau.
+
+---
+
+## Addendum (aktueller Nachscan, 2026-03-30, Patch 636)
+
+### Was zusätzlich geprüft wurde
+
+- Laufzeit-/Hook-Hotspots (Größencheck):
+  `hooks/useChatAIFlow.ts` (993), `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts` (1087), `screens/ConnectionsScreen/hooks/useConnectionsScreen.ts` (941), `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts` (1066), `components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts` (906), `screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts` (698).
+- Rest-`as any` Inventar (codefokussiert, ohne `docs/**`, `README.md`, `PROJECT_CHECKLOG.md`).
+- TODO/FIXME/HACK-Scan.
+- Konsistenzcheck für Doku-Sync mit `node scripts/docsLint.js` und `bash scripts/check_patch_docs_sync.sh`.
+
+### Ampelsystem (kritische Follow-ups)
+
+| Prio | Befund | Ort | Warum relevant | Fixmöglichkeit |
+|---|---|---|---|---|
+| P0 | **Kein neuer bestätigter P0-Produktdefekt** | Nachscan gesamt | Security-/Workflow-Contracts bleiben durch Invariants/Scripts abgesichert. | Weiter so: fail-closed Checks + Invariants nicht aufweichen. |
+| P1 | **Monolithische Hook-Hotspots bleiben wartungsriskant** | `hooks/useChatAIFlow.ts`, `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`, `screens/DiagnosticScreen/hooks/useDiagnosticFixRunner.ts` | Hohe Änderungsfläche erhöht Regressionswahrscheinlichkeit trotz Tests. | Weitere kleine pure-logic Extraktionen (Notice-/Mapping-/Guard-Blöcke), jeweils mit fokussierten Unit-Tests und ohne Flow-Umbau. |
+| P2 | **Testlastige `as any`-Reste** (größtenteils in Tests) | u. a. `lib/__tests__/buildStartService.integration.test.ts`, `__tests__/useDiagnosticFixRunner.fixSemantics.test.tsx`, `__tests__/repoSyncOrchestration.test.ts` | Kein akuter Runtime-Defekt, aber Typvertragsrauschen in Regressionstests. | Selektiver Test-Typing-Cleanup in kleinen Chargen (Fixtures/Factories enger typisieren). |
+| P2 | **Docs-Navigations-/SoT-Rauschen** | `README.md` (sehr lange Historienblöcke), verteilt in Patch-/Review-Notizen | Erschwert schnellen Einstieg trotz guter Datenlage. | README weiter als Navigations-SoT kürzen; historische Tiefe in Patchlog/Reviews belassen. |
+
+### ASNI-Einträge (Action / Scope / Need / Impact)
+
+1. **A:** `refreshSyncStatus` invalid-repo Fehlerstatus setzen.
+   **S:** `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
+   **N:** Verhindert stale Sync-Lampe bei ungueltigem `owner/repo`.
+   **I:** Kleine Correctness-/UX-Härtung, regressionsarm.
+2. **A:** `invalid_repo` Precheck-Test ergänzen.
+   **S:** `__tests__/useGitHubReposScreenHelpers.test.ts`
+   **N:** Deterministischer Nachweis des neuen Guard-Zweigs.
+   **I:** Höhere Refactor-Sicherheit.
+3. **A:** Monolith-Hook-Extraktionen weiter priorisieren.
+   **S:** Hook-Hotspots (siehe Ampel P1).
+   **N:** Wartbarkeit und Review-Fähigkeit verbessern.
+   **I:** Mittelfristig geringere Regressionen bei Feature-Fixes.
+
+### Dead-Code-/Cleanup-Kandidaten (kritisch geprüft)
+
+- **Nicht bestätigt:** echter produktiver Dead-Code-Block, der sofort gelöscht werden sollte.
+- **Beobachtung:** mehrere große Workflow-/Template-String-Dateien enthalten absichtlich eingebettete `console.*`/Shell-Fragmente (Template-Inhalt, kein Runtime-Logger-Leak).
+- **Empfehlung:** bei künftigen Scans `templates/**` und `shared/workflows/**` bei Log-Regex getrennt auswerten, um False-Positives sauber zu isolieren.
+
+### Test-Audit (Korrektheit + Verbesserungsmöglichkeiten, finaler Nachzug)
+
+#### Bereits als Fix-Beispiel umgesetzt
+
+- **Determinismus-Fix:** `__tests__/buildReadinessGate.ciLiteFreshness.test.ts`
+  - Problem: Test nutzte mehrfach direkt `Date.now()` (Fixture + Assertions), was in Grenzfällen zeitabhängig sein kann.
+  - Fix: feste Zeitbasis (`FIXED_NOW`) + `jest.spyOn(Date, "now").mockReturnValue(FIXED_NOW)` + Restore in `afterEach`.
+  - Nutzen: reproduzierbarere Laufzeit, klarere Failure-Ursachen, weniger Flake-Risiko.
+
+#### Weitere sinnvolle Test-Verbesserungen (mit Begründung + Fixoption)
+
+1. **P1 (Test-Qualität): zentrale typed Test-Fixtures statt wiederholtem `as any`**
+   - Betroffene Stellen: z. B. `lib/__tests__/buildStartService.integration.test.ts`, `__tests__/useDiagnosticFixRunner.fixSemantics.test.tsx`, `__tests__/repoSyncOrchestration.test.ts`.
+   - Begründung: viele `as any` kaschieren Vertragsdrift und schwächen Refactor-Sicherheit.
+   - Fixoption: `test/fixtures/*.ts` mit strikt typisierten Factory-Helpern (`makeProjectData`, `makeProjectFile`, `makeWorkflowRun`) und schrittweise Migration.
+
+2. **P2 (Test-Wartbarkeit): Zeit-/Freshness-Tests systematisch auf feste Uhr umstellen**
+   - Betroffene Muster: `Date.now()` in Build-Readiness-/CI-Freshness-/History-Tests.
+   - Begründung: verteilte Zeitquellen erschweren Diagnose bei sporadischen Grenzfehlern.
+   - Fixoption: kleines `withFixedNow(...)` Test-Utility oder per-Suite-`Date.now`-Mock als Standardmuster.
+
+3. **P2 (Signal/Rauschen): Invariant-Regex-Scans um False-Positive-Filter ergänzen**
+   - Betroffene Muster: Log-/Console-Scans treffen teils Template-Stringinhalte.
+   - Begründung: echte Runtime-Funde gehen leichter im Output-Rauschen unter.
+   - Fixoption: Scanpfade in Invariant-Suites stärker auf Runtime-Code fokussieren und Templates separat berichten.

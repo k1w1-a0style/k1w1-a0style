@@ -51,6 +51,11 @@ import type { TemplateFile, RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
 import { getEasLinkWriteNotice, getRepoSuccessNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
+import {
+  buildRepoBranchContextKey,
+  getEasLinkNeutralMessage,
+  resolveSyncStatusPrecheck,
+} from "./useGitHubReposScreenHelpers";
 
 type SyncStatus = {
   checking: boolean;
@@ -159,11 +164,10 @@ export function useGitHubReposScreen() {
   const [easProjectId, setEasProjectId] = useState<string>("");
   const [isEasLinking, setIsEasLinking] = useState(false);
   const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
-  const easLinkContextKey = useMemo(() => {
-    const repo = (activeRepo || "").trim();
-    const branch = (activeBranch || "").trim();
-    return repo && branch ? `${repo}@@${branch}` : null;
-  }, [activeRepo, activeBranch]);
+  const easLinkContextKey = useMemo(
+    () => buildRepoBranchContextKey(activeRepo, activeBranch),
+    [activeRepo, activeBranch],
+  );
   const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
 
   // Manage Modal (used for branch operations)
@@ -203,9 +207,7 @@ export function useGitHubReposScreen() {
     setEasLinkStatus(
       getEasLinkPresentation(
         "unknown",
-        easLinkContextKey
-          ? "Pruefstatus fuer die aktuelle Repo-/Branch-Auswahl noch nicht geladen."
-          : "Repo oder Branch sind noch nicht ausgewaehlt.",
+        getEasLinkNeutralMessage(easLinkContextKey),
       ),
     );
   }, [easLinkContextKey]);
@@ -217,18 +219,26 @@ export function useGitHubReposScreen() {
       if (runId !== syncStatusRunRef.current) return;
       setSyncStatus(next);
     };
-    if (!activeRepo) {
+    const precheck = resolveSyncStatusPrecheck({
+      activeRepo,
+      activeBranch,
+    });
+
+    if (precheck.status === "missing_repo") {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now() });
       return;
     }
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const branch = (activeBranch || "").trim();
-    if (!branch) {
+    if (precheck.status === "invalid_repo") {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
       return;
     }
+    if (precheck.status === "missing_branch") {
+      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
+      return;
+    }
+    const parsed = precheck.repoParts;
+    const branch = precheck.branch;
+    if (!parsed) return;
     commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
 
     try {
@@ -816,7 +826,11 @@ export function useGitHubReposScreen() {
       return;
     }
 
-    const contextKey = `${activeRepo}@@${branch}`;
+    const contextKey = buildRepoBranchContextKey(activeRepo, branch);
+    if (!contextKey) {
+      setEasLinkStatus(getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt."));
+      return;
+    }
     const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
 
     setIsEasLinking(true);
