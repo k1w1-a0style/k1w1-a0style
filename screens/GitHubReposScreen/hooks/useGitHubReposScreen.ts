@@ -54,6 +54,7 @@ import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./gith
 import {
   buildRepoBranchContextKey,
   getEasLinkNeutralMessage,
+  resolveSyncStatusPrecheck,
 } from "./useGitHubReposScreenHelpers";
 
 type SyncStatus = {
@@ -218,18 +219,23 @@ export function useGitHubReposScreen() {
       if (runId !== syncStatusRunRef.current) return;
       setSyncStatus(next);
     };
-    if (!activeRepo) {
+    const precheck = resolveSyncStatusPrecheck({
+      activeRepo,
+      activeBranch,
+    });
+
+    if (precheck.status === "missing_repo") {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now() });
       return;
     }
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const branch = (activeBranch || "").trim();
-    if (!branch) {
+    if (precheck.status === "invalid_repo") return;
+    if (precheck.status === "missing_branch") {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
       return;
     }
+    const parsed = precheck.repoParts;
+    const branch = precheck.branch;
+    if (!parsed) return;
     commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
 
     try {
