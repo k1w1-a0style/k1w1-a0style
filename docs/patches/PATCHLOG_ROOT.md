@@ -1,3 +1,5 @@
+- Patch 629: `as any`-Durchlauf 3 reduziert kleine UI-/Glue-Restcasts (`polyfills`, Wizard/Diagnostic new-arch-Flags, WorkflowRunDetailModal, ApiKeysSection, LocalRemoteDiffSection`) ohne Architekturumbau; codefokussierter Scan ohne Doku/README von 208 auf 197.
+
 - Patch 628: `as any`-Durchlauf 2 reduziert weitere Runtime-/Edge-Restpunkte (`notificationService`, `github-workflow-logs`, `create_codesandbox`) mit engen Guards/Narrowings; codefokussierter Scan ohne Doku/README von 212 auf 208.
 
 - Patch 627: erster konservativer `as any`-Abbau auf aktuellem Stand mit Fokus auf Runtime-/Edge-Helper (`k1w1-handler`, `android-keystore-generate`, Template-Diagnostics, Project-Materializer, Repo-Utils); Netto-Reduktion im Scan von 291 auf 285 ohne Vertragsumbau.

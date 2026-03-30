@@ -28,6 +28,15 @@
   - `supabase/functions/create_codesandbox/helpers.ts` (`safeErrorMessage` ohne `(err as any).message`).
 - Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **212** auf **208** `as any`.
 
+**Update (Patch 629, 2026-03-30, Durchlauf 3):**
+- Weitere kleine, lokale B-/Glue-Casts ohne Hook-Umbau reduziert:
+  - `polyfills.ts` (`globalThis`/console-Zuweisungen ohne `as any`),
+  - `screens/CredentialsWizardScreen/index.tsx` und `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts` (`nativeFabricUIManager` ohne `global as any`),
+  - `screens/EnhancedBuildScreen/components/WorkflowRunDetailModal.tsx` (`run`-Felder ohne `run as any`),
+  - `screens/SettingsScreen/components/ApiKeysSection.tsx` (`PROVIDER_METADATA` ohne Cast),
+  - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx` (lokale Datei-Content-Zugriffe ohne `(f as any).content`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **208** auf **197** `as any`.
+
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 
 | Klasse | Fundstelle | Risiko | Patch-619-Status |
@@ -273,3 +282,13 @@ CI_LITE_TYPECHECK_OK: "ci_lite_typecheck_ok",
 ```txt
 (no matches)
 ```
+
+
+**Update (Patch 629, 2026-03-30, Durchlauf 3):**
+- Weitere kleine, lokale B-/Glue-Casts ohne Hook-Umbau reduziert:
+  - `polyfills.ts` (`globalThis`/console-Zuweisungen ohne `as any`),
+  - `screens/CredentialsWizardScreen/index.tsx` und `screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts` (`nativeFabricUIManager` ohne `global as any`),
+  - `screens/EnhancedBuildScreen/components/WorkflowRunDetailModal.tsx` (`run`-Felder ohne `run as any`),
+  - `screens/SettingsScreen/components/ApiKeysSection.tsx` (`PROVIDER_METADATA` ohne Cast),
+  - `screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx` (lokale Datei-Content-Zugriffe ohne `(f as any).content`).
+- Codefokussierter Scan (ohne `docs/**`/`README.md`) sank von **208** auf **197** `as any`.

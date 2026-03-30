@@ -69,7 +69,7 @@ export const ApiKeysSection: React.FC<Props> = ({
       <View style={styles.providerPickerRow}>
         {PROVIDER_IDS.map((p) => {
           const isActive = p === selectedProvider;
-          const meta = (PROVIDER_METADATA as any)?.[p];
+          const meta = PROVIDER_METADATA[p];
           const keyCount = (apiKeys?.[p] ?? []).length;
 
           return (
