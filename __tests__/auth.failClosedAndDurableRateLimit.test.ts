@@ -1,4 +1,4 @@
-import { requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
+import { getJwtPayload, requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -106,10 +106,11 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(result).toBeNull();
   });
 
-  it("accepts build_admin from verified JWT when payload contains non-ascii claims", async () => {
+  it("keeps utf-8 role decoding intact (would fail on legacy atob+JSON.parse decoder)", async () => {
+    const unicodeRole = "build_ädmin";
     const token = jwtWithUtf8Payload({
-      role: "build_admin",
-      app_metadata: { role: "build_admin" },
+      role: unicodeRole,
+      app_metadata: { role: unicodeRole },
       user_metadata: { display_name: "Jörg 🔒" },
       sub: "user-utf8",
     });
@@ -129,9 +130,10 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
         SUPABASE_URL: "https://example.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "srv-key",
       },
-      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", "build_admin"] }),
+      () => requireJwtRole(req, { scope: "test-scope", allowedRoles: ["service_role", unicodeRole] }),
     );
 
+    expect(getJwtPayload(req)?.role).toBe(unicodeRole);
     expect(result).toBeNull();
   });
 
