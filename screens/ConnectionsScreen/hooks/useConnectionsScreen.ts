@@ -50,18 +50,12 @@ import {
   classifyVerificationError,
   type VerificationContractState,
 } from "../../../lib/status/verificationContract";
-
-type ExpoProjectResponse = {
-  data?: {
-    id?: string;
-    slug?: string;
-    name?: string;
-    project?: {
-      id?: string;
-      slug?: string;
-    };
-  };
-};
+import {
+  buildRepoOkLine,
+  deriveSupabaseRefFromUrl,
+  hasExpoProject,
+  resolvePersistedEasState,
+} from "./useConnectionsScreenHelpers";
 
 export function useConnectionsScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -200,14 +194,15 @@ export function useConnectionsScreen() {
             return;
           }
 
-          const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
-          const hasProject = Boolean(
-            json?.data?.id ||
-              json?.data?.project?.id ||
-              json?.data?.project?.slug ||
-              json?.data?.slug ||
-              json?.data?.name,
-          );
+          const json = (await resp.json().catch(() => null)) as {
+            data?: {
+              id?: string;
+              slug?: string;
+              name?: string;
+              project?: { id?: string; slug?: string };
+            };
+          } | null;
+          const hasProject = hasExpoProject(json);
           await saveConnEasStatus({
             ok: hasProject,
             state: hasProject ? "verified" : "unknown",
@@ -331,20 +326,15 @@ export function useConnectionsScreen() {
       if (exOk === "true") setExpoOk(true);
       if (exUserStored) setExpoUser(exUserStored);
       if (easOkStored === "true") setEasOk(true);
-      if (
-        easStateStored === "verified" ||
-        easStateStored === "missing" ||
-        easStateStored === "unknown" ||
-        easStateStored === "auth_error" ||
-        easStateStored === "stale"
-      ) {
-        setEasState(easStateStored);
-      } else if (eas || easLastVerifiedStored) {
-        setEasState(easLastVerifiedStored ? "verified" : "stale");
-      }
+      const restoredEasState = resolvePersistedEasState({
+        state: easStateStored,
+        easProjectId: eas || "",
+        lastVerifiedAt: easLastVerifiedStored,
+      });
+      if (restoredEasState) setEasState(restoredEasState);
       if (easLastVerifiedStored) setEasLastVerifiedAt(easLastVerifiedStored);
       if (repoOkStored === "true") setRepoOk(true);
-      const repoLineStored = [repoSlug || "", repoBranch || ""].filter(Boolean).join(" (") + (repoBranch ? ")" : "");
+      const repoLineStored = buildRepoOkLine(repoSlug, repoBranch);
       if (repoSlug) setRepoOkLine(repoLineStored);
 
       // Hydration finished (prevents initial token empty state from clearing saved OK lights).
@@ -662,14 +652,11 @@ Scopes: ${scopes}` : ""}`);
       Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       setSupabaseOk(true);
       const writes: Array<[string, string]> = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
-      try {
-        const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
-        const ref = host.endsWith(".supabase.co") ? host.split(".")[0] : "";
-        if (ref) {
-          setSupabaseRef(ref);
-          writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
-        }
-      } catch {}
+      const ref = deriveSupabaseRefFromUrl(url);
+      if (ref) {
+        setSupabaseRef(ref);
+        writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
+      }
       await persistConnLights(writes);
       });
     } catch (e: unknown) {
