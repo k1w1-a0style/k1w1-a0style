@@ -29,6 +29,15 @@ export const collectPatchTouchedPaths = (patch: PreflightPatch): string[] => {
   return Array.from(new Set(out)).sort();
 };
 
+export const collectDeletedPatchPaths = (patch: PreflightPatch): string[] => {
+  const out: string[] = [];
+  for (const p of patch.delete ?? []) {
+    const v = validateFilePath(p);
+    if (v.valid && v.normalized) out.push(v.normalized);
+  }
+  return Array.from(new Set(out)).sort();
+};
+
 export const shouldSyncPatchToGitHub = (params: {
   patch: PreflightPatch;
   syncFixesToGitHub: boolean;

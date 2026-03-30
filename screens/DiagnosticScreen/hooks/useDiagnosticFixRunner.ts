@@ -36,6 +36,7 @@ import {
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
+  collectDeletedPatchPaths,
   collectPatchTouchedPaths,
   sameProjectFiles,
   shouldSyncPatchToGitHub,
@@ -219,14 +220,7 @@ export function useDiagnosticFixRunner(opts: {
       }
       const touched = patchTouchedPaths(patch);
 
-      const deletedSet = new Set(
-        (patch.delete ?? [])
-          .map((p) => {
-            const v = validateFilePath(p);
-            return v.valid && v.normalized ? v.normalized : null;
-          })
-          .filter(Boolean) as string[],
-      );
+      const deletedSet = new Set(collectDeletedPatchPaths(patch));
 
       const filesNow = projectRef.current?.files ?? [];
       const nowMap = new Map(filesNow.map((f) => [f.path, f.content] as const));

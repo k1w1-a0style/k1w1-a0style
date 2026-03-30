@@ -1,4 +1,5 @@
 import {
+  collectDeletedPatchPaths,
   collectPatchTouchedPaths,
   isSyncRelevantPath,
   normalizeFilesForCompare,
@@ -41,6 +42,13 @@ describe("useDiagnosticFixRunnerHelpers", () => {
     });
 
     expect(touched).toEqual(["package.json", "src/app.ts"]);
+  });
+
+  it("collects deleted paths with normalization and dedupe", () => {
+    const deleted = collectDeletedPatchPaths({
+      delete: ["src//app.ts", "src/app.ts", "../invalid"],
+    });
+    expect(deleted).toEqual(["src/app.ts"]);
   });
 
   it("detects sync-relevant patches only for linked repos with enabled sync", () => {
