@@ -78,6 +78,15 @@
 - Ergebnis: Freshness-Tests sind deterministischer und weniger anfällig für Zeitdrift.
 
 
+
+**Update (Patch 638, 2026-03-30, Deep-Scan-Rebaseline):**
+- Aktueller Vollscan (`rg`, ohne `node_modules`): **331** `as any` gesamt und **170** `: any` gesamt.
+- Codefokussierter Scan (ohne `docs/**`, `README.md`, `PROJECT_CHECKLOG.md`): **150** `as any` und **152** `: any`.
+- Einordnung nach Deep-Scan:
+  - Produktiver Runtime-Code ist bei `as any` deutlich kleiner als fruehere Historienstaende; der groesste Restanteil liegt weiterhin in **Tests/Mocks/Historie**.
+  - Der naechste echte Typing-Hebel ist nicht mehr primaer `as any`, sondern die verbliebenen **`: any`-Annotationen** in produktionsnahen Flows sowie testnahen Fixtures.
+  - Hook-Hotspots (`useGitHubReposScreen`, `useDiagnosticFixRunner`, `useChatAIFlow`, `useConnectionsScreen`, `useCiLiteWorkflow`) bleiben die groesste Wartungsoberflaeche; kein neuer P0-Defekt bestaetigt.
+
 #### Priorisierte A/B/C/D-Liste (fokussiert auf echte Runtime-Risiken)
 
 | Klasse | Fundstelle | Risiko | Patch-619-Status |

@@ -275,3 +275,23 @@ Das Projekt wirkt im aktuellen Stand technisch stabil und stark gehärtet. Die o
    - Betroffene Muster: Log-/Console-Scans treffen teils Template-Stringinhalte.
    - Begründung: echte Runtime-Funde gehen leichter im Output-Rauschen unter.
    - Fixoption: Scanpfade in Invariant-Suites stärker auf Runtime-Code fokussieren und Templates separat berichten.
+
+
+## Addendum II (SoT-/Debt-Rebaseline, 2026-03-30, Patch 638)
+
+### Bestaetigte reale Drifts
+
+1. **Stand-Header-Drift in Kern-MDs:** `docs/INDEX.md`, `docs/TESTING_GUIDE.md` und `docs/FRESH_CHECKOUT_GREEN_PATH.md` standen noch auf Patch 636, obwohl TODO/README/Patchlog bereits weiter waren.
+2. **Typing-Lage in Hotspot-Doku veraltet fokussiert:** `docs/04-risk-hotspots.md` enthielt viele Historienupdates, aber keinen klaren frischen Gesamtzaehler inkl. `: any`-Lage.
+
+### Nachgezogene Korrektur
+
+- Kern-Header auf denselben Patchstand synchronisiert.
+- `as any`/`: any`-Inventar neu erhoben und explizit in Runtime-vs-Test/Historie getrennt.
+- Bewertungsfokus entsprechend verschaerft: naechste Hebel sind `: any` in produktionsnahen Pfaden und kleine testgetriebene Hook-Entkopplungen, **kein** Broad-Refactor.
+
+### Nicht bestaetigt (bewusst nicht geaendert)
+
+- Kein neuer reproduzierbarer P0/P1-Runtime-Defekt.
+- Keine neue Auth-/Workflow-/RLS-Vertragsabweichung.
+- Keine zusaetzliche Verfahrensluecke in `AGENTS.md`, die ueber den bereits verpflichtenden Kern-MD-/SoT-Abgleich hinausgeht.
