@@ -113,11 +113,23 @@ type VerifiedJwtUser = {
   app_metadata?: { role?: unknown; [key: string]: unknown };
 };
 
-function getRoleFromVerifiedUser(user: VerifiedJwtUser | null): string {
-  if (!user || typeof user !== "object") return "";
-  if (typeof user.role === "string" && user.role.trim()) return user.role.trim();
-  const appRole = user.app_metadata?.role;
-  return typeof appRole === "string" ? appRole.trim() : "";
+function readNonEmptyRole(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getRoleFromVerifiedContext(user: VerifiedJwtUser | null, payload: JwtPayload | null): string {
+  // Primary source of truth: verified JWT claims from the caller token.
+  const jwtRole = readNonEmptyRole(payload?.role);
+  if (jwtRole) return jwtRole;
+
+  const jwtAppRole = readNonEmptyRole(payload?.app_metadata?.role);
+  if (jwtAppRole) return jwtAppRole;
+
+  // Defensive fallback: verified user object from Supabase Auth.
+  const userAppRole = readNonEmptyRole(user?.app_metadata?.role);
+  if (userAppRole) return userAppRole;
+
+  return readNonEmptyRole(user?.role);
 }
 
 type VerifiedJwtLookupResult =
@@ -142,7 +154,7 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookup
       },
     });
     if (!res.ok) return { ok: false, reason: "invalid_or_unverifiable" };
-    const user = await res.json().catch(() => null);
+    const user = await res.json().catch((): unknown => null);
     if (!user || typeof user !== "object") {
       return { ok: false, reason: "invalid_or_unverifiable" };
     }
@@ -164,7 +176,7 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
   }
 
   const verified = await verifyJwtViaSupabaseAuth(req);
-  if (!verified.ok) {
+  if (verified.ok === false) {
     if (verified.reason === "server_misconfigured") {
       return errorResponse(
         "JWT verification is unavailable due to server auth misconfiguration.",
@@ -181,7 +193,7 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
     );
   }
 
-  const role = getRoleFromVerifiedUser(verified.user);
+  const role = getRoleFromVerifiedContext(verified.user, getJwtPayload(req));
   if (!role || !cfg.allowedRoles.includes(role)) {
     return errorResponse(
       "Forbidden: verified JWT role is not allowed for this route.",

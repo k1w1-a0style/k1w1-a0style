@@ -137,6 +137,7 @@
 - Patch 603 korrigiert den verbleibenden Vertragsfehler in genau dieser Testroute: der Scoped-Guard enthaelt jetzt verpflichtend `allowAdmin: true` und `scope: "test"`, damit keine `500`-Auth-Misconfiguration den beabsichtigten `410 legacy_test_route_disabled`-Pfad verdeckt; Contract-Checks/Invariants blocken die Rueckdrift explizit.
 - Patch 609 schiebt den Sunset im Client weiter auf scoped-only Runtime: Wizard- und Signing-Gate lesen keinen Legacy-Edge-Key mehr fuer Keystore-Readiness, und SecretsSection wertet fehlenden Legacy-Key nicht mehr als aktuellen Runtime-Blocker; verbleibende Legacy-Reste sind explizit als Compat-/Altpfade begrenzt und per Invariant/Contract-Check abgesichert.
 - Patch 615 trennt den Preview-Clientvertrag jetzt ebenfalls fail-closed: der normale `usePreview`-Supabasepfad nutzt den Legacy-Key nicht mehr still; Legacy-`save_preview` ist nur noch ein expliziter Operator-/Maintenance-Compatpfad hinter `EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`.
+- Patch 620 schliesst den verbleibenden serverseitigen JWT-/RBAC-Read-Drift in `_shared/auth.ts`: nach verifizierter JWT-Pruefung wird die Rolle jetzt primaer aus dem verifizierten Token-Claim gelesen (`role`, dann `app_metadata.role`) statt zuerst aus `auth/v1/user.role`; dadurch lehnen Operator-Routen korrekt provisionierte `build_admin`-JWTs nicht mehr faelschlich als `authenticated` ab, ohne den fail-closed-Vertrag (`service_role|build_admin`) aufzuweichen.
 
 ---
 
