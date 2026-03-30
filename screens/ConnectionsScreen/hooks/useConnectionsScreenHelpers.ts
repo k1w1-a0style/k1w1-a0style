@@ -35,7 +35,7 @@ export const resolvePersistedEasState = (params: {
     return state;
   }
 
-  if (easProjectId || lastVerifiedAt) {
+  if (easProjectId.trim() || lastVerifiedAt) {
     return lastVerifiedAt ? "verified" : "stale";
   }
 
@@ -43,9 +43,11 @@ export const resolvePersistedEasState = (params: {
 };
 
 export const buildRepoOkLine = (repoSlug: string | null, repoBranch: string | null): string => {
-  const slug = repoSlug || "";
-  const branch = repoBranch || "";
-  return [slug, branch].filter(Boolean).join(" (") + (branch ? ")" : "");
+  const slug = String(repoSlug ?? "").trim();
+  const branch = String(repoBranch ?? "").trim();
+  if (slug && branch) return `${slug} (${branch})`;
+  if (slug) return slug;
+  return "";
 };
 
 export const hasExpoProject = (payload: ExpoProjectResponse | null): boolean => {

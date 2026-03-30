@@ -48,11 +48,21 @@ describe("useConnectionsScreenHelpers", () => {
         lastVerifiedAt: "2026-01-01T00:00:00.000Z",
       }),
     ).toBe("verified");
+
+    expect(
+      resolvePersistedEasState({
+        state: "legacy",
+        easProjectId: "   ",
+        lastVerifiedAt: null,
+      }),
+    ).toBeNull();
   });
 
   it("builds stable repo line display", () => {
     expect(buildRepoOkLine("owner/repo", "main")).toBe("owner/repo (main)");
     expect(buildRepoOkLine("owner/repo", null)).toBe("owner/repo");
+    expect(buildRepoOkLine(null, "main")).toBe("");
+    expect(buildRepoOkLine(" owner/repo ", " main ")).toBe("owner/repo (main)");
   });
 
   it("detects Expo project payload shape from known fields", () => {
