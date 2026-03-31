@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 654)**
+Stand: **2026-03-31 (Patch 655)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -103,9 +103,9 @@ Stand: **2026-03-31 (Patch 654)**
 - [x] **Geplanter Refactor-Durchlauf 12 (CI-Lite helper-first):** abgeschlossen in Patch 650 (`resolveCiLiteCompletionErrorText(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 13 (Connections helper-first):** abgeschlossen in Patch 651 (`resolveEasLinkWorkflowStartMessage(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 14 (Cross-hook helper-first):** abgeschlossen in Patch 652 (`resolveCiLiteBusyState(...)` helper-first extrahiert; kein Flow-/Vertragsumbau).
-- [x] **Refactor-Planungsdurchlauf (Patch 654) konkretisiert:** naechste safe helper-first Kandidaten fuer kleine Durchlaeufe priorisiert und als Reihenfolge festgehalten (Connections Alert-Resolver -> Build Statuslabel-Mapping -> Diagnostic Issue-Subtitle-Formatter).
+- [x] **Refactor-Planungsdurchlauf (Patch 653) konkretisiert:** naechste safe helper-first Kandidaten fuer kleine Durchlaeufe priorisiert und als Reihenfolge festgehalten (Connections Alert-Resolver -> Build Statuslabel-Mapping -> Diagnostic Issue-Subtitle-Formatter).
 - [x] **Geplanter Refactor-Durchlauf 15 (Connections helper-first):** abgeschlossen in Patch 654 (`resolveConnectionsAlertNotice(...)` extrahiert und im Link/Create-Flow genutzt), keine Auth-/Dispatch-/Stateflow-Aenderung.
-- [ ] **Geplanter Refactor-Durchlauf 16 (Build helper-first):** `useEnhancedBuildScreen`-Statuslabel-/Badge-Mapping in einen reinen Helper extrahieren; keine Polling-/Dispatch-/Readiness-Flow-Aenderung.
+- [x] **Geplanter Refactor-Durchlauf 16 (Build helper-first):** abgeschlossen in Patch 655 (`resolveBuildStatusPresentation(...)` extrahiert), keine Polling-/Dispatch-/Readiness-Flow-Aenderung.
 - [ ] **Geplanter Refactor-Durchlauf 17 (Diagnostic helper-first):** in `useDiagnosticFixRunner` einen kleinen Anzeige-Formatter (Issue-Subtitle/Result-Label) in einen reinen Helper extrahieren; Runner-Orchestrierung unveraendert lassen.
 
 ## Wichtige Vertrags-Reminder

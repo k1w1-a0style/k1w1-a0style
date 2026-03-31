@@ -6,6 +6,8 @@ import {
   type WorkflowJob,
   type WorkflowRunDetails,
 } from "../../../infra/github/workflows";
+import type { BuildStatus } from "../../../shared/types/build";
+import { getStatusIcon } from "../../../utils/buildScreenUtils";
 
 export const FETCH_TIMEOUT_MS = 15_000;
 export const MAX_ALERT_MESSAGE_LEN = 600;
@@ -88,3 +90,17 @@ export async function fetchRunDetailsBundle(
     jobs: Array.isArray(jobs) ? jobs : [],
   };
 }
+
+export const resolveBuildStatusPresentation = (params: {
+  status: BuildStatus;
+  progress?: number | null;
+}): { statusEmoji: string; statusLabel: string } => {
+  const { status, progress } = params;
+  return {
+    statusEmoji: getStatusIcon(status),
+    statusLabel:
+      status === "building" && typeof progress === "number"
+        ? `${Math.round(progress * 100)}%`
+        : status.toUpperCase(),
+  };
+};
