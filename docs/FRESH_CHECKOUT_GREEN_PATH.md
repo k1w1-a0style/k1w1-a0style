@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-03-31 (Patch 643)**
+Stand: **2026-03-31 (Patch 644)**
 
 Diese Checkliste ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

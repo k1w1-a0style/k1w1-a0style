@@ -33,6 +33,7 @@ import {
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import {
   buildArtifactFetchContextKey,
+  resolveCiLiteArtifactRequest,
   resolveCiLiteLookupFailureMessage,
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
@@ -335,12 +336,7 @@ export function useCiLiteWorkflow() {
           throw new Error(normalized.userMessage);
         }
 
-        const artifactName =
-          workflowId === WORKFLOW_CI_LITE_AUTOFIX ? "ci-lite-autofix-logs" : "ci-lite-logs";
-        const filePath =
-          workflowId === WORKFLOW_CI_LITE_AUTOFIX
-            ? "ci-logs/ci-lite-autofix-result.json"
-            : "ci-logs/ci-lite-result.json";
+        const { artifactName, filePath } = resolveCiLiteArtifactRequest(workflowId);
 
         const resp = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON}`, {
           timeoutMs: 15_000,

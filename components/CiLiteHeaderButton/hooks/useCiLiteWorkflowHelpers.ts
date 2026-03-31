@@ -1,11 +1,28 @@
 import type { WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
 import { buildCiLiteLookupFailureMessage } from "./ciLiteWorkflowErrors";
+import { WORKFLOW_CI_LITE_AUTOFIX } from "../types";
 
 export type ArtifactFetchContextInput = {
   githubRepo: string | null | undefined;
   workflowId: string | null | undefined;
   workflowRunId: number | null | undefined;
   workflowStatus: string | null | undefined;
+};
+
+export const resolveCiLiteArtifactRequest = (workflowId: string): {
+  artifactName: "ci-lite-logs" | "ci-lite-autofix-logs";
+  filePath: "ci-logs/ci-lite-result.json" | "ci-logs/ci-lite-autofix-result.json";
+} => {
+  if (workflowId === WORKFLOW_CI_LITE_AUTOFIX) {
+    return {
+      artifactName: "ci-lite-autofix-logs",
+      filePath: "ci-logs/ci-lite-autofix-result.json",
+    };
+  }
+  return {
+    artifactName: "ci-lite-logs",
+    filePath: "ci-logs/ci-lite-result.json",
+  };
 };
 
 export const buildArtifactFetchContextKey = (

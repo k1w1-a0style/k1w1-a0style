@@ -4,6 +4,7 @@ import {
   getCiLiteWorkflowErrorMessage,
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
+  resolveCiLiteArtifactRequest,
   resolveCiLiteLookupFailureMessage,
   splitRepoFullName,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
@@ -48,6 +49,19 @@ describe("useCiLiteWorkflowHelpers", () => {
           workflowStatus: "completed",
         }),
       ).toBeNull();
+    });
+  });
+
+  describe("resolveCiLiteArtifactRequest", () => {
+    it("maps workflow id to artifact name and path", () => {
+      expect(resolveCiLiteArtifactRequest("k1w1-ci-lite-autofix.yml")).toEqual({
+        artifactName: "ci-lite-autofix-logs",
+        filePath: "ci-logs/ci-lite-autofix-result.json",
+      });
+      expect(resolveCiLiteArtifactRequest("k1w1-ci-lite.yml")).toEqual({
+        artifactName: "ci-lite-logs",
+        filePath: "ci-logs/ci-lite-result.json",
+      });
     });
   });
 
