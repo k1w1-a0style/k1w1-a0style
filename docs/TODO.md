@@ -21,13 +21,14 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 649)**
+Stand: **2026-03-31 (Patch 650)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Refactor-Durchlauf 12 (CI-Lite completion error text helper-first) umgesetzt:** die Auswahl der Completion-Error-Meldung (Workflow-Fail vs. Hydrated-Fallback) ist jetzt im pure Helper `resolveCiLiteCompletionErrorText(...)` zentralisiert; Hook-Verhalten bleibt identisch und besser testbar (Patch 650).
 - [x] **Refactor-Durchlauf 11 (Connections link-selection precheck helper-first) umgesetzt:** die fruehen Token/Repo/Branch-Guards fuer `onLinkExisting` laufen jetzt ueber `resolveLinkExistingSelectionPrecheck(...)`; Hook-Verhalten bleibt identisch und besser testbar (Patch 649).
 - [x] **Refactor-Durchlauf 10 (CI-Lite lookup failure label helper-first) umgesetzt:** die Chain-vs-Default-Label-Auswahl fuer Lookup-Failure-Messages ist jetzt im pure Helper `resolveCiLiteLookupFailureLabel(...)` zentralisiert; Hook-Verhalten bleibt unveraendert und besser testbar (Patch 648).
 - [x] **Refactor-Durchlauf 9 (Connections status flags helper-first) umgesetzt:** die Token-/Edge-/Supabase-/Repo-Link-/EAS-Statusflags werden jetzt ueber `resolveConnectionsStatusFlags(...)` zentral abgeleitet; Hook-Verhalten bleibt identisch und ist besser testbar (Patch 647).
@@ -96,8 +97,9 @@ Stand: **2026-03-31 (Patch 649)**
 - [x] **Geplanter Refactor-Durchlauf 9 (Connections helper-first):** abgeschlossen in Patch 647 (`resolveConnectionsStatusFlags(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 10 (CI-Lite helper-first):** abgeschlossen in Patch 648 (`resolveCiLiteLookupFailureLabel(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 11 (Connections helper-first):** abgeschlossen in Patch 649 (`resolveLinkExistingSelectionPrecheck(...)` extrahiert, keine Flow-/Vertragsaenderung).
-- [ ] **Geplanter Refactor-Durchlauf 12 (CI-Lite helper-first):** naechsten kleinen Status-/Notice-Textblock im CI-Lite-Hook helper-first extrahieren; kein Dispatch-/Lookup-/Auth-Umbau.
+- [x] **Geplanter Refactor-Durchlauf 12 (CI-Lite helper-first):** abgeschlossen in Patch 650 (`resolveCiLiteCompletionErrorText(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [ ] **Geplanter Refactor-Durchlauf 13 (Connections helper-first):** naechsten kleinen Link-/Notice-Textpfad helper-first extrahieren; kein Workflow-Dispatch-/Auth-Umbau.
+- [ ] **Geplanter Refactor-Durchlauf 14 (Cross-hook helper-first):** naechsten kleinen Mapping-/Formatter-Block ausserhalb CI-Lite/Connections (z. B. Diagnostic-/Build-Hook) extrahieren, sofern ohne Vertragsaenderung moeglich.
 
 ## Wichtige Vertrags-Reminder
 

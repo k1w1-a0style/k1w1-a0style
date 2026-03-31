@@ -5,6 +5,7 @@ import {
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   resolveCiLiteArtifactRequest,
+  resolveCiLiteCompletionErrorText,
   resolveHydratedCiLiteStepInfo,
   resolveCiLiteLookupFailureLabel,
   resolveCiLiteLookupFailureMessage,
@@ -117,6 +118,34 @@ describe("useCiLiteWorkflowHelpers", () => {
     it("maps chain/default contexts to stable workflow labels", () => {
       expect(resolveCiLiteLookupFailureLabel("chain")).toBe("Autofix-Chain → CI Lite");
       expect(resolveCiLiteLookupFailureLabel("default")).toBe("Workflow");
+    });
+  });
+
+  describe("resolveCiLiteCompletionErrorText", () => {
+    it("prioritizes completed workflow failure over hydrated fallback", () => {
+      expect(
+        resolveCiLiteCompletionErrorText({
+          workflowStatus: "completed",
+          workflowConclusion: "failure",
+          hydratedConclusion: "cancelled",
+        }),
+      ).toContain("Workflow failed (failure)");
+
+      expect(
+        resolveCiLiteCompletionErrorText({
+          workflowStatus: "in_progress",
+          workflowConclusion: null,
+          hydratedConclusion: "cancelled",
+        }),
+      ).toContain("nicht grün");
+
+      expect(
+        resolveCiLiteCompletionErrorText({
+          workflowStatus: "completed",
+          workflowConclusion: "success",
+          hydratedConclusion: "success",
+        }),
+      ).toBe("");
     });
   });
 

@@ -77,6 +77,25 @@ export const resolveCiLiteLookupFailureLabel = (mode: "chain" | "default"): stri
   return mode === "chain" ? "Autofix-Chain → CI Lite" : "Workflow";
 };
 
+export const resolveCiLiteCompletionErrorText = (params: {
+  workflowStatus: string | null | undefined;
+  workflowConclusion: string | null | undefined;
+  hydratedConclusion: string | null | undefined;
+}): string => {
+  const workflowStatus = String(params.workflowStatus ?? "").trim();
+  const workflowConclusion = String(params.workflowConclusion ?? "").trim();
+  if (workflowStatus === "completed" && workflowConclusion && workflowConclusion !== "success") {
+    return `Workflow failed (${workflowConclusion}). Open the run for details.`;
+  }
+
+  const hydratedConclusion = String(params.hydratedConclusion ?? "").trim();
+  if (hydratedConclusion && hydratedConclusion !== "success") {
+    return `Letzter CI-Lite-Run ist beendet, aber nicht grün (${hydratedConclusion}).`;
+  }
+
+  return "";
+};
+
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {
   if (!Array.isArray(lines) || lines.length === 0) return null;
   const joined = lines.join("\n");

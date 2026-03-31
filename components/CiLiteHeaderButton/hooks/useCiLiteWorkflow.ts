@@ -41,6 +41,7 @@ import {
   resolveCiLitePendingRunMessage,
   resolveHydratedCiLiteStepInfo,
   getCiLiteWorkflowErrorMessage,
+  resolveCiLiteCompletionErrorText,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
@@ -463,13 +464,11 @@ export function useCiLiteWorkflow() {
   const showError = safeUi(
     localError ||
       logsError ||
-      (workflowRun?.status === "completed" &&
-      workflowRun.conclusion &&
-      workflowRun.conclusion !== "success"
-        ? `Workflow failed (${workflowRun.conclusion}). Open the run for details.`
-        : hydratedDisplaySnapshot && hydratedDisplaySnapshot.conclusion !== "success"
-          ? `Letzter CI-Lite-Run ist beendet, aber nicht grün (${hydratedDisplaySnapshot.conclusion}).`
-          : ""),
+      resolveCiLiteCompletionErrorText({
+        workflowStatus: workflowRun?.status,
+        workflowConclusion: workflowRun?.conclusion,
+        hydratedConclusion: hydratedDisplaySnapshot?.conclusion,
+      }),
   );
 
   const artifactNotice = safeUi(
