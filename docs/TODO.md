@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 652)**
+Stand: **2026-03-31 (Patch 653)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -102,8 +102,10 @@ Stand: **2026-03-31 (Patch 652)**
 - [x] **Geplanter Refactor-Durchlauf 12 (CI-Lite helper-first):** abgeschlossen in Patch 650 (`resolveCiLiteCompletionErrorText(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 13 (Connections helper-first):** abgeschlossen in Patch 651 (`resolveEasLinkWorkflowStartMessage(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [x] **Geplanter Refactor-Durchlauf 14 (Cross-hook helper-first):** abgeschlossen in Patch 652 (`resolveCiLiteBusyState(...)` helper-first extrahiert; kein Flow-/Vertragsumbau).
-- [ ] **Geplanter Refactor-Durchlauf 15 (Connections helper-first):** naechsten kleinen Alert-/Status-Textpfad im Connections-Hook helper-first extrahieren; kein Auth-/Dispatch-Umbau.
-- [ ] **Geplanter Refactor-Durchlauf 16 (Diagnostic/Build helper-first):** naechsten kleinen Mapping-/Formatter-Block in Diagnostic- oder Build-Hooks extrahieren, sofern ohne Vertragsaenderung moeglich.
+- [x] **Refactor-Planungsdurchlauf (Patch 653) konkretisiert:** naechste safe helper-first Kandidaten fuer kleine Durchlaeufe priorisiert und als Reihenfolge festgehalten (Connections Alert-Resolver -> Build Statuslabel-Mapping -> Diagnostic Issue-Subtitle-Formatter).
+- [ ] **Geplanter Refactor-Durchlauf 15 (Connections helper-first):** `useConnectionsScreen.ts` Alert-/Hinweis-Textpfad in einen reinen Resolver (`resolveConnectionsAlertNotice(...)`) extrahieren; keine Auth-/Dispatch-/Stateflow-Aenderung.
+- [ ] **Geplanter Refactor-Durchlauf 16 (Build helper-first):** `useEnhancedBuildScreen`-Statuslabel-/Badge-Mapping in einen reinen Helper extrahieren; keine Polling-/Dispatch-/Readiness-Flow-Aenderung.
+- [ ] **Geplanter Refactor-Durchlauf 17 (Diagnostic helper-first):** in `useDiagnosticFixRunner` einen kleinen Anzeige-Formatter (Issue-Subtitle/Result-Label) in einen reinen Helper extrahieren; Runner-Orchestrierung unveraendert lassen.
 
 ## Wichtige Vertrags-Reminder
 
