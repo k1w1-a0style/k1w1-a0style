@@ -1,4 +1,5 @@
 import {
+  buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
   isSyncRelevantPath,
@@ -85,5 +86,29 @@ describe("useDiagnosticFixRunnerHelpers", () => {
     expect(isSyncRelevantPath(".github/workflows/ci.yml")).toBe(true);
     expect(isSyncRelevantPath("app.config.ts")).toBe(true);
     expect(isSyncRelevantPath("src/App.tsx")).toBe(false);
+  });
+
+  it("builds preview entries for upsert/delete/jsonMerge in stable order", () => {
+    const entries = buildFixPreviewEntries(
+      [
+        { path: "a.ts", content: "old-a" },
+        { path: "b.json", content: "{\"a\":1}" },
+      ],
+      {
+        upsert: [{ path: "a.ts", content: "new-a" }],
+        delete: ["missing.ts"],
+        jsonMerge: [{ path: "b.json", patch: { a: 2 } }],
+      },
+    );
+
+    expect(entries).toEqual([
+      { path: "a.ts", oldText: "old-a", newText: "new-a" },
+      { path: "missing.ts", oldText: null, newText: null },
+      {
+        path: "b.json",
+        oldText: "{\"a\":1}",
+        newText: "• JSON merge patch (Preview zeigt nur vorher – nachher wird beim Apply erzeugt)",
+      },
+    ]);
   });
 });

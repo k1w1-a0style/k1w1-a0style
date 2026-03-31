@@ -59,3 +59,43 @@ export const isSyncRelevantPath = (path: string): boolean => {
   if (path.startsWith(".github/workflows/")) return true;
   return false;
 };
+
+export type FixPreviewEntry = {
+  path: string;
+  oldText: string | null;
+  newText: string | null;
+};
+
+export const buildFixPreviewEntries = (
+  projectFiles: ProjectFile[],
+  patch: PreflightPatch,
+): FixPreviewEntry[] => {
+  const filesMap = new Map(projectFiles.map((file) => [file.path, file.content] as const));
+  const entries: FixPreviewEntry[] = [];
+
+  for (const upsert of patch.upsert ?? []) {
+    entries.push({
+      path: upsert.path,
+      oldText: filesMap.has(upsert.path) ? filesMap.get(upsert.path) ?? null : null,
+      newText: upsert.content ?? "",
+    });
+  }
+
+  for (const deletePath of patch.delete ?? []) {
+    entries.push({
+      path: deletePath,
+      oldText: filesMap.has(deletePath) ? filesMap.get(deletePath) ?? null : null,
+      newText: null,
+    });
+  }
+
+  for (const jsonMerge of patch.jsonMerge ?? []) {
+    entries.push({
+      path: jsonMerge.path,
+      oldText: filesMap.has(jsonMerge.path) ? filesMap.get(jsonMerge.path) ?? null : null,
+      newText: "• JSON merge patch (Preview zeigt nur vorher – nachher wird beim Apply erzeugt)",
+    });
+  }
+
+  return entries;
+};

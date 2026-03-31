@@ -2,6 +2,7 @@ import {
   buildArtifactFetchContextKey,
   getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
+  parseCiLiteArtifactJson,
   splitRepoFullName,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
@@ -72,6 +73,31 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(getCiLiteWorkflowErrorMessage(new Error("broken"))).toBe("broken");
       expect(getCiLiteWorkflowErrorMessage({ message: "from-object" })).toBe("from-object");
       expect(getCiLiteWorkflowErrorMessage(42, "fallback")).toBe("fallback");
+    });
+  });
+
+  describe("parseCiLiteArtifactJson", () => {
+    it("normalizes artifact payload values", () => {
+      expect(
+        parseCiLiteArtifactJson({
+          ok: 1,
+          eslint_exit: 0,
+          tsc_exit: 1,
+          source_commit_sha: " abc ",
+          source_sha: "",
+        }),
+      ).toEqual({
+        ok: true,
+        eslint_exit: 0,
+        tsc_exit: 1,
+        source_commit_sha: "abc",
+        source_sha: undefined,
+        github_sha: undefined,
+      });
+    });
+
+    it("throws for non-object payloads", () => {
+      expect(() => parseCiLiteArtifactJson(null)).toThrow("Artifact JSON missing or invalid");
     });
   });
 });

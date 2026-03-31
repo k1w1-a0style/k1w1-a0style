@@ -34,41 +34,12 @@ import {
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import {
   buildArtifactFetchContextKey,
+  parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
-
-type CiLiteArtifactJson = {
-  ok: boolean;
-  eslint_exit?: number;
-  tsc_exit?: number;
-  source_commit_sha?: string;
-  source_sha?: string;
-  github_sha?: string;
-};
-
-function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Artifact JSON missing or invalid");
-  }
-
-  const src = payload as Record<string, unknown>;
-  const readNum = (k: "eslint_exit" | "tsc_exit"): number | undefined =>
-    typeof src[k] === "number" ? src[k] : undefined;
-  const readSha = (k: "source_commit_sha" | "source_sha" | "github_sha"): string | undefined =>
-    typeof src[k] === "string" ? (src[k] as string).trim() || undefined : undefined;
-
-  return {
-    ok: typeof src.ok === "boolean" ? src.ok : Boolean(src.ok),
-    eslint_exit: readNum("eslint_exit"),
-    tsc_exit: readNum("tsc_exit"),
-    source_commit_sha: readSha("source_commit_sha"),
-    source_sha: readSha("source_sha"),
-    github_sha: readSha("github_sha"),
-  };
-}
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
