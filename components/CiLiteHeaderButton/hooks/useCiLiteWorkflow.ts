@@ -38,6 +38,7 @@ import {
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
+  resolveCiLitePendingRunMessage,
   getCiLiteWorkflowErrorMessage,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
@@ -418,13 +419,7 @@ export function useCiLiteWorkflow() {
   const logLines = useMemo(() => {
     if (!runId) {
       if (hydratedDisplaySnapshot) return [];
-      return [
-        chainWaiting && workflowId === WORKFLOW_CI_LITE
-          ? `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`
-          : jobId
-            ? `Warte auf GitHub Run… (job_id: ${jobId})`
-            : "Warte auf GitHub Run…",
-      ];
+      return [resolveCiLitePendingRunMessage({ chainWaiting, workflowId, jobId })];
     }
     if (!logs || logs.length === 0) return [];
     return logs.map((e) => e.message);

@@ -6,6 +6,7 @@ import {
   parseCiLiteArtifactJson,
   resolveCiLiteArtifactRequest,
   resolveCiLiteLookupFailureMessage,
+  resolveCiLitePendingRunMessage,
   splitRepoFullName,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
@@ -62,6 +63,34 @@ describe("useCiLiteWorkflowHelpers", () => {
         artifactName: "ci-lite-logs",
         filePath: "ci-logs/ci-lite-result.json",
       });
+    });
+  });
+
+  describe("resolveCiLitePendingRunMessage", () => {
+    it("maps waiting states to consistent log lines", () => {
+      expect(
+        resolveCiLitePendingRunMessage({
+          chainWaiting: true,
+          workflowId: "k1w1-ci-lite.yml",
+          jobId: "abc-123",
+        }),
+      ).toContain("Autofix fertig");
+
+      expect(
+        resolveCiLitePendingRunMessage({
+          chainWaiting: false,
+          workflowId: "k1w1-ci-lite.yml",
+          jobId: "abc-123",
+        }),
+      ).toContain("job_id: abc-123");
+
+      expect(
+        resolveCiLitePendingRunMessage({
+          chainWaiting: false,
+          workflowId: "k1w1-ci-lite.yml",
+          jobId: null,
+        }),
+      ).toBe("Warte auf GitHub Run…");
     });
   });
 

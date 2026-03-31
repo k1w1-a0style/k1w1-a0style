@@ -1,6 +1,6 @@
 import type { WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
 import { buildCiLiteLookupFailureMessage } from "./ciLiteWorkflowErrors";
-import { WORKFLOW_CI_LITE_AUTOFIX } from "../types";
+import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX } from "../types";
 
 export type ArtifactFetchContextInput = {
   githubRepo: string | null | undefined;
@@ -37,6 +37,21 @@ export const buildArtifactFetchContextKey = (
   }
 
   return `${repo}::${workflowId}::${String(input.workflowRunId)}`;
+};
+
+export const resolveCiLitePendingRunMessage = (params: {
+  chainWaiting: boolean;
+  workflowId: string;
+  jobId: string | null;
+}): string => {
+  const { chainWaiting, workflowId, jobId } = params;
+  if (chainWaiting && workflowId === WORKFLOW_CI_LITE) {
+    return `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`;
+  }
+  if (jobId) {
+    return `Warte auf GitHub Run… (job_id: ${jobId})`;
+  }
+  return "Warte auf GitHub Run…";
 };
 
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {

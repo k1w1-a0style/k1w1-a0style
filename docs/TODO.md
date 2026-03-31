@@ -21,13 +21,14 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 644)**
+Stand: **2026-03-31 (Patch 645)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Refactor-Durchlauf 7 (CI-Lite pending run message helper-first) umgesetzt:** `useCiLiteWorkflow.ts` delegiert die Pending-Run-Statuszeile jetzt an den pure Helper `resolveCiLitePendingRunMessage(...)`; Chain-Waiting-/job_id-Text bleibt unveraendert, ist aber zentral testbar und besser wartbar (Patch 645).
 - [x] **Refactor-Durchlauf 6 (CI-Lite artifact request helper-first) umgesetzt:** `useCiLiteWorkflow.ts` delegiert die Artifact-Name/-Pfad-Auswahl nun an den neuen pure Helper `resolveCiLiteArtifactRequest(...)`; der Autofix-vs-CI-Lite-Mapping-Vertrag bleibt identisch, ist aber zentral testbar, und fokussierte Helper-Regressionen decken beide Workflow-Pfade ab (Patch 644).
 - [x] **Refactor-Durchlauf 4 (Connections Precheck helper-first) umgesetzt:** `useConnectionsScreen.ts::testEas` nutzt jetzt den neuen pure Helper `resolveEasTestPrecheck(...)` fuer die fruehen missing/unknown-Entscheidungen (inkl. Alert-Text), wodurch Inline-Branching sinkt ohne Verhalten-/Vertragsaenderung; fokussierte Tests wurden erweitert (Patch 642).
 - [x] **Refactor-Durchlauf 5 (CI-Lite lookup failure helper-first) umgesetzt:** `useCiLiteWorkflow.ts::buildLookupFailureMessage` delegiert jetzt an den neuen pure Helper `resolveCiLiteLookupFailureMessage(...)`, der `ambiguous`/`contract_mismatch`/`timeout` zentral mapped; der produktive Dispatch-/Lookup-Flow bleibt unveraendert und fokussierte Helper-Regressionen decken die drei Pfade ab (Patch 643).
@@ -86,6 +87,9 @@ Stand: **2026-03-31 (Patch 644)**
 - [x] **Edge-Shared-Validation-/Runtime-`any` selektiv reduziert:** `_shared/auth.ts` und `_shared/cors.ts` nutzen getypte Runtime-Globals statt `globalThis as any`; `_shared/validation.ts` hat engere Fehler-/Payload-Typen für Trigger/Workflow-Dispatch (Patch 447).
 - [ ] **Rest-`any` nur weiter selektiv abbauen:** verbleibende Hotspots (z. B. einige ältere Edge-Helfer und nicht-flow-kritische App-Hilfsmodule) weiter nur dort anfassen, wo reale Build-/Repo-/CI-/Diagnostic-Vertragsrisiken bestehen (kein Broad Cleanup).
 - [x] **Selektiver Runtime-`as any`-Hotspot (`lib/diagnostics/ciAutoFix.ts`) abgebaut:** Error-Pfade laufen dort jetzt ohne `as any` ueber `unknown`+Narrowing (`toErrorMessage`) und halten denselben Verhalten-/Fehlervertrag ohne Broad-Cleanup bei (Patch 625).
+
+- [ ] **Geplanter Refactor-Durchlauf 8 (CI-Lite helper-first):** naechsten kleinen, risikoarmen Inline-Block in `useCiLiteWorkflow.ts` (nur Text-/Mapping-Logik) in einen pure Helper auslagern; keine Dispatch-/Auth-/Lookup-Vertragsaenderung.
+- [ ] **Geplanter Refactor-Durchlauf 9 (Connections helper-first):** verbleibende kleine Status-/Notice-Mapping-Logik im Connections-Hotspot testbar extrahieren; nur helper-level, kein Screen-Flow-Umbau.
 
 ## Wichtige Vertrags-Reminder
 
