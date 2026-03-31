@@ -78,6 +78,39 @@ export const resolveEasProjectVerification = (
   };
 };
 
+export const resolveEasTestPrecheck = (params: {
+  easProjectId: string;
+  expoToken: string;
+}): {
+  shouldStop: boolean;
+  status: { ok: boolean; state: VerificationContractState } | null;
+  alertMessage: string | null;
+} => {
+  const projectId = params.easProjectId.trim();
+  if (!projectId) {
+    return {
+      shouldStop: true,
+      status: { ok: false, state: "missing" },
+      alertMessage: null,
+    };
+  }
+
+  const expoToken = params.expoToken.trim();
+  if (!expoToken) {
+    return {
+      shouldStop: true,
+      status: { ok: false, state: "unknown" },
+      alertMessage: "Expo Token fehlt (für EAS Test erforderlich)",
+    };
+  }
+
+  return {
+    shouldStop: false,
+    status: null,
+    alertMessage: null,
+  };
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";

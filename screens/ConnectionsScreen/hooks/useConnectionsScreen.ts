@@ -55,6 +55,7 @@ import {
   deriveSupabaseRefFromUrl,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
+  resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolvePersistedEasState,
   type ExpoProjectResponse,
@@ -152,17 +153,17 @@ export function useConnectionsScreen() {
 
     try {
       await withBusyGuard(async () => {
-        // No EAS Project ID -> nothing to test.
-        if (!easProjectId?.trim()) {
-          await saveConnEasStatus({ ok: false, state: "missing" });
-          return;
-        }
-
-        // EAS project validation requires an authenticated Expo request.
-        // exp.host expects @owner/slug and will return 400 for UUID project IDs.
-        if (!expoToken?.trim()) {
-          await saveConnEasStatus({ ok: false, state: "unknown" });
-          Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
+        const precheck = resolveEasTestPrecheck({
+          easProjectId,
+          expoToken,
+        });
+        if (precheck.shouldStop) {
+          if (precheck.status) {
+            await saveConnEasStatus(precheck.status);
+          }
+          if (precheck.alertMessage) {
+            Alert.alert("EAS Test", precheck.alertMessage);
+          }
           return;
         }
 

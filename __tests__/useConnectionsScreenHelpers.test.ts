@@ -2,6 +2,7 @@ import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
   hasExpoProject,
+  resolveEasTestPrecheck,
   resolveEasProjectVerification,
   isPersistedEasState,
   persistEntriesWithFallback,
@@ -90,6 +91,26 @@ describe("useConnectionsScreenHelpers", () => {
       state: "unknown",
       verifiedAt: null,
       hasProject: false,
+    });
+  });
+
+  it("resolves EAS test precheck outcomes deterministically", () => {
+    expect(resolveEasTestPrecheck({ easProjectId: " ", expoToken: "token" })).toEqual({
+      shouldStop: true,
+      status: { ok: false, state: "missing" },
+      alertMessage: null,
+    });
+
+    expect(resolveEasTestPrecheck({ easProjectId: "proj", expoToken: " " })).toEqual({
+      shouldStop: true,
+      status: { ok: false, state: "unknown" },
+      alertMessage: "Expo Token fehlt (für EAS Test erforderlich)",
+    });
+
+    expect(resolveEasTestPrecheck({ easProjectId: "proj", expoToken: "token" })).toEqual({
+      shouldStop: false,
+      status: null,
+      alertMessage: null,
     });
   });
 
