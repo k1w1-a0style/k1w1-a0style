@@ -1,3 +1,5 @@
+import type { WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
+
 export type ArtifactFetchContextInput = {
   githubRepo: string | null | undefined;
   workflowId: string | null | undefined;
@@ -97,4 +99,30 @@ export const parseCiLiteArtifactJson = (payload: unknown): CiLiteArtifactJson =>
     source_sha: readSha("source_sha"),
     github_sha: readSha("github_sha"),
   };
+};
+
+export const mergeWorkflowRunLookupDiagnosis = (
+  previous: WorkflowRunLookupDiagnosis | null,
+  next: WorkflowRunLookupDiagnosis | null,
+): WorkflowRunLookupDiagnosis | null => {
+  if (!next) return previous;
+  if (!previous) return next;
+
+  if (next.exactJobIdMatchFound || next.selectedTier) {
+    return next;
+  }
+
+  if (!next.contractMismatchLikely && !next.ambiguous) {
+    if (previous.contractMismatchLikely || previous.ambiguous) {
+      return {
+        ...next,
+        ambiguous: previous.ambiguous || next.ambiguous,
+        contractMismatchLikely: previous.contractMismatchLikely || next.contractMismatchLikely,
+        fallbackCandidateCount: Math.max(previous.fallbackCandidateCount, next.fallbackCandidateCount),
+        plausibleCandidateCount: Math.max(previous.plausibleCandidateCount, next.plausibleCandidateCount),
+      };
+    }
+  }
+
+  return next;
 };

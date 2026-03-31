@@ -34,6 +34,7 @@ import {
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import {
   buildArtifactFetchContextKey,
+  mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
@@ -133,38 +134,11 @@ export function useCiLiteWorkflow() {
     stopPolling();
   }, [stopPolling]);
 
-  const mergeLookupDiagnosis = useCallback((
-    next: WorkflowRunLookupDiagnosis | null,
-  ): WorkflowRunLookupDiagnosis | null => {
-    if (!next) return lookupDiagnosisRef.current;
-
-    const previous = lookupDiagnosisRef.current;
-    if (!previous) return next;
-
-    if (next.exactJobIdMatchFound || next.selectedTier) {
-      return next;
-    }
-
-    if (!next.contractMismatchLikely && !next.ambiguous) {
-      if (previous.contractMismatchLikely || previous.ambiguous) {
-        return {
-          ...next,
-          ambiguous: previous.ambiguous || next.ambiguous,
-          contractMismatchLikely: previous.contractMismatchLikely || next.contractMismatchLikely,
-          fallbackCandidateCount: Math.max(previous.fallbackCandidateCount, next.fallbackCandidateCount),
-          plausibleCandidateCount: Math.max(previous.plausibleCandidateCount, next.plausibleCandidateCount),
-        };
-      }
-    }
-
-    return next;
-  }, []);
-
   const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
-    const merged = mergeLookupDiagnosis(diagnosis);
+    const merged = mergeWorkflowRunLookupDiagnosis(lookupDiagnosisRef.current, diagnosis);
     lookupDiagnosisRef.current = merged;
     setLookupDiagnosis(merged);
-  }, [mergeLookupDiagnosis]);
+  }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 

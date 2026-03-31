@@ -2,6 +2,7 @@ import {
   buildArtifactFetchContextKey,
   getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
+  mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   splitRepoFullName,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
@@ -98,6 +99,66 @@ describe("useCiLiteWorkflowHelpers", () => {
 
     it("throws for non-object payloads", () => {
       expect(() => parseCiLiteArtifactJson(null)).toThrow("Artifact JSON missing or invalid");
+    });
+  });
+
+  describe("mergeWorkflowRunLookupDiagnosis", () => {
+    it("keeps previous diagnosis when next is null", () => {
+      const previous = {
+        exactJobIdMatchFound: false,
+        fallbackCandidateCount: 1,
+        ambiguous: true,
+        contractMismatchLikely: false,
+        plausibleCandidateCount: 2,
+        selectedTier: null,
+      };
+      expect(mergeWorkflowRunLookupDiagnosis(previous, null)).toEqual(previous);
+    });
+
+    it("returns next when explicit match tier exists", () => {
+      const previous = {
+        exactJobIdMatchFound: false,
+        fallbackCandidateCount: 1,
+        ambiguous: true,
+        contractMismatchLikely: true,
+        plausibleCandidateCount: 2,
+        selectedTier: null,
+      };
+      const next = {
+        exactJobIdMatchFound: true,
+        fallbackCandidateCount: 0,
+        ambiguous: false,
+        contractMismatchLikely: false,
+        plausibleCandidateCount: 1,
+        selectedTier: "exact_job_id" as const,
+      };
+      expect(mergeWorkflowRunLookupDiagnosis(previous, next)).toEqual(next);
+    });
+
+    it("carries forward mismatch signals when next is neutral", () => {
+      const previous = {
+        exactJobIdMatchFound: false,
+        fallbackCandidateCount: 3,
+        ambiguous: true,
+        contractMismatchLikely: false,
+        plausibleCandidateCount: 2,
+        selectedTier: null,
+      };
+      const next = {
+        exactJobIdMatchFound: false,
+        fallbackCandidateCount: 1,
+        ambiguous: false,
+        contractMismatchLikely: false,
+        plausibleCandidateCount: 1,
+        selectedTier: null,
+      };
+      expect(mergeWorkflowRunLookupDiagnosis(previous, next)).toEqual({
+        ...next,
+        ambiguous: true,
+        contractMismatchLikely: false,
+        fallbackCandidateCount: 3,
+        plausibleCandidateCount: 2,
+      });
     });
   });
 });

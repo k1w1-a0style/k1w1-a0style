@@ -21,15 +21,16 @@
 
 # TODO
 
-Stand: **2026-03-30 (Patch 640)**
+Stand: **2026-03-30 (Patch 641)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
-- [x] **Refactor-Durchlauf 2 (Connections helper-first + Review-Fixes) umgesetzt:** EAS-Verifikations-Mapping aus `useConnectionsScreen.ts` in den pure Helper `resolveEasProjectVerification(...)` extrahiert (kein Flow-/Vertragsumbau), `useConnectionsScreenHelpers`-Tests erweitert, historische Patch-IDs in abgeschlossenen TODO-Punkten wieder auf die urspruenglichen Patches (`636`/`637`/`638`) korrigiert und der `as any`-Vollscanwert in `docs/04-risk-hotspots.md` auf den reproduzierbaren Stand (`341`) nachgezogen (Patch 640).
-- [x] **Refactor-Durchlauf 1 (helper-first, ohne Vertragsaenderung) umgesetzt:** CI-Lite-Artifact-Parsing als pure Helper-Funktion (`parseCiLiteArtifactJson`) aus dem Hook extrahiert und die Diagnostic-Fix-Preview-Entry-Bildung (`buildFixPreviewEntries`) ebenfalls helper-first ausgelagert; beide Refactors sind ueber fokussierte Helper-Tests abgesichert (Patch 640).
+- [x] **Refactor-Durchlauf 3 (CI-Lite helper-first) umgesetzt:** das Merge-Verhalten fuer Workflow-Run-Lookup-Diagnosen wurde aus `useCiLiteWorkflow.ts` in den pure Helper `mergeWorkflowRunLookupDiagnosis(...)` extrahiert; Hook-Flow bleibt unveraendert, und die neuen Helper-Tests sichern Null-/Match-/Neutral-Merge-Pfade explizit ab (Patch 641).
+- [x] **Refactor-Durchlauf 2 (Connections helper-first + Review-Fixes) umgesetzt:** EAS-Verifikations-Mapping aus `useConnectionsScreen.ts` in den pure Helper `resolveEasProjectVerification(...)` extrahiert (kein Flow-/Vertragsumbau), `useConnectionsScreenHelpers`-Tests erweitert, historische Patch-IDs in abgeschlossenen TODO-Punkten wieder auf die urspruenglichen Patches (`636`/`637`/`638`) korrigiert und der `as any`-Vollscanwert in `docs/04-risk-hotspots.md` auf den reproduzierbaren Stand (`341`) nachgezogen (Patch 641).
+- [x] **Refactor-Durchlauf 1 (helper-first, ohne Vertragsaenderung) umgesetzt:** CI-Lite-Artifact-Parsing als pure Helper-Funktion (`parseCiLiteArtifactJson`) aus dem Hook extrahiert und die Diagnostic-Fix-Preview-Entry-Bildung (`buildFixPreviewEntries`) ebenfalls helper-first ausgelagert; beide Refactors sind ueber fokussierte Helper-Tests abgesichert (Patch 641).
 - [x] **Deep-Scan-SoT-/Header-Drift korrigiert und Debt-Lage neu inventarisiert:** Kern-Standheader (`INDEX`/`TESTING_GUIDE`/`FRESH_CHECKOUT_GREEN_PATH`) auf denselben Patchstand gezogen; `docs/04-risk-hotspots.md` um aktuelle Zaehler (`as any`: 341 gesamt, 150 codefokussiert; `: any`: 170 gesamt, 152 codefokussiert) inkl. Runtime-vs-Test-Einordnung erweitert; `docs/reviews/deep-scan-review-2026-03-30.md` um Addendum mit bestaetigten Restpunkten/Non-Issues nachgeschaerft (Patch 638).
 - [x] **PR-504-Review-Regressionspunkt in `materializeProjectFiles(...)` geschlossen:** invalid/malformed `project.files`-Eintraege (`null`, primitive Werte, unvollstaendige Objekte) werden wieder fail-safe ignoriert, `readProjectFileContent(...)` wird erst nach Objekt-Guard aufgerufen, und ein gezielter Regressionstest (`__tests__/projectMaterializer.failSafe.regression.test.ts`) sichert den Crash-/Skip-Vertrag (Patch 634).
 - [x] **GitHubRepos Sync-Status bleibt bei ungueltigem Repo-Slug nicht stale:** `refreshSyncStatus` behandelt `resolveSyncStatusPrecheck(...).status === "invalid_repo"` jetzt explizit als Fehlerstatus (`error: 1`, `checkedAt`) statt stillem Return; der `invalid_repo`-Precheck-Zweig ist in `__tests__/useGitHubReposScreenHelpers.test.ts` regressionsfest abgedeckt (Patch 635).
