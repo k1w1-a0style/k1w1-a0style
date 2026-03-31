@@ -6,6 +6,7 @@ import {
   parseCiLiteArtifactJson,
   resolveCiLiteArtifactRequest,
   resolveHydratedCiLiteStepInfo,
+  resolveCiLiteLookupFailureLabel,
   resolveCiLiteLookupFailureMessage,
   resolveCiLitePendingRunMessage,
   splitRepoFullName,
@@ -109,6 +110,13 @@ describe("useCiLiteWorkflowHelpers", () => {
         eslintErrors: 1,
         tsErrors: 0,
       });
+    });
+  });
+
+  describe("resolveCiLiteLookupFailureLabel", () => {
+    it("maps chain/default contexts to stable workflow labels", () => {
+      expect(resolveCiLiteLookupFailureLabel("chain")).toBe("Autofix-Chain → CI Lite");
+      expect(resolveCiLiteLookupFailureLabel("default")).toBe("Workflow");
     });
   });
 

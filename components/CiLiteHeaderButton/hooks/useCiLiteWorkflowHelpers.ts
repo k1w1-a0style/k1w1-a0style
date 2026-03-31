@@ -73,6 +73,10 @@ export const resolveHydratedCiLiteStepInfo = (params: {
   };
 };
 
+export const resolveCiLiteLookupFailureLabel = (mode: "chain" | "default"): string => {
+  return mode === "chain" ? "Autofix-Chain → CI Lite" : "Workflow";
+};
+
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {
   if (!Array.isArray(lines) || lines.length === 0) return null;
   const joined = lines.join("\n");
