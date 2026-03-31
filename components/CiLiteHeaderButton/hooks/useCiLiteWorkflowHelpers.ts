@@ -1,4 +1,5 @@
 import type { WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
+import { buildCiLiteLookupFailureMessage } from "./ciLiteWorkflowErrors";
 
 export type ArtifactFetchContextInput = {
   githubRepo: string | null | undefined;
@@ -125,4 +126,23 @@ export const mergeWorkflowRunLookupDiagnosis = (
   }
 
   return next;
+};
+
+export const resolveCiLiteLookupFailureMessage = (params: {
+  diagnosis: WorkflowRunLookupDiagnosis | null;
+  workflowLabel: string;
+}): string => {
+  const { diagnosis, workflowLabel } = params;
+  if (diagnosis?.ambiguous) {
+    return buildCiLiteLookupFailureMessage({ workflowLabel, kind: "ambiguous" });
+  }
+  if (diagnosis?.contractMismatchLikely) {
+    return buildCiLiteLookupFailureMessage({
+      workflowLabel,
+      kind: "contract_mismatch",
+      hasExistingRunCandidate:
+        diagnosis.plausibleCandidateCount > 0 || diagnosis.fallbackCandidateCount > 0,
+    });
+  }
+  return buildCiLiteLookupFailureMessage({ workflowLabel, kind: "timeout" });
 };

@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-30 (Patch 642)**
+Stand: **2026-03-31 (Patch 643)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
@@ -29,6 +29,7 @@ Stand: **2026-03-30 (Patch 642)**
 ## Aktuell (Priorität)
 
 - [x] **Refactor-Durchlauf 4 (Connections Precheck helper-first) umgesetzt:** `useConnectionsScreen.ts::testEas` nutzt jetzt den neuen pure Helper `resolveEasTestPrecheck(...)` fuer die fruehen missing/unknown-Entscheidungen (inkl. Alert-Text), wodurch Inline-Branching sinkt ohne Verhalten-/Vertragsaenderung; fokussierte Tests wurden erweitert (Patch 642).
+- [x] **Refactor-Durchlauf 5 (CI-Lite lookup failure helper-first) umgesetzt:** `useCiLiteWorkflow.ts::buildLookupFailureMessage` delegiert jetzt an den neuen pure Helper `resolveCiLiteLookupFailureMessage(...)`, der `ambiguous`/`contract_mismatch`/`timeout` zentral mapped; der produktive Dispatch-/Lookup-Flow bleibt unveraendert und fokussierte Helper-Regressionen decken die drei Pfade ab (Patch 643).
 - [x] **Refactor-Durchlauf 3 (CI-Lite helper-first) umgesetzt:** das Merge-Verhalten fuer Workflow-Run-Lookup-Diagnosen wurde aus `useCiLiteWorkflow.ts` in den pure Helper `mergeWorkflowRunLookupDiagnosis(...)` extrahiert; Hook-Flow bleibt unveraendert, und die neuen Helper-Tests sichern Null-/Match-/Neutral-Merge-Pfade explizit ab (Patch 642).
 - [x] **Refactor-Durchlauf 2 (Connections helper-first + Review-Fixes) umgesetzt:** EAS-Verifikations-Mapping aus `useConnectionsScreen.ts` in den pure Helper `resolveEasProjectVerification(...)` extrahiert (kein Flow-/Vertragsumbau), `useConnectionsScreenHelpers`-Tests erweitert, historische Patch-IDs in abgeschlossenen TODO-Punkten wieder auf die urspruenglichen Patches (`636`/`637`/`638`) korrigiert und der `as any`-Vollscanwert in `docs/04-risk-hotspots.md` auf den reproduzierbaren Stand (`341`) nachgezogen (Patch 642).
 - [x] **Refactor-Durchlauf 1 (helper-first, ohne Vertragsaenderung) umgesetzt:** CI-Lite-Artifact-Parsing als pure Helper-Funktion (`parseCiLiteArtifactJson`) aus dem Hook extrahiert und die Diagnostic-Fix-Preview-Entry-Bildung (`buildFixPreviewEntries`) ebenfalls helper-first ausgelagert; beide Refactors sind ueber fokussierte Helper-Tests abgesichert (Patch 642).

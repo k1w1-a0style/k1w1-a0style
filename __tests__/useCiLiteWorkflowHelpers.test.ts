@@ -4,6 +4,7 @@ import {
   getCiLiteWorkflowErrorMessage,
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
+  resolveCiLiteLookupFailureMessage,
   splitRepoFullName,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
@@ -159,6 +160,45 @@ describe("useCiLiteWorkflowHelpers", () => {
         fallbackCandidateCount: 3,
         plausibleCandidateCount: 2,
       });
+    });
+  });
+
+  describe("resolveCiLiteLookupFailureMessage", () => {
+    it("maps ambiguous and contract-mismatch diagnosis before timeout fallback", () => {
+      expect(
+        resolveCiLiteLookupFailureMessage({
+          diagnosis: {
+            exactJobIdMatchFound: false,
+            fallbackCandidateCount: 0,
+            ambiguous: true,
+            contractMismatchLikely: false,
+            plausibleCandidateCount: 0,
+            selectedTier: null,
+          },
+          workflowLabel: "Workflow",
+        }),
+      ).toContain("mehrere frische Kandidaten");
+
+      expect(
+        resolveCiLiteLookupFailureMessage({
+          diagnosis: {
+            exactJobIdMatchFound: false,
+            fallbackCandidateCount: 1,
+            ambiguous: false,
+            contractMismatchLikely: true,
+            plausibleCandidateCount: 0,
+            selectedTier: null,
+          },
+          workflowLabel: "Workflow",
+        }),
+      ).toContain("job_id");
+
+      expect(
+        resolveCiLiteLookupFailureMessage({
+          diagnosis: null,
+          workflowLabel: "Workflow",
+        }),
+      ).toContain("Timeout");
     });
   });
 });

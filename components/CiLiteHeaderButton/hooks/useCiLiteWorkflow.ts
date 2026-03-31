@@ -27,13 +27,13 @@ import {
   type WorkflowRunLookupDiagnosis,
 } from "./workflowRunMatching";
 import {
-  buildCiLiteLookupFailureMessage,
   normalizeCiLiteWorkflowError,
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import {
   buildArtifactFetchContextKey,
+  resolveCiLiteLookupFailureMessage,
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
@@ -409,18 +409,10 @@ export function useCiLiteWorkflow() {
   }, [jobId, workflowId, runId, workflowRun?.id]);
 
   const buildLookupFailureMessage = useCallback((params: { workflowLabel: string }) => {
-    const diagnosis = lookupDiagnosisRef.current;
-    if (diagnosis?.ambiguous) {
-      return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "ambiguous" });
-    }
-    if (diagnosis?.contractMismatchLikely) {
-      return buildCiLiteLookupFailureMessage({
-        workflowLabel: params.workflowLabel,
-        kind: "contract_mismatch",
-        hasExistingRunCandidate: diagnosis.plausibleCandidateCount > 0 || diagnosis.fallbackCandidateCount > 0,
-      });
-    }
-    return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "timeout" });
+    return resolveCiLiteLookupFailureMessage({
+      diagnosis: lookupDiagnosisRef.current,
+      workflowLabel: params.workflowLabel,
+    });
   }, []);
 
   const hydratedDisplaySnapshot = !hasActiveRunContext && !workflowRun ? hydratedSnapshot : null;
