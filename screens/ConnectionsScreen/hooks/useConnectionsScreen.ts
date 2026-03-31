@@ -53,10 +53,16 @@ import {
 import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
-  hasExpoProject,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
+  resolveConnectionsStatusFlags,
+  resolveEasLinkWorkflowStartMessage,
+  resolveLinkExistingSelectionPrecheck,
+  resolveEasTestPrecheck,
+  resolveEasProjectVerification,
+  resolveConnectionsAlertNotice,
   resolvePersistedEasState,
+  type ExpoProjectResponse,
 } from "./useConnectionsScreenHelpers";
 
 export function useConnectionsScreen() {
@@ -151,17 +157,17 @@ export function useConnectionsScreen() {
 
     try {
       await withBusyGuard(async () => {
-        // No EAS Project ID -> nothing to test.
-        if (!easProjectId?.trim()) {
-          await saveConnEasStatus({ ok: false, state: "missing" });
-          return;
-        }
-
-        // EAS project validation requires an authenticated Expo request.
-        // exp.host expects @owner/slug and will return 400 for UUID project IDs.
-        if (!expoToken?.trim()) {
-          await saveConnEasStatus({ ok: false, state: "unknown" });
-          Alert.alert("EAS Test", "Expo Token fehlt (für EAS Test erforderlich)");
+        const precheck = resolveEasTestPrecheck({
+          easProjectId,
+          expoToken,
+        });
+        if (precheck.shouldStop) {
+          if (precheck.status) {
+            await saveConnEasStatus(precheck.status);
+          }
+          if (precheck.alertMessage) {
+            Alert.alert("EAS Test", precheck.alertMessage);
+          }
           return;
         }
 
@@ -189,21 +195,14 @@ export function useConnectionsScreen() {
             return;
           }
 
-          const json = (await resp.json().catch(() => null)) as {
-            data?: {
-              id?: string;
-              slug?: string;
-              name?: string;
-              project?: { id?: string; slug?: string };
-            };
-          } | null;
-          const hasProject = hasExpoProject(json);
+          const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
+          const verification = resolveEasProjectVerification(json, new Date().toISOString());
           await saveConnEasStatus({
-            ok: hasProject,
-            state: hasProject ? "verified" : "unknown",
-            verifiedAt: hasProject ? new Date().toISOString() : null,
+            ok: verification.ok,
+            state: verification.state,
+            verifiedAt: verification.verifiedAt,
           });
-          if (!hasProject) {
+          if (!verification.hasProject) {
             Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
           }
         } catch (e: unknown) {
@@ -668,18 +667,18 @@ Scopes: ${scopes}` : ""}`);
 
   // Status flags
   const status = useMemo(() => {
-    const gh = !!githubToken.trim();
-    const ex = !!expoToken.trim();
-    const edge =
-      !!workflowAdminKey.trim() ||
-      !!androidKeystoreExportAdminKey.trim() ||
-      !!legacyEdgeAdminKey.trim();
-    const sbUrl = !!supabaseUrl.trim();
-    const sbAnon = !!supabaseAnonKey.trim();
-    const linked = !!(projectData?.linkedRepo || activeRepo);
-    const easId = easProjectId.trim();
-    const eas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(easId);
-    return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
+    return resolveConnectionsStatusFlags({
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      legacyEdgeAdminKey,
+      supabaseUrl,
+      supabaseAnonKey,
+      linkedRepo: projectData?.linkedRepo,
+      activeRepo,
+      easProjectId,
+    });
   }, [
     githubToken,
     expoToken,
@@ -700,29 +699,18 @@ Scopes: ${scopes}` : ""}`);
     if (isEasInitRunning) return;
 
     const token = githubToken.trim();
-    if (!token) {
-      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
-      return;
-    }
-
     const repoSlug = (effectiveRepo || "").trim();
-    if (!repoSlug) {
-      Alert.alert("Fehler", "Kein Repo ausgewählt.");
-      return;
-    }
-
     const branch = (effectiveBranch || "").trim();
-    if (!branch) {
-      Alert.alert(
-        "Fehler",
-        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
-      );
+    const linkPrecheck = resolveLinkExistingSelectionPrecheck({ githubToken: token, repoSlug, branch });
+    if (!linkPrecheck.ok) {
+      Alert.alert(linkPrecheck.alertTitle || "Fehler", linkPrecheck.alertMessage || "Ungültige Auswahl.");
       return;
     }
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
-      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
@@ -753,12 +741,7 @@ Scopes: ${scopes}` : ""}`);
           eas_project_id: projectId,
         });
 
-        Alert.alert(
-          "OK",
-          projectId
-            ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
-            : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.",
-        );
+        Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
         setEasOk(false);
@@ -816,28 +799,30 @@ Scopes: ${scopes}` : ""}`);
 
     const token = githubToken.trim();
     if (!token) {
-      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
+      const notice = resolveConnectionsAlertNotice("missing_github_token");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const repoSlug = (effectiveRepo || "").trim();
     if (!repoSlug) {
-      Alert.alert("Fehler", "Kein Repo ausgewählt.");
+      const notice = resolveConnectionsAlertNotice("missing_repo_selection");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const branch = (effectiveBranch || "").trim();
     if (!branch) {
-      Alert.alert(
-        "Fehler",
-        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
-      );
+      // Invariant contract: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
+      const notice = resolveConnectionsAlertNotice("missing_branch_selection");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
-      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
@@ -852,10 +837,8 @@ Scopes: ${scopes}` : ""}`);
         ref: branch,
       });
 
-      Alert.alert(
-        "OK",
-        "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
-      );
+      const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
+      Alert.alert(notice.title, notice.message);
     } catch (e: unknown) {
       Alert.alert("Fehler", safeAlertText(e));
     } finally {

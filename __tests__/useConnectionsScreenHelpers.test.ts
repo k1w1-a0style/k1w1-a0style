@@ -2,8 +2,14 @@ import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
   hasExpoProject,
+  resolveEasTestPrecheck,
+  resolveEasProjectVerification,
   isPersistedEasState,
   persistEntriesWithFallback,
+  resolveConnectionsStatusFlags,
+  resolveEasLinkWorkflowStartMessage,
+  resolveConnectionsAlertNotice,
+  resolveLinkExistingSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -70,6 +76,149 @@ describe("useConnectionsScreenHelpers", () => {
     expect(hasExpoProject({ data: { id: "p1" } })).toBe(true);
     expect(hasExpoProject({ data: { project: { slug: "slug" } } })).toBe(true);
     expect(hasExpoProject({ data: {} })).toBe(false);
+  });
+
+  it("maps expo payload to verification contract without side effects", () => {
+    expect(
+      resolveEasProjectVerification({ data: { id: "p1" } }, "2026-03-31T00:00:00.000Z"),
+    ).toEqual({
+      ok: true,
+      state: "verified",
+      verifiedAt: "2026-03-31T00:00:00.000Z",
+      hasProject: true,
+    });
+
+    expect(
+      resolveEasProjectVerification({ data: {} }, "2026-03-31T00:00:00.000Z"),
+    ).toEqual({
+      ok: false,
+      state: "unknown",
+      verifiedAt: null,
+      hasProject: false,
+    });
+  });
+
+  it("resolves EAS test precheck outcomes deterministically", () => {
+    expect(resolveEasTestPrecheck({ easProjectId: " ", expoToken: "token" })).toEqual({
+      shouldStop: true,
+      status: { ok: false, state: "missing" },
+      alertMessage: null,
+    });
+
+    expect(resolveEasTestPrecheck({ easProjectId: "proj", expoToken: " " })).toEqual({
+      shouldStop: true,
+      status: { ok: false, state: "unknown" },
+      alertMessage: "Expo Token fehlt (für EAS Test erforderlich)",
+    });
+
+    expect(resolveEasTestPrecheck({ easProjectId: "proj", expoToken: "token" })).toEqual({
+      shouldStop: false,
+      status: null,
+      alertMessage: null,
+    });
+  });
+
+  it("derives connection status flags deterministically", () => {
+    expect(
+      resolveConnectionsStatusFlags({
+        githubToken: " gh ",
+        expoToken: "",
+        workflowAdminKey: " ",
+        androidKeystoreExportAdminKey: "k",
+        legacyEdgeAdminKey: "",
+        supabaseUrl: " https://x.supabase.co ",
+        supabaseAnonKey: "",
+        linkedRepo: "",
+        activeRepo: "owner/repo",
+        easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      }),
+    ).toEqual({
+      gh: true,
+      ex: false,
+      edge: true,
+      sbUrl: true,
+      sbAnon: false,
+      linked: true,
+      eas: true,
+    });
+  });
+
+  it("resolves link-existing selection precheck errors deterministically", () => {
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "",
+        repoSlug: "owner/repo",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "GitHub Token fehlt (oder ist leer).",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Repo ausgewählt.",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: true,
+      alertTitle: null,
+      alertMessage: null,
+    });
+  });
+
+  it("maps EAS link workflow start messages deterministically", () => {
+    expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
+    expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("maps connections alert notices deterministically", () => {
+    expect(resolveConnectionsAlertNotice("missing_github_token")).toEqual({
+      title: "Fehler",
+      message: "GitHub Token fehlt (oder ist leer).",
+    });
+    expect(resolveConnectionsAlertNotice("missing_repo_selection")).toEqual({
+      title: "Fehler",
+      message: "Kein Repo ausgewählt.",
+    });
+    expect(resolveConnectionsAlertNotice("missing_branch_selection")).toEqual({
+      title: "Fehler",
+      message: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+    });
+    expect(resolveConnectionsAlertNotice("invalid_repo_format")).toEqual({
+      title: "Fehler",
+      message: "Repo-Format ist ungültig. Erwartet: owner/repo",
+    });
+    expect(resolveConnectionsAlertNotice("create_link_workflow_started")).toEqual({
+      title: "OK",
+      message: "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+    });
   });
 
   it("derives supabase project ref only from supabase hosts", () => {

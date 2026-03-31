@@ -1,8 +1,28 @@
+import type { WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
+import { buildCiLiteLookupFailureMessage } from "./ciLiteWorkflowErrors";
+import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
+
 export type ArtifactFetchContextInput = {
   githubRepo: string | null | undefined;
   workflowId: string | null | undefined;
   workflowRunId: number | null | undefined;
   workflowStatus: string | null | undefined;
+};
+
+export const resolveCiLiteArtifactRequest = (workflowId: string): {
+  artifactName: "ci-lite-logs" | "ci-lite-autofix-logs";
+  filePath: "ci-logs/ci-lite-result.json" | "ci-logs/ci-lite-autofix-result.json";
+} => {
+  if (workflowId === WORKFLOW_CI_LITE_AUTOFIX) {
+    return {
+      artifactName: "ci-lite-autofix-logs",
+      filePath: "ci-logs/ci-lite-autofix-result.json",
+    };
+  }
+  return {
+    artifactName: "ci-lite-logs",
+    filePath: "ci-logs/ci-lite-result.json",
+  };
 };
 
 export const buildArtifactFetchContextKey = (
@@ -17,6 +37,80 @@ export const buildArtifactFetchContextKey = (
   }
 
   return `${repo}::${workflowId}::${String(input.workflowRunId)}`;
+};
+
+export const resolveCiLitePendingRunMessage = (params: {
+  chainWaiting: boolean;
+  workflowId: string;
+  jobId: string | null;
+}): string => {
+  const { chainWaiting, workflowId, jobId } = params;
+  if (chainWaiting && workflowId === WORKFLOW_CI_LITE) {
+    return `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`;
+  }
+  if (jobId) {
+    return `Warte auf GitHub Run… (job_id: ${jobId})`;
+  }
+  return "Warte auf GitHub Run…";
+};
+
+export type CiLiteStepInfo = {
+  lint: StepState;
+  typecheck: StepState;
+  eslintErrors: number;
+  tsErrors: number;
+};
+
+export const resolveHydratedCiLiteStepInfo = (params: {
+  lintOk: boolean;
+  typecheckOk: boolean;
+}): CiLiteStepInfo => {
+  return {
+    lint: params.lintOk ? "success" : "failure",
+    typecheck: params.typecheckOk ? "success" : "failure",
+    eslintErrors: params.lintOk ? 0 : 1,
+    tsErrors: params.typecheckOk ? 0 : 1,
+  };
+};
+
+export const resolveCiLiteLookupFailureLabel = (mode: "chain" | "default"): string => {
+  return mode === "chain" ? "Autofix-Chain → CI Lite" : "Workflow";
+};
+
+export const resolveCiLiteCompletionErrorText = (params: {
+  workflowStatus: string | null | undefined;
+  workflowConclusion: string | null | undefined;
+  hydratedConclusion: string | null | undefined;
+}): string => {
+  const workflowStatus = String(params.workflowStatus ?? "").trim();
+  const workflowConclusion = String(params.workflowConclusion ?? "").trim();
+  if (workflowStatus === "completed" && workflowConclusion && workflowConclusion !== "success") {
+    return `Workflow failed (${workflowConclusion}). Open the run for details.`;
+  }
+
+  const hydratedConclusion = String(params.hydratedConclusion ?? "").trim();
+  if (hydratedConclusion && hydratedConclusion !== "success") {
+    return `Letzter CI-Lite-Run ist beendet, aber nicht grün (${hydratedConclusion}).`;
+  }
+
+  return "";
+};
+
+export const resolveCiLiteBusyState = (params: {
+  dispatching: boolean;
+  locatingRun: boolean;
+  chainWaiting: boolean;
+  logsLoading: boolean;
+  workflowStatus: string | null | undefined;
+}): boolean => {
+  return (
+    params.dispatching ||
+    params.locatingRun ||
+    params.chainWaiting ||
+    params.logsLoading ||
+    params.workflowStatus === "in_progress" ||
+    params.workflowStatus === "queued"
+  );
 };
 
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {
@@ -67,4 +161,79 @@ export const getCiLiteWorkflowErrorMessage = (
     return (error as { message: string }).message;
   }
   return fallback;
+};
+
+export type CiLiteArtifactJson = {
+  ok: boolean;
+  eslint_exit?: number;
+  tsc_exit?: number;
+  source_commit_sha?: string;
+  source_sha?: string;
+  github_sha?: string;
+};
+
+export const parseCiLiteArtifactJson = (payload: unknown): CiLiteArtifactJson => {
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Artifact JSON missing or invalid");
+  }
+
+  const src = payload as Record<string, unknown>;
+  const readNum = (k: "eslint_exit" | "tsc_exit"): number | undefined =>
+    typeof src[k] === "number" ? src[k] : undefined;
+  const readSha = (k: "source_commit_sha" | "source_sha" | "github_sha"): string | undefined =>
+    typeof src[k] === "string" ? src[k].trim() || undefined : undefined;
+
+  return {
+    ok: typeof src.ok === "boolean" ? src.ok : Boolean(src.ok),
+    eslint_exit: readNum("eslint_exit"),
+    tsc_exit: readNum("tsc_exit"),
+    source_commit_sha: readSha("source_commit_sha"),
+    source_sha: readSha("source_sha"),
+    github_sha: readSha("github_sha"),
+  };
+};
+
+export const mergeWorkflowRunLookupDiagnosis = (
+  previous: WorkflowRunLookupDiagnosis | null,
+  next: WorkflowRunLookupDiagnosis | null,
+): WorkflowRunLookupDiagnosis | null => {
+  if (!next) return previous;
+  if (!previous) return next;
+
+  if (next.exactJobIdMatchFound || next.selectedTier) {
+    return next;
+  }
+
+  if (!next.contractMismatchLikely && !next.ambiguous) {
+    if (previous.contractMismatchLikely || previous.ambiguous) {
+      return {
+        ...next,
+        ambiguous: previous.ambiguous || next.ambiguous,
+        contractMismatchLikely: previous.contractMismatchLikely || next.contractMismatchLikely,
+        fallbackCandidateCount: Math.max(previous.fallbackCandidateCount, next.fallbackCandidateCount),
+        plausibleCandidateCount: Math.max(previous.plausibleCandidateCount, next.plausibleCandidateCount),
+      };
+    }
+  }
+
+  return next;
+};
+
+export const resolveCiLiteLookupFailureMessage = (params: {
+  diagnosis: WorkflowRunLookupDiagnosis | null;
+  workflowLabel: string;
+}): string => {
+  const { diagnosis, workflowLabel } = params;
+  if (diagnosis?.ambiguous) {
+    return buildCiLiteLookupFailureMessage({ workflowLabel, kind: "ambiguous" });
+  }
+  if (diagnosis?.contractMismatchLikely) {
+    return buildCiLiteLookupFailureMessage({
+      workflowLabel,
+      kind: "contract_mismatch",
+      hasExistingRunCandidate:
+        diagnosis.plausibleCandidateCount > 0 || diagnosis.fallbackCandidateCount > 0,
+    });
+  }
+  return buildCiLiteLookupFailureMessage({ workflowLabel, kind: "timeout" });
 };

@@ -27,48 +27,25 @@ import {
   type WorkflowRunLookupDiagnosis,
 } from "./workflowRunMatching";
 import {
-  buildCiLiteLookupFailureMessage,
   normalizeCiLiteWorkflowError,
   readCiLiteErrorResponse,
 } from "./ciLiteWorkflowErrors";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import {
   buildArtifactFetchContextKey,
+  resolveCiLiteArtifactRequest,
+  resolveCiLiteLookupFailureMessage,
+  mergeWorkflowRunLookupDiagnosis,
+  parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
+  resolveCiLitePendingRunMessage,
+  resolveHydratedCiLiteStepInfo,
   getCiLiteWorkflowErrorMessage,
+  resolveCiLiteCompletionErrorText,
+  resolveCiLiteBusyState,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
-
-type CiLiteArtifactJson = {
-  ok: boolean;
-  eslint_exit?: number;
-  tsc_exit?: number;
-  source_commit_sha?: string;
-  source_sha?: string;
-  github_sha?: string;
-};
-
-function parseCiLiteArtifactJson(payload: unknown): CiLiteArtifactJson {
-  if (!payload || typeof payload !== "object") {
-    throw new Error("Artifact JSON missing or invalid");
-  }
-
-  const src = payload as Record<string, unknown>;
-  const readNum = (k: "eslint_exit" | "tsc_exit"): number | undefined =>
-    typeof src[k] === "number" ? src[k] : undefined;
-  const readSha = (k: "source_commit_sha" | "source_sha" | "github_sha"): string | undefined =>
-    typeof src[k] === "string" ? (src[k] as string).trim() || undefined : undefined;
-
-  return {
-    ok: typeof src.ok === "boolean" ? src.ok : Boolean(src.ok),
-    eslint_exit: readNum("eslint_exit"),
-    tsc_exit: readNum("tsc_exit"),
-    source_commit_sha: readSha("source_commit_sha"),
-    source_sha: readSha("source_sha"),
-    github_sha: readSha("github_sha"),
-  };
-}
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -162,38 +139,11 @@ export function useCiLiteWorkflow() {
     stopPolling();
   }, [stopPolling]);
 
-  const mergeLookupDiagnosis = useCallback((
-    next: WorkflowRunLookupDiagnosis | null,
-  ): WorkflowRunLookupDiagnosis | null => {
-    if (!next) return lookupDiagnosisRef.current;
-
-    const previous = lookupDiagnosisRef.current;
-    if (!previous) return next;
-
-    if (next.exactJobIdMatchFound || next.selectedTier) {
-      return next;
-    }
-
-    if (!next.contractMismatchLikely && !next.ambiguous) {
-      if (previous.contractMismatchLikely || previous.ambiguous) {
-        return {
-          ...next,
-          ambiguous: previous.ambiguous || next.ambiguous,
-          contractMismatchLikely: previous.contractMismatchLikely || next.contractMismatchLikely,
-          fallbackCandidateCount: Math.max(previous.fallbackCandidateCount, next.fallbackCandidateCount),
-          plausibleCandidateCount: Math.max(previous.plausibleCandidateCount, next.plausibleCandidateCount),
-        };
-      }
-    }
-
-    return next;
-  }, []);
-
   const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
-    const merged = mergeLookupDiagnosis(diagnosis);
+    const merged = mergeWorkflowRunLookupDiagnosis(lookupDiagnosisRef.current, diagnosis);
     lookupDiagnosisRef.current = merged;
     setLookupDiagnosis(merged);
-  }, [mergeLookupDiagnosis]);
+  }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
@@ -296,6 +246,11 @@ export function useCiLiteWorkflow() {
   // ---- Logs ----
   const trackedRunId = runId;
   const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
+  const hasLookupOrDispatchActivity =
+    dispatching ||
+    locatingRun ||
+    chainWaiting ||
+    false;
 
   const {
     logs,
@@ -390,12 +345,7 @@ export function useCiLiteWorkflow() {
           throw new Error(normalized.userMessage);
         }
 
-        const artifactName =
-          workflowId === WORKFLOW_CI_LITE_AUTOFIX ? "ci-lite-autofix-logs" : "ci-lite-logs";
-        const filePath =
-          workflowId === WORKFLOW_CI_LITE_AUTOFIX
-            ? "ci-logs/ci-lite-autofix-result.json"
-            : "ci-logs/ci-lite-result.json";
+        const { artifactName, filePath } = resolveCiLiteArtifactRequest(workflowId);
 
         const resp = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON}`, {
           timeoutMs: 15_000,
@@ -464,18 +414,10 @@ export function useCiLiteWorkflow() {
   }, [jobId, workflowId, runId, workflowRun?.id]);
 
   const buildLookupFailureMessage = useCallback((params: { workflowLabel: string }) => {
-    const diagnosis = lookupDiagnosisRef.current;
-    if (diagnosis?.ambiguous) {
-      return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "ambiguous" });
-    }
-    if (diagnosis?.contractMismatchLikely) {
-      return buildCiLiteLookupFailureMessage({
-        workflowLabel: params.workflowLabel,
-        kind: "contract_mismatch",
-        hasExistingRunCandidate: diagnosis.plausibleCandidateCount > 0 || diagnosis.fallbackCandidateCount > 0,
-      });
-    }
-    return buildCiLiteLookupFailureMessage({ workflowLabel: params.workflowLabel, kind: "timeout" });
+    return resolveCiLiteLookupFailureMessage({
+      diagnosis: lookupDiagnosisRef.current,
+      workflowLabel: params.workflowLabel,
+    });
   }, []);
 
   const hydratedDisplaySnapshot = !hasActiveRunContext && !workflowRun ? hydratedSnapshot : null;
@@ -485,13 +427,7 @@ export function useCiLiteWorkflow() {
   const logLines = useMemo(() => {
     if (!runId) {
       if (hydratedDisplaySnapshot) return [];
-      return [
-        chainWaiting && workflowId === WORKFLOW_CI_LITE
-          ? `Autofix fertig – starte CI Lite (chain-run)… (job_id: ${jobId || ""})`
-          : jobId
-            ? `Warte auf GitHub Run… (job_id: ${jobId})`
-            : "Warte auf GitHub Run…",
-      ];
+      return [resolveCiLitePendingRunMessage({ chainWaiting, workflowId, jobId })];
     }
     if (!logs || logs.length === 0) return [];
     return logs.map((e) => e.message);
@@ -499,12 +435,10 @@ export function useCiLiteWorkflow() {
 
   const stepInfo = useMemo<{ lint: StepState; typecheck: StepState; eslintErrors: number; tsErrors: number }>(() => {
     if (hydratedDisplaySnapshot) {
-      return {
-        lint: hydratedDisplaySnapshot.lintOk ? "success" : "failure",
-        typecheck: hydratedDisplaySnapshot.typecheckOk ? "success" : "failure",
-        eslintErrors: hydratedDisplaySnapshot.lintOk ? 0 : 1,
-        tsErrors: hydratedDisplaySnapshot.typecheckOk ? 0 : 1,
-      };
+      return resolveHydratedCiLiteStepInfo({
+        lintOk: hydratedDisplaySnapshot.lintOk,
+        typecheckOk: hydratedDisplaySnapshot.typecheckOk,
+      });
     }
     return inferStepStates(logLines);
   }, [logLines, hydratedDisplaySnapshot]);
@@ -536,13 +470,11 @@ export function useCiLiteWorkflow() {
   const showError = safeUi(
     localError ||
       logsError ||
-      (workflowRun?.status === "completed" &&
-      workflowRun.conclusion &&
-      workflowRun.conclusion !== "success"
-        ? `Workflow failed (${workflowRun.conclusion}). Open the run for details.`
-        : hydratedDisplaySnapshot && hydratedDisplaySnapshot.conclusion !== "success"
-          ? `Letzter CI-Lite-Run ist beendet, aber nicht grün (${hydratedDisplaySnapshot.conclusion}).`
-          : ""),
+      resolveCiLiteCompletionErrorText({
+        workflowStatus: workflowRun?.status,
+        workflowConclusion: workflowRun?.conclusion,
+        hydratedConclusion: hydratedDisplaySnapshot?.conclusion,
+      }),
   );
 
   const artifactNotice = safeUi(
@@ -567,13 +499,13 @@ export function useCiLiteWorkflow() {
     [done, effectiveWorkflowRun, onlyErrors.length, showError, artifactResult],
   );
 
-  const busy =
-    dispatching ||
-    locatingRun ||
-    chainWaiting ||
-    logsLoading ||
-    workflowRun?.status === "in_progress" ||
-    workflowRun?.status === "queued";
+  const busy = resolveCiLiteBusyState({
+    dispatching: hasLookupOrDispatchActivity && dispatching,
+    locatingRun,
+    chainWaiting,
+    logsLoading,
+    workflowStatus: workflowRun?.status,
+  });
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
 
   // ---- Chain-run (autofix → CI Lite) ----

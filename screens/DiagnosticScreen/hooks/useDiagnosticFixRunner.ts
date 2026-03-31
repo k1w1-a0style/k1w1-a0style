@@ -36,6 +36,7 @@ import {
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
+  buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
   sameProjectFiles,
@@ -163,31 +164,7 @@ export function useDiagnosticFixRunner(opts: {
 
   const openPreview = useCallback(async (label: string, patch: PreflightPatch) => {
     if (!projectRef.current) return;
-    const filesMap = new Map(projectRef.current.files.map((f) => [f.path, f.content]));
-
-    const entries: Array<{ path: string; oldText: string | null; newText: string | null }> = [];
-
-    for (const u of patch.upsert ?? []) {
-      entries.push({
-        path: u.path,
-        oldText: filesMap.has(u.path) ? (filesMap.get(u.path) as string) : null,
-        newText: u.content ?? "",
-      });
-    }
-    for (const p of patch.delete ?? []) {
-      entries.push({
-        path: p,
-        oldText: filesMap.has(p) ? (filesMap.get(p) as string) : null,
-        newText: null,
-      });
-    }
-    for (const j of patch.jsonMerge ?? []) {
-      entries.push({
-        path: j.path,
-        oldText: filesMap.has(j.path) ? (filesMap.get(j.path) as string) : null,
-        newText: "• JSON merge patch (Preview zeigt nur vorher – nachher wird beim Apply erzeugt)",
-      });
-    }
+    const entries = buildFixPreviewEntries(projectRef.current.files, patch);
 
     setPreviewLabel(label);
     setPreviewEntries(entries);

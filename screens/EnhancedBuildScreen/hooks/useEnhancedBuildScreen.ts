@@ -10,7 +10,6 @@ import type { CheckItem } from "../components/ChecklistSection";
 import {
   computeEta,
   formatDuration,
-  getStatusIcon,
 } from "../../../utils/buildScreenUtils";
 
 import type {
@@ -21,7 +20,14 @@ import type {
 } from "../types";
 import type { WorkflowJob, WorkflowRunDetails } from "../../../infra/github/workflows";
 
-import { FETCH_TIMEOUT_MS, fetchRunDetailsBundle, sanitizeUiMessage, validateRepoFullName, withTimeout } from "./buildScreenHelpers";
+import {
+  FETCH_TIMEOUT_MS,
+  fetchRunDetailsBundle,
+  resolveBuildStatusPresentation,
+  sanitizeUiMessage,
+  validateRepoFullName,
+  withTimeout,
+} from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
 import {
   filterWorkflowRunsByProfile,
@@ -474,11 +480,7 @@ export function useEnhancedBuildScreen() {
     }
   }, [status]);
 
-  const statusEmoji = getStatusIcon(status);
-  const statusLabel =
-    status === "building" && typeof progress === "number"
-      ? `${Math.round(progress * 100)}%`
-      : status.toUpperCase();
+  const { statusEmoji, statusLabel } = resolveBuildStatusPresentation({ status, progress });
 
   const moreCount =
     filteredRuns.length > MAX_RUNS_DISPLAY
