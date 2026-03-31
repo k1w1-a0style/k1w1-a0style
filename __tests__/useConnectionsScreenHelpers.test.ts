@@ -8,6 +8,7 @@ import {
   persistEntriesWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
+  resolveConnectionsAlertNotice,
   resolveLinkExistingSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
@@ -195,6 +196,29 @@ describe("useConnectionsScreenHelpers", () => {
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("maps connections alert notices deterministically", () => {
+    expect(resolveConnectionsAlertNotice("missing_github_token")).toEqual({
+      title: "Fehler",
+      message: "GitHub Token fehlt (oder ist leer).",
+    });
+    expect(resolveConnectionsAlertNotice("missing_repo_selection")).toEqual({
+      title: "Fehler",
+      message: "Kein Repo ausgewählt.",
+    });
+    expect(resolveConnectionsAlertNotice("missing_branch_selection")).toEqual({
+      title: "Fehler",
+      message: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+    });
+    expect(resolveConnectionsAlertNotice("invalid_repo_format")).toEqual({
+      title: "Fehler",
+      message: "Repo-Format ist ungültig. Erwartet: owner/repo",
+    });
+    expect(resolveConnectionsAlertNotice("create_link_workflow_started")).toEqual({
+      title: "OK",
+      message: "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+    });
   });
 
   it("derives supabase project ref only from supabase hosts", () => {

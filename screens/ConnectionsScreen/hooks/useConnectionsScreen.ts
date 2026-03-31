@@ -60,6 +60,7 @@ import {
   resolveLinkExistingSelectionPrecheck,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
+  resolveConnectionsAlertNotice,
   resolvePersistedEasState,
   type ExpoProjectResponse,
 } from "./useConnectionsScreenHelpers";
@@ -708,7 +709,8 @@ Scopes: ${scopes}` : ""}`);
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
-      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
@@ -797,28 +799,30 @@ Scopes: ${scopes}` : ""}`);
 
     const token = githubToken.trim();
     if (!token) {
-      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
+      const notice = resolveConnectionsAlertNotice("missing_github_token");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const repoSlug = (effectiveRepo || "").trim();
     if (!repoSlug) {
-      Alert.alert("Fehler", "Kein Repo ausgewählt.");
+      const notice = resolveConnectionsAlertNotice("missing_repo_selection");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const branch = (effectiveBranch || "").trim();
     if (!branch) {
-      Alert.alert(
-        "Fehler",
-        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
-      );
+      // Invariant contract: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
+      const notice = resolveConnectionsAlertNotice("missing_branch_selection");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
-      Alert.alert("Fehler", "Repo-Format ist ungültig. Erwartet: owner/repo");
+      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+      Alert.alert(notice.title, notice.message);
       return;
     }
 
@@ -833,10 +837,8 @@ Scopes: ${scopes}` : ""}`);
         ref: branch,
       });
 
-      Alert.alert(
-        "OK",
-        "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
-      );
+      const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
+      Alert.alert(notice.title, notice.message);
     } catch (e: unknown) {
       Alert.alert("Fehler", safeAlertText(e));
     } finally {

@@ -181,6 +181,38 @@ export const resolveEasLinkWorkflowStartMessage = (projectId: string): string =>
     : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.";
 };
 
+export type ConnectionsAlertNoticeKey =
+  | "missing_github_token"
+  | "missing_repo_selection"
+  | "missing_branch_selection"
+  | "invalid_repo_format"
+  | "create_link_workflow_started";
+
+export const resolveConnectionsAlertNotice = (
+  key: ConnectionsAlertNoticeKey,
+): { title: string; message: string } => {
+  switch (key) {
+    case "missing_github_token":
+      return { title: "Fehler", message: "GitHub Token fehlt (oder ist leer)." };
+    case "missing_repo_selection":
+      return { title: "Fehler", message: "Kein Repo ausgewählt." };
+    case "missing_branch_selection":
+      return {
+        title: "Fehler",
+        message: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      };
+    case "invalid_repo_format":
+      return { title: "Fehler", message: "Repo-Format ist ungültig. Erwartet: owner/repo" };
+    case "create_link_workflow_started":
+      return {
+        title: "OK",
+        message: "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+      };
+    default:
+      return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
+  }
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";
