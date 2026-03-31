@@ -5,6 +5,7 @@ import {
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   resolveCiLiteArtifactRequest,
+  resolveCiLiteBusyState,
   resolveCiLiteCompletionErrorText,
   resolveHydratedCiLiteStepInfo,
   resolveCiLiteLookupFailureLabel,
@@ -146,6 +147,38 @@ describe("useCiLiteWorkflowHelpers", () => {
           hydratedConclusion: "success",
         }),
       ).toBe("");
+    });
+  });
+
+  describe("resolveCiLiteBusyState", () => {
+    it("treats active dispatch/lookup/log loading and queued statuses as busy", () => {
+      expect(
+        resolveCiLiteBusyState({
+          dispatching: false,
+          locatingRun: false,
+          chainWaiting: false,
+          logsLoading: false,
+          workflowStatus: "queued",
+        }),
+      ).toBe(true);
+      expect(
+        resolveCiLiteBusyState({
+          dispatching: true,
+          locatingRun: false,
+          chainWaiting: false,
+          logsLoading: false,
+          workflowStatus: "completed",
+        }),
+      ).toBe(true);
+      expect(
+        resolveCiLiteBusyState({
+          dispatching: false,
+          locatingRun: false,
+          chainWaiting: false,
+          logsLoading: false,
+          workflowStatus: "completed",
+        }),
+      ).toBe(false);
     });
   });
 

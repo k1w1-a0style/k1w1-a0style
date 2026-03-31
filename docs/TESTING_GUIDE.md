@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-03-31 (Patch 651)**
+Stand: **2026-03-31 (Patch 652)**
 
 ## Zweck
 

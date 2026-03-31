@@ -42,6 +42,7 @@ import {
   resolveHydratedCiLiteStepInfo,
   getCiLiteWorkflowErrorMessage,
   resolveCiLiteCompletionErrorText,
+  resolveCiLiteBusyState,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
@@ -245,6 +246,11 @@ export function useCiLiteWorkflow() {
   // ---- Logs ----
   const trackedRunId = runId;
   const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
+  const hasLookupOrDispatchActivity =
+    dispatching ||
+    locatingRun ||
+    chainWaiting ||
+    false;
 
   const {
     logs,
@@ -493,13 +499,13 @@ export function useCiLiteWorkflow() {
     [done, effectiveWorkflowRun, onlyErrors.length, showError, artifactResult],
   );
 
-  const busy =
-    dispatching ||
-    locatingRun ||
-    chainWaiting ||
-    logsLoading ||
-    workflowRun?.status === "in_progress" ||
-    workflowRun?.status === "queued";
+  const busy = resolveCiLiteBusyState({
+    dispatching: hasLookupOrDispatchActivity && dispatching,
+    locatingRun,
+    chainWaiting,
+    logsLoading,
+    workflowStatus: workflowRun?.status,
+  });
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
 
   // ---- Chain-run (autofix → CI Lite) ----

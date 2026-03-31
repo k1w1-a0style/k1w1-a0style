@@ -96,6 +96,23 @@ export const resolveCiLiteCompletionErrorText = (params: {
   return "";
 };
 
+export const resolveCiLiteBusyState = (params: {
+  dispatching: boolean;
+  locatingRun: boolean;
+  chainWaiting: boolean;
+  logsLoading: boolean;
+  workflowStatus: string | null | undefined;
+}): boolean => {
+  return (
+    params.dispatching ||
+    params.locatingRun ||
+    params.chainWaiting ||
+    params.logsLoading ||
+    params.workflowStatus === "in_progress" ||
+    params.workflowStatus === "queued"
+  );
+};
+
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {
   if (!Array.isArray(lines) || lines.length === 0) return null;
   const joined = lines.join("\n");
