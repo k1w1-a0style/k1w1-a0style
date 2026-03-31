@@ -111,6 +111,41 @@ export const resolveEasTestPrecheck = (params: {
   };
 };
 
+export const resolveConnectionsStatusFlags = (params: {
+  githubToken: string;
+  expoToken: string;
+  workflowAdminKey: string;
+  androidKeystoreExportAdminKey: string;
+  legacyEdgeAdminKey: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  linkedRepo: string | null | undefined;
+  activeRepo: string | null | undefined;
+  easProjectId: string;
+}): {
+  gh: boolean;
+  ex: boolean;
+  edge: boolean;
+  sbUrl: boolean;
+  sbAnon: boolean;
+  linked: boolean;
+  eas: boolean;
+} => {
+  const gh = !!params.githubToken.trim();
+  const ex = !!params.expoToken.trim();
+  const edge =
+    !!params.workflowAdminKey.trim() ||
+    !!params.androidKeystoreExportAdminKey.trim() ||
+    !!params.legacyEdgeAdminKey.trim();
+  const sbUrl = !!params.supabaseUrl.trim();
+  const sbAnon = !!params.supabaseAnonKey.trim();
+  const linked = !!(params.linkedRepo || params.activeRepo);
+  const eas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    params.easProjectId.trim(),
+  );
+  return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";

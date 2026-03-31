@@ -21,13 +21,14 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 646)**
+Stand: **2026-03-31 (Patch 647)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.
 
 ## Aktuell (Priorität)
 
+- [x] **Refactor-Durchlauf 9 (Connections status flags helper-first) umgesetzt:** die Token-/Edge-/Supabase-/Repo-Link-/EAS-Statusflags werden jetzt ueber `resolveConnectionsStatusFlags(...)` zentral abgeleitet; Hook-Verhalten bleibt identisch und ist besser testbar (Patch 647).
 - [x] **Refactor-Durchlauf 8 (CI-Lite hydrated step info helper-first) umgesetzt:** die Hydrated-Snapshot-Abbildung auf `lint`/`typecheck`/Fehlerzaehler ist jetzt im pure Helper `resolveHydratedCiLiteStepInfo(...)` zentralisiert; Hook-Verhalten bleibt identisch, ist aber klarer testbar (Patch 646).
 - [x] **Refactor-Durchlauf 7 (CI-Lite pending run message helper-first) umgesetzt:** `useCiLiteWorkflow.ts` delegiert die Pending-Run-Statuszeile jetzt an den pure Helper `resolveCiLitePendingRunMessage(...)`; Chain-Waiting-/job_id-Text bleibt unveraendert, ist aber zentral testbar und besser wartbar (Patch 645).
 - [x] **Refactor-Durchlauf 6 (CI-Lite artifact request helper-first) umgesetzt:** `useCiLiteWorkflow.ts` delegiert die Artifact-Name/-Pfad-Auswahl nun an den neuen pure Helper `resolveCiLiteArtifactRequest(...)`; der Autofix-vs-CI-Lite-Mapping-Vertrag bleibt identisch, ist aber zentral testbar, und fokussierte Helper-Regressionen decken beide Workflow-Pfade ab (Patch 644).
@@ -90,8 +91,9 @@ Stand: **2026-03-31 (Patch 646)**
 - [x] **Selektiver Runtime-`as any`-Hotspot (`lib/diagnostics/ciAutoFix.ts`) abgebaut:** Error-Pfade laufen dort jetzt ohne `as any` ueber `unknown`+Narrowing (`toErrorMessage`) und halten denselben Verhalten-/Fehlervertrag ohne Broad-Cleanup bei (Patch 625).
 
 - [x] **Geplanter Refactor-Durchlauf 8 (CI-Lite helper-first):** abgeschlossen in Patch 646 (Hydrated-`StepInfo`-Mapping als `resolveHydratedCiLiteStepInfo(...)` extrahiert, ohne Flow-/Vertragsaenderung).
-- [ ] **Geplanter Refactor-Durchlauf 9 (Connections helper-first):** verbleibende kleine Status-/Notice-Mapping-Logik im Connections-Hotspot testbar extrahieren; nur helper-level, kein Screen-Flow-Umbau.
+- [x] **Geplanter Refactor-Durchlauf 9 (Connections helper-first):** abgeschlossen in Patch 647 (`resolveConnectionsStatusFlags(...)` extrahiert, keine Flow-/Vertragsaenderung).
 - [ ] **Geplanter Refactor-Durchlauf 10 (CI-Lite helper-first):** naechsten kleinen UI-Text-/Label-Mapping-Block im CI-Lite-Hook helper-first extrahieren; keine Dispatch-/Polling-/Auth-Logik anfassen.
+- [ ] **Geplanter Refactor-Durchlauf 11 (Connections helper-first):** naechste kleine Persistenz-/Notice-Entscheidung im Connections-Hook in pure Helper verschieben; kein API-/Auth-/Flow-Umbau.
 
 ## Wichtige Vertrags-Reminder
 

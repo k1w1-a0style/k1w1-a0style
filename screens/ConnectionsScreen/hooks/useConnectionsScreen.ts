@@ -55,6 +55,7 @@ import {
   deriveSupabaseRefFromUrl,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
+  resolveConnectionsStatusFlags,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolvePersistedEasState,
@@ -663,18 +664,18 @@ Scopes: ${scopes}` : ""}`);
 
   // Status flags
   const status = useMemo(() => {
-    const gh = !!githubToken.trim();
-    const ex = !!expoToken.trim();
-    const edge =
-      !!workflowAdminKey.trim() ||
-      !!androidKeystoreExportAdminKey.trim() ||
-      !!legacyEdgeAdminKey.trim();
-    const sbUrl = !!supabaseUrl.trim();
-    const sbAnon = !!supabaseAnonKey.trim();
-    const linked = !!(projectData?.linkedRepo || activeRepo);
-    const easId = easProjectId.trim();
-    const eas = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(easId);
-    return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
+    return resolveConnectionsStatusFlags({
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      legacyEdgeAdminKey,
+      supabaseUrl,
+      supabaseAnonKey,
+      linkedRepo: projectData?.linkedRepo,
+      activeRepo,
+      easProjectId,
+    });
   }, [
     githubToken,
     expoToken,

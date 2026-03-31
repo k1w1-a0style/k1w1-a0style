@@ -6,6 +6,7 @@ import {
   resolveEasProjectVerification,
   isPersistedEasState,
   persistEntriesWithFallback,
+  resolveConnectionsStatusFlags,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -111,6 +112,31 @@ describe("useConnectionsScreenHelpers", () => {
       shouldStop: false,
       status: null,
       alertMessage: null,
+    });
+  });
+
+  it("derives connection status flags deterministically", () => {
+    expect(
+      resolveConnectionsStatusFlags({
+        githubToken: " gh ",
+        expoToken: "",
+        workflowAdminKey: " ",
+        androidKeystoreExportAdminKey: "k",
+        legacyEdgeAdminKey: "",
+        supabaseUrl: " https://x.supabase.co ",
+        supabaseAnonKey: "",
+        linkedRepo: "",
+        activeRepo: "owner/repo",
+        easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      }),
+    ).toEqual({
+      gh: true,
+      ex: false,
+      edge: true,
+      sbUrl: true,
+      sbAnon: false,
+      linked: true,
+      eas: true,
     });
   });
 
