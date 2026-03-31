@@ -80,7 +80,7 @@
 
 
 **Update (Patch 638, 2026-03-30, Deep-Scan-Rebaseline):**
-- Aktueller Vollscan (`rg`, ohne `node_modules`): **331** `as any` gesamt und **170** `: any` gesamt.
+- Aktueller Vollscan (`rg`, ohne `node_modules`): **341** `as any` gesamt und **170** `: any` gesamt.
 - Codefokussierter Scan (ohne `docs/**`, `README.md`, `PROJECT_CHECKLOG.md`): **150** `as any` und **152** `: any`.
 - Einordnung nach Deep-Scan:
   - Produktiver Runtime-Code ist bei `as any` deutlich kleiner als fruehere Historienstaende; der groesste Restanteil liegt weiterhin in **Tests/Mocks/Historie**.

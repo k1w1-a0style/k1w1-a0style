@@ -1,6 +1,6 @@
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
-type ExpoProjectResponse = {
+export type ExpoProjectResponse = {
   data?: {
     id?: string;
     slug?: string;
@@ -58,6 +58,24 @@ export const hasExpoProject = (payload: ExpoProjectResponse | null): boolean => 
       payload?.data?.slug ||
       payload?.data?.name,
   );
+};
+
+export const resolveEasProjectVerification = (
+  payload: ExpoProjectResponse | null,
+  nowIso: string,
+): {
+  ok: boolean;
+  state: VerificationContractState;
+  verifiedAt: string | null;
+  hasProject: boolean;
+} => {
+  const hasProject = hasExpoProject(payload);
+  return {
+    ok: hasProject,
+    state: hasProject ? "verified" : "unknown",
+    verifiedAt: hasProject ? nowIso : null,
+    hasProject,
+  };
 };
 
 export const deriveSupabaseRefFromUrl = (url: string): string => {

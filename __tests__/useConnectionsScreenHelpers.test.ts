@@ -2,6 +2,7 @@ import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
   hasExpoProject,
+  resolveEasProjectVerification,
   isPersistedEasState,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
@@ -70,6 +71,26 @@ describe("useConnectionsScreenHelpers", () => {
     expect(hasExpoProject({ data: { id: "p1" } })).toBe(true);
     expect(hasExpoProject({ data: { project: { slug: "slug" } } })).toBe(true);
     expect(hasExpoProject({ data: {} })).toBe(false);
+  });
+
+  it("maps expo payload to verification contract without side effects", () => {
+    expect(
+      resolveEasProjectVerification({ data: { id: "p1" } }, "2026-03-31T00:00:00.000Z"),
+    ).toEqual({
+      ok: true,
+      state: "verified",
+      verifiedAt: "2026-03-31T00:00:00.000Z",
+      hasProject: true,
+    });
+
+    expect(
+      resolveEasProjectVerification({ data: {} }, "2026-03-31T00:00:00.000Z"),
+    ).toEqual({
+      ok: false,
+      state: "unknown",
+      verifiedAt: null,
+      hasProject: false,
+    });
   });
 
   it("derives supabase project ref only from supabase hosts", () => {

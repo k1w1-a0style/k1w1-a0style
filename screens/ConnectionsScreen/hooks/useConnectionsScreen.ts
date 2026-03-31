@@ -53,10 +53,11 @@ import {
 import {
   buildRepoOkLine,
   deriveSupabaseRefFromUrl,
-  hasExpoProject,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
+  resolveEasProjectVerification,
   resolvePersistedEasState,
+  type ExpoProjectResponse,
 } from "./useConnectionsScreenHelpers";
 
 export function useConnectionsScreen() {
@@ -189,21 +190,14 @@ export function useConnectionsScreen() {
             return;
           }
 
-          const json = (await resp.json().catch(() => null)) as {
-            data?: {
-              id?: string;
-              slug?: string;
-              name?: string;
-              project?: { id?: string; slug?: string };
-            };
-          } | null;
-          const hasProject = hasExpoProject(json);
+          const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
+          const verification = resolveEasProjectVerification(json, new Date().toISOString());
           await saveConnEasStatus({
-            ok: hasProject,
-            state: hasProject ? "verified" : "unknown",
-            verifiedAt: hasProject ? new Date().toISOString() : null,
+            ok: verification.ok,
+            state: verification.state,
+            verifiedAt: verification.verifiedAt,
           });
-          if (!hasProject) {
+          if (!verification.hasProject) {
             Alert.alert("EAS Test", "Projekt nicht gefunden oder keine Rechte");
           }
         } catch (e: unknown) {
