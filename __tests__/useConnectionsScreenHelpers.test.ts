@@ -7,6 +7,7 @@ import {
   isPersistedEasState,
   persistEntriesWithFallback,
   resolveConnectionsStatusFlags,
+  resolveEasLinkWorkflowStartMessage,
   resolveLinkExistingSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
@@ -189,6 +190,11 @@ describe("useConnectionsScreenHelpers", () => {
       alertTitle: null,
       alertMessage: null,
     });
+  });
+
+  it("maps EAS link workflow start messages deterministically", () => {
+    expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
+    expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
   });
 
   it("derives supabase project ref only from supabase hosts", () => {

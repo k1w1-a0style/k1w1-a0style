@@ -175,6 +175,12 @@ export const resolveLinkExistingSelectionPrecheck = (params: {
   return { ok: true, alertTitle: null, alertMessage: null };
 };
 
+export const resolveEasLinkWorkflowStartMessage = (projectId: string): string => {
+  return projectId
+    ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
+    : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.";
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";

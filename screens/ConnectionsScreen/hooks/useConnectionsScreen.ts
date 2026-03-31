@@ -56,6 +56,7 @@ import {
   persistEntriesWithFallback,
   removeEntriesWithFallback,
   resolveConnectionsStatusFlags,
+  resolveEasLinkWorkflowStartMessage,
   resolveLinkExistingSelectionPrecheck,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
@@ -738,12 +739,7 @@ Scopes: ${scopes}` : ""}`);
           eas_project_id: projectId,
         });
 
-        Alert.alert(
-          "OK",
-          projectId
-            ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
-            : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.",
-        );
+        Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
         setEasOk(false);
