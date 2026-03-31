@@ -56,6 +56,7 @@ import {
   persistEntriesWithFallback,
   removeEntriesWithFallback,
   resolveConnectionsStatusFlags,
+  resolveLinkExistingSelectionPrecheck,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolvePersistedEasState,
@@ -696,23 +697,11 @@ Scopes: ${scopes}` : ""}`);
     if (isEasInitRunning) return;
 
     const token = githubToken.trim();
-    if (!token) {
-      Alert.alert("Fehler", "GitHub Token fehlt (oder ist leer).");
-      return;
-    }
-
     const repoSlug = (effectiveRepo || "").trim();
-    if (!repoSlug) {
-      Alert.alert("Fehler", "Kein Repo ausgewählt.");
-      return;
-    }
-
     const branch = (effectiveBranch || "").trim();
-    if (!branch) {
-      Alert.alert(
-        "Fehler",
-        "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
-      );
+    const linkPrecheck = resolveLinkExistingSelectionPrecheck({ githubToken: token, repoSlug, branch });
+    if (!linkPrecheck.ok) {
+      Alert.alert(linkPrecheck.alertTitle || "Fehler", linkPrecheck.alertMessage || "Ungültige Auswahl.");
       return;
     }
 

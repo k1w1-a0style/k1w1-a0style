@@ -146,6 +146,35 @@ export const resolveConnectionsStatusFlags = (params: {
   return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
 };
 
+export const resolveLinkExistingSelectionPrecheck = (params: {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+}): { ok: boolean; alertTitle: string | null; alertMessage: string | null } => {
+  if (!params.githubToken.trim()) {
+    return {
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "GitHub Token fehlt (oder ist leer).",
+    };
+  }
+  if (!params.repoSlug.trim()) {
+    return {
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Repo ausgewählt.",
+    };
+  }
+  if (!params.branch.trim()) {
+    return {
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+    };
+  }
+  return { ok: true, alertTitle: null, alertMessage: null };
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";

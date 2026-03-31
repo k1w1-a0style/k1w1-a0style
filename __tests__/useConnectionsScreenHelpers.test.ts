@@ -7,6 +7,7 @@ import {
   isPersistedEasState,
   persistEntriesWithFallback,
   resolveConnectionsStatusFlags,
+  resolveLinkExistingSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -137,6 +138,56 @@ describe("useConnectionsScreenHelpers", () => {
       sbAnon: false,
       linked: true,
       eas: true,
+    });
+  });
+
+  it("resolves link-existing selection precheck errors deterministically", () => {
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "",
+        repoSlug: "owner/repo",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "GitHub Token fehlt (oder ist leer).",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Repo ausgewählt.",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "",
+      }),
+    ).toEqual({
+      ok: false,
+      alertTitle: "Fehler",
+      alertMessage: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+    });
+
+    expect(
+      resolveLinkExistingSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: true,
+      alertTitle: null,
+      alertMessage: null,
     });
   });
 
