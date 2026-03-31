@@ -5,6 +5,7 @@ import {
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   resolveCiLiteArtifactRequest,
+  resolveHydratedCiLiteStepInfo,
   resolveCiLiteLookupFailureMessage,
   resolveCiLitePendingRunMessage,
   splitRepoFullName,
@@ -91,6 +92,23 @@ describe("useCiLiteWorkflowHelpers", () => {
           jobId: null,
         }),
       ).toBe("Warte auf GitHub Run…");
+    });
+  });
+
+  describe("resolveHydratedCiLiteStepInfo", () => {
+    it("maps hydrated booleans to deterministic step info", () => {
+      expect(resolveHydratedCiLiteStepInfo({ lintOk: true, typecheckOk: false })).toEqual({
+        lint: "success",
+        typecheck: "failure",
+        eslintErrors: 0,
+        tsErrors: 1,
+      });
+      expect(resolveHydratedCiLiteStepInfo({ lintOk: false, typecheckOk: true })).toEqual({
+        lint: "failure",
+        typecheck: "success",
+        eslintErrors: 1,
+        tsErrors: 0,
+      });
     });
   });
 

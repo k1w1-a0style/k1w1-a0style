@@ -39,6 +39,7 @@ import {
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
   resolveCiLitePendingRunMessage,
+  resolveHydratedCiLiteStepInfo,
   getCiLiteWorkflowErrorMessage,
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
@@ -427,12 +428,10 @@ export function useCiLiteWorkflow() {
 
   const stepInfo = useMemo<{ lint: StepState; typecheck: StepState; eslintErrors: number; tsErrors: number }>(() => {
     if (hydratedDisplaySnapshot) {
-      return {
-        lint: hydratedDisplaySnapshot.lintOk ? "success" : "failure",
-        typecheck: hydratedDisplaySnapshot.typecheckOk ? "success" : "failure",
-        eslintErrors: hydratedDisplaySnapshot.lintOk ? 0 : 1,
-        tsErrors: hydratedDisplaySnapshot.typecheckOk ? 0 : 1,
-      };
+      return resolveHydratedCiLiteStepInfo({
+        lintOk: hydratedDisplaySnapshot.lintOk,
+        typecheckOk: hydratedDisplaySnapshot.typecheckOk,
+      });
     }
     return inferStepStates(logLines);
   }, [logLines, hydratedDisplaySnapshot]);
