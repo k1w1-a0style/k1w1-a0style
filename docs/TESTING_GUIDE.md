@@ -2,6 +2,20 @@
 
 Stand: **2026-04-02 (Docs Konsolidierung)**
 
+## NPM-Umgebungs-Hinweis (Proxy-Keys)
+
+Falls deine Shell/CI alte env-Keys wie `npm_config_http-proxy`/`npm_config_https-proxy` setzt, kann npm warnen:
+
+- `Unknown env config "http-proxy"`
+
+Das ist kein Test-Fail im Repo, aber fuer saubere Runs kannst du die alten env-Keys vor dem Lauf entfernen:
+
+```bash
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run typecheck
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run lint:ci
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run test:silent
+```
+
 ## Kanonischer lokaler Ablauf
 
 ```bash
