@@ -121,6 +121,9 @@ describe("ConfirmChangesModal review UX", () => {
     expect(getAllByText(/kritischer\/manual-only Pfad/).length).toBeGreaterThan(0);
     expect(getByText("Guard-Hinweis (manuell prüfen)")).toBeTruthy();
     expect(getByText(/geschützte\/guarded Pfade/)).toBeTruthy();
+    expect(getByText("Safe Follow-up Optionen")).toBeTruthy();
+    expect(getByText(/A\) Ich kann nur die unkritischen Dateien direkt anwenden/)).toBeTruthy();
+    expect(getByText(/B\) Ich kann zuerst eine sichere Minimal-Variante ohne guarded Pfade erzeugen/)).toBeTruthy();
     expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
   });
 
@@ -139,6 +142,7 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(queryByText("Guard-Hinweis (manuell prüfen)")).toBeNull();
+    expect(queryByText("Safe Follow-up Optionen")).toBeNull();
   });
 
   it("keeps the existing accept/reject flow intact", () => {

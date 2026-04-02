@@ -31,7 +31,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
 ### P1 (starke UX-Verbesserung, vertagt)
 - ✅ Path-Chips in der Planung ("wird geändert" vs. "manuell nötig") (Patch 712)
-- Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten)
+- ✅ Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten) (Patch 713)
 
 ### P2 (Governance/Robustheit, vertagt)
 - Policy-Explain-Drawer (Warum Guards + Beispiele)

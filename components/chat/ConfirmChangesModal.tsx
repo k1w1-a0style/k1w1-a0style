@@ -27,6 +27,16 @@ type Props = {
 /** Max characters for the summary display. Prevents UI lag from oversized LLM output. */
 const SUMMARY_MAX_CHARS = 6_000;
 const MAX_PREVIEW_ITEMS = 6;
+const GUARDED_FOLLOW_UP_OPTIONS = [
+  {
+    key: "A",
+    text: "A) Ich kann nur die unkritischen Dateien direkt anwenden und die guarded Pfade als manuelle TODO-Liste ausgeben.",
+  },
+  {
+    key: "B",
+    text: "B) Ich kann zuerst eine sichere Minimal-Variante ohne guarded Pfade erzeugen, danach entscheidest du pro Pfad einzeln.",
+  },
+] as const;
 
 type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
@@ -321,6 +331,10 @@ const ConfirmChangesModal: React.FC<Props> = ({
                     </Text>
                     {guardWarnings.slice(0, 5).map((entry) => (
                       <Text key={`guard-${entry}`} style={styles.modalHintText}>• {entry}</Text>
+                    ))}
+                    <Text style={styles.modalDiffLabel}>Safe Follow-up Optionen</Text>
+                    {GUARDED_FOLLOW_UP_OPTIONS.map((option) => (
+                      <Text key={option.key} style={styles.modalHintText}>• {option.text}</Text>
                     ))}
                   </View>
                 ) : null}
