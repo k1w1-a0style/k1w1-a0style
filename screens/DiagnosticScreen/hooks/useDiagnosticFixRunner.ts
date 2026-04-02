@@ -168,6 +168,18 @@ export function useDiagnosticFixRunner(opts: {
     setFixModalVisible(false);
   }, [fixDone]);
 
+  const openFixModal = useCallback(
+    (params: { title: string; subtitle?: string; steps: FixStep[] }) => {
+      setFixModalTitle(params.title);
+      setFixModalSubtitle(params.subtitle);
+      setFixSteps(params.steps);
+      setFixStepIndex(0);
+      setFixDone(false);
+      setFixModalVisible(true);
+    },
+    [],
+  );
+
   const markFixStepRunning = useCallback((index: number) => {
     setFixStepIndex(index);
     setFixSteps((prev) => setStepStatusAtIndex(prev, index, { status: "running" }));
@@ -477,12 +489,7 @@ export function useDiagnosticFixRunner(opts: {
         rerunAfterFix,
       });
 
-      setFixModalTitle("Fix");
-      setFixModalSubtitle(r.title);
-      setFixSteps(steps);
-      setFixStepIndex(0);
-      setFixDone(false);
-      setFixModalVisible(true);
+      openFixModal({ title: "Fix", subtitle: r.title, steps });
 
       let cursor = 0;
       const runStep = async (fn: () => Promise<void>, failMsg: string) => {
@@ -708,12 +715,11 @@ export function useDiagnosticFixRunner(opts: {
       );
 
       const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
-      setFixModalTitle(label);
-      setFixModalSubtitle(formatBatchFixSubtitle(deduped.length, skipped));
-      setFixSteps(steps);
-      setFixStepIndex(0);
-      setFixDone(false);
-      setFixModalVisible(true);
+      openFixModal({
+        title: label,
+        subtitle: formatBatchFixSubtitle(deduped.length, skipped),
+        steps,
+      });
 
       let cursor = 0;
       const mark = (idx: number, patch: Partial<FixStep>) => {
@@ -722,15 +728,14 @@ export function useDiagnosticFixRunner(opts: {
 
       let appliedCount = 0;
       for (const { r, patch } of deduped) {
-        setFixStepIndex(cursor);
-        mark(cursor, { status: "running" });
+        markFixStepRunning(cursor);
         try {
           await applyPatch(r.title, patch);
-          mark(cursor, { status: "done" });
+          markFixStepDone(cursor);
           appliedCount++;
         } catch (error: unknown) {
           const message = getErrorMessage(error, "Apply fehlgeschlagen");
-          mark(cursor, buildFailedStepPatch(error, "Apply fehlgeschlagen"));
+          markFixStepFailed(cursor, error, "Apply fehlgeschlagen");
           finishWithResult(
             buildApplyFailureResult({
               error,
@@ -924,12 +929,7 @@ export function useDiagnosticFixRunner(opts: {
       const runOne = async (doSync: boolean) => {
         const steps = buildSingleFixSteps({ doSync, rerunAfterFix });
 
-        setFixModalTitle("Fix");
-        setFixModalSubtitle(r.title);
-        setFixSteps(steps);
-        setFixStepIndex(0);
-        setFixDone(false);
-        setFixModalVisible(true);
+        openFixModal({ title: "Fix", subtitle: r.title, steps });
 
         markFixStepRunning(0);
         let patchApplied = false;
