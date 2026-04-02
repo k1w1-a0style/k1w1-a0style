@@ -94,6 +94,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
 }) => {
   const modalScale = useRef(new Animated.Value(0.92)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
+  const lastGuardAuditSignatureRef = useRef<string | null>(null);
   const [showPolicyExplain, setShowPolicyExplain] = useState(false);
 
   useEffect(() => {
@@ -117,6 +118,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
       modalScale.setValue(0.92);
       modalOpacity.setValue(0);
       setShowPolicyExplain(false);
+      lastGuardAuditSignatureRef.current = null;
     }
   }, [visible, modalOpacity, modalScale]);
 
@@ -164,6 +166,9 @@ const ConfirmChangesModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!visible || guardWarnings.length === 0) return;
+    const signature = guardWarnings.join("||");
+    if (lastGuardAuditSignatureRef.current === signature) return;
+    lastGuardAuditSignatureRef.current = signature;
     void recordGuardAuditEvent(guardWarnings).catch(() => {});
   }, [guardWarnings, visible]);
 
