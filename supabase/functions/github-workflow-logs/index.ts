@@ -95,17 +95,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    const runId =
+    const runIdRaw =
       asNumber(body.runId) ??
       (typeof body.runId === "string" ? Number(body.runId) : undefined) ??
       asNumber(body.run_id) ??
       (typeof body.run_id === "string" ? Number(body.run_id) : undefined);
 
-    if (!runId || !Number.isFinite(runId)) {
+    const runId = Number.isInteger(runIdRaw) && Number(runIdRaw) > 0
+      ? Number(runIdRaw)
+      : null;
+
+    if (runId === null) {
       return jsonErr(
         req,
         "Validation failed",
-        { error: "runId must be a number" },
+        { error: "runId must be a positive integer" },
         400,
       );
     }
