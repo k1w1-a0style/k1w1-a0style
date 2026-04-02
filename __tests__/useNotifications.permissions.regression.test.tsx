@@ -1,5 +1,4 @@
 import { act, renderHook, waitFor } from "@testing-library/react-native";
-import { useNotifications } from "../hooks/useNotifications";
 
 const mockInitialize = jest.fn();
 const mockGetPushToken = jest.fn();
@@ -18,6 +17,9 @@ jest.mock("../lib/notificationService", () => ({
     addNotificationResponseListener: jest.fn(() => ({ remove: jest.fn() })),
   },
 }));
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { useNotifications } = require("../hooks/useNotifications") as typeof import("../hooks/useNotifications");
 
 describe("useNotifications requestPermissions state sync", () => {
   beforeEach(() => {

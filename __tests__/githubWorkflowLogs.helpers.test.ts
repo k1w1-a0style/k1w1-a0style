@@ -1,4 +1,15 @@
-import { asRecord, asString, parseGithubRepo } from "../supabase/functions/github-workflow-logs/helpers.ts";
+jest.mock(
+  "npm:fflate@0.8.2",
+  () => ({
+    unzipSync: jest.fn(() => ({})),
+    strFromU8: jest.fn(() => ""),
+  }),
+  { virtual: true },
+);
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { asRecord, asString, parseGithubRepo } =
+  require("../supabase/functions/github-workflow-logs/helpers.ts") as typeof import("../supabase/functions/github-workflow-logs/helpers.ts");
 
 describe("github workflow logs helpers", () => {
   it("asRecord returns a record for plain objects", () => {

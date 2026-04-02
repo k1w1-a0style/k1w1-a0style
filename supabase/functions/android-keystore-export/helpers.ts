@@ -11,10 +11,10 @@ import {
   deriveAesKeyBytes,
   encryptWithAesCbcLegacy,
 } from "../_shared/androidKeystoreCrypto.ts";
+import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
-import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 export {
   getJwtPayload,
   getRequestClientIp,

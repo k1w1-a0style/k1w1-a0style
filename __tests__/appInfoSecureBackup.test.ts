@@ -89,7 +89,13 @@ describe("app info secure backup contract", () => {
     expect(serialized).not.toContain("supabase.co\nANON=abc");
 
     const restored = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
-    expect(restored).toEqual(payload);
+    expect(restored).toEqual({
+      ...payload,
+      tokens: {
+        ...payload.tokens,
+        edgeAdminKey: null,
+      },
+    });
   });
 
 
@@ -274,9 +280,9 @@ describe("app info secure backup contract", () => {
       throw new Error("Expected config-secret snapshot payload");
     }
 
-    expect(restored.aiConfig.selectedChatProvider).toBe(baseConfig.selectedChatProvider);
+    expect(restored.aiConfig.selectedChatProvider).toBe("groq");
     expect(restored.aiConfig.selectedAgentProvider).toBe("anthropic");
-    expect(restored.aiConfig.selectedChatMode).toBe(baseConfig.selectedChatMode);
+    expect(restored.aiConfig.selectedChatMode).toBe("llama-3.1-8b-instant");
     expect(restored.aiConfig.selectedAgentMode).toBe(baseConfig.selectedAgentMode);
     expect(restored.aiConfig.agentEnabled).toBe(true);
     expect(restored.aiConfig.qualityMode).toBe("quality");

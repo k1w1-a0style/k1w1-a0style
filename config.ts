@@ -2,13 +2,43 @@
 import Constants from "expo-constants";
 
 type ExpoConfigExtra = Record<string, unknown>;
+type RuntimeEnvKey =
+  | "EXPO_PUBLIC_K1W1_MAX_FILES"
+  | "K1W1_MAX_FILES"
+  | "EXPO_PUBLIC_K1W1_PROMPT_MAX_SNAPSHOT_FILES"
+  | "K1W1_PROMPT_MAX_SNAPSHOT_FILES"
+  | "EXPO_PUBLIC_K1W1_PROMPT_MAX_LINES_PER_FILE"
+  | "K1W1_PROMPT_MAX_LINES_PER_FILE"
+  | "EXPO_PUBLIC_SUPABASE_EDGE_URL"
+  | "EXPO_PUBLIC_SUPABASE_URL";
 
 function readExpoExtra(): ExpoConfigExtra {
   const expoConfig = (Constants as { expoConfig?: { extra?: ExpoConfigExtra } | null }).expoConfig;
   return expoConfig?.extra && typeof expoConfig.extra === "object" ? expoConfig.extra : {};
 }
 
-function readRuntimeConfigString(envKeys: string[], extraKeys: string[]): string | undefined {
+function readKnownProcessEnv(key: RuntimeEnvKey): string | undefined {
+  switch (key) {
+    case "EXPO_PUBLIC_K1W1_MAX_FILES":
+      return process.env.EXPO_PUBLIC_K1W1_MAX_FILES;
+    case "K1W1_MAX_FILES":
+      return process.env.K1W1_MAX_FILES;
+    case "EXPO_PUBLIC_K1W1_PROMPT_MAX_SNAPSHOT_FILES":
+      return process.env.EXPO_PUBLIC_K1W1_PROMPT_MAX_SNAPSHOT_FILES;
+    case "K1W1_PROMPT_MAX_SNAPSHOT_FILES":
+      return process.env.K1W1_PROMPT_MAX_SNAPSHOT_FILES;
+    case "EXPO_PUBLIC_K1W1_PROMPT_MAX_LINES_PER_FILE":
+      return process.env.EXPO_PUBLIC_K1W1_PROMPT_MAX_LINES_PER_FILE;
+    case "K1W1_PROMPT_MAX_LINES_PER_FILE":
+      return process.env.K1W1_PROMPT_MAX_LINES_PER_FILE;
+    case "EXPO_PUBLIC_SUPABASE_EDGE_URL":
+      return process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL;
+    case "EXPO_PUBLIC_SUPABASE_URL":
+      return process.env.EXPO_PUBLIC_SUPABASE_URL;
+  }
+}
+
+function readRuntimeConfigString(envKeys: RuntimeEnvKey[], extraKeys: string[]): string | undefined {
   const extra = readExpoExtra();
 
   for (const key of extraKeys) {
@@ -18,7 +48,7 @@ function readRuntimeConfigString(envKeys: string[], extraKeys: string[]): string
 
   if (typeof process !== "undefined" && process?.env) {
     for (const key of envKeys) {
-      const value = process.env[key];
+      const value = readKnownProcessEnv(key);
       if (typeof value === "string" && value.trim()) return value.trim();
     }
   }
@@ -27,7 +57,7 @@ function readRuntimeConfigString(envKeys: string[], extraKeys: string[]): string
 }
 
 function readRuntimeConfigNumber(params: {
-  envKeys: string[];
+  envKeys: RuntimeEnvKey[];
   extraKeys: string[];
   fallback: number;
   min?: number;

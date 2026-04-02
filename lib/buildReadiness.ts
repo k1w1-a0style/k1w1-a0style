@@ -108,7 +108,23 @@ export async function evaluateBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
 ): Promise<BuildReadinessResult> {
-  const storageGetItem = deps.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
+  const asyncStorageGetItem =
+    (AsyncStorage as { getItem?: ((key: string) => Promise<string | null>) | undefined }).getItem ??
+    (
+      AsyncStorage as {
+        default?: { getItem?: ((key: string) => Promise<string | null>) | undefined } | undefined;
+      }
+    ).default?.getItem ??
+    (
+      AsyncStorage as {
+        default?: {
+          default?: { getItem?: ((key: string) => Promise<string | null>) | undefined } | undefined;
+        } | undefined;
+      }
+    ).default?.default?.getItem;
+  const storageGetItem = deps.storageGetItem ?? (asyncStorageGetItem
+    ? ((key: string) => asyncStorageGetItem(key))
+    : async () => null);
   const readBranchHeadSha = deps.getBranchHeadSha ?? getBranchHeadSha;
   const linkedRepo = typeof project?.linkedRepo === "string" ? project.linkedRepo.trim() : "";
   const linkedBranch = typeof project?.linkedBranch === "string" ? project.linkedBranch.trim() : "";

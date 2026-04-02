@@ -11,6 +11,11 @@ const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: {
+    getItem: mockGetItem,
+    setItem: mockSetItem,
+  },
   getItem: mockGetItem,
   setItem: mockSetItem,
 }));
