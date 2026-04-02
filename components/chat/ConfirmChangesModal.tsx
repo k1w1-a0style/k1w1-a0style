@@ -47,6 +47,14 @@ function getReviewPathChip(status: ReviewCard["status"]): "wird geändert" | "ma
   return status === "skipped" ? "manuell nötig" : "wird geändert";
 }
 
+function createGuardAuditSignature(entries: string[]): string {
+  if (!entries.length) return "";
+  return Array.from(new Set(entries.map((entry) => String(entry).trim())))
+    .filter((entry) => entry.length > 0)
+    .sort((a, b) => a.localeCompare(b))
+    .join("||");
+}
+
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
   if (pendingChange.finalFileSource === "validator") {
@@ -166,7 +174,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (!visible || guardWarnings.length === 0) return;
-    const signature = guardWarnings.join("||");
+    const signature = createGuardAuditSignature(guardWarnings);
     if (lastGuardAuditSignatureRef.current === signature) return;
     lastGuardAuditSignatureRef.current = signature;
     void recordGuardAuditEvent(guardWarnings).catch(() => {});

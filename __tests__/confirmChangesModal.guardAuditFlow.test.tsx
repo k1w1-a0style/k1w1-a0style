@@ -35,7 +35,10 @@ describe("ConfirmChangesModal guard audit flow", () => {
   });
 
   it("records guard audit once per unchanged visible state and resets on close", () => {
-    const guarded = makePendingChange(["package.json bleibt geblockt: kritischer/manual-only Pfad"]);
+    const guarded = makePendingChange([
+      "package.json bleibt geblockt: kritischer/manual-only Pfad",
+      "baseline file ist read-only",
+    ]);
 
     const { rerender } = render(
       <ConfirmChangesModal visible pendingChange={guarded} onAccept={jest.fn()} onReject={jest.fn()} />,
@@ -45,6 +48,15 @@ describe("ConfirmChangesModal guard audit flow", () => {
 
     rerender(
       <ConfirmChangesModal visible pendingChange={guarded} onAccept={jest.fn()} onReject={jest.fn()} />,
+    );
+    expect(recordGuardAuditEventMock).toHaveBeenCalledTimes(1);
+
+    const reordered = makePendingChange([
+      "baseline file ist read-only",
+      "package.json bleibt geblockt: kritischer/manual-only Pfad",
+    ]);
+    rerender(
+      <ConfirmChangesModal visible pendingChange={reordered} onAccept={jest.fn()} onReject={jest.fn()} />,
     );
     expect(recordGuardAuditEventMock).toHaveBeenCalledTimes(1);
 
