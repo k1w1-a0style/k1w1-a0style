@@ -21,6 +21,7 @@ Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Det
 - [EDGE_FUNCTIONS_STATUS.md](EDGE_FUNCTIONS_STATUS.md) — aktive / deaktivierte Edge-Funktionen
 - [runbooks/APP_RUNBOOK.md](runbooks/APP_RUNBOOK.md) — operatorischer Ablauf
 - [runbooks/OPERATOR_SETUP_CHECKLIST.md](runbooks/OPERATOR_SETUP_CHECKLIST.md) — externes `build_admin`-Provisioning
+- [runbooks/OPERATOR_EXECUTION_CHECKLIST.md](runbooks/OPERATOR_EXECUTION_CHECKLIST.md) — abhakbarer Live-/Staging-Ausfuehrungspfad
 - [runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md](runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md) — Deploy / Migrationen
 - [DEV_COMMANDS.md](DEV_COMMANDS.md) — kompakte Repo-Kommandos
 
