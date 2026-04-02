@@ -3,8 +3,8 @@ import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
   normalizePath, byPath, has, getText, ok, mkFix, mkJsonFix,
-  existsAny, parseJson, statusBySeverity, ensureEndsWithNewline,
-  normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
+  existsAny, parseJson, ensureEndsWithNewline,
+  gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
 type EasWithoutCredentialsPatchProfile = {
