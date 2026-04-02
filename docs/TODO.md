@@ -35,7 +35,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
 ### P2 (Governance/Robustheit, vertagt)
 - ✅ Policy-Explain-Drawer (Warum Guards + Beispiele) (Patch 714)
-- Lokale Audit-Telemetrie für Guard-Blocker-Häufigkeit
+- ✅ Lokale Audit-Telemetrie für Guard-Blocker-Häufigkeit (Patch 715)
 
 ## Wofuer diese Datei bleibt
 

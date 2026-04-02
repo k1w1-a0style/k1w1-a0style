@@ -16,6 +16,7 @@ import { theme } from "../../theme";
 import { styles } from "../../styles/chatScreenStyles";
 import type { ChangePreview } from "../../lib/changePreview";
 import { extractGuardHints } from "../../lib/guardHints";
+import { recordGuardAuditEvent } from "../../lib/guardAuditTelemetry";
 
 type Props = {
   visible: boolean;
@@ -160,6 +161,11 @@ const ConfirmChangesModal: React.FC<Props> = ({
     () => extractGuardHints(pendingChange?.errors),
     [pendingChange?.errors],
   );
+
+  useEffect(() => {
+    if (!visible || guardWarnings.length === 0) return;
+    void recordGuardAuditEvent(guardWarnings).catch(() => {});
+  }, [guardWarnings, visible]);
 
   return (
     <Modal
