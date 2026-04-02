@@ -20,6 +20,23 @@ Im aktuell geprueften Repo-Stand gibt es **keine offenen Repo-Muss-Punkte**, die
 
 Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
+## Geparkt (spaeter): Chat-Guard-UX/Policy-Sichtbarkeit
+
+> Stand 2026-04-02: bewusst geparkt, nicht Teil des aktuellen Fix-Durchlaufs.
+
+### P0 (direkt sinnvoll, aber vertagt)
+- Guard-Badge im Chat-Kopf/Composer (Kurzstatus: "Normal write" vs. "Guarded path enthalten")
+- Pre-Apply Guard-Hinweis im Confirm-Modal inkl. Grund (`kritisch/manual-only`, `baseline/read-only`)
+- Einmalige Planner-Info: "Diese Teile kann ich im Chat nicht direkt schreiben"
+
+### P1 (starke UX-Verbesserung, vertagt)
+- Path-Chips in der Planung ("wird geändert" vs. "manuell nötig")
+- Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten)
+
+### P2 (Governance/Robustheit, vertagt)
+- Policy-Explain-Drawer (Warum Guards + Beispiele)
+- Lokale Audit-Telemetrie für Guard-Blocker-Häufigkeit
+
 ## Wofuer diese Datei bleibt
 
 - als kleine, ehrliche Restpunkt-SoT
