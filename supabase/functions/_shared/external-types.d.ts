@@ -1,3 +1,8 @@
 declare module "@supabase/supabase-js" {
-  export function createClient(url: string, key: string, options?: unknown): any;
+  export type SupabaseClientLike = Record<string, unknown>;
+  export function createClient(
+    url: string,
+    key: string,
+    options?: unknown,
+  ): SupabaseClientLike;
 }

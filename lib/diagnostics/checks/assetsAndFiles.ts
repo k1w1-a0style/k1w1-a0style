@@ -7,6 +7,12 @@ import {
   normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
+type EasWithoutCredentialsPatchProfile = {
+  android: {
+    withoutCredentials: true;
+  };
+};
+
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
   title: "Assets referenced existieren",
@@ -436,7 +442,9 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
         if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
         if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
 
-        const patchObj: Record<string, any> = {};
+        const patchObj: Partial<
+          Record<"development" | "preview", EasWithoutCredentialsPatchProfile>
+        > = {};
         if (!devOk) patchObj.development = { android: { withoutCredentials: true } };
         if (!prevOk) patchObj.preview = { android: { withoutCredentials: true } };
 
@@ -476,4 +484,3 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
     }
   },
 };
-
