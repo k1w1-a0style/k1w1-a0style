@@ -1,4 +1,4 @@
-import { buildBuilderMessages, buildValidatorMessages } from "../lib/promptEngine";
+import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
 import type { ProjectFile } from "../shared/types/project";
 
 describe("promptEngine context prioritization", () => {
@@ -51,5 +51,12 @@ describe("promptEngine context prioritization", () => {
     expect(manifest).toContain("screens/Generated19.tsx");
     expect(manifest).toContain("Nicht vollständig inline im JSON enthalten");
     expect(draftJson).not.toContain("screens/Generated19.tsx");
+  });
+
+  it("requires structured SLOT questions in planner system instructions", () => {
+    const planner = buildPlannerMessages([], "Mach den Build stabiler", [], "openai");
+    const system = planner[0]?.content ?? "";
+    expect(system).toContain("strukturierte Slot-Liste");
+    expect(system).toContain("[SLOT] <Name>: <Frage>");
   });
 });

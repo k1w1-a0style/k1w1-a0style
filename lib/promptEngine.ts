@@ -96,7 +96,7 @@ export function buildPlannerMessages(
   systemLines.push('Sprache: Deutsch. Antworte kurz & klar.');
   systemLines.push(
     'Regeln:\n' +
-      '1) Wenn Details fehlen: stelle 1–3 kurze Rückfragen.\n' +
+      '1) Wenn Details fehlen: stelle 1–3 kurze Rückfragen als strukturierte Slot-Liste im Format "[SLOT] <Name>: <Frage>" (kein Fließtext-Block).\n' +
       '2) Wenn genug klar ist: gib einen Mini-Plan (max. 6 Bulletpoints) + eine Dateiliste (welche Dateien du ändern würdest und warum).\n' +
       '3) Optional: 1 kleines Code-Snippet in ```ts``` oder ```tsx``` (max. ca. 20 Zeilen).\n' +
       '4) Kein Markdown-Kram außer Code-Fences. Kein JSON-Array in diesem Call.\n' +
