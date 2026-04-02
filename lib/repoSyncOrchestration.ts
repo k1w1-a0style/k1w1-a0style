@@ -4,6 +4,22 @@ import type { ProjectFile } from "../shared/types/project";
 
 export type RepoSyncState = "in_sync" | "out_of_sync" | "unknown";
 
+type AsyncStorageLike = {
+  getItem?: ((key: string) => Promise<string | null>) | undefined;
+  setItem?: ((key: string, value: string) => Promise<void>) | undefined;
+  default?: AsyncStorageLike | undefined;
+};
+
+function resolveAsyncStorageGetItem(): ((key: string) => Promise<string | null>) | null {
+  const storage = AsyncStorage as AsyncStorageLike;
+  return storage.getItem ?? storage.default?.getItem ?? storage.default?.default?.getItem ?? null;
+}
+
+function resolveAsyncStorageSetItem(): ((key: string, value: string) => Promise<void>) | null {
+  const storage = AsyncStorage as AsyncStorageLike;
+  return storage.setItem ?? storage.default?.setItem ?? storage.default?.default?.setItem ?? null;
+}
+
 function scopeKey(repo: string, branch: string): string {
   return `repo_sync_signature::${encodeURIComponent(repo.trim().toLowerCase())}::${encodeURIComponent(branch.trim())}`;
 }
@@ -37,7 +53,13 @@ export async function markRepoSyncSignature(params: {
   const repo = String(params.linkedRepo ?? "").trim();
   const branch = String(params.linkedBranch ?? "").trim();
   if (!repo || !branch) return;
-  const setItem = params.storageSetItem ?? ((key: string, value: string) => AsyncStorage.setItem(key, value));
+  const asyncStorageSetItem = resolveAsyncStorageSetItem();
+  const setItem =
+    params.storageSetItem ??
+    (asyncStorageSetItem
+      ? ((key: string, value: string) => asyncStorageSetItem(key, value))
+      : null);
+  if (!setItem) return;
   const sig = computeProjectFilesSignature(params.files);
   await setItem(scopeKey(repo, branch), sig);
 }
@@ -52,7 +74,11 @@ export async function getRepoSyncState(params: {
   const branch = String(params.linkedBranch ?? "").trim();
   if (!repo || !branch) return "unknown";
 
-  const getItem = params.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
+  const asyncStorageGetItem = resolveAsyncStorageGetItem();
+  const getItem =
+    params.storageGetItem ??
+    (asyncStorageGetItem ? ((key: string) => asyncStorageGetItem(key)) : null);
+  if (!getItem) return "unknown";
   const stored = (await getItem(scopeKey(repo, branch)).catch(() => null)) ?? "";
   if (!stored.trim()) return "unknown";
 

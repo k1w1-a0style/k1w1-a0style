@@ -30,10 +30,8 @@ describe("runBuildPipelineDiagnostics scoped local admin key readiness", () => {
     );
 
     const workflow = result.checks.find((entry) => entry.id === "local.workflowAdminKey");
-    const legacy = result.checks.find((entry) => entry.id === "local.legacyEdgeAdminKey");
-
     expect(workflow?.status).toBe("fail");
     expect(String(workflow?.fixHint || "")).toMatch(/Workflow.*scoped/i);
-    expect(legacy?.status).toBe("warn");
+    expect(result.checks.some((entry) => entry.id === "local.legacyEdgeAdminKey")).toBe(false);
   });
 });

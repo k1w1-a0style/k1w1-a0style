@@ -167,17 +167,30 @@ const summarizeDelimitersOutsideLiterals = (code: string): DelimiterSummary => {
 
     if ('([{'.includes(current)) {
       openBrackets += 1;
-      if (templateExpressionDepths.length > 0 && templateExpressionDepths[templateExpressionDepths.length - 1] > 0) {
+      if (
+        current === '{' &&
+        templateExpressionDepths.length > 0 &&
+        templateExpressionDepths[templateExpressionDepths.length - 1] > 0
+      ) {
         templateExpressionDepths[templateExpressionDepths.length - 1] += 1;
       }
     } else if (')]}'.includes(current)) {
-      closeBrackets += 1;
+      let shouldCountClose = true;
       if (
         current === '}' &&
         templateExpressionDepths.length > 0 &&
         templateExpressionDepths[templateExpressionDepths.length - 1] > 0
       ) {
-        templateExpressionDepths[templateExpressionDepths.length - 1] -= 1;
+        const topIndex = templateExpressionDepths.length - 1;
+        templateExpressionDepths[topIndex] -= 1;
+        // The final "}" of a template expression (${...}) is structural delimiter
+        // for template parsing, not a code-level bracket for mismatch accounting.
+        if (templateExpressionDepths[topIndex] === 0) {
+          shouldCountClose = false;
+        }
+      }
+      if (shouldCountClose) {
+        closeBrackets += 1;
       }
     }
 

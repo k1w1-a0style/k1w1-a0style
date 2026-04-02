@@ -11,6 +11,15 @@ import type { VerificationContractState } from "../../../lib/status/verification
 import type { BuildProfile } from "../types";
 
 type StorageReader = (key: string) => Promise<string | null>;
+type AsyncStorageLike = {
+  getItem?: ((key: string) => Promise<string | null>) | undefined;
+  default?: AsyncStorageLike | undefined;
+};
+
+function resolveAsyncStorageGetItem(): StorageReader | null {
+  const storage = AsyncStorage as AsyncStorageLike;
+  return storage.getItem ?? storage.default?.getItem ?? storage.default?.default?.getItem ?? null;
+}
 
 export type SigningKeyGateState = {
   hasSigningKey: boolean;
@@ -72,9 +81,10 @@ export function describeSigningKeyGateReason(params: {
 export async function readSigningKeyGateState(
   params: ReadSigningKeyGateStateParams,
 ): Promise<SigningKeyGateState> {
+  const asyncStorageGetItem = resolveAsyncStorageGetItem();
   const storageGetItem =
     params.deps?.storageGetItem ??
-    ((key: string) => AsyncStorage.getItem(key));
+    (asyncStorageGetItem ? ((key: string) => asyncStorageGetItem(key)) : async () => null);
   const readEdgeAdminKey =
     params.deps?.getAndroidKeystoreExportAdminKey ?? getAndroidKeystoreExportAdminKey;
 

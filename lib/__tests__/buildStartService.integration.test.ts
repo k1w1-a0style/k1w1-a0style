@@ -84,6 +84,13 @@ function repoSyncKey(repo: string, branch: string): string {
 }
 
 describe("startBuildJob (integration)", () => {
+  const deps = {
+    storageGetItem: (key: string) => mockGetItem(key),
+    storageSetItem: (key: string, value: string) => mockSetItem(key, value),
+    getBranchHeadSha: (owner: string, repo: string, branch: string) =>
+      mockGitHub.getBranchHeadSha(owner, repo, branch),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockSetItem.mockResolvedValue(undefined);
@@ -128,7 +135,7 @@ describe("startBuildJob (integration)", () => {
   it("pushes files, ensures workflows, then invokes TRIGGER_EAS_BUILD with normalized profile", async () => {
     const project = makeProject({ linkedBranch: "main" });
 
-    const res = await startBuildJob({ project, buildProfile: "development" });
+    const res = await startBuildJob({ project, buildProfile: "development", deps });
 
     expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledTimes(1);
     expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
@@ -185,7 +192,7 @@ describe("startBuildJob (integration)", () => {
       }
     });
 
-    await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(
+    await expect(startBuildJob({ project, buildProfile: "preview", deps })).rejects.toThrow(
       /Build abgebrochen: Lokale Aenderungen konnten nicht erfolgreich ins Ziel-Repo gepusht werden\./i,
     );
     expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
@@ -201,6 +208,7 @@ describe("startBuildJob (integration)", () => {
     const res = await startBuildJob({
       project: makeProject(),
       buildProfile: "production",
+      deps,
     });
 
     expect(res.jobId).toBe("7");
@@ -213,7 +221,7 @@ describe("startBuildJob (integration)", () => {
     });
 
     await expect(
-      startBuildJob({ project: makeProject(), buildProfile: "production" }),
+      startBuildJob({ project: makeProject(), buildProfile: "production", deps }),
     ).rejects.toThrow(/positive numerische ID erwartet/i);
   });
 
@@ -243,7 +251,7 @@ describe("startBuildJob (integration)", () => {
       }
     });
 
-    await startBuildJob({ project, buildProfile: "preview" });
+    await startBuildJob({ project, buildProfile: "preview", deps });
 
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
     expect(mockAutoFix.autoFixCIWorkflows).not.toHaveBeenCalled();
@@ -272,7 +280,7 @@ describe("startBuildJob (integration)", () => {
       }
     });
 
-    await expect(startBuildJob({ project, buildProfile: "preview" })).rejects.toThrow(/Sync-Status/i);
+    await expect(startBuildJob({ project, buildProfile: "preview", deps })).rejects.toThrow(/Sync-Status/i);
     expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -280,7 +288,7 @@ describe("startBuildJob (integration)", () => {
   it("blocks build when no session JWT is available", async () => {
     mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
 
-    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
+    await expect(startBuildJob({ project: makeProject(), buildProfile: "preview", deps })).rejects.toThrow(
       /Operator-Rolle|build_admin/i,
     );
     expect(mockInvoke).not.toHaveBeenCalled();

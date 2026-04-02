@@ -45,7 +45,23 @@ export async function readBuildReadinessState(params: {
   deps?: BuildReadinessStateDeps;
 }): Promise<BuildReadinessState> {
   const { repoFullName, branchName, deps } = params;
-  const storageGetItem = deps?.storageGetItem ?? ((key: string) => AsyncStorage.getItem(key));
+  const asyncStorageGetItem =
+    (AsyncStorage as { getItem?: ((key: string) => Promise<string | null>) | undefined }).getItem ??
+    (
+      AsyncStorage as {
+        default?: { getItem?: ((key: string) => Promise<string | null>) | undefined } | undefined;
+      }
+    ).default?.getItem ??
+    (
+      AsyncStorage as {
+        default?: {
+          default?: { getItem?: ((key: string) => Promise<string | null>) | undefined } | undefined;
+        } | undefined;
+      }
+    ).default?.default?.getItem;
+  const storageGetItem =
+    deps?.storageGetItem ??
+    (asyncStorageGetItem ? ((key: string) => asyncStorageGetItem(key)) : async () => null);
   const readBranchHeadSha = deps?.readBranchHeadSha ?? getBranchHeadSha;
 
   const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({

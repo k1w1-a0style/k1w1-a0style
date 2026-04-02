@@ -48,7 +48,7 @@ describe("build readiness gate - diagnostic scoped selection", () => {
         storageGetItem: async (key: string) => storageMap[key] ?? null,
         getBranchHeadSha: async () => "c".repeat(40),
       }),
-    ).rejects.toThrow(/diagnose/i);
+    ).rejects.toThrow(/diagnostic_not_green|diagnostik nicht gruen/i);
   });
 
   it("still blocks when scoped and legacy diagnostic flags are both non-green", async () => {

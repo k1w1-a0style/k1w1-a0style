@@ -113,7 +113,7 @@ describe("zipInspection pre-unzip archive validation", () => {
 
   it("rejects archives whose uncompressed payload is too large before unzip", () => {
     const result = inspectZipArchiveBytes(
-      buildCentralDirectoryZip([{ name: "assets/big.bin", compressedSize: 5_000, uncompressedSize: 30 * 1024 * 1024 }]),
+      buildCentralDirectoryZip([{ name: "src/big.ts", compressedSize: 5_000, uncompressedSize: 30 * 1024 * 1024 }]),
       { maxEntries: 10, maxFileBytes: 40 * 1024 * 1024, maxTotalUncompressedBytes: 25 * 1024 * 1024 },
     );
 

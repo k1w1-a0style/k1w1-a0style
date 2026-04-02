@@ -71,7 +71,7 @@ describe("useBuildPreconditions empty project guard", () => {
         ciLiteState: "verified",
         ciLiteStale: false,
       })
-      .mockRejectedValueOnce(new Error("boom"));
+      .mockRejectedValue(new Error("boom"));
 
     function HarnessFailure() {
       const state = useBuildPreconditions("preview", "owner/repo", "main", {

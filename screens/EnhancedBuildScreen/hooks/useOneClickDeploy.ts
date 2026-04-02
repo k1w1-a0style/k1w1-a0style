@@ -43,6 +43,22 @@ const INITIAL_STEPS: DeployStep[] = [
   { id: "build", label: "Build starten", status: "pending" },
 ];
 
+type AsyncStorageLike = {
+  getItem?: ((key: string) => Promise<string | null>) | undefined;
+  setItem?: ((key: string, value: string) => Promise<void>) | undefined;
+  default?: AsyncStorageLike | undefined;
+};
+
+function resolveAsyncStorageGetItem(): ((key: string) => Promise<string | null>) | null {
+  const storage = AsyncStorage as AsyncStorageLike;
+  return storage.getItem ?? storage.default?.getItem ?? storage.default?.default?.getItem ?? null;
+}
+
+function resolveAsyncStorageSetItem(): ((key: string, value: string) => Promise<void>) | null {
+  const storage = AsyncStorage as AsyncStorageLike;
+  return storage.setItem ?? storage.default?.setItem ?? storage.default?.default?.setItem ?? null;
+}
+
 
 function getOneClickDeployErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
@@ -64,7 +80,15 @@ export function useOneClickDeploy(
 
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS)
+    const getItem = resolveAsyncStorageGetItem();
+    if (!getItem) {
+      setAutoSyncSecrets(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    getItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS)
       .then((value) => {
         if (cancelled) return;
         setAutoSyncSecrets(value === "true");
@@ -82,9 +106,12 @@ export function useOneClickDeploy(
   const toggleAutoSyncSecrets = useCallback(() => {
     setAutoSyncSecrets((prev) => {
       const next = !prev;
-      AsyncStorage.setItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS, next ? "true" : "false").catch(
-        () => {},
-      );
+      const setItem = resolveAsyncStorageSetItem();
+      if (setItem) {
+        setItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS, next ? "true" : "false").catch(
+          () => {},
+        );
+      }
       return next;
     });
   }, []);
