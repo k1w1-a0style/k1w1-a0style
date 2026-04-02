@@ -15,6 +15,7 @@ import ChatScrollToBottomButton from "../../components/chat/ChatScrollToBottomBu
 import { styles } from "../../styles/chatScreenStyles";
 
 import { useChatScreen } from "./hooks/useChatScreen";
+import { hasGuardHint } from "../../lib/guardHints";
 
 import type { ChatMessage } from "../../shared/types/chat";
 const ChatScreen: React.FC = () => {
@@ -66,9 +67,7 @@ const ChatScreen: React.FC = () => {
 
   // ✅ FIX #6: Stable keyExtractor — always use id, fallback to timestamp+index
   const guardWriteStatus = React.useMemo<"normal" | "guarded">(() => {
-    const errs = pendingChange?.errors ?? [];
-    const hasGuardHint = errs.some((entry) => /manual-only|kritisch|read-only|baseline|guarded|ownership block/i.test(String(entry)));
-    return hasGuardHint ? "guarded" : "normal";
+    return hasGuardHint(pendingChange?.errors) ? "guarded" : "normal";
   }, [pendingChange?.errors]);
 
   const keyExtractor = useCallback(

@@ -15,6 +15,7 @@ import type { PendingChange } from "../../hooks/chatAIFlowTypes";
 import { theme } from "../../theme";
 import { styles } from "../../styles/chatScreenStyles";
 import type { ChangePreview } from "../../lib/changePreview";
+import { extractGuardHints } from "../../lib/guardHints";
 
 type Props = {
   visible: boolean;
@@ -30,24 +31,6 @@ const MAX_PREVIEW_ITEMS = 6;
 type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
   | { key: string; path: string; status: "skipped" };
-
-const GUARD_REASON_MARKERS = [
-  "manual-only",
-  "kritisch",
-  "read-only",
-  "baseline",
-  "template/baseline",
-  "ownership block",
-  "guarded",
-];
-
-function extractGuardWarnings(errors: string[] | undefined): string[] {
-  if (!errors?.length) return [];
-  return errors.filter((entry) => {
-    const lower = String(entry).toLowerCase();
-    return GUARD_REASON_MARKERS.some((marker) => lower.includes(marker));
-  });
-}
 
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
@@ -157,7 +140,10 @@ const ConfirmChangesModal: React.FC<Props> = ({
   const sourceTone = getSourceTone(pendingChange);
   const validatorReviewLabel = getValidatorReviewLabel(pendingChange);
   const summary = pendingChange?.summary ?? "";
-  const guardWarnings = useMemo(() => extractGuardWarnings(pendingChange?.errors), [pendingChange?.errors]);
+  const guardWarnings = useMemo(
+    () => extractGuardHints(pendingChange?.errors),
+    [pendingChange?.errors],
+  );
 
   return (
     <Modal
