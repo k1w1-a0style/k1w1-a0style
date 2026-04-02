@@ -430,6 +430,42 @@ export function useDiagnosticFixRunner(opts: {
     [deleteFile, mountedRef, projectRef, updateProjectFiles],
   );
 
+  const dispatchWorkflowFix = useCallback(
+    async (params: {
+      owner: string;
+      repo: string;
+      workflowFileName: string;
+      workflowRef: string;
+      inputs: Record<string, string>;
+      fallbackPatch?: PreflightPatch;
+    }) => {
+      try {
+        await triggerWorkflow(
+          params.owner,
+          params.repo,
+          params.workflowFileName,
+          params.workflowRef,
+          params.inputs,
+        );
+      } catch (error: unknown) {
+        const msg = getErrorMessage(error, "");
+        if (/404|not found/i.test(msg) && params.fallbackPatch) {
+          await applyPatch(`Bootstrap ${params.workflowFileName}`, params.fallbackPatch);
+          await triggerWorkflow(
+            params.owner,
+            params.repo,
+            params.workflowFileName,
+            params.workflowRef,
+            params.inputs,
+          );
+          return;
+        }
+        throw error;
+      }
+    },
+    [applyPatch],
+  );
+
   const undoLast = useCallback(async () => {
     const last = history[0];
     if (!last) return;
@@ -563,29 +599,14 @@ export function useDiagnosticFixRunner(opts: {
         const stepError = await runFixStep({
           index: cursor,
           run: async () => {
-            try {
-              await triggerWorkflow(
-                parsed.owner,
-                parsed.repo,
-                dispatch.workflowFileName,
-                workflowRef,
-                dispatch.inputs || {},
-              );
-            } catch (error: unknown) {
-              const msg = getErrorMessage(error, "");
-              if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
-                await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
-                await triggerWorkflow(
-                  parsed.owner,
-                  parsed.repo,
-                  dispatch.workflowFileName,
-                  workflowRef,
-                  dispatch.inputs || {},
-                );
-                return;
-              }
-              throw error;
-            }
+            await dispatchWorkflowFix({
+              owner: parsed.owner,
+              repo: parsed.repo,
+              workflowFileName: dispatch.workflowFileName,
+              workflowRef,
+              inputs: dispatch.inputs || {},
+              fallbackPatch: dispatch.fallbackPatch,
+            });
           },
           failMessage: "Workflow dispatch fehlgeschlagen",
         });
