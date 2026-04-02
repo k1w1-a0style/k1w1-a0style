@@ -20,7 +20,11 @@ import { buildChangePreviews } from "../lib/changePreview";
 import { validateChatInput } from "../lib/validators";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
 import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
-import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
+import {
+  classifyChatIntent,
+  buildChangeDigest,
+  buildExplainMessages,
+} from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
@@ -460,11 +464,23 @@ export function useChatAIFlow({
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const advice = looksLikeAdviceRequest(sanitizedRequestContent);
-          const explicitFileTask = looksLikeExplicitFileTask(sanitizedRequestContent);
-          const shouldPlanner =
-            advice ||
-            (!forceBuilder && !explicitFileTask && looksAmbiguousBuilderRequest(sanitizedRequestContent));
+          const intentDecision = classifyChatIntent(sanitizedRequestContent);
+          const advice = intentDecision.intent === "advice";
+          const shouldPlanner = intentDecision.intent !== "builder";
+
+          if (intentDecision.requiresConfirmation) {
+            addChatMessage({
+              id: uuidv4(),
+              role: "assistant",
+              content:
+                "🤔 **Kurze Intent-Bestätigung:** Soll ich zuerst planen/fragen oder direkt einen Build-Vorschlag erzeugen?\n\n" +
+                `Aktuelle Einschätzung: \`${intentDecision.intent}\` (Confidence ${Math.round(intentDecision.confidence * 100)}%, Grund: ${intentDecision.reason}).\n\n` +
+                "Antwortoptionen: `planen` oder `direkt build`.",
+              timestamp: new Date().toISOString(),
+              meta: { planner: true },
+            });
+            return true;
+          }
 
           if (shouldPlanner) {
             const plannerMsgs = buildPlannerMessages(

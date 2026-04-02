@@ -1,4 +1,5 @@
 import {
+  classifyChatIntent,
   looksAmbiguousBuilderRequest,
   looksLikeAdviceRequest,
 } from "../utils/chatHeuristics";
@@ -30,5 +31,19 @@ describe("chatHeuristics planner routing", () => {
 
   it("still detects explicit advice requests separately", () => {
     expect(looksLikeAdviceRequest("Gib mir bitte ein Review der aktuellen Chat-Architektur.")).toBe(true);
+  });
+
+  it("classifies explicit file tasks as high-confidence builder intent", () => {
+    const decision = classifyChatIntent("Ändere bitte screens/ChatScreen.tsx und füge ein Badge hinzu.");
+    expect(decision.intent).toBe("builder");
+    expect(decision.confidence).toBeGreaterThan(0.8);
+    expect(decision.requiresConfirmation).toBe(false);
+  });
+
+  it("requests confirmation for low-signal generic commands", () => {
+    const decision = classifyChatIntent("Mach mal irgendwas besser.");
+    expect(decision.intent).toBe("planner");
+    expect(decision.requiresConfirmation).toBe(true);
+    expect(decision.confidence).toBeLessThan(0.6);
   });
 });

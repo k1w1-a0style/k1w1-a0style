@@ -84,6 +84,48 @@ export const looksAmbiguousBuilderRequest = (s: string): boolean => {
   return !hasConcreteNouns;
 };
 
+export type ChatIntent = 'advice' | 'builder' | 'planner';
+
+export type ChatIntentDecision = {
+  intent: ChatIntent;
+  confidence: number;
+  requiresConfirmation: boolean;
+  reason: string;
+};
+
+export const classifyChatIntent = (s: string): ChatIntentDecision => {
+  const input = String(s || '').trim();
+  if (!input) {
+    return { intent: 'planner', confidence: 0.4, requiresConfirmation: true, reason: 'empty_input' };
+  }
+
+  if (looksLikeAdviceRequest(input)) {
+    return { intent: 'advice', confidence: 0.9, requiresConfirmation: false, reason: 'advice_keywords' };
+  }
+
+  if (looksLikeExplicitFileTask(input)) {
+    return { intent: 'builder', confidence: 0.92, requiresConfirmation: false, reason: 'explicit_file_task' };
+  }
+
+  const normalized = input
+    .toLowerCase()
+    .replace(/[„“”"'`´]/g, '')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const uncertainIntent = /\b(mach mal|irgendwas|irgendwie|verbesser das|optimier das|fix das)\b/.test(normalized);
+  if (uncertainIntent) {
+    return { intent: 'planner', confidence: 0.55, requiresConfirmation: true, reason: 'low_signal_generic_intent' };
+  }
+
+  if (looksAmbiguousBuilderRequest(input)) {
+    return { intent: 'planner', confidence: 0.66, requiresConfirmation: false, reason: 'ambiguous_builder' };
+  }
+
+  return { intent: 'builder', confidence: 0.75, requiresConfirmation: false, reason: 'default_builder' };
+};
+
 // ─────────────────────────────────────────────────────────────
 // Change Explanation Helpers
 // ─────────────────────────────────────────────────────────────

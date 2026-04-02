@@ -22,7 +22,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
 ## Neu aufgenommen: Produktverbesserungen (User-Vorschlaege 2026-04-02)
 
-- [ ] Command-Intent robuster machen (Intent-Classifier mit Confidence + kurze Bestätigungsfrage bei Grenzfällen statt reiner Regex-/Keyword-Heuristik).
+- [x] Command-Intent robuster machen (Intent-Classifier mit Confidence + kurze Bestätigungsfrage bei Grenzfällen statt reiner Regex-/Keyword-Heuristik). (Patch 726)
 - [x] Planer-Rückfragen strukturiert als Form-/Slot-Antworten ausgeben (statt reinem Freitext). (Patch 724)
 - [x] Sichtbares UI-Badge für Kontextkürzung aus `aiContextBudget` (z. B. „Kontext gekürzt: N Dateien/History“). (Patch 723)
 - [x] Strukturierte Pre-Flight-Zusammenfassung „Was wird gleich geändert?“ vor Builder-Start ausgeben. (Patch 722)
@@ -32,7 +32,6 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only ohne automatische Builder-Phase) einführen.
 
 ### Rest für nächste PR-Branches (aktiv)
-- [ ] Command-Intent robuster machen (Confidence + kurze Bestätigungsfrage bei Grenzfällen).
 - [ ] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen.
 - [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only) einführen.
 
