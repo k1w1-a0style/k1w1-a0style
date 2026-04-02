@@ -138,6 +138,10 @@ export const buildPathBulletList = (
   return preview;
 };
 
+export const buildPreflightSummaryIntro = (): string =>
+  "📦 **Pre-Flight (voraussichtlich):**\n" +
+  "Ich zeige gleich strukturiert, welche Dateien neu/aktualisiert werden und welche Pfade manuell bleiben.";
+
 export function useChatAIFlow({
   config,
   messages,
@@ -650,6 +654,7 @@ export function useChatAIFlow({
 
         const summaryText =
           `${prefix}\n\n` +
+          `${buildPreflightSummaryIntro()}\n\n` +
           `🧠 **Quelle der finalen Dateiliste:** ${sourceSummary}\n\n` +
           (explainText
             ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`

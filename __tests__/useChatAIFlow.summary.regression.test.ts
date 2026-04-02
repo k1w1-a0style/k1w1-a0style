@@ -1,4 +1,4 @@
-import { buildPathBulletList } from "../hooks/useChatAIFlow";
+import { buildPathBulletList, buildPreflightSummaryIntro } from "../hooks/useChatAIFlow";
 
 describe("useChatAIFlow summary regression", () => {
   it("renders file paths inside bullet points", () => {
@@ -22,5 +22,12 @@ describe("useChatAIFlow summary regression", () => {
     expect(result).toContain("• b.ts");
     expect(result).toContain("• c.ts");
     expect(result).toContain("... und 1 weitere");
+  });
+
+  it("returns explicit preflight intro copy", () => {
+    const intro = buildPreflightSummaryIntro();
+    expect(intro).toContain("Pre-Flight (voraussichtlich)");
+    expect(intro).toContain("neu/aktualisiert");
+    expect(intro).toContain("manuell bleiben");
   });
 });

@@ -25,7 +25,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - [ ] Command-Intent robuster machen (Intent-Classifier mit Confidence + kurze Bestätigungsfrage bei Grenzfällen statt reiner Regex-/Keyword-Heuristik).
 - [ ] Planer-Rückfragen strukturiert als Form-/Slot-Antworten ausgeben (statt reinem Freitext).
 - [ ] Sichtbares UI-Badge für Kontextkürzung aus `aiContextBudget` (z. B. „Kontext gekürzt: N Dateien/History“).
-- [ ] Strukturierte Pre-Flight-Zusammenfassung „Was wird gleich geändert?“ vor Builder-Start ausgeben.
+- [x] Strukturierte Pre-Flight-Zusammenfassung „Was wird gleich geändert?“ vor Builder-Start ausgeben. (Patch 722)
 - [x] Persistenz-Scope für Projektgedächtnis in Settings explizit labeln (kein globales Cross-Projekt-Gedächtnis). (Patch 721)
 - [ ] Guard-Policy bereits **vor** Vorschlägen als allowed/guarded Path-Chips in Chat anzeigen.
 - [ ] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen (Rückfragequote, Missverständnisse, Abbruchquote).
