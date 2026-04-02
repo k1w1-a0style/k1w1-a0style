@@ -126,6 +126,12 @@ export const classifyChatIntent = (s: string): ChatIntentDecision => {
   return { intent: 'builder', confidence: 0.75, requiresConfirmation: false, reason: 'default_builder' };
 };
 
+export const looksLikeScoutModeRequest = (s: string): boolean => {
+  const t = String(s || '').trim().toLowerCase();
+  if (!t) return false;
+  return /\b(scout|audit[-\s]?only|nur\s+analyse|nur\s+plan|kein\s+build|ohne\s+build)\b/.test(t);
+};
+
 // ─────────────────────────────────────────────────────────────
 // Change Explanation Helpers
 // ─────────────────────────────────────────────────────────────

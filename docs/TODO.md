@@ -29,10 +29,10 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - [x] Persistenz-Scope für Projektgedächtnis in Settings explizit labeln (kein globales Cross-Projekt-Gedächtnis). (Patch 721)
 - [x] Guard-Policy bereits **vor** Vorschlägen als allowed/guarded Path-Chips in Chat anzeigen. (Patch 725)
 - [x] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen (Rückfragequote, Missverständnisse, Abbruchquote). (Patch 727)
-- [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only ohne automatische Builder-Phase) einführen.
+- [x] Expliziten „Großprojekt-Modus“ (Scout/Audit-only ohne automatische Builder-Phase) einführen. (Patch 728)
 
 ### Rest für nächste PR-Branches (aktiv)
-- [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only) einführen.
+- Aktuell keine offenen aktiven Produkt-Restpunkte in dieser Liste.
 
 ## Geparkt (spaeter): Chat-Guard-UX/Policy-Sichtbarkeit
 

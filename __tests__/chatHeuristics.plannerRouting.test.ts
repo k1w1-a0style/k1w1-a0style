@@ -1,5 +1,6 @@
 import {
   classifyChatIntent,
+  looksLikeScoutModeRequest,
   looksAmbiguousBuilderRequest,
   looksLikeAdviceRequest,
 } from "../utils/chatHeuristics";
@@ -45,5 +46,11 @@ describe("chatHeuristics planner routing", () => {
     expect(decision.intent).toBe("planner");
     expect(decision.requiresConfirmation).toBe(true);
     expect(decision.confidence).toBeLessThan(0.6);
+  });
+
+  it("detects scout/audit-only mode requests", () => {
+    expect(looksLikeScoutModeRequest("Bitte nur Analyse, kein Build.")).toBe(true);
+    expect(looksLikeScoutModeRequest("Scout mode für dieses Repo")).toBe(true);
+    expect(looksLikeScoutModeRequest("Setze die Änderung direkt um")).toBe(false);
   });
 });

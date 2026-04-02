@@ -45,7 +45,7 @@ export type PendingChange = {
 export type PendingPlan = {
   originalRequest: string;
   planText: string;
-  mode: "advice" | "build";
+  mode: "advice" | "build" | "scout";
 };
 
 /** Extended orchestrator result that may include file arrays or raw data */

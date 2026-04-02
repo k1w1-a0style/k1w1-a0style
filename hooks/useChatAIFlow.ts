@@ -25,6 +25,7 @@ import {
   classifyChatIntent,
   buildChangeDigest,
   buildExplainMessages,
+  looksLikeScoutModeRequest,
 } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
@@ -471,9 +472,10 @@ export function useChatAIFlow({
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
+          const scoutOnly = looksLikeScoutModeRequest(sanitizedRequestContent);
           const intentDecision = classifyChatIntent(sanitizedRequestContent);
           const advice = intentDecision.intent === "advice";
-          const shouldPlanner = intentDecision.intent !== "builder";
+          const shouldPlanner = scoutOnly || intentDecision.intent !== "builder";
 
           if (intentDecision.requiresConfirmation) {
             void recordChatQualityMetric("intent_confirmation_prompt");
@@ -534,7 +536,7 @@ export function useChatAIFlow({
               const nextPlan: PendingPlan = {
                 originalRequest: sanitizedRequestContent,
                 planText,
-                mode: advice ? "advice" : "build",
+                mode: scoutOnly ? "scout" : advice ? "advice" : "build",
               };
               // Keep ref/state in sync immediately to avoid planner→builder races
               // when the follow-up user message lands before the next render commit.
@@ -975,12 +977,28 @@ export function useChatAIFlow({
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
         const lower = sanitizedUserContent.trim().toLowerCase();
+        const wantsDirectBuild =
+          lower === "direkt build" ||
+          lower === "build" ||
+          lower === "jetzt builden";
         const wantsProceed =
           lower === "weiter" ||
           lower === "mach weiter" ||
           lower === "ok" ||
           lower === "ja" ||
           lower === "go";
+
+        if (currentPlan.mode === "scout" && !wantsDirectBuild) {
+          addChatMessage({
+            id: uuidv4(),
+            role: "assistant",
+            content:
+              "🧭 **Scout-Modus aktiv:** Ich bleibe bei Analyse/Plan ohne Builder-Phase.\n\n" +
+              'Wenn du trotzdem direkt umsetzen willst, antworte mit **„direkt build"**.',
+            timestamp: new Date().toISOString(),
+          });
+          return true;
+        }
 
         if (currentPlan.mode === "advice" && !wantsProceed) {
           addChatMessage({
