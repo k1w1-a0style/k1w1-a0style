@@ -27,9 +27,14 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - [x] Sichtbares UI-Badge für Kontextkürzung aus `aiContextBudget` (z. B. „Kontext gekürzt: N Dateien/History“). (Patch 723)
 - [x] Strukturierte Pre-Flight-Zusammenfassung „Was wird gleich geändert?“ vor Builder-Start ausgeben. (Patch 722)
 - [x] Persistenz-Scope für Projektgedächtnis in Settings explizit labeln (kein globales Cross-Projekt-Gedächtnis). (Patch 721)
-- [ ] Guard-Policy bereits **vor** Vorschlägen als allowed/guarded Path-Chips in Chat anzeigen.
+- [x] Guard-Policy bereits **vor** Vorschlägen als allowed/guarded Path-Chips in Chat anzeigen. (Patch 725)
 - [ ] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen (Rückfragequote, Missverständnisse, Abbruchquote).
 - [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only ohne automatische Builder-Phase) einführen.
+
+### Rest für nächste PR-Branches (aktiv)
+- [ ] Command-Intent robuster machen (Confidence + kurze Bestätigungsfrage bei Grenzfällen).
+- [ ] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen.
+- [ ] Expliziten „Großprojekt-Modus“ (Scout/Audit-only) einführen.
 
 ## Geparkt (spaeter): Chat-Guard-UX/Policy-Sichtbarkeit
 

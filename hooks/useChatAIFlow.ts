@@ -142,6 +142,11 @@ export const buildPreflightSummaryIntro = (): string =>
   "📦 **Pre-Flight (voraussichtlich):**\n" +
   "Ich zeige gleich strukturiert, welche Dateien neu/aktualisiert werden und welche Pfade manuell bleiben.";
 
+export const buildGuardPolicyPreHint = (): string =>
+  "🛡️ **Guard-Policy vor Vorschlag:**\n" +
+  "🟢 `allowed` = kann ich direkt als Patch vorschlagen\n" +
+  "🔴 `guarded` = kritische/manual-only Pfade, bleiben manuell";
+
 export const extractContextBudgetNotice = (
   llmMessages: Array<{ role: string; content: string }>,
 ): string => {
@@ -493,6 +498,8 @@ export function useChatAIFlow({
                 role: "assistant",
                 content:
                   "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
+                  buildGuardPolicyPreHint() +
+                  "\n\n" +
                   planText +
                   "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
                   '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',

@@ -1,4 +1,5 @@
 import {
+  buildGuardPolicyPreHint,
   buildPathBulletList,
   buildPreflightSummaryIntro,
   extractContextBudgetNotice,
@@ -33,6 +34,14 @@ describe("useChatAIFlow summary regression", () => {
     expect(intro).toContain("Pre-Flight (voraussichtlich)");
     expect(intro).toContain("neu/aktualisiert");
     expect(intro).toContain("manuell bleiben");
+  });
+
+  it("returns explicit guard policy pre-hint copy", () => {
+    const hint = buildGuardPolicyPreHint();
+    expect(hint).toContain("Guard-Policy vor Vorschlag");
+    expect(hint).toContain("allowed");
+    expect(hint).toContain("guarded");
+    expect(hint).toContain("manuell");
   });
 
   it("extracts context budget note from internal prompt marker", () => {
