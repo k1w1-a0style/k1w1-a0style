@@ -7,8 +7,12 @@ const MAX_PATCH_OPERATIONS = 200;
 function isUnsafePatchPath(path: string): boolean {
   const trimmed = path.trim();
   if (!trimmed) return true;
-  if (trimmed.startsWith("/")) return true;
-  return trimmed.split("/").includes("..");
+  if (trimmed.includes("\0")) return true;
+  if (trimmed.startsWith("/") || trimmed.startsWith("\\")) return true;
+  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return true;
+
+  const normalizedSeparators = trimmed.replace(/\\/g, "/");
+  return normalizedSeparators.split("/").includes("..");
 }
 
 function assertPatchSafety(patch: PreflightPatch): void {
