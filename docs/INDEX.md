@@ -33,6 +33,7 @@ Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Det
 - [13-screen-flow-map.md](13-screen-flow-map.md) — End-to-End-Flow-Map
 - [14-state-quickref.md](14-state-quickref.md) — kompakte State-/Storage-Referenz
 - [04-risk-hotspots.md](04-risk-hotspots.md) — **historischer** Audit-/Patch-Kontext, nicht die aktive TODO-Liste
+- [patches/ARCHIVE_INDEX.md](patches/ARCHIVE_INDEX.md) — leichter Einstieg ins historische Patch-Archiv
 - [04-testing-smoke-plan.md](04-testing-smoke-plan.md) — manueller Smoke-Plan
 - [08-test-coverage-matrix.md](08-test-coverage-matrix.md) — aktive Test-/Coverage-Matrix
 - [07-diagnostics-fix-playbook.md](07-diagnostics-fix-playbook.md) — Diagnostics-/Fix-Playbook

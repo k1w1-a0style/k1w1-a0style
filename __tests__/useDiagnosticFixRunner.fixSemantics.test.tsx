@@ -161,6 +161,43 @@ describe("useDiagnosticFixRunner fix semantics", () => {
     expect(toast).toHaveBeenCalledWith("Fix angestoßen – Re-Check noch nötig.");
   });
 
+  test("marks workflow step failed when workflow fix is blocked by missing linked repo", async () => {
+    const { getApi, toast } = renderRunner({ linkedRepo: "" });
+    const result: PreflightCheckResult = makePreflightResult({
+      id: "workflow-missing-repo",
+      title: "Workflow missing repo",
+      fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } },
+    });
+
+    await act(async () => {
+      await getApi().applyIssueFix(result);
+    });
+
+    expect(mockTriggerWorkflow).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Fix blockiert – nichts wurde als behoben markiert.");
+    expect(getApi().fixSteps[0]?.status).toBe("failed");
+    expect(getApi().fixSteps[0]?.message).toContain("ohne verknüpftes Repo");
+  });
+
+
+  test("marks workflow step failed when workflow fix is blocked by missing linked branch", async () => {
+    const { getApi, toast } = renderRunner({ linkedBranch: "" });
+    const result: PreflightCheckResult = makePreflightResult({
+      id: "workflow-missing-branch",
+      title: "Workflow missing branch",
+      fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } },
+    });
+
+    await act(async () => {
+      await getApi().applyIssueFix(result);
+    });
+
+    expect(mockTriggerWorkflow).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Fix blockiert – nichts wurde als behoben markiert.");
+    expect(getApi().fixSteps[0]?.status).toBe("failed");
+    expect(getApi().fixSteps[0]?.message).toContain("ohne verknüpften Branch");
+  });
+
   test("keeps real local patch success semantics for applied fixes", async () => {
     const { getApi, updateProjectFiles, toast, projectRef } = renderRunner();
     const result: PreflightCheckResult = makePreflightResult({

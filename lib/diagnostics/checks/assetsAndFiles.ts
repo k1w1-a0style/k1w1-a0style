@@ -3,25 +3,25 @@ import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
   normalizePath, byPath, has, getText, ok, mkFix, mkJsonFix,
-  existsAny, parseJson, statusBySeverity, ensureEndsWithNewline,
-  normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
+  existsAny, parseJson, ensureEndsWithNewline,
+  gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
-type EasWithoutCredentialsPatchProfile = {
-  android: {
+type EasWithoutCredentialsPatchProfile = Readonly<{
+  android: Readonly<{
     withoutCredentials: true;
-  };
-};
+  }>;
+}>;
 
-type EasProfileConfig = {
-  android?: {
+type EasProfileConfig = Readonly<{
+  android?: Readonly<{
     withoutCredentials?: boolean;
-  };
-};
+  }>;
+}>;
 
-type EasJson = {
-  build?: Record<string, EasProfileConfig | undefined>;
-};
+type EasJson = Readonly<{
+  build?: Readonly<Record<string, EasProfileConfig | undefined>>;
+}>;
 
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
