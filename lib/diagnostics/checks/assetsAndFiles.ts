@@ -7,6 +7,22 @@ import {
   normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
+type EasWithoutCredentialsPatchProfile = {
+  android: {
+    withoutCredentials: true;
+  };
+};
+
+type EasProfileConfig = {
+  android?: {
+    withoutCredentials?: boolean;
+  };
+};
+
+type EasJson = {
+  build?: Record<string, EasProfileConfig | undefined>;
+};
+
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
   title: "Assets referenced existieren",
@@ -420,52 +436,8 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
     const m = byPath(files);
     if (!has(m, "eas.json")) return ok({ id: this.id, title: this.title, severity: this.severity });
 
-    try {
-      const eas = JSON.parse(getText(m, "eas.json"));
-      const build = eas?.build || {};
-      const checkProfile = (name: string) => {
-        const v = build?.[name]?.android?.withoutCredentials;
-        return v === true;
-      };
-
-      const devOk = checkProfile("development");
-      const prevOk = checkProfile("preview");
-
-      if (!devOk || !prevOk) {
-        const missing: string[] = [];
-        if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
-        if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
-
-        const patchObj: Record<string, any> = {};
-        if (!devOk) patchObj.development = { android: { withoutCredentials: true } };
-        if (!prevOk) patchObj.preview = { android: { withoutCredentials: true } };
-
-        return {
-          id: this.id,
-          title: this.title,
-          severity: this.severity,
-          status: "warn",
-          message:
-            "Ohne Keystore kann EAS in CI (--non-interactive) keinen neuen Keystore erzeugen. Für Debug/APK Builds sollte withoutCredentials=true gesetzt sein.",
-          details: missing,
-          fix: {
-            patch: mkJsonFix(
-              [
-                {
-                  path: "eas.json",
-                  patch: { build: patchObj },
-                  createIfMissing: false,
-                },
-              ],
-              [],
-              "withoutCredentials=true für development/preview setzen",
-            ),
-          },
-        };
-      }
-
-      return ok({ id: this.id, title: this.title, severity: this.severity });
-    } catch {
+    const eas = parseJson<EasJson>(getText(m, "eas.json"));
+    if (!eas) {
       return {
         id: this.id,
         title: this.title,
@@ -474,6 +446,51 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
         message: "eas.json konnte nicht geparst werden.",
       };
     }
+
+    const build = eas.build ?? {};
+    const checkProfile = (name: string) => {
+      const v = build[name]?.android?.withoutCredentials;
+      return v === true;
+    };
+
+    const devOk = checkProfile("development");
+    const prevOk = checkProfile("preview");
+
+    if (!devOk || !prevOk) {
+      const missing: string[] = [];
+      if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
+      if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
+
+      const patchObj: Partial<
+        Record<"development" | "preview", EasWithoutCredentialsPatchProfile>
+      > = {};
+      if (!devOk) patchObj.development = { android: { withoutCredentials: true } };
+      if (!prevOk) patchObj.preview = { android: { withoutCredentials: true } };
+
+      return {
+        id: this.id,
+        title: this.title,
+        severity: this.severity,
+        status: "warn",
+        message:
+          "Ohne Keystore kann EAS in CI (--non-interactive) keinen neuen Keystore erzeugen. Für Debug/APK Builds sollte withoutCredentials=true gesetzt sein.",
+        details: missing,
+        fix: {
+          patch: mkJsonFix(
+            [
+              {
+                path: "eas.json",
+                patch: { build: patchObj },
+                createIfMissing: false,
+              },
+            ],
+            [],
+            "withoutCredentials=true für development/preview setzen",
+          ),
+        },
+      };
+    }
+
+    return ok({ id: this.id, title: this.title, severity: this.severity });
   },
 };
-
