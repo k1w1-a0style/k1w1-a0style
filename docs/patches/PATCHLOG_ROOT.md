@@ -1,3 +1,4 @@
+- Patch 721: Persistenz-Scope-Label umgesetzt — Settings/Privacy zeigt jetzt explizit „Scope: pro Projekt (kein globales, projektübergreifendes Gedächtnis)“; Regression sichert den UI-Text.
 - Patch 720: User-Vorschlagsliste nachgezogen — neue offene Verbesserungen aus dem Nutzer-Feedback sind als explizite TODO-Punkte aufgenommen (Intent-Classifier, Planner-Slots, Kontextkürzungs-Badge, Pre-Flight-Preview, Persistenz-Scope-Label, Guard-Policy-Chips vor Vorschlägen, Rückfragen-Qualitätsmetriken, Großprojekt-/Scout-Modus).
 - Patch 719: Guard-Telemetrie defensiv gehaertet — Event-Eintraege werden jetzt normalisiert (trim + non-empty) und pro Event auf max. 50 begrenzt; Regression sichert Ignore-Empty + Cap.
 - Patch 718: Guard-Audit-Signatur normalisiert — Dedupe im `ConfirmChangesModal` ist jetzt case-insensitive und capped (lowercase + unique + sort + max 20), damit Reorder/Case/duplizierte Hinweise keine Doppelzaehlung ausloesen.

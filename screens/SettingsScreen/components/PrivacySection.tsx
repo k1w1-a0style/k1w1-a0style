@@ -65,6 +65,10 @@ export const PrivacySection: React.FC<Props> = ({
           {persistChatHistory ? `letzte ${retentionLimit} Messages` : "deaktiviert"}
         </Text>
       </Text>
+      <Text style={styles.note}>
+        Scope: <Text style={styles.noteStrong}>pro Projekt</Text> (kein globales,
+        projektübergreifendes Gedächtnis).
+      </Text>
     </View>
   );
 };
