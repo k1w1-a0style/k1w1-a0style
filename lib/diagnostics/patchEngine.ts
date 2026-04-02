@@ -9,7 +9,7 @@ function isUnsafePatchPath(path: string): boolean {
   if (!trimmed) return true;
   if (trimmed.includes("\0")) return true;
   if (trimmed.startsWith("/") || trimmed.startsWith("\\")) return true;
-  if (/^[A-Za-z]:[\\/]/.test(trimmed)) return true;
+  if (/^[A-Za-z]:/.test(trimmed)) return true;
 
   const normalizedSeparators = trimmed.replace(/\\/g, "/");
   return normalizedSeparators.split("/").includes("..");
