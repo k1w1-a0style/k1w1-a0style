@@ -511,27 +511,19 @@ export function useDiagnosticFixRunner(opts: {
       openFixModal({ title: "Fix", subtitle: r.title, steps });
 
       let cursor = 0;
-      const runStep = async (fn: () => Promise<void>, failMsg: string) => {
-        markFixStepRunning(cursor);
-        try {
-          await fn();
-          markFixStepDone(cursor);
-          cursor++;
-          return null;
-        } catch (error: unknown) {
-          markFixStepFailed(cursor, error, failMsg);
-          setFixDone(true);
-          return error;
-        }
-      };
 
       let patchApplied = false;
       if (patchForApply) {
-        const stepError = await runStep(async () => {
-          await applyPatch(r.title, patchForApply);
-          patchApplied = true;
-        }, "Fehler");
+        const stepError = await runFixStep({
+          index: cursor,
+          run: async () => {
+            await applyPatch(r.title, patchForApply);
+            patchApplied = true;
+          },
+          failMessage: "Fehler",
+        });
         if (stepError) {
+          setFixDone(true);
           finishWithResult(
             buildApplyFailureResult({
               error: stepError,
@@ -541,6 +533,7 @@ export function useDiagnosticFixRunner(opts: {
           );
           return;
         }
+        cursor++;
       }
 
       if (dispatch) {
@@ -567,19 +560,10 @@ export function useDiagnosticFixRunner(opts: {
           return;
         }
 
-        const stepError = await runStep(async () => {
-          try {
-            await triggerWorkflow(
-              parsed.owner,
-              parsed.repo,
-              dispatch.workflowFileName,
-              workflowRef,
-              dispatch.inputs || {},
-            );
-          } catch (error: unknown) {
-            const msg = getErrorMessage(error, "");
-            if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
-              await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
+        const stepError = await runFixStep({
+          index: cursor,
+          run: async () => {
+            try {
               await triggerWorkflow(
                 parsed.owner,
                 parsed.repo,
@@ -587,12 +571,26 @@ export function useDiagnosticFixRunner(opts: {
                 workflowRef,
                 dispatch.inputs || {},
               );
-              return;
+            } catch (error: unknown) {
+              const msg = getErrorMessage(error, "");
+              if (/404|not found/i.test(msg) && dispatch.fallbackPatch) {
+                await applyPatch(`Bootstrap ${dispatch.workflowFileName}`, dispatch.fallbackPatch);
+                await triggerWorkflow(
+                  parsed.owner,
+                  parsed.repo,
+                  dispatch.workflowFileName,
+                  workflowRef,
+                  dispatch.inputs || {},
+                );
+                return;
+              }
+              throw error;
             }
-            throw error;
-          }
-        }, "Workflow dispatch fehlgeschlagen");
+          },
+          failMessage: "Workflow dispatch fehlgeschlagen",
+        });
         if (stepError) {
+          setFixDone(true);
           finishWithResult({
             status: "failed",
             detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
@@ -603,14 +601,17 @@ export function useDiagnosticFixRunner(opts: {
           });
           return;
         }
+        cursor++;
       }
 
       if (doSync && patchForApply) {
-        const stepError = await runStep(
-          () => syncPatchToGitHub(r.title, patchForApply),
-          "Sync fehlgeschlagen",
-        );
+        const stepError = await runFixStep({
+          index: cursor,
+          run: () => syncPatchToGitHub(r.title, patchForApply),
+          failMessage: "Sync fehlgeschlagen",
+        });
         if (stepError) {
+          setFixDone(true);
           finishWithResult({
             status: "failed",
             detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
@@ -620,14 +621,17 @@ export function useDiagnosticFixRunner(opts: {
           });
           return;
         }
+        cursor++;
       }
 
       if (rerunAfterFix) {
-        const stepError = await runStep(
-          () => runDiagnostics({ resetSelection: false, resetHistory: false }),
-          "Verify fehlgeschlagen",
-        );
+        const stepError = await runFixStep({
+          index: cursor,
+          run: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+          failMessage: "Verify fehlgeschlagen",
+        });
         if (stepError) {
+          setFixDone(true);
           finishWithResult({
             status: "pending_recheck",
             detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
@@ -637,6 +641,7 @@ export function useDiagnosticFixRunner(opts: {
           });
           return;
         }
+        cursor++;
       }
 
       finishWithResult({
