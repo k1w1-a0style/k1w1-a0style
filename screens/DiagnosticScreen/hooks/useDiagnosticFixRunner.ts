@@ -545,6 +545,10 @@ export function useDiagnosticFixRunner(opts: {
       });
 
       openFixModal({ title: "Fix", subtitle: r.title, steps });
+      const finishStepError = (params: Parameters<typeof finishWithResult>[0]) => {
+        setFixDone(true);
+        finishWithResult(params);
+      };
 
       let cursor = 0;
 
@@ -559,8 +563,7 @@ export function useDiagnosticFixRunner(opts: {
           failMessage: "Fehler",
         });
         if (stepError) {
-          setFixDone(true);
-          finishWithResult(
+          finishStepError(
             buildApplyFailureResult({
               error: stepError,
               fallback: "Patch konnte nicht angewendet werden.",
@@ -611,8 +614,7 @@ export function useDiagnosticFixRunner(opts: {
           failMessage: "Workflow dispatch fehlgeschlagen",
         });
         if (stepError) {
-          setFixDone(true);
-          finishWithResult({
+          finishStepError({
             status: "failed",
             detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
             localChangeApplied: patchApplied,
@@ -632,8 +634,7 @@ export function useDiagnosticFixRunner(opts: {
           failMessage: "Sync fehlgeschlagen",
         });
         if (stepError) {
-          setFixDone(true);
-          finishWithResult({
+          finishStepError({
             status: "failed",
             detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
             localChangeApplied: patchApplied,
@@ -652,8 +653,7 @@ export function useDiagnosticFixRunner(opts: {
           failMessage: "Verify fehlgeschlagen",
         });
         if (stepError) {
-          setFixDone(true);
-          finishWithResult({
+          finishStepError({
             status: "pending_recheck",
             detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
             localChangeApplied: patchApplied,
