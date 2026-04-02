@@ -1,12 +1,13 @@
 import { checkWorkflowServiceRoleKeyLeak } from "../lib/diagnostics/checks/workflowSecurity";
+import { makeProjectFile } from "./helpers/preflightTestHelpers";
 
 describe("workflow service role safe assist", () => {
   it("adds safe replace patch for exact SUPABASE_SERVICE_ROLE_KEY scalar", () => {
     const result = checkWorkflowServiceRoleKeyLeak.run(
       [
-        {
-          path: ".github/workflows/build.yml",
-          content: [
+        makeProjectFile(
+          ".github/workflows/build.yml",
+          [
             "name: build",
             "jobs:",
             "  test:",
@@ -14,7 +15,7 @@ describe("workflow service role safe assist", () => {
             "    env:",
             '      SUPABASE_SERVICE_ROLE_KEY: "abcdefghijklmnopqrstuvwxyz1234567890ABCDE"',
           ].join("\n"),
-        } as any,
+        ),
       ],
       { mode: "eas", profile: "all" },
     );
@@ -27,16 +28,16 @@ describe("workflow service role safe assist", () => {
   it("does not auto-fix non-exact service-role key names", () => {
     const result = checkWorkflowServiceRoleKeyLeak.run(
       [
-        {
-          path: ".github/workflows/build.yml",
-          content: [
+        makeProjectFile(
+          ".github/workflows/build.yml",
+          [
             "name: build",
             "jobs:",
             "  test:",
             "    env:",
             '      MY_SERVICE_ROLE_TOKEN: "abcdefghijklmnopqrstuvwxyz1234567890ABCDE"',
           ].join("\n"),
-        } as any,
+        ),
       ],
       { mode: "eas", profile: "all" },
     );

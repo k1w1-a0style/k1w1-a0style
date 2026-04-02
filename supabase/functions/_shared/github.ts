@@ -22,6 +22,18 @@ export function getGithubToken(): string {
   return t;
 }
 
+function parseCsvEnv(name: string): string[] {
+  const raw = (getRuntimeEnv(name) ?? "").trim();
+  if (!raw) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export function isAllowedGithubRepo(repo: string): boolean {
+  const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
+  if (allow.length === 0) return true;
+  return allow.includes(repo);
+}
+
 export function githubHeaders(
   token?: string,
   scheme: "Bearer" | "token" = "Bearer",

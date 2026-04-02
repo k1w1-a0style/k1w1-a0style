@@ -7,6 +7,19 @@ import {
   normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : null;
+}
+
+function readNonEmptyString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export const checkPackageJson: PreflightCheck = {
   id: "core-package-json",
   title: "package.json vorhanden",
@@ -72,11 +85,8 @@ export const checkEntryPoint: PreflightCheck = {
   severity: "high",
   run(files) {
     const m = byPath(files);
-    const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
-    const main =
-      typeof pkg.main === "string" && pkg.main.trim()
-        ? pkg.main.trim()
-        : "index.js";
+    const pkg = asRecord(parseJson(getText(m, "package.json")));
+    const main = readNonEmptyString(pkg?.main) ?? "index.js";
     const mainNorm = normalizePath(main);
 
     const indexOk =

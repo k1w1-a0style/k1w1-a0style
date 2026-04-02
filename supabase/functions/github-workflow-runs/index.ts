@@ -1,12 +1,14 @@
 import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import {
+  getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { githubFetch, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
+import { githubFetch, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { isParsedJsonBodyError, isSafeGitHubRepoFullName, parseJsonBody } from "../_shared/validation.ts";
 
 /**
  * Lists GitHub Actions workflow runs.
@@ -25,6 +27,29 @@ import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSaniti
  *
  * Authentication uses the shared server-side GitHub token helper.
  */
+
+type JsonRecord = Record<string, unknown>;
+
+const readStringLike = (record: JsonRecord, ...keys: string[]): string => {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return "";
+};
+
+const readNumberish = (record: JsonRecord, fallback: number, ...keys: string[]): number => {
+  for (const key of keys) {
+    const value = record[key];
+    const numberValue = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(numberValue) && numberValue > 0) return numberValue;
+  }
+  return fallback;
+};
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -45,7 +70,7 @@ Deno.serve(async (req) => {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-runs",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 60,
       windowMs: 60_000,
     });
@@ -54,32 +79,26 @@ Deno.serve(async (req) => {
     const rl = rateLimit(req, "github-workflow-runs");
     if (rl) return rl;
 
-    const raw = await req.text();
-    let body: any = {};
-    if (raw?.trim()) {
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        return new Response(
-          JSON.stringify({ ok: false, error: "Invalid JSON body" }),
-          {
-            status: 400,
-            headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
-          },
-        );
-      }
+    const parsedBody = await parseJsonBody(req, 20_000);
+    if (isParsedJsonBodyError(parsedBody)) {
+      const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
+      return new Response(
+        JSON.stringify({ ok: false, error: status === 413 ? "Request too large" : "Invalid JSON body" }),
+        {
+          status,
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
+    const body = parsedBody.body as JsonRecord;
 
+    const ownerName = readStringLike(body, "owner");
+    const repoName = readStringLike(body, "repo");
     const githubRepo =
-      body.githubRepo ??
-      body.github_repo ??
-      body.repoFullName ??
-      body.fullName ??
-      body.repository ??
-      body.githubRepository ??
-      (body.owner && body.repo ? `${body.owner}/${body.repo}` : "");
+      readStringLike(body, "githubRepo", "github_repo", "repoFullName", "fullName", "repository", "githubRepository") ||
+      (ownerName && repoName ? `${ownerName}/${repoName}` : "");
 
-    if (!githubRepo || typeof githubRepo !== "string" || !githubRepo.includes("/")) {
+    if (!isSafeGitHubRepoFullName(githubRepo)) {
       return new Response(
         JSON.stringify({ ok: false, error: "Missing/invalid githubRepo" }),
         {
@@ -89,22 +108,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    const workflowIdRaw =
-      body.workflowId ??
-      body.workflow_id ??
-      body.workflowFile ??
-      body.workflow_file ??
-      body.workflow ??
-      body.path ??
-      "";
+    if (!isAllowedGithubRepo(githubRepo)) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "githubRepo not allowed", details: { githubRepo } }),
+        {
+          status: 403,
+          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
-    const workflowId = (typeof workflowIdRaw === "string" ? workflowIdRaw : "").trim();
+    const workflowId = readStringLike(body, "workflowId", "workflow_id", "workflowFile", "workflow_file", "workflow", "path");
 
-    const perPageRaw = body.perPage ?? body.per_page ?? 20;
-    const perPage = Math.max(1, Math.min(100, Number(perPageRaw) || 20));
+    const perPage = Math.max(1, Math.min(100, readNumberish(body, 20, "perPage", "per_page")));
 
-    const ref = (body.ref ?? body.branch ?? "").toString().trim();
-    const status = (body.status ?? "").toString().trim();
+    const ref = readStringLike(body, "ref", "branch");
+    const status = readStringLike(body, "status");
     const token = getGithubToken();
     if (!token) {
       return new Response(
@@ -171,7 +190,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    let json: any;
+    let json: unknown;
     try {
       json = JSON.parse(txt);
     } catch {
@@ -188,12 +207,12 @@ Deno.serve(async (req) => {
       status: 200,
       headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
     });
-  } catch (e) {
+  } catch (error) {
     return new Response(
       JSON.stringify({
         ok: false,
         error: "Unexpected error",
-        message: sanitizeErrorText(e?.message ?? String(e)),
+        message: sanitizeErrorText(error instanceof Error ? error.message : String(error)),
       }),
       {
         status: 500,

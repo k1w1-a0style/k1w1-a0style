@@ -18,9 +18,12 @@ describe("Bereich 6 / C4 cleanup invariants", () => {
     expect(flowSource).toContain("queuedAutoFixRef.current = [];");
   });
 
-  it("ChatScreen focus cleanup invokes resetTransientState to avoid carry-over across navigation", () => {
+  it("ChatScreen focus cleanup invokes handleScreenBlurCleanup to keep blur semantics honest", () => {
+    expect(flowSource).toContain("const handleScreenBlurCleanup = useCallback(() => {");
+    expect(flowSource).toContain("requestAbortedOnBlur: true");
+    expect(flowSource).toContain("pendingPlanRef.current !== null || pendingChangeRef.current !== null");
     expect(screenSource).toContain("return () => {");
-    expect(screenSource).toContain("resetTransientState();");
-    expect(screenSource).toContain("}, [hardScrollToBottom, resetTransientState]),");
+    expect(screenSource).toContain("handleScreenBlurCleanup();");
+    expect(screenSource).toContain("}, [hardScrollToBottom, handleScreenBlurCleanup]),");
   });
 });

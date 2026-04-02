@@ -6,7 +6,6 @@ import { styles } from "../styles";
 import { splitFullName } from "../utils/repos";
 import {
   getAndroidKeystoreExportAdminKey,
-  getLegacyEdgeAdminKey,
   getExpoToken,
   getWorkflowAdminKey,
   listRepoSecretNames,
@@ -16,6 +15,7 @@ import {
   resolveRepoSecretListVerification,
   resolveRepoSecretVerification,
 } from "../../../lib/status/repoSecretVerification";
+import { getErrorMessage } from "../hooks/githubReposScreenErrorHelpers";
 
 const REQUIRED_SECRETS = ["EXPO_TOKEN", "SUPABASE_URL"] as const;
 
@@ -24,7 +24,6 @@ const OPTIONAL_SECRETS = [
   "EAS_PROJECT_ID",
   "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
   "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
-  "K1W1_EDGE_ADMIN_KEY",
   // Production/Supabase report secret stays manual-only
   "SUPABASE_SERVICE_ROLE_KEY",
 ] as const;
@@ -35,7 +34,7 @@ type SecretRow = {
 };
 
 type RuntimeCredentialRow = {
-  id: "expo" | "workflowAdmin" | "keystoreAdmin" | "legacyEdgeAdmin";
+  id: "expo" | "workflowAdmin" | "keystoreAdmin";
   title: string;
   repoContract: ReturnType<typeof resolveRepoSecretVerification>;
   localPresent: boolean | null;
@@ -59,12 +58,10 @@ export function SecretsSection(props: {
     expoToken: boolean | null;
     workflowAdminKey: boolean | null;
     androidKeystoreExportAdminKey: boolean | null;
-    legacyEdgeAdminKey: boolean | null;
   }>({
     expoToken: null,
     workflowAdminKey: null,
     androidKeystoreExportAdminKey: null,
-    legacyEdgeAdminKey: null,
   });
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const requestRef = useRef(0);
@@ -94,9 +91,9 @@ export function SecretsSection(props: {
       hasVerifiedNamesRef.current = true;
       setNames(list);
       setStale(false);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (requestRef.current !== requestId) return;
-      setError(e?.message || "Secrets konnten nicht geladen werden.");
+      setError(getErrorMessage(e, "Secrets konnten nicht geladen werden."));
       setStale(hadVerifiedNames);
       if (!hadVerifiedNames) {
         setNames(null);
@@ -114,8 +111,7 @@ export function SecretsSection(props: {
         expoToken: null,
         workflowAdminKey: null,
         androidKeystoreExportAdminKey: null,
-        legacyEdgeAdminKey: null,
-      });
+          });
       setRuntimeLoading(false);
       return;
     }
@@ -125,18 +121,16 @@ export function SecretsSection(props: {
     setRuntimeLoading(true);
 
     try {
-      const [expoToken, workflowAdminKey, androidKeystoreExportAdminKey, legacyEdgeAdminKey] = await Promise.all([
+      const [expoToken, workflowAdminKey, androidKeystoreExportAdminKey] = await Promise.all([
         getExpoToken().catch(() => null),
         getWorkflowAdminKey().catch(() => null),
         getAndroidKeystoreExportAdminKey().catch(() => null),
-        getLegacyEdgeAdminKey().catch(() => null),
       ]);
       if (runtimeRequestRef.current !== requestId) return;
       setRuntimePresence({
         expoToken: !!expoToken?.trim(),
         workflowAdminKey: !!workflowAdminKey?.trim(),
         androidKeystoreExportAdminKey: !!androidKeystoreExportAdminKey?.trim(),
-        legacyEdgeAdminKey: !!legacyEdgeAdminKey?.trim(),
       });
     } finally {
       if (runtimeRequestRef.current === requestId) {
@@ -158,8 +152,7 @@ export function SecretsSection(props: {
       expoToken: null,
       workflowAdminKey: null,
       androidKeystoreExportAdminKey: null,
-      legacyEdgeAdminKey: null,
-    });
+      });
     setRuntimeLoading(false);
   }, [activeRepo]);
 
@@ -272,7 +265,6 @@ export function SecretsSection(props: {
     const keystoreRepoContract = optionalStatus.find(
       (entry) => entry.name === "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
     )?.contract;
-    const legacyRepoContract = optionalStatus.find((entry) => entry.name === "K1W1_EDGE_ADMIN_KEY")?.contract;
 
     return [
       {
@@ -330,29 +322,12 @@ export function SecretsSection(props: {
         localCopy:
           "SecureStore auf diesem Geraet fuer App → Edge Keystore-Aufrufe.",
       },
-      {
-        id: "legacyEdgeAdmin",
-        title: "Lokaler Legacy Edge Admin Key (compat)",
-        repoContract:
-          legacyRepoContract ??
-          resolveRepoSecretVerification({
-            name: "K1W1_EDGE_ADMIN_KEY",
-            names,
-            error,
-            stale,
-          }),
-        localPresent: runtimePresence.legacyEdgeAdminKey,
-        usageCopy:
-          "Legacy-Compat sichtbar (Sunset): nur fuer alte Runtime-Pfade wie k1w1-handler/save_preview, nicht als allgemeiner Readiness-Anker.",
-        repoCopy: "Legacy-Repo-Secret K1W1_EDGE_ADMIN_KEY (nur Compat/Sunset, kein Scoped-Primärvertrag).",
-        localCopy: "SecureStore-Legacywert fuer Altpfade; aktuelle Workflow-/Keystore-Flows bleiben scoped-only.",
-      },
     ];
-  }, [error, names, optionalStatus, requiredStatus, runtimePresence.workflowAdminKey, runtimePresence.androidKeystoreExportAdminKey, runtimePresence.legacyEdgeAdminKey, runtimePresence.expoToken, stale]);
+  }, [error, names, optionalStatus, requiredStatus, runtimePresence.workflowAdminKey, runtimePresence.androidKeystoreExportAdminKey, runtimePresence.expoToken, stale]);
 
   const runtimeMissingLabels = useMemo(() => {
     return runtimeRows
-      .filter((row) => row.localPresent === false && row.id !== "legacyEdgeAdmin")
+      .filter((row) => row.localPresent === false)
       .map((row) => {
         if (row.id === "expo") return "Expo-Token lokal";
         if (row.id === "workflowAdmin") return "lokaler Workflow Admin Key";
@@ -616,7 +591,7 @@ export function SecretsSection(props: {
         <Text style={{ fontSize: 11, color: theme.palette.text.secondary, lineHeight: 17, marginTop: 8 }}>
           Auto-Sync aus der App deckt EXPO_TOKEN + SUPABASE_URL ab (optional: EAS_PROJECT_ID,
           K1W1_EDGE_WORKFLOW_ADMIN_KEY, K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY; legacy zusaetzlich
-          K1W1_EDGE_ADMIN_KEY). Scoped Workflow-/Keystore-Secrets bleiben getrennte Schluessel ohne
+          Scoped Workflow-/Keystore-Secrets bleiben getrennte Schluessel ohne
           implizites Spiegeln eines Einzelwerts. SUPABASE_SERVICE_ROLE_KEY bleibt bewusst ein manueller Production-Schritt.
         </Text>
       ) : null}

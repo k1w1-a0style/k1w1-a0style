@@ -1,46 +1,43 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-03-31 (Patch 655)**
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-Diese Checkliste ist der zentrale Verifikationspfad fuer einen frischen Checkout.
+Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
 ## Voraussetzungen
 
 - Node.js `>=20.0.0`
 - npm `>=10.0.0`
-- Repo frisch ausgecheckt, keine lokalen Altartefakte
-
-Pruefen:
-
-```bash
-node --version
-npm --version
-```
+- frischer Checkout ohne lokale Altartefakte
 
 ## Green-Path Befehle
-
-Im Repo-Root ausfuehren:
 
 ```bash
 npm ci
 npm run typecheck
+npm run typecheck:edge
 npm run lint:ci
 npm run test:silent
 ```
 
+Optional:
+
+```bash
+npm run test:e2e:smoke
+npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
+```
+
 ## Erwartete Signale
 
-- `npm ci` laeuft ohne Fehler durch (`postinstall`/`prepare` koennen Hooks ausgeben).
-- `npm run typecheck` endet ohne TypeScript-Fehler.
-- `npm run lint:ci` endet ohne ESLint-Fehler.
-- `npm run test:silent` endet mit gruener Suite.
+- alle Commands enden mit Exit-Code `0`
+- keine TS-/ESLint-Fehler
+- keine rote Jest-Suite
+- `verify:release` bleibt ohne Drift-/Contract-Fund gruen
 
 ## Bekannter externer Warn-Noise
-
-- Die Warnung
 
 ```txt
 npm warn Unknown env config "http-proxy"
 ```
 
-  ist ein bekannter **externer Umgebungsrestpunkt** (Runner-/Host-Env) und kein Repo-Code-Defekt.
+Das ist externer Umgebungs-Noise und kein Repo-Code-Defekt.

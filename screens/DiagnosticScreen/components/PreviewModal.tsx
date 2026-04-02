@@ -4,11 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
 import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
+import type { DiagnosticScreenStyles } from "../styles";
 
 type PreviewEntry = { path: string; oldText: string | null; newText: string | null };
 
 export function PreviewModal(props: {
-  styles: any;
+  styles: DiagnosticScreenStyles;
   visible: boolean;
   label: string;
   entries: PreviewEntry[];

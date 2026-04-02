@@ -1,15 +1,7 @@
 // lib/diagnostics/diagnosticTypes.ts
 // Extracted from buildPipelineDiagnostics.ts: types and helpers.
 
-import {
-  getLegacyEdgeAdminKey,
-  getExpoToken,
-  getGitHubToken,
-  getRepoFileText,
-  listRepoSecretNames,
-  triggerWorkflow,
-} from "../../infra/github/githubService";
-import { ensureSupabaseClient } from "../supabase";
+import { getRepoFileText } from "../../infra/github/githubService";
 import type { PreflightPatch } from "./preflightTypes";
 
 

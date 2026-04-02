@@ -12,12 +12,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { materializeProjectFiles } from "../../lib/projectMaterializer";
 import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
 
-// ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
-import { normalizePath, Validators, validateFilePath, validateFileContent, validateZipImport } from '../../lib/validators';
+// ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatValidation
+import { normalizePath, Validators, validateZipImport } from '../../lib/validators';
 
 import { zip, unzip } from 'react-native-zip-archive';
 import { logger } from "../../lib/logger";
-
+import { inspectZipArchiveFromUri } from "./zipInspection";
+import { deserializeProjectStoragePayload, encryptProjectStoragePayload } from "./projectStorageCrypto";
 
 import {
   PROJECT_STORAGE_KEY, CACHE_DIR, BINARY_EXTENSIONS,
@@ -36,14 +37,17 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
       chatHistory: persistChat ? trimChatHistory(project.chatHistory ?? [], retention) : [],
     };
     const projectString = JSON.stringify(projectToSave);
-    const payloadState = assertProjectStoragePayloadSafe(projectString);
+    const plaintextPayloadState = assertProjectStoragePayloadSafe(projectString);
 
-    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
+    const encryptedProjectString = await encryptProjectStoragePayload(projectString);
+    const persistedPayloadState = assertProjectStoragePayloadSafe(encryptedProjectString);
+    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, encryptedProjectString);
 
-    if (payloadState.nearLimit) {
+    if (plaintextPayloadState.nearLimit || persistedPayloadState.nearLimit) {
       logger.warn("[projectStorage] Projektzustand nahe Storage-Limit gespeichert", {
         projectName: project.name,
-        bytes: payloadState.bytes,
+        plaintextBytes: plaintextPayloadState.bytes,
+        persistedBytes: persistedPayloadState.bytes,
       });
     } else {
       logger.info('💾 Projekt gespeichert:', project.name);
@@ -62,7 +66,8 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
       return null;
     }
 
-    const project = JSON.parse(projectString);
+    const { projectString: persistedProjectString, migratedFromPlaintext } = await deserializeProjectStoragePayload(projectString);
+    const project = JSON.parse(persistedProjectString);
     logger.info('📖 Projekt geladen:', project.name);
 
     if (!project.files) {
@@ -90,6 +95,10 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
         : [];
     } catch {
       // best-effort
+    }
+
+    if (migratedFromPlaintext) {
+      saveProjectToStorage(project).catch(() => undefined);
     }
     return project;
   } catch (error) {
@@ -188,7 +197,8 @@ export const importProjectFromZipFile = async (): Promise<{
   messageCount: number;
   metadata?: Record<string, unknown>;
 }> => {
-  const MAX_ZIP_ARCHIVE_BYTES = 25 * 1024 * 1024; // best-effort pre-unzip guard (compressed archive size)
+  const MAX_ZIP_ARCHIVE_BYTES = 25 * 1024 * 1024;
+  const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 25 * 1024 * 1024;
 
   try {
     const result = await DocumentPicker.getDocumentAsync({
@@ -215,6 +225,25 @@ export const importProjectFromZipFile = async (): Promise<{
     if (zipSizeBytes > MAX_ZIP_ARCHIVE_BYTES) {
       throw new Error(
         `ZIP-Datei ist zu groß für den Import vor dem Entpacken (${(zipSizeBytes / (1024 * 1024)).toFixed(2)}MB > ${(MAX_ZIP_ARCHIVE_BYTES / (1024 * 1024)).toFixed(2)}MB)`,
+      );
+    }
+
+    const archiveInspection = await inspectZipArchiveFromUri(zipAsset.uri, {
+      maxEntries: Validators.constants.MAX_FILES_IN_ZIP,
+      maxFileBytes: Validators.constants.MAX_FILE_SIZE_BYTES,
+      maxTotalUncompressedBytes: MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES,
+    });
+
+    if (!archiveInspection.valid) {
+      const issuePreview = archiveInspection.issues
+        .slice(0, 5)
+        .map((issue) => `${issue.path}: ${issue.reason}`);
+      throw new Error(
+        [
+          'ZIP-Metadatenprüfung vor dem Entpacken fehlgeschlagen:',
+          ...archiveInspection.errors,
+          ...(issuePreview.length > 0 ? ['Beispiele:', ...issuePreview] : []),
+        ].join('\n'),
       );
     }
 

@@ -310,10 +310,18 @@ export const useGitHubRepos = (
         }
 
         const infoJson = await infoRes.json();
+        const resolvedDefaultBranch =
+          typeof infoJson?.default_branch === "string"
+            ? infoJson.default_branch.trim()
+            : "";
         const branch =
           (typeof branchOverride === "string" && branchOverride.trim())
             ? branchOverride.trim()
-            : (infoJson.default_branch || "main");
+            : resolvedDefaultBranch;
+
+        if (!branch) {
+          throw new Error("Default-Branch konnte nicht eindeutig ermittelt werden.");
+        }
 
         onProgress?.(`Lade Dateibaum (Branch: ${branch})...`);
 
@@ -458,11 +466,19 @@ export const useGitHubRepos = (
 
   const loadDefaultBranch = useCallback(
     async (owner: string, repo: string): Promise<string> => {
-      if (!token) return "main";
+      if (!token) {
+        throw new Error("GitHub-Token fehlt. Default-Branch kann nicht geladen werden.");
+      }
       try {
-        return await apiDefaultBranch(owner, repo);
-      } catch {
-        return "main";
+        const branch = await apiDefaultBranch(owner, repo);
+        const normalizedBranch = String(branch ?? "").trim();
+        if (!normalizedBranch) {
+          throw new Error("GitHub lieferte keinen gueltigen Default-Branch.");
+        }
+        return normalizedBranch;
+      } catch (e: unknown) {
+        logger.error("[useGitHubRepos] DefaultBranch error:", e);
+        throw new Error(getErrorMessage(e, "Default-Branch konnte nicht geladen werden."));
       }
     },
     [token],

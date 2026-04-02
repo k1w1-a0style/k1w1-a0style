@@ -6,9 +6,11 @@ import { resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import { TEMPLATE_INFO } from "../types";
 
 import type { TemplateId } from "../../../shared/types/project";
+import type { AppInfoScreenStyles, AppInfoTemplateData } from "../componentTypes";
+
 type Props = {
-  styles: any;
-  projectData: any;
+  styles: AppInfoScreenStyles;
+  projectData: AppInfoTemplateData;
   fileCount: number;
 };
 

@@ -1,12 +1,23 @@
 import { errorResponse } from "../supabase/functions/_shared/cors";
 
-async function readJson(res: Response): Promise<any> {
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Response is not a JSON object: ${JSON.stringify(value)}`);
+  }
+  return value as JsonRecord;
+}
+
+async function readJsonRecord(res: Response): Promise<JsonRecord> {
   const txt = await res.text();
+  let parsed: unknown;
   try {
-    return JSON.parse(txt);
+    parsed = JSON.parse(txt);
   } catch {
     throw new Error(`Response is not JSON: ${txt}`);
   }
+  return asRecord(parsed);
 }
 
 describe("Supabase Edge errorResponse contract", () => {
@@ -18,11 +29,10 @@ describe("Supabase Edge errorResponse contract", () => {
     const res = errorResponse("Bad Request", req, 400, { ok: false });
     expect(res.status).toBe(400);
 
-    // Basic CORS header should exist (value depends on allowlist logic)
     const allowOrigin = res.headers.get("access-control-allow-origin");
     expect(allowOrigin).toBeTruthy();
 
-    const body = await readJson(res);
+    const body = await readJsonRecord(res);
     expect(body).toHaveProperty("ok", false);
     expect(body).toHaveProperty("error", "Bad Request");
     expect(body).toHaveProperty("details");
@@ -44,23 +54,28 @@ describe("Supabase Edge errorResponse contract", () => {
     };
 
     const res = errorResponse("fail", req, 500, details);
-    const body = await readJson(res);
+    const body = await readJsonRecord(res);
 
-    // shape
     expect(body.ok).toBe(false);
     expect(body.error).toBe("fail");
     expect(body.details).toBeTruthy();
 
-    // redactions
-    expect(body.details.token).toBe("[REDACTED_SECRET]");
-    expect(body.details.authorization).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[0].apiKey).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][0].api_key).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][1].serviceRoleKey).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][2].password).toBe("[REDACTED_SECRET]");
-    expect(body.details.nested[1][3].cookie).toBe("[REDACTED_SECRET]");
+    const sanitizedDetails = body.details as {
+      token: string;
+      authorization: string;
+      nested: Array<unknown>;
+    };
+    const nested0 = sanitizedDetails.nested[0] as { apiKey: string; ok: boolean };
+    const nested1 = sanitizedDetails.nested[1] as Array<Record<string, string>>;
 
-    // ensure raw secrets do not appear anywhere in serialized response
+    expect(sanitizedDetails.token).toBe("[REDACTED_SECRET]");
+    expect(sanitizedDetails.authorization).toBe("[REDACTED_SECRET]");
+    expect(nested0.apiKey).toBe("[REDACTED_SECRET]");
+    expect(nested1[0].api_key).toBe("[REDACTED_SECRET]");
+    expect(nested1[1].serviceRoleKey).toBe("[REDACTED_SECRET]");
+    expect(nested1[2].password).toBe("[REDACTED_SECRET]");
+    expect(nested1[3].cookie).toBe("[REDACTED_SECRET]");
+
     const raw = JSON.stringify(body);
     expect(raw).not.toContain("abc123");
     expect(raw).not.toContain("abc.def.ghi");
@@ -73,9 +88,8 @@ describe("Supabase Edge errorResponse contract", () => {
       headers: { origin: "http://localhost" },
     });
     const res = errorResponse("Bearer abc.def.ghi ghp_1234567890abcdef", req, 400);
-    const body = await readJson(res);
+    const body = await readJsonRecord(res);
 
-    // NOTE: The sanitizer may leave the literal "Bearer" prefix, but MUST redact the payload.
     expect(body.error).not.toContain("abc.def.ghi");
     expect(body.error).not.toContain("ghp_");
     expect(body.error).toContain("[REDACTED");

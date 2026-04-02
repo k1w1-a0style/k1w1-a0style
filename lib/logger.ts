@@ -4,10 +4,10 @@
  * - In prod: debug/info/log are silenced (see polyfills.ts guard).
  */
 
-type LogFn = (...args: any[]) => void;
+type LogFn = (...args: unknown[]) => void;
 
 const safe = (fn: LogFn): LogFn => {
-  return (...args: any[]) => {
+  return (...args: unknown[]) => {
     try {
       fn(...args);
     } catch {
@@ -21,9 +21,9 @@ const safe = (fn: LogFn): LogFn => {
 // and binding would bypass the spy. Using dynamic console access keeps logging
 // mockable and predictable.
 export const logger = {
-  debug: safe((...args: any[]) => (globalThis.console.debug ?? globalThis.console.log)(...args)),
-  info: safe((...args: any[]) => (globalThis.console.info ?? globalThis.console.log)(...args)),
-  log: safe((...args: any[]) => globalThis.console.log(...args)),
-  warn: safe((...args: any[]) => globalThis.console.warn(...args)),
-  error: safe((...args: any[]) => globalThis.console.error(...args)),
+  debug: safe((...args: unknown[]) => (globalThis.console.debug ?? globalThis.console.log)(...args)),
+  info: safe((...args: unknown[]) => (globalThis.console.info ?? globalThis.console.log)(...args)),
+  log: safe((...args: unknown[]) => globalThis.console.log(...args)),
+  warn: safe((...args: unknown[]) => globalThis.console.warn(...args)),
+  error: safe((...args: unknown[]) => globalThis.console.error(...args)),
 };

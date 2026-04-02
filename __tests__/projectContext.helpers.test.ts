@@ -1,6 +1,7 @@
 import {
   buildProjectForCreation,
   normalizeLoadedProjectData,
+  normalizeProjectSlug,
   removeProjectFilesByPaths,
 } from "../contexts/projectContextHelpers";
 
@@ -45,6 +46,16 @@ describe("projectContextHelpers", () => {
       expect(normalized.files).toHaveLength(1);
       expect(normalized.chatHistory).toHaveLength(1);
       expect(normalized.preferredPreviewMode).toBe("local");
+    });
+  });
+
+  describe("normalizeProjectSlug", () => {
+    it("creates a deterministic fallback slug from the project name", () => {
+      expect(normalizeProjectSlug("  Demo App 42  ")).toBe("demo-app-42");
+    });
+
+    it("falls back to the default slug when the input is empty", () => {
+      expect(normalizeProjectSlug("   ")).toBe("neues-projekt");
     });
   });
 

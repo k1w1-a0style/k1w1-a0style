@@ -13,10 +13,7 @@ import {
   getBuildReadinessMessage,
   type BuildReadinessReasonCode,
 } from "./errors/buildReadinessErrors";
-import {
-  STORAGE_KEYS,
-  diagnosticLastOkKeyForSelection,
-} from "./storageKeys";
+import { diagnosticLastOkKeyForSelection } from "./storageKeys";
 import type { ProjectData } from "../shared/types/project";
 
 export type BuildReadinessDeps = {
@@ -141,12 +138,9 @@ export async function evaluateBuildReadiness(
     linkedBranch,
   });
 
-  const [diagScopedVal, diagLegacyVal] = await Promise.all([
-    storageGetItem(scopedDiagnosticKey).catch(() => null),
-    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
-  ]);
+  const diagScopedVal = await storageGetItem(scopedDiagnosticKey).catch(() => null);
 
-  const diagnosticOk = (diagScopedVal ?? diagLegacyVal) === "true";
+  const diagnosticOk = diagScopedVal === "true";
   const context: BuildReadinessContext = {
     ...baseContext,
     diagnosticOk,

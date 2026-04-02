@@ -15,6 +15,7 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 import { readBuildReadinessState } from "./buildReadinessState";
 import { readSigningKeyGateState } from "./signingKeyGate";
+import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 
 export type DeployStepId =
   | "signing_key"
@@ -41,6 +42,13 @@ const INITIAL_STEPS: DeployStep[] = [
   { id: "push_files", label: "Dateien pushen", status: "pending" },
   { id: "build", label: "Build starten", status: "pending" },
 ];
+
+
+function getOneClickDeployErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Unbekannter Fehler";
+}
 
 export function useOneClickDeploy(
   buildProfile: BuildProfile,
@@ -152,8 +160,10 @@ export function useOneClickDeploy(
       });
       if (abortRef.current) return;
 
+      const files = Array.isArray(projectData?.files) ? projectData.files : [];
       let readinessReason: string | null = null;
-      if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;
+      if (files.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
+      else if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;
       else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
 
       if (readinessReason) {
@@ -161,7 +171,33 @@ export function useOneClickDeploy(
         Alert.alert("Build nicht bereit", `${readinessReason}. Bitte Diagnostic + Header-Checks erneut ausfuehren.`);
         return;
       }
-      updateStep("readiness", "ok", "Diagnostik + CI-Lite OK");
+
+      if (files.length > 0) {
+        const syncState = await getRepoSyncState({
+          linkedRepo: repoFullName,
+          linkedBranch: branchName,
+          files,
+        }).catch(() => "unknown" as const);
+
+        if (abortRef.current) return;
+
+        if (syncState === "unknown") {
+          const syncReason = "Repo-Sync-Status unklar – bitte zuerst explizit pushen und danach erneut deployen";
+          updateStep("readiness", "fail", syncReason);
+          Alert.alert("Build nicht bereit", syncReason);
+          return;
+        }
+
+        updateStep(
+          "readiness",
+          "ok",
+          syncState === "out_of_sync"
+            ? "Diagnostik + CI-Lite OK · Repo wird beim Build-Start kontrolliert gepusht"
+            : "Diagnostik + CI-Lite OK · Repo-Sync bekannt",
+        );
+      } else {
+        updateStep("readiness", "ok", "Diagnostik + CI-Lite OK");
+      }
 
       // === Step 4: Secrets synchronisieren (optional) ===
       if (!autoSyncSecrets) {
@@ -183,9 +219,10 @@ export function useOneClickDeploy(
               ? `${syncResult.updated.length} Secrets synchronisiert`
               : "Keine Aenderungen noetig";
           updateStep("secrets_sync", "ok", detail);
-        } catch (e: any) {
-          updateStep("secrets_sync", "fail", e?.message || "Sync fehlgeschlagen");
-          Alert.alert("Secrets Sync Fehler", e?.message || "Unbekannter Fehler");
+        } catch (e: unknown) {
+          const message = getOneClickDeployErrorMessage(e);
+          updateStep("secrets_sync", "fail", message === "Unbekannter Fehler" ? "Sync fehlgeschlagen" : message);
+          Alert.alert("Secrets Sync Fehler", message);
           return;
         }
       }
@@ -212,8 +249,9 @@ export function useOneClickDeploy(
         if (abortRef.current) return;
         updateStep("build", "ok", `Build (${buildProfile}) gestartet`);
         setDeployDone(true);
-      } catch (e: any) {
-        updateStep("build", "fail", e?.message || "Build fehlgeschlagen");
+      } catch (e: unknown) {
+        const message = getOneClickDeployErrorMessage(e);
+        updateStep("build", "fail", message === "Unbekannter Fehler" ? "Build fehlgeschlagen" : message);
       }
     } finally {
       setIsDeploying(false);

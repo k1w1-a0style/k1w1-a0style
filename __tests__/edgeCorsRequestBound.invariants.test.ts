@@ -5,6 +5,23 @@ import { corsHeadersForRequest, getCorsHeaders, handleCors } from "../supabase/f
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
+function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
+  const prev: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    prev[k] = process.env[k];
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    return run();
+  } finally {
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+
 describe("Edge request-bound CORS hardening", () => {
   it("reflects an allowed request origin via the shared helper", () => {
     const req = new Request("http://localhost/edge", {
@@ -12,8 +29,9 @@ describe("Edge request-bound CORS hardening", () => {
       headers: { origin: "http://localhost:19000" },
     });
 
-    expect(corsHeadersForRequest(req)).toEqual(getCorsHeaders("http://localhost:19000"));
-    expect(corsHeadersForRequest(req)["Access-Control-Allow-Origin"]).toBe("http://localhost:19000");
+    const headers = withEnv({ ENVIRONMENT: "development" }, () => corsHeadersForRequest(req));
+    expect(headers).toEqual(withEnv({ ENVIRONMENT: "development" }, () => getCorsHeaders("http://localhost:19000")));
+    expect(headers["Access-Control-Allow-Origin"]).toBe("http://localhost:19000");
   });
 
   it("keeps preflight handling on the same request-bound shared helper contract", async () => {
@@ -22,7 +40,7 @@ describe("Edge request-bound CORS hardening", () => {
       headers: { origin: "https://k1w1.app" },
     });
 
-    const res = handleCors(req);
+    const res = withEnv({ ENVIRONMENT: "production" }, () => handleCors(req));
 
     expect(res).toBeTruthy();
     expect(res?.headers.get("access-control-allow-origin")).toBe("https://k1w1.app");
@@ -80,4 +98,9 @@ describe("Edge request-bound CORS hardening", () => {
     expect(testStub).toContain("status: 410");
     expect(testStub).toContain("legacy_test_route_disabled");
   });
+  it("fails closed to the production origin when ENVIRONMENT is missing", () => {
+    const headers = withEnv({ ENVIRONMENT: undefined }, () => getCorsHeaders("http://localhost:19000"));
+    expect(headers["Access-Control-Allow-Origin"]).toBe("https://k1w1.app");
+  });
+
 });

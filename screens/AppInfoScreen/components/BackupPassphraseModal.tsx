@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Text, TextInput, TouchableOpacity, View } from "react-native";
 
-import type { SecureBackupScope } from "../../../lib/appInfoScopedBackup";
+import { SECURE_BACKUP_MIN_PASSPHRASE_LENGTH, type SecureBackupScope } from "../../../lib/appInfoScopedBackup";
+import type { AppInfoScreenStyles } from "../componentTypes";
 
 const scopeLabel = (scope?: SecureBackupScope) => {
   if (scope === "secrets") return "Secrets/Tokens/Connections";
@@ -10,7 +11,7 @@ const scopeLabel = (scope?: SecureBackupScope) => {
 };
 
 type Props = {
-  styles: any;
+  styles: AppInfoScreenStyles;
   visible: boolean;
   busy: boolean;
   mode: "export" | "import";
@@ -48,20 +49,20 @@ export function BackupPassphraseModal({
   const description = useMemo(() => {
     const target = scopeLabel(scope);
     if (mode === "export") {
-      return `Bitte ein Passwort oder eine PIN vergeben. Damit wird ${target} verschlüsselt exportiert.`;
+      return `Bitte eine starke Passphrase vergeben. Damit wird ${target} verschlüsselt exportiert.`;
     }
-    return `Bitte das Passwort oder die PIN für ${target} eingeben.`;
+    return `Bitte die Passphrase für ${target} eingeben.`;
   }, [mode, scope]);
 
   const handleConfirm = async () => {
     const trimmed = passphrase.trim();
-    if (trimmed.length < 6) {
-      setError("Bitte mindestens 6 Zeichen eingeben.");
+    if (trimmed.length < SECURE_BACKUP_MIN_PASSPHRASE_LENGTH) {
+      setError(`Bitte mindestens ${SECURE_BACKUP_MIN_PASSPHRASE_LENGTH} Zeichen eingeben.`);
       return;
     }
 
     if (mode === "export" && trimmed !== confirmPassphrase.trim()) {
-      setError("Passwort/PIN und Bestätigung stimmen nicht überein.");
+      setError("Passphrase und Bestätigung stimmen nicht überein.");
       return;
     }
 
@@ -82,7 +83,7 @@ export function BackupPassphraseModal({
           <TextInput
             value={passphrase}
             onChangeText={setPassphrase}
-            placeholder="Passwort oder PIN"
+            placeholder="Starke Passphrase"
             placeholderTextColor="#7d7d7d"
             secureTextEntry
             editable={!busy}
@@ -94,7 +95,7 @@ export function BackupPassphraseModal({
             <TextInput
               value={confirmPassphrase}
               onChangeText={setConfirmPassphrase}
-              placeholder="Passwort/PIN wiederholen"
+              placeholder="Passphrase wiederholen"
               placeholderTextColor="#7d7d7d"
               secureTextEntry
               editable={!busy}

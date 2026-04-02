@@ -32,6 +32,7 @@ export default function PreviewScreen() {
     previewSource,
     previewUrl,
     previewExpiryText,
+    canOpenFullscreen,
     previewChannelLabel,
     transientLocalPreviewNotice,
     displayState,
@@ -106,6 +107,7 @@ export default function PreviewScreen() {
           hotDotAnim={hotDotAnim}
           hasPreviewUrl={Boolean(previewUrl)}
           hasQrUrl={Boolean(qrImageUrl)}
+          canFullscreen={canOpenFullscreen}
           onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
           onReload={handleReload}
           onCopy={handleCopy}

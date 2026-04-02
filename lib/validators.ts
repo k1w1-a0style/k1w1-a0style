@@ -216,27 +216,27 @@ export const validateZipImport = (
   return { valid: errors.length === 0 && invalidFiles.length === 0, validFiles, invalidFiles, errors };
 };
 
+const readValidationConfigRecord = (): Record<string, unknown> => {
+  const cfg = CONFIG?.VALIDATION;
+  return cfg && typeof cfg === 'object' ? (cfg as Record<string, unknown>) : {};
+};
+
+const readValidationMaxFileSizeBytes = (): number => {
+  const cfg = readValidationConfigRecord();
+  const bytes = Number(cfg.MAX_FILE_SIZE_BYTES);
+  if (Number.isFinite(bytes) && bytes > 0) return bytes;
+  const mb = Number(cfg.MAX_FILE_SIZE_MB);
+  if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
+  return 10 * 1024 * 1024;
+};
+
 // Backwards-compat: einige Stellen erwarten Validators.constants
 export const Validators = {
   constants: {
     MAX_FILES: CONFIG?.VALIDATION?.MAX_FILES ?? 200,
     MAX_FILES_IN_ZIP: CONFIG?.VALIDATION?.MAX_FILES ?? 200,
-    MAX_FILE_SIZE_BYTES: (() => {
-      const cfg: any = CONFIG?.VALIDATION;
-      const b = Number(cfg?.MAX_FILE_SIZE_BYTES);
-      if (Number.isFinite(b) && b > 0) return b;
-      const mb = Number(cfg?.MAX_FILE_SIZE_MB);
-      if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
-      return 10 * 1024 * 1024;
-    })(),
+    MAX_FILE_SIZE_BYTES: readValidationMaxFileSizeBytes(),
     // Back-compat alias
-    MAX_FILE_SIZE: (() => {
-      const cfg: any = CONFIG?.VALIDATION;
-      const b = Number(cfg?.MAX_FILE_SIZE_BYTES);
-      if (Number.isFinite(b) && b > 0) return b;
-      const mb = Number(cfg?.MAX_FILE_SIZE_MB);
-      if (Number.isFinite(mb) && mb > 0) return Math.floor(mb * 1024 * 1024);
-      return 10 * 1024 * 1024;
-    })(),
+    MAX_FILE_SIZE: readValidationMaxFileSizeBytes(),
   },
 };

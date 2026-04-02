@@ -4,6 +4,7 @@
 import { buildEffectiveChatWriteHint } from './effectiveWritePolicy';
 import { sanitizeFileContentForPrompt, sanitizeTextForLlm } from './promptSanitizer';
 import { trimPromptContextToBudget } from './aiContextBudget';
+import { CONFIG } from '../config';
 
 import type { ProjectFile } from "../shared/types/project";
 export type LlmMessageRole = 'system' | 'user' | 'assistant';
@@ -48,8 +49,8 @@ function buildProjectSnapshot(files: ProjectFile[], userFocus = ''): string {
     return 'Es sind aktuell noch keine Projektdateien angelegt.';
   }
 
-  const MAX_FILES = 28;
-  const MAX_LINES_PER_FILE = 40;
+  const MAX_FILES = CONFIG.PROMPT.MAX_SNAPSHOT_FILES;
+  const MAX_LINES_PER_FILE = CONFIG.PROMPT.MAX_LINES_PER_FILE;
   const focusTerms = collectFocusTerms(userFocus);
 
   const prioritized = [...files]

@@ -8,7 +8,6 @@ const mockListRepoSecretNames = jest.fn();
 const mockGetExpoToken = jest.fn();
 const mockGetWorkflowAdminKey = jest.fn();
 const mockGetAndroidKeystoreExportAdminKey = jest.fn();
-const mockGetEdgeAdminKey = jest.fn();
 
 jest.mock("../infra/github/githubService", () => ({
   listRepoSecretNames: (...args: unknown[]) => mockListRepoSecretNames(...args),
@@ -16,7 +15,6 @@ jest.mock("../infra/github/githubService", () => ({
   getWorkflowAdminKey: (...args: unknown[]) => mockGetWorkflowAdminKey(...args),
   getAndroidKeystoreExportAdminKey: (...args: unknown[]) =>
     mockGetAndroidKeystoreExportAdminKey(...args),
-  getLegacyEdgeAdminKey: (...args: unknown[]) => mockGetEdgeAdminKey(...args),
 }));
 
 type Deferred<T> = {
@@ -51,7 +49,6 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     mockGetExpoToken.mockResolvedValue("expo-local-token");
     mockGetWorkflowAdminKey.mockResolvedValue("workflow-local-key");
     mockGetAndroidKeystoreExportAdminKey.mockResolvedValue("keystore-local-key");
-    mockGetEdgeAdminKey.mockResolvedValue("edge-local-key");
   });
 
   it("loads repo secret names only once automatically per repo context", async () => {
@@ -165,20 +162,18 @@ describe("GitHubReposScreen SecretsSection secret semantics", () => {
     expect(mockListRepoSecretNames).toHaveBeenNthCalledWith(2, "owner", "repo-b");
   });
 
-
-  it("shows legacy repo admin secret in its dedicated compat row", async () => {
+  it("does not surface legacy repo admin secrets as an active scoped runtime row", async () => {
     mockListRepoSecretNames.mockResolvedValue(["EXPO_TOKEN", "SUPABASE_URL", "K1W1_EDGE_ADMIN_KEY"]);
-    mockGetEdgeAdminKey.mockResolvedValue("edge-local-key");
 
     const screen = render(<SecretsSection activeRepo="owner/repo" />);
 
     await waitFor(() => {
-      expect(screen.getByText("Repo und lokal getrennt bestaetigt")).toBeTruthy();
+      expect(screen.getByText("Secret-Namen bestätigt")).toBeTruthy();
     });
 
-    expect(screen.getByText("K1W1_EDGE_ADMIN_KEY")).toBeTruthy();
-    expect(screen.getByText("Lokaler Legacy Edge Admin Key (compat)")).toBeTruthy();
-    expect(screen.getAllByText("bestätigt").length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText("Lokaler Legacy Edge Admin Key (compat)")).toBeNull();
+    expect(screen.queryByText(/legacy edge admin key/i)).toBeNull();
+    expect(screen.queryByText("K1W1_EDGE_ADMIN_KEY")).toBeNull();
   });
 
   it("shows both scoped repo/local keys as available when both exist", async () => {

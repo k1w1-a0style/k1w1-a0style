@@ -14,13 +14,16 @@ const ANDROID_KEYSTORE_EXPORT_ADMIN_KEY = "android_keystore_export_admin_key_v1"
 const SIGNING_ADMIN_KEY = "signing_admin_key_v1";
 const SIGNING_MASTER_KEY = "signing_master_key_v1";
 
+const getSafeErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message.trim() ? error.message : String(error);
+
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(key, value);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("[SecureStore] Speichern fehlgeschlagen", { key, err: error });
     throw new Error(
-      `Token konnte nicht sicher gespeichert werden: ${error?.message ?? String(error)}`,
+      `Token konnte nicht sicher gespeichert werden: ${getSafeErrorMessage(error)}`,
     );
   }
 };
@@ -28,7 +31,7 @@ const saveSecureToken = async (key: string, value: string): Promise<void> => {
 const getSecureToken = async (key: string): Promise<string | null> => {
   try {
     return await SecureStore.getItemAsync(key);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("[SecureStore] Laden fehlgeschlagen", { key, err: error });
     return null;
   }
@@ -37,7 +40,7 @@ const getSecureToken = async (key: string): Promise<string | null> => {
 const deleteSecureToken = async (key: string): Promise<void> => {
   try {
     await SecureStore.deleteItemAsync(key);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error("[SecureStore] Löschen fehlgeschlagen", { key, err: error });
   }
 };
@@ -160,35 +163,15 @@ export const deleteSigningAdminKey = async (): Promise<void> => {
   await deleteSecureToken(SIGNING_ADMIN_KEY);
 };
 
-/**
- * Legacy helper kept for compatibility with older callers.
- * New privileged workflow/build callers must use getWorkflowAdminKey().
- */
-export const getEdgeAdminKey = async (): Promise<string | null> => {
+export const getLegacyEdgeAdminKey = async (): Promise<string | null> => {
   return getSecureToken(LEGACY_EDGE_ADMIN_KEY);
 };
 
-/**
- * Legacy helper kept for compatibility with older callers.
- * New privileged workflow/build callers must use saveWorkflowAdminKey().
- */
-export const saveEdgeAdminKey = async (key: string): Promise<void> => {
+export const saveLegacyEdgeAdminKey = async (key: string): Promise<void> => {
   await saveOptionalScopedKey(LEGACY_EDGE_ADMIN_KEY, key);
 };
 
-export const getLegacyEdgeAdminKey = async (): Promise<string | null> => {
-  return getEdgeAdminKey();
-};
-
-export const saveLegacyEdgeAdminKey = async (key: string): Promise<void> => {
-  await saveEdgeAdminKey(key);
-};
-
 export const deleteLegacyEdgeAdminKey = async (): Promise<void> => {
-  await deleteEdgeAdminKey();
-};
-
-export const deleteEdgeAdminKey = async (): Promise<void> => {
   await deleteSecureToken(LEGACY_EDGE_ADMIN_KEY);
 };
 

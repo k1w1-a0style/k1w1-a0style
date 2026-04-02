@@ -8,6 +8,7 @@ import {
   FileContentSchema,
   GitHubRepoSchema,
   ChatInputSchema,
+  Validators,
 } from '../validators';
 
 describe('Validators', () => {
@@ -210,6 +211,15 @@ describe('Validators', () => {
       const result = validateZipImport([]);
       expect(result.valid).toBe(false);
       expect(result.errors).toContain('ZIP enthält keine Dateien');
+    });
+  });
+
+
+  describe('Validators.constants', () => {
+    it('exposes numeric file-size constants without any-casts', () => {
+      expect(typeof Validators.constants.MAX_FILE_SIZE_BYTES).toBe('number');
+      expect(Validators.constants.MAX_FILE_SIZE_BYTES).toBeGreaterThan(0);
+      expect(Validators.constants.MAX_FILE_SIZE).toBe(Validators.constants.MAX_FILE_SIZE_BYTES);
     });
   });
 

@@ -61,6 +61,77 @@ export function validateRepoFullName(input: string): RepoValidation {
   return { valid: true, owner, repo, normalized };
 }
 
+
+type ResolveLogsLoadContextParams = {
+  selectedRepoFullName?: string | null;
+  currentBuildRepoFullName?: string | null;
+  runId?: number | null;
+  status: BuildStatus;
+};
+
+export function resolveLogsLoadContext(params: ResolveLogsLoadContextParams): {
+  githubRepoForLogs: string | null;
+  shouldLoadLogs: boolean;
+  logsWaitingReason: string | null;
+} {
+  const selectedRepo = validateRepoFullName(String(params.selectedRepoFullName ?? "").trim());
+  const currentBuildRepo = validateRepoFullName(String(params.currentBuildRepoFullName ?? "").trim());
+  const hasTrackedBuild =
+    params.status === "queued" ||
+    params.status === "building" ||
+    params.runId !== null;
+
+  if (!hasTrackedBuild) {
+    return {
+      githubRepoForLogs: null,
+      shouldLoadLogs: false,
+      logsWaitingReason: null,
+    };
+  }
+
+  const activeRepo = currentBuildRepo.valid
+    ? currentBuildRepo.normalized
+    : selectedRepo.valid && params.runId !== null && params.status !== "queued" && params.status !== "building"
+      ? selectedRepo.normalized
+      : null;
+
+  if (!activeRepo) {
+    return {
+      githubRepoForLogs: null,
+      shouldLoadLogs: false,
+      logsWaitingReason:
+        params.status === "queued" || params.status === "building"
+          ? "Aktiver Build-Kontext enthält noch kein gültiges Repo. Logs bleiben gesperrt, bis der Laufkontext vollständig ist."
+          : "Kein gültiger Build-Kontext für Logs verfügbar.",
+    };
+  }
+
+  if (params.runId === null) {
+    return {
+      githubRepoForLogs: null,
+      shouldLoadLogs: false,
+      logsWaitingReason:
+        params.status === "queued" || params.status === "building"
+          ? "Run-ID für den aktiven Build liegt noch nicht vor. Logs werden geladen, sobald der Workflow-Lauf zugeordnet ist."
+          : null,
+    };
+  }
+
+  if (params.status === "idle") {
+    return {
+      githubRepoForLogs: null,
+      shouldLoadLogs: false,
+      logsWaitingReason: null,
+    };
+  }
+
+  return {
+    githubRepoForLogs: activeRepo,
+    shouldLoadLogs: true,
+    logsWaitingReason: null,
+  };
+}
+
 export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   // Intentional higher-level deadline guard: the underlying GitHub helpers already use the
   // shared fetchWithTimeout(...) contract per request, while this caps the full async bundle

@@ -1,13 +1,16 @@
 # AI START HERE (Deutsch)
 
-Diese Repo ist eine React-Native/Expo App (SDK 54) mit Supabase Edge Functions + einem Preview-System.
+Diese Repo ist eine React-Native-/Expo-App mit Supabase Edge Functions, Diagnostics-/Build-Orchestrierung und einem Preview-/AI-System.
 
-Wenn du mit einem **AI/Codex Cloud Agent** arbeitest: **lies zuerst**
+Wenn du mit einem AI/Codex-Agent arbeitest: **lies zuerst**
 - `AGENTS.md` (Arbeitsregeln)
-- `PROJECT_CONTEXT.md` (Projekt-Kontext)
-- `SYSTEM_README.md` (Gesamt-System)
+- `docs/INDEX.md` (kanonischer Navigationspunkt)
+- `docs/PROJECT_CONTEXT.md` (Produkt-/Betriebskontext)
+- `docs/SYSTEM_README.md` (aktuelles Systembild)
+- `docs/reviews/Review.md` (aktueller Gesamtstatus)
+- `docs/TODO.md` (Restpunkt-SoT)
 
-## 1) Schnellstart (lokal)
+## Schnellstart (lokal)
 
 ```bash
 npm ci
@@ -16,28 +19,22 @@ npm run lint:ci
 npm run test:silent
 ```
 
-## 2) Wo ist was?
+## Wo ist was?
 
-- App Einstieg: `App.tsx`
+- Einstieg: `App.tsx`
 - Haupt-Screens: `screens/*`
-- Styles: `styles/*` + `theme.ts`
 - Business-Logik: `lib/*`
-- Supabase: `supabase/*` (Migrations + Edge Functions)
-- Templates: `templates/*` (Expo SDK 54 Basis)
+- Infra / Storage / GitHub: `infra/*`
+- Supabase / Edge: `supabase/*`
+- Tests: `__tests__/*`, `lib/__tests__/*`
 
-## 3) Preview-System (sehr grob)
+## Wichtige aktuelle Regeln
 
-- Supabase Preview (empfohlen): `supabase/functions/save_preview` + `supabase/functions/preview_page`
-- CodeSandbox Preview: `supabase/functions/create_codesandbox`
-- UI: `screens/PreviewScreen.tsx`, `screens/PreviewFullscreenScreen.tsx`
+- `create_codesandbox` ist deaktiviert und kein aktiver Produktpfad
+- produktive KI-Requests laufen ueber `k1w1-handler`
+- bei Edge-Aenderungen immer Request-Validation, CORS, Rate-Limits und Auth-Vertrag mitdenken
 
-## 4) Wenn du etwas änderst
 
-- **Keine** Breaking Changes ohne sehr guten Grund.
-- Änderungen klein halten, danach: `npm run typecheck && npm run lint:ci && npm run test:silent`.
-- Bei Edge Functions: Request-Validation + Security Checks immer mitdenken.
+## Prompt-Vorlage
 
-## 5) Codex Prompt
-
-Wenn du einen fertigen Prompt brauchst (Deutsch, codex-kompatibel):
-- `CODEX_PROMPT_DE.md`
+- `docs/codex/PROMPT_DE.md`

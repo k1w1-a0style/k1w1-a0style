@@ -1,6 +1,6 @@
 # 07 — Diagnostics → Fix Playbook (Buildflow wasserdicht)
 
-Stand: 2026-03-01 (Europe/Berlin)
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
 Dieses Dokument verbindet **alle existierenden Diagnostic Checks** mit den **Build-Readiness Items** aus `docs/06-build-readiness.md` und liefert pro Check einen **Fix-Pfad** (AutoFix vs. Manual) inkl. “Was danach erneut prüfen”.
 

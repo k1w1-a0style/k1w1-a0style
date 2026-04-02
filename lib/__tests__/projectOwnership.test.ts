@@ -18,6 +18,13 @@ describe("project ownership guards", () => {
     expect(diagnosis.reason).toContain("Template/Baseline");
   });
 
+
+  it("blocks baseline-managed patchlog path explicitly", () => {
+    const decision = canActorModifyPath("chat", "docs/patches/PATCHLOG_ROOT.md");
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toContain("Template/Baseline");
+  });
+
   it("restricts diagnosis/autofix to curated fix scope", () => {
     const violations = findOwnershipViolations("diagnosisAutofix", [
       "src/screens/Home.tsx",

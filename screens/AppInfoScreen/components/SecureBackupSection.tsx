@@ -3,9 +3,10 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { AppInfoScreenStyles } from "../componentTypes";
 
 type Props = {
-  styles: any;
+  styles: AppInfoScreenStyles;
   handleExportSecretsBackup: () => void;
   handleExportConfigSecretsBackup: () => void;
   handleImportSecureBackup: () => void;
@@ -27,7 +28,7 @@ export function SecureBackupSection({
           Inhalte gehören weiter in den ZIP-Export/-Import.
         </Text>
         <Text style={styles.hint}>
-          Alle Secret-Backups werden lokal vor dem Teilen per Passwort/PIN verschlüsselt.
+          Alle Secret-Backups werden lokal vor dem Teilen mit einer starken Passphrase verschlüsselt.
         </Text>
 
         <View style={styles.backupButtonStack}>

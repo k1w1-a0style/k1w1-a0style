@@ -16,6 +16,23 @@ const getRuntimeProcess = (): RuntimeProcess | null => {
   return process as RuntimeProcess;
 };
 
+function readNonEmptyTrimmed(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return normalized ? normalized : null;
+}
+
+function normalizeSupabaseUrl(value: string | null | undefined): string | null {
+  const trimmed = readNonEmptyTrimmed(value);
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 const setRuntimeEnvFromSupabase = (url: string, anonKey: string) => {
   try {
     const runtimeProcess = getRuntimeProcess();
@@ -54,18 +71,21 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
   initPromise = (async () => {
     try {
       // 1) Werte aus deinen App-Settings (AsyncStorage)
-      let supabaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL);
-      let supabaseAnonKey = await getSupabaseAnonKey();
+      const storedSupabaseUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL);
+      const storedSupabaseAnonKey = await getSupabaseAnonKey();
 
       // 2) Fallback: bestehende Runtime-Env
       const runtimeProcess = getRuntimeProcess();
-      if (!supabaseUrl) supabaseUrl = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_URL ?? null;
-      if (!supabaseAnonKey) supabaseAnonKey = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null;
+      const runtimeSupabaseUrl = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_URL ?? null;
+      const runtimeSupabaseAnonKey = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null;
+
+      const supabaseUrl = normalizeSupabaseUrl(storedSupabaseUrl) ?? normalizeSupabaseUrl(runtimeSupabaseUrl);
+      const supabaseAnonKey =
+        readNonEmptyTrimmed(storedSupabaseAnonKey) ?? readNonEmptyTrimmed(runtimeSupabaseAnonKey);
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        // ✅ FIX: Setze initPromise erst NACH dem Error werfen
         const error = new Error(
-          "Supabase Credentials fehlen. Bitte in Verbindungen eintragen.",
+          "Supabase Credentials fehlen oder sind ungültig. Bitte in Verbindungen eintragen.",
         );
         initPromise = null;
         throw error;

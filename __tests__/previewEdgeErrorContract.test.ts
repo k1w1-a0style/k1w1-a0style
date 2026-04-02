@@ -138,7 +138,7 @@ describe("preview edge error contract", () => {
 
     await expect(
       invokeSavePreview({
-        adminKey: "edge-admin-key-12345678901234567890",
+        bearerJwt: "preview-user-jwt-token",
         payload: {
           name: "Preview",
           files: { "/App.tsx": { contents: "export default function App() { return null; }" } },
@@ -153,7 +153,7 @@ describe("preview edge error contract", () => {
     });
 
     const clientMessage = describeRemotePreviewFailure({
-      adminKey: "edge-admin-key-12345678901234567890",
+      bearerJwt: "preview-user-jwt-token",
       statusCode: 502,
       error: Object.assign(new Error("Preview konnte serverseitig nicht verarbeitet werden."), {
         code: "preview_db_error",

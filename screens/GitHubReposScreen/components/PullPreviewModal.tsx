@@ -1,11 +1,12 @@
 import React, { memo, useMemo } from "react";
+import type { ProjectFile } from "../../../shared/types/project";
 import { Modal, View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
 
 type Preview = {
-  remote: any[];
+  remote: ProjectFile[];
   conflicts: string[];
   remoteOnly: string[];
   updates: string[];

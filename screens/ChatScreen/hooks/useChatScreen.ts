@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
+import type { NavigationProp, ParamListBase, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useProject } from "../../../contexts/ProjectContext";
@@ -33,9 +34,13 @@ import {
 } from "./chatScreenTypes";
 import type { DocumentResultAsset } from "./chatScreenTypes";
 
+type ChatScreenRouteParams = { prefillText?: string };
+type ChatScreenRoute = RouteProp<{ Chat: ChatScreenRouteParams | undefined }, "Chat">;
+type ChatScreenNavigation = NavigationProp<{ Chat: ChatScreenRouteParams | undefined }>;
+
 export const useChatScreen = () => {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<ChatScreenNavigation>();
+  const route = useRoute<ChatScreenRoute>();
   const insets = useSafeAreaInsets();
   const {
     projectData,
@@ -183,6 +188,7 @@ export const useChatScreen = () => {
     applyChanges,
     rejectChanges,
     resetTransientState,
+    handleScreenBlurCleanup,
   } = useChatAIFlow({
     config,
     messages,
@@ -210,9 +216,9 @@ export const useChatScreen = () => {
       return () => {
         task?.cancel?.();
         clearTimeout(t1);
-        resetTransientState();
+        handleScreenBlurCleanup();
       };
-    }, [hardScrollToBottom, resetTransientState]),
+    }, [hardScrollToBottom, handleScreenBlurCleanup]),
   );
 
   useEffect(() => {
@@ -357,15 +363,20 @@ export const useChatScreen = () => {
 
     setError(null);
 
+    const priorTextInput = textInput;
+    const priorSelectedFileAsset = selectedFileAsset;
     const rawInput = textInput.trim();
     const currentInput = buildUserInputWithAttachmentNotice(rawInput, selectedFileAsset);
 
-    setTextInput("");
-    setSelectedFileAsset(null);
-
     Keyboard.dismiss();
 
-    await handleSendWithMeta(rawInput, currentInput);
+    const ok = await handleSendWithMeta(rawInput, currentInput);
+    if (!ok) return;
+
+    setTextInput((current) => (current === priorTextInput ? "" : current));
+    setSelectedFileAsset((current) =>
+      current === priorSelectedFileAsset ? null : current,
+    );
   }, [
     textInput,
     selectedFileAsset,

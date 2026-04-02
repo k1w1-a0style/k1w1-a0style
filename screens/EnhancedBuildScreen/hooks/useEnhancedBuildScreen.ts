@@ -24,6 +24,7 @@ import {
   FETCH_TIMEOUT_MS,
   fetchRunDetailsBundle,
   resolveBuildStatusPresentation,
+  resolveLogsLoadContext,
   sanitizeUiMessage,
   validateRepoFullName,
   withTimeout,
@@ -182,28 +183,100 @@ export function useEnhancedBuildScreen() {
     hasCiLiteOk,
     diagnosticReason,
     ciLiteReason,
+    repoSyncState,
+    repoSyncReason,
+    hasProjectFiles,
+    projectFilesReason,
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
+
+type BuildBlockedAction = {
+  title: string;
+  detail: string;
+  ctaLabel: string;
+  screen: "GitHubRepos" | "Connections" | "Diagnostic" | "CredentialsWizard";
+  params?: Record<string, unknown>;
+};
 
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
     if (!branchName.trim()) return "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
+    if (!hasProjectFiles) return projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!hasDiagOk) return diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
     if (!hasCiLiteOk) {
       return ciLiteReason || "CI Lite nicht gruen oder nicht passend zu Repo/Branch – im Header ausfuehren";
     }
+    if (repoSyncState === "unknown") {
+      return repoSyncReason || "Repo-Sync-Status unklar – bitte Repo-Änderungen explizit pushen und danach erneut prüfen";
+    }
     if (!hasSigningKey) return signingKeyReason || "Signing Key fehlt – im Wizard generieren";
     return null;
-  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, hasSigningKey, signingKeyReason]);
+  }, [repoValidation.valid, branchName, hasTokens, hasProjectFiles, projectFilesReason, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, repoSyncState, repoSyncReason, hasSigningKey, signingKeyReason]);
 
-  // Logs nur laden wenn ein aktiver Build läuft oder eine runId existiert
-  const shouldLoadLogs =
-    status === "queued" ||
-    status === "building" ||
-    (runId !== null && status !== "idle");
+  const buildBlockedAction = useMemo<BuildBlockedAction | null>(() => {
+    if (!repoValidation.valid || !branchName.trim()) {
+      return {
+        title: "Repo/Branch zuerst verknüpfen",
+        detail: buildBlockedReason || "Ohne Selection sind Diagnostik, CI-Lite und Build-Gates absichtlich nicht grün.",
+        ctaLabel: "GitHub-Repos öffnen",
+        screen: "GitHubRepos",
+      };
+    }
+    if (!hasTokens) {
+      return {
+        title: "Tokens fehlen",
+        detail: buildBlockedReason || "GitHub- und Expo-Token zuerst im Verbindungen-Screen setzen.",
+        ctaLabel: "Verbindungen öffnen",
+        screen: "Connections",
+      };
+    }
+    if (!hasDiagOk) {
+      return {
+        title: "Diagnostik fehlt oder passt nicht zur Selection",
+        detail: buildBlockedReason || "Diagnostik für dieses Repo/Branch erneut ausführen.",
+        ctaLabel: "Diagnostic öffnen",
+        screen: "Diagnostic",
+        params: { autoRun: true },
+      };
+    }
+    if (!hasCiLiteOk) {
+      return {
+        title: "CI-Lite nicht sicher grün",
+        detail: buildBlockedReason || "CI-Lite für dieses Repo/Branch erneut laufen lassen.",
+        ctaLabel: "GitHub-Repos öffnen",
+        screen: "GitHubRepos",
+      };
+    }
+    if (repoSyncState === "unknown") {
+      return {
+        title: "Repo-Sync unklar",
+        detail: buildBlockedReason || "Einmal explizit pushen, damit der Sync-Status materialisiert wird.",
+        ctaLabel: "GitHub-Repos öffnen",
+        screen: "GitHubRepos",
+      };
+    }
+    if (!hasSigningKey) {
+      return {
+        title: "Signing-Key fehlt",
+        detail: buildBlockedReason || "Den Wizard öffnen und den Signing-Key prüfen oder erzeugen.",
+        ctaLabel: "Wizard öffnen",
+        screen: "CredentialsWizard",
+      };
+    }
+    return null;
+  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, repoSyncState, hasSigningKey, buildBlockedReason]);
 
-  const githubRepoForLogs = shouldLoadLogs ? normalizedRepo || null : null;
+  const {
+    shouldLoadLogs,
+    githubRepoForLogs,
+    logsWaitingReason,
+  } = useMemo(() => resolveLogsLoadContext({
+    selectedRepoFullName: normalizedRepo,
+    currentBuildRepoFullName: currentBuild?.githubRepo ?? null,
+    runId,
+    status,
+  }), [normalizedRepo, currentBuild?.githubRepo, runId, status]);
 
   const {
     logs,
@@ -532,7 +605,9 @@ export function useEnhancedBuildScreen() {
         status: hasDiagOk ? "ok" : "pending",
         detail: hasDiagOk
           ? "Letzter bekannter Diagnose-Check: OK"
-          : (diagnosticReason || "Diagnose ausfuehren"),
+          : (!hasRepo || !hasBranch
+            ? "Repo und Branch zuerst wählen – dann Diagnostik für genau diese Selection ausführen"
+            : (diagnosticReason || "Diagnose ausfuehren")),
       },
       {
         id: "ci_lite",
@@ -540,7 +615,9 @@ export function useEnhancedBuildScreen() {
         status: hasCiLiteOk ? "ok" : "pending",
         detail: hasCiLiteOk
           ? "Letzter bekannter CI-Lite-Run: OK"
-          : (ciLiteReason || "Im Header CI Lite ausführen"),
+          : (!hasRepo || !hasBranch
+            ? "Repo und Branch zuerst wählen – dann CI-Lite für genau diese Selection ausführen"
+            : (ciLiteReason || "Im Header CI Lite ausführen")),
       },
       {
         id: "repo",
@@ -555,6 +632,28 @@ export function useEnhancedBuildScreen() {
         detail: hasBranch ? branchName : "Im GitHub-Repos-Screen auswaehlen",
       },
       {
+        id: "project_files",
+        label: "Projektdateien vorhanden",
+        status: hasProjectFiles ? "ok" : "fail",
+        detail: hasProjectFiles
+          ? `${projectData?.files?.length ?? 0} Dateien im Projekt`
+          : (projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren"),
+      },
+      {
+        id: "repo_sync",
+        label: "Repo-Sync lokal ↔ Repo bekannt",
+        status: !hasRepo || !hasBranch ? "pending" : !hasProjectFiles ? "pending" : repoSyncState === "unknown" ? "fail" : "ok",
+        detail: !hasRepo || !hasBranch
+          ? "Repo und Branch zuerst wählen"
+          : !hasProjectFiles
+            ? "Repo-Sync wird relevant, sobald Dateien im Projekt vorhanden sind"
+            : repoSyncState === "unknown"
+              ? (repoSyncReason || "Bitte einmal explizit pushen, damit der Sync-Status materialisiert wird")
+              : repoSyncState === "out_of_sync"
+                ? "Lokale Dateien weichen ab – der Build-Start pusht kontrolliert vor dem Dispatch"
+                : (repoSyncReason || "Lokaler Stand ist für diese Selection bereits bekannt"),
+      },
+      {
         id: "build_mode",
         label: `Build = ${buildProfile}`,
         status: "ok",
@@ -567,8 +666,12 @@ export function useEnhancedBuildScreen() {
     hasTokens,
     hasDiagOk,
     diagnosticReason,
+    hasProjectFiles,
+    projectFilesReason,
     hasCiLiteOk,
     ciLiteReason,
+    repoSyncState,
+    repoSyncReason,
     repoFullName,
     branchName,
     buildProfile,
@@ -609,6 +712,7 @@ export function useEnhancedBuildScreen() {
     hasStartBuild,
     canStartBuildUi,
     buildBlockedReason,
+    buildBlockedAction,
     canFetch,
     moreCount,
 
@@ -621,6 +725,7 @@ export function useEnhancedBuildScreen() {
     workflowRun,
     shouldLoadLogs,
     githubRepoForLogs,
+    logsWaitingReason,
     autoRefreshEnabled,
     setAutoRefreshEnabled,
     logModalVisible,

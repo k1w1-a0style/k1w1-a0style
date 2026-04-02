@@ -3,16 +3,16 @@
  * Focus: build-profile normalization, fail-closed GitHub push + workflow autofix sequencing,
  * and Supabase Edge invoke payload/headers.
  */
-import type { ProjectData } from "../../shared/types/project";
-import { STORAGE_KEYS } from "../../lib/storageKeys";
+import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../lib/storageKeys";
 import { computeProjectFilesSignature } from "../../lib/repoSyncOrchestration";
+import { makeProjectData, makeProjectFile } from "../../__tests__/helpers/projectTestHelpers";
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockGetItem(...args),
-  setItem: (...args: any[]) => mockSetItem(...args),
+  getItem: mockGetItem,
+  setItem: mockSetItem,
 }));
 
 jest.mock("../../lib/logger", () => ({
@@ -62,18 +62,16 @@ jest.doMock(supabasePath, () => ({
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { startBuildJob } = require("../../project/services/buildStartService");
 
-function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
-  return {
-    id: "p1",
-    name: "test",
+function makeProject(overrides = {}) {
+  return makeProjectData({
     files: [
-      { path: "app.json", content: "{}", updatedAt: Date.now() } as any,
-      { path: "src/index.ts", content: "export const x=1;", updatedAt: Date.now() } as any,
+      makeProjectFile("app.json", "{}"),
+      makeProjectFile("src/index.ts", "export const x=1;"),
     ],
     linkedRepo: "k1w1-a0style/musik-player",
     linkedBranch: "main",
     ...overrides,
-  } as any;
+  });
 }
 
 function repoSyncKey(repo: string, branch: string): string {
@@ -88,10 +86,11 @@ describe("startBuildJob (integration)", () => {
     const repo = "k1w1-a0style/musik-player";
     const branch = "main";
     const syncKey = repoSyncKey(repo, branch);
-    const syncSig = `stale:${computeProjectFilesSignature(project.files as any)}`;
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
+    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
-        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case diagKey:
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -157,10 +156,11 @@ describe("startBuildJob (integration)", () => {
     mockGitHub.pushFilesToRepo.mockRejectedValueOnce(new Error("push failed"));
     const project = makeProject({ linkedBranch: "dev" });
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "dev");
-    const syncSig = `stale:${computeProjectFilesSignature(project.files as any)}`;
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "dev" });
+    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
-        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case diagKey:
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -214,10 +214,11 @@ describe("startBuildJob (integration)", () => {
   it("skips push when local and tracked remote signature are already in sync", async () => {
     const project = makeProject();
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "main");
-    const syncSig = computeProjectFilesSignature(project.files as any);
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "main" });
+    const syncSig = computeProjectFilesSignature(project.files);
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
-        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case diagKey:
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -245,9 +246,10 @@ describe("startBuildJob (integration)", () => {
 
   it("blocks build conservatively when sync state is unknown", async () => {
     const project = makeProject({ linkedBranch: "release" });
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "release" });
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
-        case STORAGE_KEYS.DIAGNOSTIC_LAST_OK:
+        case diagKey:
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -270,7 +272,7 @@ describe("startBuildJob (integration)", () => {
   });
 
   it("blocks build when no session JWT is available", async () => {
-    mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } } as any);
+    mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
 
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
       /Operator-Rolle|build_admin/i,

@@ -64,8 +64,8 @@ describe("Invariant String Tests", () => {
       "k1w1-ci-lite-autofix.yml",
     ]);
 
-    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("K1W1-triggered-build.yml" as any);
-    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("EAS-link.yml" as any);
+    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("K1W1-triggered-build.yml");
+    expect(AUTO_FIX_MANAGED_WORKFLOW_FILES).not.toContain("EAS-link.yml");
   });
 
   it("I6 — APK-only policy stays pinned to buildType=apk in defaults/patch path", () => {

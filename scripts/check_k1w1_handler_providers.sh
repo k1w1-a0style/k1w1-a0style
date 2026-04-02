@@ -20,9 +20,13 @@ grep -q 'export async function callOpenAI(' "$FILE" || fail "Missing callOpenAI"
 grep -q 'export async function callAnthropic(' "$FILE" || fail "Missing callAnthropic"
 grep -q 'export async function callHuggingFace(' "$FILE" || fail "Missing callHuggingFace"
 
-grep -q 'Deno.env.get("OPENAI_API_KEY")' "$FILE" || fail "Missing OPENAI_API_KEY usage"
-grep -q 'Deno.env.get("ANTHROPIC_API_KEY")' "$FILE" || fail "Missing ANTHROPIC_API_KEY usage"
-grep -q 'Deno.env.get("HUGGINGFACE_API_KEY")' "$FILE" || fail "Missing HUGGINGFACE_API_KEY usage"
+grep -q 'getRuntimeEnv("OPENAI_API_KEY")' "$FILE" || fail "Missing OPENAI_API_KEY runtime env usage"
+grep -q 'getRuntimeEnv("ANTHROPIC_API_KEY")' "$FILE" || fail "Missing ANTHROPIC_API_KEY runtime env usage"
+grep -q 'getRuntimeEnv("HUGGINGFACE_API_KEY")' "$FILE" || fail "Missing HUGGINGFACE_API_KEY runtime env usage"
+
+! grep -q 'Deno.env.get("OPENAI_API_KEY")' "$FILE" || fail "Forbidden OPENAI_API_KEY Deno.env usage/comment"
+! grep -q 'Deno.env.get("ANTHROPIC_API_KEY")' "$FILE" || fail "Forbidden ANTHROPIC_API_KEY Deno.env usage/comment"
+! grep -q 'Deno.env.get("HUGGINGFACE_API_KEY")' "$FILE" || fail "Forbidden HUGGINGFACE_API_KEY Deno.env usage/comment"
 
 grep -q 'providerLower === "openai"' "$INDEX" || fail "Missing openai routing"
 grep -q 'providerLower === "anthropic"' "$INDEX" || fail "Missing anthropic routing"

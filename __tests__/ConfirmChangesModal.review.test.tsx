@@ -4,12 +4,15 @@ import { fireEvent, render } from "@testing-library/react-native";
 import ConfirmChangesModal from "../components/chat/ConfirmChangesModal";
 import { buildChangePreviews } from "../lib/changePreview";
 import type { PendingChange } from "../hooks/chatAIFlowTypes";
+import type { OrchestratorResult } from "../lib/orchestrator";
 
 function buildPendingChange(overrides: Partial<PendingChange> = {}): PendingChange {
   const finalFiles = [
     { path: "components/NewBadge.tsx", content: "export const NewBadge = () => <Text>Neu</Text>;" },
     { path: "App.tsx", content: "export default function App() { return <Text>After</Text>; }" },
   ];
+
+  const aiResponse: OrchestratorResult = { ok: true, provider: "openai" };
 
   return {
     files: finalFiles,
@@ -20,7 +23,7 @@ function buildPendingChange(overrides: Partial<PendingChange> = {}): PendingChan
     updated: ["App.tsx"],
     skipped: [],
     errors: ["styles/theme.ts wurde bewusst nicht angefasst"],
-    aiResponse: { ok: true, provider: "openai" } as any,
+    aiResponse,
     changePreviews: buildChangePreviews({
       baseFiles: [{ path: "App.tsx", content: "export default function App() { return <Text>Before</Text>; }" }],
       finalFiles,

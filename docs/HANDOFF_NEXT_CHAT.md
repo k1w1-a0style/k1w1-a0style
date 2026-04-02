@@ -1,81 +1,26 @@
 # Next-Chat Handoff
 
-Stand: **2026-02-19** (Europe/Berlin)
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-## Repo
-- https://github.com/k1w1-a0style/k1w1-a0style
-- Branch: `work`
+Diese Datei ist bewusst nur eine **kleine Startvorlage** fuer einen neuen Chat.
 
-## Letzter Patch
-**Patch 207 — Fix Test-Mocks nach Cleanup (Patch 206)**
+## Minimaler Startprompt
 
-## Aktueller Status
+- Repo: `k1w1-a0style`
+- Lies zuerst: `docs/INDEX.md`, `docs/00-overview.md`, `docs/reviews/Review.md`, `docs/TODO.md`
+- Danach nur die **wirklich betroffenen** Fach-/Runbook-Dokumente oeffnen
+- Keine Broad-Refactors ohne konkreten Befund
+- Nach Aenderungen mindestens: `npm run typecheck:strict`, `npm run docs:lint`, `npm run docs:check:contracts`
+- Fuer Release-/Operator-Faelle zusaetzlich: `npm run verify:release`
 
-### ✅ Gerade fertig: Preview Screens (Patch 200) + Cleanup
-- `PreviewScreen` und `PreviewFullscreenScreen` sind jetzt modular aufgebaut
-- Logik in eigene Hooks extrahiert (`usePreviewScreen`, `usePreviewFullscreen`)
-- Gemeinsame WebView-Logik in `screens/shared/preview/`:
-  - `useWebViewNavigation` — baseOrigin, originWhitelist, handleShouldStartLoad
-  - `useWebViewCrashRecovery` — One-Shot Crash Recovery
-  - `webViewTypes.ts` — lokale Event-Typen (kein `any`)
-- **Bug gefixt:** `if (!mode)` Guard in PreviewFullscreenScreen war strukturell kaputt (dead code nach return)
-- Dead Code gelöscht: `styles/previewScreenStyles.ts`, `lib/previewSettings.ts`
-- Weitere Shims/Dead Code entfernt (Patches 205–206):
-  - `lib/supabaseTypes.ts`
-  - `shared/types/github.ts`
-  - Diverse ungenutzte UI-Sektionen in Diagnostic/GitHubRepos/EnhancedBuild
-- Flat-Shims (`screens/PreviewScreen.tsx`, `screens/PreviewFullscreenScreen.tsx`) bleiben als 1-Zeiler Re-exports → `App.tsx` unverändert
+## Was nicht hierher gehoert
 
-## Offene Punkte (Priorität)
+- alte Patch-Historie
+- alte Review-Zusammenfassungen
+- erledigte TODOs
+- historische Statusberichte
 
-### Sofort machbar (kleine Patches)
-1. **Docs/Checklogs aufräumen** — Hand-off/ToDo enthalten teils alte Punkte (logger/keyMasking/github types).
-2. **contexts/types.ts Aufräumen** — ✅ abgeschlossen in Patch 326: `ProjectContextProps` liegt in `contexts/projectTypes.ts`, `contexts/types.ts` wurde entfernt.
-3. **Console → logger** (optional) — logger existiert und ist in Preview-Hooks nutzbar; bei Bedarf weitere Hotspots migrieren und ESLint `no-console` schärfen.
-
-### Mittelfristig
-4. **PR-9 Stage 2** — Preview UI weiter splitten (optional, bereits ok lesbar)
-5. **any-Annotationen** — schrittweise reduzieren (Start: größte Offender)
-
-## Patch-Workflow
-```bash
-unzip -o <PATCH>.zip -d .
-rm -f <PATCH>.zip
-
-npm run typecheck
-npm run lint:ci
-npm run test:silent
-
-git add -A
-git commit -m "Patch XXX: <message>"
-git push
-```
-
-## Projekt-Struktur (Stand Patch 200)
-```
-screens/
-  PreviewScreen/                 ← NEU (Patch 200)
-    PreviewScreen.tsx
-    hooks/usePreviewScreen.ts
-    index.tsx
-  PreviewScreen.tsx              ← 1-Zeiler Shim → PreviewScreen/index
-  PreviewFullscreenScreen/       ← NEU (Patch 200)
-    PreviewFullscreenScreen.tsx
-    hooks/usePreviewFullscreen.ts
-    index.tsx
-  PreviewFullscreenScreen.tsx    ← 1-Zeiler Shim → PreviewFullscreenScreen/index
-  shared/preview/                ← NEU (Patch 200)
-    useWebViewNavigation.ts
-    useWebViewCrashRecovery.ts
-    webViewTypes.ts
-  [alle anderen Screens bereits in Folder-Struktur mit hooks/ + components/]
-lib/
-  logger.ts                      ← vorhanden, aber noch nicht genutzt
-  apiKeyMasking.ts               ← TODO: mit SettingsScreen/utils/keyMasking.ts konsolidieren
-contexts/
-  types.ts                       ← Compatibility Shim (deprecated), 36 Imports noch aktiv
-shared/types/
-  build.ts                       ← Single source of truth für Build-Typen
-  chat.ts
-  project.ts
-```
+Dafuer gelten:
+- `PROJECT_CHECKLOG.md`
+- `docs/patches/PATCHLOG_ROOT.md`
+- `docs/reviews/Review.md`

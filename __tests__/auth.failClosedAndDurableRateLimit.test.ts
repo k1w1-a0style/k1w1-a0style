@@ -38,7 +38,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    const fetchSpy = jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+    const fetchSpy = jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid token" }), { status: 401 }),
     );
 
@@ -53,6 +53,9 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(result?.status).toBe(401);
     expect(await result?.text()).toContain("unverifiable JWT");
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("does not trust auth user.role over verified JWT role claims", async () => {
@@ -61,7 +64,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: "user-1", role: "authenticated" }), { status: 200 }),
     );
 
@@ -87,7 +90,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         id: "user-2",
         role: "authenticated",
@@ -118,7 +121,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    jest.spyOn(globalThis, "fetch" as any).mockResolvedValue(
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         id: "user-utf8",
         role: "authenticated",
@@ -157,12 +160,100 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
   });
 
 
+
+
+  it("falls back to the local limiter when durable store secrets are missing", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: undefined,
+        SUPABASE_SERVICE_ROLE_KEY: undefined,
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "trigger-eas-build",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+      }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("falls back to the local limiter when the durable store is temporarily unavailable", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("durable store offline"));
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "trigger-eas-build",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+      }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+
+
+  it("falls back to the local limiter when durable store write/read respond with HTTP errors", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    jest.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("write boom", { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(new Response("read boom", { status: 500 }));
+
+    const writeResult = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "trigger-eas-build",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+      }),
+    );
+
+    const readResult = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "trigger-eas-build",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+      }),
+    );
+
+    expect(writeResult).toBeNull();
+    expect(readResult).toBeNull();
+  });
+
   it("uses durable counter storage for high-risk route rate limits", async () => {
     const req = new Request("http://localhost/edge", {
       headers: { "x-forwarded-for": "1.2.3.4" },
     });
 
-    const fetchSpy = jest.spyOn(globalThis, "fetch" as any)
+    const fetchSpy = jest.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(new Response("[]", {
         status: 200,
@@ -185,5 +276,11 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(result?.status).toBe(429);
     expect(await result?.text()).toContain("rate_limited");
     expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(fetchSpy.mock.calls[1]?.[1]).toEqual(
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 });

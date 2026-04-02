@@ -15,8 +15,7 @@ const TEMPLATE_BASELINE_PREFIXES = [
 
 const TEMPLATE_BASELINE_FILES = new Set([
   "PROJECT_CHECKLOG.md",
-  "docs/PROJECT_TODO.md",
-  "docs/PATCHLOG_ROOT.md",
+  "docs/patches/PATCHLOG_ROOT.md",
 ]);
 
 const MANUAL_CRITICAL_PREFIXES = [

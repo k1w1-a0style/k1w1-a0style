@@ -28,3 +28,12 @@ module.exports = {
       ')',
   ],
 };
+
+module.exports.coverageThreshold = {
+  global: {
+    branches: 55,
+    functions: 60,
+    lines: 60,
+    statements: 60,
+  },
+};

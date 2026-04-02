@@ -18,7 +18,9 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).toContain("export type ScopedEdgeAuthConfig = {");
     expect(src).toContain("export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {");
     expect(src).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
+    expect(src).toContain('export const AI_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
     expect(src).toContain("export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
+    expect(src).toContain("export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
     expect(src).toContain('"Missing required auth secrets for this Edge Function."');
     expect(src).toContain('"Unauthorized: send either admin key OR bearer token, not both."');
     expect(src).toContain('"Unauthorized: missing authentication header."');
@@ -88,19 +90,31 @@ describe("patch415 edge auth guard invariants", () => {
     expect(edgeStatus).toContain("`android-keystore-export`");
   });
 
-  it("keeps legacy generic routes on explicit K1W1_EDGE_ADMIN_KEY scoped guard contracts", () => {
-    const genericRoutes = [
-      "supabase/functions/k1w1-handler/index.ts",
-      "supabase/functions/create_codesandbox/index.ts",
-      "supabase/functions/save_preview/index.ts",
-    ];
+  it("keeps create_codesandbox disabled and save_preview on verified JWT", () => {
+    const legacySrc = read("supabase/functions/create_codesandbox/index.ts");
+    const cfg = read("supabase/config.toml");
+    expect(cfg).toContain("[functions.create_codesandbox]");
+    expect(cfg).toContain("enabled = false");
+    expect(legacySrc).not.toContain("requireScopedEdgeAuth(req, {");
+    expect(legacySrc).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
+    expect(legacySrc).toContain("status: 410");
+    expect(legacySrc).toContain("legacy_create_codesandbox_disabled");
 
-    for (const rel of genericRoutes) {
-      const src = read(rel);
-      expect(src).toContain("requireScopedEdgeAuth(req, {");
-      expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-      expect(src).toContain("allowAdmin: true");
-            expect(src).not.toContain("requireAdminKey(req)");
-    }
+    const previewSrc = read("supabase/functions/save_preview/index.ts");
+    expect(previewSrc).toContain('requireVerifiedJwt(req, "save_preview")');
+    expect(previewSrc).not.toContain("requireScopedEdgeAuth(req, {");
+    expect(previewSrc).not.toContain('x-k1w1-admin-key');
+  });
+
+  it("moves k1w1-handler onto operator JWT auth without local legacy key coupling", () => {
+    const src = read("supabase/functions/k1w1-handler/index.ts");
+    const helpers = read("supabase/functions/k1w1-handler/helpers.ts");
+    const cfg = read("supabase/config.toml");
+    expect(src).not.toContain("requireScopedEdgeAuth(req, {");
+    expect(src).not.toContain('x-k1w1-admin-key');
+    expect(src).toContain('const jwtRoleGuard = await requireAiOperatorJwtRole(req, "k1w1-handler")');
+    expect(helpers).toContain("requireAiOperatorJwtRole");
+    expect(cfg).toContain("[functions.k1w1-handler]");
+    expect(cfg).toContain("verify_jwt = true");
   });
 });

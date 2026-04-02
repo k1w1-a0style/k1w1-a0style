@@ -1,21 +1,23 @@
+import type { ProjectFile } from "../shared/types/project";
+import { makeProjectFile } from "./helpers/diagnosticTestHelpers";
 import { applyJsonMergePatchSafe } from "../lib/diagnostics/smartPatch";
 
 describe("canonical eas json merge", () => {
   it("preserves custom sibling keys while adding preview profile", async () => {
-    const files = [
-      {
-        path: "eas.json",
-        content: JSON.stringify({
+    const files: ProjectFile[] = [
+      makeProjectFile(
+        "eas.json",
+        JSON.stringify({
           build: {
             development: { custom: { keep: true }, android: { buildType: "apk" } },
             production: { android: { buildType: "apk" } },
           },
           submit: { production: { android: { track: "internal" } } },
         }),
-      },
+      ),
     ];
 
-    const out = await applyJsonMergePatchSafe(files as any, [
+    const out = await applyJsonMergePatchSafe(files, [
       {
         path: "eas.json",
         patch: {

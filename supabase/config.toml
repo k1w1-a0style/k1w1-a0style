@@ -16,6 +16,7 @@
 #   - `trigger-eas-build`/`check-eas-build` nutzen verify_jwt=true + JWT-Claim-Guard + scoped workflow admin key.
 #   - `android-keystore-generate`/`android-keystore-status` nutzen verify_jwt=true + JWT-Claim-Guard + scoped keystore admin key.
 # - verify_jwt nur aktivieren, wenn der jeweilige Caller-Flow real JWT-kompatibel migriert ist.
+# - `save_preview` und `k1w1-handler` sind jetzt JWT-kompatibel migriert und benoetigen keinen lokalen Legacy Edge Admin Key mehr.
 # ------------------------------------------------------------
 
 [functions.trigger-eas-build]
@@ -56,7 +57,7 @@ entrypoint = "./functions/github-run-artifact-json/index.ts"
 
 [functions.save_preview]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/save_preview/index.ts"
 
@@ -67,14 +68,14 @@ import_map = "./import_map.json"
 entrypoint = "./functions/preview_page/index.ts"
 
 [functions.create_codesandbox]
-enabled = true
+enabled = false
 verify_jwt = false
 import_map = "./import_map.json"
 entrypoint = "./functions/create_codesandbox/index.ts"
 
 [functions.k1w1-handler]
 enabled = true
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/k1w1-handler/index.ts"
 

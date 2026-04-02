@@ -1,9 +1,12 @@
 import { Buffer } from "buffer";
 
-import type { AIConfig } from "../contexts/AIContext";
+import type { AIConfig } from "../contexts/AIContext/models";
+import { BACKUP_AI_CONFIG_FALLBACK, sanitizeAiConfigFromBackup } from "./appInfoBackup";
+import { asRecord, isRecord, readFiniteNumber, readOptionalString, readString, readStringArray, readStringRecord } from "./validation/recordReaders";
 
 export const SECURE_BACKUP_VERSION = 1 as const;
 export const SECURE_BACKUP_PBKDF2_ITERATIONS = 250000;
+export const SECURE_BACKUP_MIN_PASSPHRASE_LENGTH = 10;
 const AES_KEY_LENGTH = 256;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
@@ -77,38 +80,13 @@ export type EncryptedScopedBackupV1 = {
   ciphertextBase64: string;
 };
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function normalizeString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function normalizeOptionalString(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function normalizeStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const entry of value) {
-    if (typeof entry !== "string") continue;
-    const next = entry.trim();
-    if (!next || seen.has(next)) continue;
-    seen.add(next);
-    out.push(next);
-  }
-  return out;
-}
-
 function bytesToBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
+  return Buffer.from(bytes as unknown as ArrayBufferLike).toString("base64");
 }
 
 function base64ToBytes(value: string): Uint8Array {
-  return new Uint8Array(Buffer.from(value, "base64"));
+  const decoded = Buffer.from(value, "base64") as unknown as ArrayBufferLike;
+  return new Uint8Array(decoded);
 }
 
 function normalizeBufferSource(bytes: Uint8Array): Uint8Array {
@@ -157,8 +135,8 @@ async function deriveAesKey(passphrase: string, salt: Uint8Array): Promise<Crypt
 }
 
 function ensurePassphrase(passphrase: string) {
-  if (typeof passphrase !== "string" || passphrase.trim().length < 6) {
-    throw new Error("Bitte ein Passwort oder eine PIN mit mindestens 6 Zeichen eingeben.");
+  if (typeof passphrase !== "string" || passphrase.trim().length < SECURE_BACKUP_MIN_PASSPHRASE_LENGTH) {
+    throw new Error(`Bitte eine starke Passphrase mit mindestens ${SECURE_BACKUP_MIN_PASSPHRASE_LENGTH} Zeichen eingeben.`);
   }
 }
 
@@ -176,32 +154,31 @@ export function createSecretBackupPayload(input: {
     version: SECURE_BACKUP_VERSION,
     exportDate,
     connections: {
-      supabaseRaw: normalizeString(input.connections.supabaseRaw),
-      supabaseUrl: normalizeString(input.connections.supabaseUrl),
-      supabaseAnonKey: normalizeString(input.connections.supabaseAnonKey),
-      easProjectId: normalizeString(input.connections.easProjectId),
+      supabaseRaw: readString(input.connections.supabaseRaw),
+      supabaseUrl: readString(input.connections.supabaseUrl),
+      supabaseAnonKey: readString(input.connections.supabaseAnonKey),
+      easProjectId: readString(input.connections.easProjectId),
     },
     tokens: {
-      githubToken: normalizeOptionalString(input.tokens.githubToken),
-      expoToken: normalizeOptionalString(input.tokens.expoToken),
-      edgeAdminKey: normalizeOptionalString(input.tokens.edgeAdminKey),
-      workflowAdminKey: normalizeOptionalString(input.tokens.workflowAdminKey),
-      androidKeystoreExportAdminKey: normalizeOptionalString(input.tokens.androidKeystoreExportAdminKey),
-      legacyEdgeAdminKey: normalizeOptionalString(input.tokens.legacyEdgeAdminKey),
-      signingAdminKey: normalizeOptionalString(input.tokens.signingAdminKey),
-      signingMasterKey: normalizeOptionalString(input.tokens.signingMasterKey),
+      githubToken: readOptionalString(input.tokens.githubToken),
+      expoToken: readOptionalString(input.tokens.expoToken),
+      workflowAdminKey: readOptionalString(input.tokens.workflowAdminKey),
+      androidKeystoreExportAdminKey: readOptionalString(input.tokens.androidKeystoreExportAdminKey),
+      legacyEdgeAdminKey: null,
+      signingAdminKey: readOptionalString(input.tokens.signingAdminKey),
+      signingMasterKey: readOptionalString(input.tokens.signingMasterKey),
     },
     ciSecrets: Object.fromEntries(
-      Object.entries(input.ciSecrets ?? {}).map(([key, value]) => [key, normalizeString(value)]),
+      Object.entries(input.ciSecrets ?? {}).map(([key, value]) => [key, readString(value)]),
     ),
     github: {
       linkedRepo:
-        normalizeOptionalString(input.github.linkedRepo) ??
-        normalizeOptionalString(input.github.activeRepo),
+        readOptionalString(input.github.linkedRepo) ??
+        readOptionalString(input.github.activeRepo),
       linkedBranch:
-        normalizeOptionalString(input.github.linkedBranch) ??
-        normalizeOptionalString(input.github.activeBranch),
-      recentRepos: normalizeStringArray(input.github.recentRepos),
+        readOptionalString(input.github.linkedBranch) ??
+        readOptionalString(input.github.activeBranch),
+      recentRepos: readStringArray(input.github.recentRepos),
     },
   };
 }
@@ -257,7 +234,7 @@ export async function encryptScopedBackup(input: {
 }
 
 export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedScopedBackupV1 {
-  if (!isPlainObject(parsed)) {
+  if (!isRecord(parsed)) {
     throw new Error("Ungültiges Backup-Format");
   }
 
@@ -275,16 +252,18 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
     throw new Error("Ungültiges Backup-Format");
   }
 
-  if (!isPlainObject(parsed.encryption)) {
+  if (!isRecord(parsed.encryption)) {
     throw new Error("Ungültiges Backup-Format");
   }
 
-  const encryption = parsed.encryption as Record<string, unknown>;
+  const encryption = asRecord(parsed.encryption);
+  if (!encryption) {
+    throw new Error("Ungültiges Backup-Format");
+  }
   if (
     encryption.algorithm !== "AES-GCM" ||
     encryption.kdf !== "PBKDF2-SHA-256" ||
-    typeof encryption.iterations !== "number" ||
-    encryption.iterations < 100000 ||
+    (readFiniteNumber(encryption.iterations) ?? 0) < 100000 ||
     typeof encryption.saltBase64 !== "string" ||
     typeof encryption.ivBase64 !== "string" ||
     typeof parsed.ciphertextBase64 !== "string"
@@ -296,56 +275,54 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
 }
 
 function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
-  if (!isPlainObject(raw) || raw.kind !== "secret-snapshot" || raw.version !== SECURE_BACKUP_VERSION) {
+  if (!isRecord(raw) || raw.kind !== "secret-snapshot" || raw.version !== SECURE_BACKUP_VERSION) {
     throw new Error("Ungültiger Secret-Backup-Inhalt");
   }
 
-  const connections = isPlainObject(raw.connections) ? raw.connections : {};
-  const tokens = isPlainObject(raw.tokens) ? raw.tokens : {};
-  const ciSecrets = isPlainObject(raw.ciSecrets) ? raw.ciSecrets : {};
-  const github = isPlainObject(raw.github) ? raw.github : {};
+  const connections = asRecord(raw.connections) ?? {};
+  const tokens = asRecord(raw.tokens) ?? {};
+  const ciSecrets = asRecord(raw.ciSecrets) ?? {};
+  const github = asRecord(raw.github) ?? {};
 
   return {
     kind: "secret-snapshot",
     version: SECURE_BACKUP_VERSION,
-    exportDate: normalizeString(raw.exportDate),
+    exportDate: readString(raw.exportDate),
     connections: {
-      supabaseRaw: normalizeString(connections.supabaseRaw),
-      supabaseUrl: normalizeString(connections.supabaseUrl),
-      supabaseAnonKey: normalizeString(connections.supabaseAnonKey),
-      easProjectId: normalizeString(connections.easProjectId),
+      supabaseRaw: readString(connections.supabaseRaw),
+      supabaseUrl: readString(connections.supabaseUrl),
+      supabaseAnonKey: readString(connections.supabaseAnonKey),
+      easProjectId: readString(connections.easProjectId),
     },
     tokens: {
-      githubToken: normalizeOptionalString(tokens.githubToken),
-      expoToken: normalizeOptionalString(tokens.expoToken),
-      edgeAdminKey: normalizeOptionalString(tokens.edgeAdminKey),
+      githubToken: readOptionalString(tokens.githubToken),
+      expoToken: readOptionalString(tokens.expoToken),
+      edgeAdminKey: readOptionalString(tokens.edgeAdminKey),
       workflowAdminKey:
-        normalizeOptionalString(tokens.workflowAdminKey) ??
-        normalizeOptionalString(tokens.edgeAdminKey),
-      androidKeystoreExportAdminKey: normalizeOptionalString(tokens.androidKeystoreExportAdminKey),
+        readOptionalString(tokens.workflowAdminKey) ??
+        readOptionalString(tokens.edgeAdminKey),
+      androidKeystoreExportAdminKey: readOptionalString(tokens.androidKeystoreExportAdminKey),
       legacyEdgeAdminKey:
-        normalizeOptionalString(tokens.legacyEdgeAdminKey) ??
-        normalizeOptionalString(tokens.edgeAdminKey),
-      signingAdminKey: normalizeOptionalString(tokens.signingAdminKey),
-      signingMasterKey: normalizeOptionalString(tokens.signingMasterKey),
+        readOptionalString(tokens.legacyEdgeAdminKey) ??
+        readOptionalString(tokens.edgeAdminKey),
+      signingAdminKey: readOptionalString(tokens.signingAdminKey),
+      signingMasterKey: readOptionalString(tokens.signingMasterKey),
     },
-    ciSecrets: Object.fromEntries(
-      Object.entries(ciSecrets).map(([key, value]) => [key, normalizeString(value)]),
-    ),
+    ciSecrets: readStringRecord(ciSecrets) ?? {},
     github: {
       linkedRepo:
-        normalizeOptionalString(github.linkedRepo) ??
-        normalizeOptionalString(github.activeRepo),
+        readOptionalString(github.linkedRepo) ??
+        readOptionalString(github.activeRepo),
       linkedBranch:
-        normalizeOptionalString(github.linkedBranch) ??
-        normalizeOptionalString(github.activeBranch),
-      recentRepos: normalizeStringArray(github.recentRepos),
+        readOptionalString(github.linkedBranch) ??
+        readOptionalString(github.activeBranch),
+      recentRepos: readStringArray(github.recentRepos),
     },
   };
 }
 
 export function validateSecureBackupPayload(raw: unknown): SecureBackupPayloadV1 {
-  if (!isPlainObject(raw) || raw.version !== SECURE_BACKUP_VERSION || typeof raw.exportDate !== "string") {
+  if (!isRecord(raw) || raw.version !== SECURE_BACKUP_VERSION || typeof raw.exportDate !== "string") {
     throw new Error("Ungültiger Backup-Inhalt");
   }
 
@@ -361,8 +338,8 @@ export function validateSecureBackupPayload(raw: unknown): SecureBackupPayloadV1
     return {
       kind: "config-secret-snapshot",
       version: SECURE_BACKUP_VERSION,
-      exportDate: normalizeString(raw.exportDate),
-      aiConfig: raw.aiConfig as AIConfig,
+      exportDate: readString(raw.exportDate),
+      aiConfig: sanitizeAiConfigFromBackup(raw.aiConfig, BACKUP_AI_CONFIG_FALLBACK),
       secrets: sanitizeSecretPayload(raw.secrets),
     };
   }
@@ -395,7 +372,7 @@ export async function decryptScopedBackup(input: {
     if (error instanceof SyntaxError) {
       throw new Error("Backup-Datei ist beschädigt oder kein gültiges JSON.");
     }
-    throw new Error("Backup konnte nicht entschlüsselt werden. Passwort/PIN prüfen.");
+    throw new Error("Backup konnte nicht entschlüsselt werden. Passphrase prüfen.");
   }
 }
 

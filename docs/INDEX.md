@@ -1,39 +1,54 @@
 # Dokumentations-Index
 
-Stand: **2026-03-31 (Patch 655)**
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-Dieser Index priorisiert operative Navigation. Historische Details bleiben im Patchlog.
+Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 
-## 1) Kern-Dokumente (zuerst lesen)
+## 1) Zuerst lesen
 
-1. `docs/00-overview.md` — Architektur, Verträge, SoT-Leitplanken
-2. `docs/10-product-and-flows.md` — Produktfluss, Operator-Journeys, erwartete Ergebnisse
-3. `docs/03-screen-index.md` — Screen-Zwecke + primäre Aktionen
-4. `docs/13-screen-flow-map.md` — kompakte End-to-End-Flow-Map
-5. `docs/TODO.md` — offene operative und technische Follow-ups
+1. [README.md](../README.md) — kompakter Repo-Stand + Verify-Entry
+2. [00-overview.md](00-overview.md) — Architektur, SoT, Leitplanken
+3. [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) — Produktziel, Betriebsmodell, Nicht-Ziele
+4. [SYSTEM_README.md](SYSTEM_README.md) — aktuelle Systemregeln fuer Agenten / Arbeitskontext
+5. [reviews/Review.md](reviews/Review.md) — kanonische aktuelle Review
+6. [TODO.md](TODO.md) — kompakte Restpunkt-/Betriebs-SoT
 
-## 2) Betrieb / Qualität
+## 2) Betrieb / Verifikation
 
-- `docs/FRESH_CHECKOUT_GREEN_PATH.md` — zentraler Verifikationspfad fuer frische Checkouts
-- `docs/04-testing-smoke-plan.md` — Smoke-Plan
-- `docs/06-build-readiness.md` — Build-Gate/Readiness
-- `docs/07-diagnostics-fix-playbook.md` — Diagnostics-/Fix-Playbook
-- `docs/08-test-coverage-matrix.md` — Test-Matrix
-- `docs/09-gap-tickets.md` — offene Gap-/Ticket-Sammlung
-- [EDGE_FUNCTIONS_STATUS](EDGE_FUNCTIONS_STATUS.md) — Edge-Functions-Statusübersicht
-- `docs/runbooks/APP_RUNBOOK.md` — Schritt-für-Schritt-Runbook
+- [FRESH_CHECKOUT_GREEN_PATH.md](FRESH_CHECKOUT_GREEN_PATH.md) — frischer Checkout, lokal reproduzierbar
+- [TESTING_GUIDE.md](TESTING_GUIDE.md) — Test-/Verify-Pfad
+- [06-build-readiness.md](06-build-readiness.md) — Gate-Regeln, Operator-Vertrag, Build-Blocker
+- [EDGE_FUNCTIONS_STATUS.md](EDGE_FUNCTIONS_STATUS.md) — aktive / deaktivierte Edge-Funktionen
+- [runbooks/APP_RUNBOOK.md](runbooks/APP_RUNBOOK.md) — operatorischer Ablauf
+- [runbooks/OPERATOR_SETUP_CHECKLIST.md](runbooks/OPERATOR_SETUP_CHECKLIST.md) — externes `build_admin`-Provisioning
+- [runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md](runbooks/SUPABASE_DEPLOY_AND_MIGRATIONS.md) — Deploy / Migrationen
+- [DEV_COMMANDS.md](DEV_COMMANDS.md) — kompakte Repo-Kommandos
 
-## 3) Patching / Historie
+## 3) Architektur / Flows / Referenz
 
-- `docs/WORKFLOW_PATCHING.md` — verbindlicher Patch-Workflow
-- `docs/patches/PATCHLOG_ROOT.md` — append-only Patchübersicht
-- `docs/patches/patch_*.md` — einzelne Patchnotizen
-- `PROJECT_CHECKLOG.md` — kurzer laufender Checklog
-- `docs/PROJECT_TODO.md` — **historische** TODO-/Patchliste (aktive Restpunkte: `docs/TODO.md`)
+- [01-state-contract.md](01-state-contract.md) — State-/Storage-SoT
+- [02-build-pipeline.md](02-build-pipeline.md) — Build-/Workflow-Pipeline
+- [03-screen-index.md](03-screen-index.md) — Screens und primaere Aktionen
+- [10-product-and-flows.md](10-product-and-flows.md) — Produktfluesse
+- [13-screen-flow-map.md](13-screen-flow-map.md) — End-to-End-Flow-Map
+- [14-state-quickref.md](14-state-quickref.md) — kompakte State-/Storage-Referenz
+- [04-risk-hotspots.md](04-risk-hotspots.md) — **historischer** Audit-/Patch-Kontext, nicht die aktive TODO-Liste
+- [04-testing-smoke-plan.md](04-testing-smoke-plan.md) — manueller Smoke-Plan
+- [08-test-coverage-matrix.md](08-test-coverage-matrix.md) — aktive Test-/Coverage-Matrix
+- [07-diagnostics-fix-playbook.md](07-diagnostics-fix-playbook.md) — Diagnostics-/Fix-Playbook
 
-## 4) Verlässliche Referenzpunkte
+## 4) Patch-/Historienarchiv
 
-- Branch-basierte CI-Lite-Chain ist als dokumentierte Ausnahme erlaubt.
-- Produktive Deploy-/Workflow-Flows bleiben explizit ref-gesteuert (kein stiller Default-Branch-Fallback).
-- Build-Job-Vertrag: positive numerische `jobId`.
-- Diagnostics-Upload-ID: clientseitig opaque string.
+- [WORKFLOW_PATCHING.md](WORKFLOW_PATCHING.md) — kanonischer Patch-Workflow
+- [../PROJECT_CHECKLOG.md](../PROJECT_CHECKLOG.md) — kurzer laufender Checklog
+- [patches/PATCHLOG_ROOT.md](patches/PATCHLOG_ROOT.md) — append-only Patchhistorie
+- [patches/README.md](patches/README.md) — Einordnung des Patch-Archivs
+
+## 5) Was bewusst **nicht** mehr aktiv dupliziert wird
+
+- alte Parallel-Reviews
+- alte Statusreports
+- alte Refactor-Planungsdateien
+- alte einmalige Scan-/Zusammenfassungs-MDs im Repo-Root
+
+Die aktive Wahrheit bleibt klein: README, INDEX, OVERVIEW, REVIEW, TODO, Runbooks.

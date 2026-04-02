@@ -1,14 +1,17 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
+  getRuntimeEnv,
+  getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { githubHeaders, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
+import { githubHeaders, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
+  isParsedJsonBodyError,
   parseJsonBody,
   validateGithubWorkflowDispatchRequest,
 } from "../_shared/validation.ts";
@@ -47,25 +50,13 @@ async function findWorkflowIdByPath(
   return null;
 }
 
-function parseCsvEnv(name: string): string[] {
-  const raw = (Deno.env.get(name) ?? "").trim();
-  if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-function isAllowedRepo(repo: string): boolean {
-  const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
-  if (allow.length === 0) return true; // rollout mode
-  return allow.includes(repo);
-}
-
 function isAllowedRef(ref: string): boolean {
   const r = (ref ?? "").trim();
   if (!r) return true;
   if (r.startsWith("refs/")) return false;
   if (/^[0-9a-f]{40}$/i.test(r)) return false;
 
-  const regexStr = (Deno.env.get("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
   if (!regexStr) return true; // rollout mode
   try {
     const re = new RegExp(regexStr);
@@ -87,9 +78,10 @@ function isAllowedRef(ref: string): boolean {
  * }
  */
 Deno.serve(async (req) => {
-    const cors = handleCors(req);
+  const cors = handleCors(req);
   if (cors) return cors;
-try {
+
+  try {
     // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
     const auth = requireScopedEdgeAuth(req, {
       scope: "github-workflow-dispatch",
@@ -103,7 +95,7 @@ try {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-dispatch",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 20,
       windowMs: 60_000,
     });
@@ -113,7 +105,7 @@ try {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (!parsed.ok) return errorResponse((parsed as { ok: false; error: string }).error, req, 400);
+    if (isParsedJsonBodyError(parsed)) return errorResponse(parsed.error, req, 400);
 
     const val = validateGithubWorkflowDispatchRequest(parsed.body);
     if (!val.ok) return errorResponse("Invalid request", req, 400, (val as { ok: false; errors: unknown }).errors);
@@ -127,7 +119,7 @@ try {
       });
     }
 
-    if (!isAllowedRepo(githubRepo)) {
+    if (!isAllowedGithubRepo(githubRepo)) {
       return jsonResponse(
         { ok: false, error: "githubRepo not allowed", details: { githubRepo } },
         req,

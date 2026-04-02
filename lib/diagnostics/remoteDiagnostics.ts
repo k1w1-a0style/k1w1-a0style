@@ -1,14 +1,7 @@
 // lib/diagnostics/remoteDiagnostics.ts
 // Extracted from buildPipelineDiagnostics.ts: remote diagnostics functions.
 
-import {
-  getLegacyEdgeAdminKey,
-  getExpoToken,
-  getGitHubToken,
-  getRepoFileText,
-  listRepoSecretNames,
-  triggerWorkflow,
-} from "../../infra/github/githubService";
+import { triggerWorkflow } from "../../infra/github/githubService";
 import { ensureSupabaseClient } from "../supabase";
 import type { PreflightPatch } from "./preflightTypes";
 import { safeTrim } from "./diagnosticTypes";

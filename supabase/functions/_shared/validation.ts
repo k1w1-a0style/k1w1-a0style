@@ -4,10 +4,22 @@ type Ok<T> = { ok: true; data: T };
 type ValidationErrors = Record<string, string | Record<string, string>>;
 type Err = { ok: false; errors: ValidationErrors };
 
+export type ParsedJsonBodyResult =
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false; error: string };
+
+export function isParsedJsonBodyError(result: ParsedJsonBodyResult): result is { ok: false; error: string } {
+  return !result.ok;
+}
+
+export function isSafeGitHubRepoFullName(input: unknown): input is string {
+  return typeof input === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(input.trim());
+}
+
 export async function parseJsonBody(
   req: Request,
   maxBytes = 200_000,
-): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; error: string }> {
+): Promise<ParsedJsonBodyResult> {
   const lenHeader = req.headers.get("content-length");
   if (lenHeader) {
     const len = Number(lenHeader);
@@ -21,8 +33,10 @@ export async function parseJsonBody(
 
   return req.text().then((t) => {
     if (!t || !t.trim()) return { ok: true, body: {} };
-    if (t.length > maxBytes)
-      return { ok: false, error: `Body too large (${t.length} > ${maxBytes})` };
+
+    const bodyBytes = new TextEncoder().encode(t).length;
+    if (bodyBytes > maxBytes)
+      return { ok: false, error: `Body too large (${bodyBytes} > ${maxBytes})` };
 
     try {
       const body: unknown = JSON.parse(t);
@@ -108,7 +122,7 @@ export function validateTriggerBuildRequest(body: unknown): Ok<{
 
   const errors: ValidationErrors = {};
 
-  if (!isString(githubRepo) || !githubRepo.includes("/")) {
+  if (!isSafeGitHubRepoFullName(githubRepo)) {
     errors.githubRepo = "githubRepo must be like owner/repo";
   }
 
@@ -171,7 +185,7 @@ export function validateGithubWorkflowDispatchRequest(body: unknown): Ok<{
 
   const errors: ValidationErrors = {};
 
-  if (!isString(githubRepo) || !githubRepo.includes("/")) {
+  if (!isSafeGitHubRepoFullName(githubRepo)) {
     errors.githubRepo = "githubRepo must be like owner/repo";
   }
 

@@ -1,4 +1,5 @@
 import { patchFingerprint } from "../lib/diagnostics/fixSafety";
+import { makePreflightPatch } from "./helpers/preflightTestHelpers";
 
 describe("patchFingerprint (content-sensitive dedupe)", () => {
   it("differs for same-structure patches with different content", () => {
@@ -9,8 +10,8 @@ describe("patchFingerprint (content-sensitive dedupe)", () => {
       upsert: [{ path: "package.json", content: "{\"dep\":\"react-native-reanimated\"}" }],
     };
 
-    const fa = patchFingerprint(a as any);
-    const fb = patchFingerprint(b as any);
+    const fa = patchFingerprint(makePreflightPatch(a));
+    const fb = patchFingerprint(makePreflightPatch(b));
     expect(fa).not.toEqual(fb);
   });
 
@@ -33,6 +34,6 @@ describe("patchFingerprint (content-sensitive dedupe)", () => {
       ],
     };
 
-    expect(patchFingerprint(p1 as any)).toEqual(patchFingerprint(p2 as any));
+    expect(patchFingerprint(makePreflightPatch(p1))).toEqual(patchFingerprint(makePreflightPatch(p2)));
   });
 });

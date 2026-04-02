@@ -3,7 +3,6 @@
 
 import {
   getAndroidKeystoreExportAdminKey,
-  getLegacyEdgeAdminKey,
   getExpoToken,
   getGitHubToken,
   getWorkflowAdminKey,
@@ -27,7 +26,6 @@ export type BuildPipelineDiagnosticsDeps = {
   getExpoToken?: typeof getExpoToken;
   getWorkflowAdminKey?: typeof getWorkflowAdminKey;
   getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
-  getLegacyEdgeAdminKey?: typeof getLegacyEdgeAdminKey;
   fileExists?: typeof fileExists;
   readJsonFile?: typeof readJsonFile;
   getRepoFileText?: typeof getRepoFileText;
@@ -67,6 +65,29 @@ type EasConfig = {
 
 const canonicalEasJsonString = () => `${JSON.stringify(CANONICAL_EAS_JSON, null, 2)}
 `;
+
+function getDiagnosticErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) return error.message || fallback;
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    return trimmed || fallback;
+  }
+  return fallback;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readStringDeps(value: unknown): Record<string, string> {
+  const record = asRecord(value);
+  if (!record) return {};
+  const entries = Object.entries(record).filter(([, dep]) => typeof dep === "string") as Array<[string, string]>;
+  return Object.fromEntries(entries);
+}
+
 
 export function getRepoSecretCheckTitle(params: {
   name: string;
@@ -116,7 +137,6 @@ const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnostics
   getExpoToken,
   getWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
-  getLegacyEdgeAdminKey,
   fileExists,
   readJsonFile,
   getRepoFileText,
@@ -140,12 +160,11 @@ export const runBuildPipelineDiagnostics = async (
   const checks: DiagnosticCheck[] = [];
 
   // --- Local prerequisites ---
-  const [ghToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, legacyAdminKey] = await Promise.all([
+  const [ghToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey] = await Promise.all([
     d.getGitHubToken(),
     d.getExpoToken(),
     d.getWorkflowAdminKey?.() ?? Promise.resolve(null),
     d.getAndroidKeystoreExportAdminKey?.() ?? Promise.resolve(null),
-    d.getLegacyEdgeAdminKey?.() ?? Promise.resolve(null),
   ]);
 
   checks.push({
@@ -189,15 +208,6 @@ export const runBuildPipelineDiagnostics = async (
     fixHint: androidKeystoreExportAdminKey
       ? undefined
       : "Keystore-Routen nutzen den separaten lokalen Keystore-Scoped-Key. Ohne ihn bleibt Keystore-Readiness unbestaetigt.",
-  });
-
-  checks.push({
-    id: "local.legacyEdgeAdminKey",
-    title: "Lokaler Legacy Edge Admin-Key (compat)",
-    status: legacyAdminKey ? "warn" : "pass",
-    fixHint: legacyAdminKey
-      ? "Legacy-Key ist gesetzt (Sunset). Fuer aktuelle Readiness gelten nur scoped Keys; Legacy bleibt nur fuer klar begrenzte Altpfade (z.B. k1w1-handler/save_preview)."
-      : undefined,
   });
 
   // --- Repo files (branch-specific) ---
@@ -511,8 +521,12 @@ export const runBuildPipelineDiagnostics = async (
   // Development Flow: expo-dev-client dependency recommended/required
   if (hasPackageJson) {
     try {
-      const pkg = await d.readJsonFile<any>(params.owner, params.repo, "package.json", ref);
-      const deps = { ...(pkg?.dependencies ?? {}), ...(pkg?.devDependencies ?? {}) };
+      const pkg = await d.readJsonFile<unknown>(params.owner, params.repo, "package.json", ref);
+      const pkgRecord = asRecord(pkg);
+      const deps = {
+        ...readStringDeps(pkgRecord?.dependencies),
+        ...readStringDeps(pkgRecord?.devDependencies),
+      };
       const hasDevClient = typeof deps["expo-dev-client"] === "string";
 
       // Only required when developmentClient=true in eas.json
@@ -743,7 +757,7 @@ export const runBuildPipelineDiagnostics = async (
       status: serviceRoleCopy.status,
       fixHint: serviceRoleCopy.fixHint,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     const errorState = resolveRepoSecretListVerification({ error: e }).state;
     const secretListCopy = describeRepoSecretContract({
       name: "repo secrets",
@@ -754,7 +768,7 @@ export const runBuildPipelineDiagnostics = async (
       id: "repo.secret.list",
       title: "Repo Secrets abrufbar",
       status: secretListCopy.status,
-      details: e?.message || "Secrets konnten nicht gelesen werden.",
+      details: getDiagnosticErrorMessage(e, "Secrets konnten nicht gelesen werden."),
       fixHint: secretListCopy.fixHint,
     });
   }

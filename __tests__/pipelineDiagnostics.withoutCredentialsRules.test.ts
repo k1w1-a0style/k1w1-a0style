@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -38,9 +40,9 @@ describe("runBuildPipelineDiagnostics - withoutCredentials profile rules", () =>
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const dev = res.checks.find((c: any) => c.id === "repo.easAndroidWithoutCreds.development");
-    const prev = res.checks.find((c: any) => c.id === "repo.easAndroidWithoutCreds.preview");
-    const prod = res.checks.find((c: any) => c.id === "repo.easAndroidWithoutCreds.production");
+    const dev = findCheckById(res.checks, "repo.easAndroidWithoutCreds.development");
+    const prev = findCheckById(res.checks, "repo.easAndroidWithoutCreds.preview");
+    const prod = findCheckById(res.checks, "repo.easAndroidWithoutCreds.production");
 
     expect(dev?.status).toBe("warn");
     expect(dev?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.development?.android?.withoutCredentials).toBe(true);

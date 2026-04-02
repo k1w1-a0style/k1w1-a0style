@@ -33,23 +33,19 @@ const baseProps = {
   onNavigateBuild: jest.fn(),
 };
 
+function makeAnimation(): Animated.CompositeAnimation {
+  return {
+    start: (cb?: Animated.EndCallback) => cb?.({ finished: true }),
+    stop: jest.fn(),
+    reset: jest.fn(),
+  } as Animated.CompositeAnimation;
+}
+
 describe("ConnectionsScreen StatusCard semantics", () => {
   beforeAll(() => {
-    jest.spyOn(Animated, "timing").mockImplementation(
-      () =>
-        ({
-          start: (cb?: () => void) => cb?.(),
-          stop: jest.fn(),
-        }) as any,
-    );
-    jest.spyOn(Animated, "sequence").mockImplementation((steps: any) => steps);
-    jest.spyOn(Animated, "loop").mockImplementation(
-      () =>
-        ({
-          start: jest.fn(),
-          stop: jest.fn(),
-        }) as any,
-    );
+    jest.spyOn(Animated, "timing").mockImplementation(() => makeAnimation());
+    jest.spyOn(Animated, "sequence").mockImplementation(() => makeAnimation());
+    jest.spyOn(Animated, "loop").mockImplementation(() => makeAnimation());
   });
 
   afterAll(() => {

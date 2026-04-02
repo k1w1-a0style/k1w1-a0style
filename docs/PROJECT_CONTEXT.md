@@ -1,82 +1,41 @@
-# PROJECT CONTEXT — Mobile APK Builder
+# PROJECT CONTEXT — Mobile Build Orchestrator
 
-## Product in one sentence
-A mobile app that turns **repo + secrets + build profile** into an **automated EAS Android build (APK/AAB)**, executed by GitHub Actions.
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-## What this repository is
-This repository contains the **builder app** (Expo / React Native). It does **not** compile Android on the phone.
-Instead it orchestrates builds by:
+## Produkt in einem Satz
 
-1) collecting and validating credentials (GitHub token, Expo/EAS token, optional Supabase keys),
-2) provisioning a target repository (workflows, EAS config, templates),
-3) triggering GitHub Actions runs that call **EAS Build**,
-4) tracking build status and surfacing logs + download links.
+Eine mobile Expo-/React-Native-App, die **Repo + Branch + Secrets + Build-Profil** in einen kontrollierten GitHub-/EAS-Build- und Diagnostics-Flow uebersetzt.
 
-## Key user-facing screens (conceptual)
-- **Connection / Secrets screen**
-  - user pastes tokens/keys
-  - values are saved persistently on-device
-  - app can push required GitHub Secrets/Variables to the target repo
-- **Repo management**
-  - select repo + branch (should be *user-selectable*, persisted)
-  - repos can be added/renamed/removed; provisioning should be idempotent
-- **Diagnostic screen**
-  - checks that the target repo is “build-ready”
-  - should catch common foot-guns early (missing secrets, missing workflows, missing EAS config, accidental native folders, etc.)
-- **Build screen**
-  - three profiles: development / preview / production
-  - triggers builds, shows progress, stores last build IDs/URLs
+## Was dieses Repo ist
 
-## Build profiles (what they mean here)
-- **development**
-  - primary mode used during app development
-  - typically produces an **APK**
-- **preview**
-  - a “lightweight” build for quick sharing/testing
-  - should still be reproducible and not destroy the dev flow
-- **production**
-  - release builds; typically produces an **AAB**
+Dieses Repo enthaelt **die Builder-App**, nicht den Android-Build selbst. Die App:
 
-> IMPORTANT: All three Android profiles still require Android signing credentials on EAS. CI runs in --non-interactive mode and cannot “create” a keystore for you.
+1. sammelt und validiert lokale Tokens / Secrets
+2. orchestriert Repo-/Workflow-/Secret-Zustand
+3. triggert GitHub-Actions-/EAS-Flows
+4. liest Laufstatus / Logs / Artefakte kontrolliert zurueck
+5. fuehrt Diagnostics- und Fix-Loops fuer Repo-/Build-Readiness
 
-## Non-negotiable workflow contract (must remain true)
-- The builder must **NOT** hard-pin the target repo branch inside workflow templates.
-  - The branch/ref is chosen by the user in the app, and workflows should operate on that selected ref.
-- Secrets/tokens should be handled via GitHub Secrets/Variables, not committed.
-- Scoped admin contract is explicit: Workflow/build/artifact routes use workflow-scoped admin key material, keystore routes use keystore-scoped admin key material, and legacy edge admin keys are compatibility-only.
-- Provisioning should be safe to run multiple times (idempotent).
-- “Auto-fix/self-heal” steps must never silently change the target repo in a destructive way.
+## Kanonische Produktpfade
 
-## Known recurring failure modes (and how we handle them)
-### 1) Incomplete native folders committed
-This often happens when someone runs a native prebuild locally and commits partial output.
-EAS (managed) can then fail when files like `android/app/build.gradle` are missing.
+- **GitHub Repos** — Repo / Branch waehlen
+- **Connections** — Tokens / Connectivity / Secret-Sync
+- **Diagnostics** — Build-Readiness pruefen und Fix-Loops starten
+- **Build** — nur bei gruener Readiness dispatchen
+- **Status / History / Preview / Chat** — Laufzeit- und Arbeitsflaechen
 
-Mitigation:
-- GitHub Actions workflow performs a preflight that deletes **incomplete** native folders (to let EAS regenerate them cleanly).
-- Diagnostic screen should warn when it detects native folders in the repo.
+## Wichtige Vertraege
 
-### 2) Missing Android keystore on EAS (CI cannot generate it)
-If EAS credentials are missing, you will see:
-“Generating a new Keystore is not supported in --non-interactive mode”
+- kein stiller Repo-/Branch-Fallback in produktiven Build-/Deploy-Pfaden
+- produktive Workflow-/Build-/Artifact-/Keystore-Routen sind fail-closed und auth-/scope-gebunden
+- `k1w1-handler` laeuft im aktuellen Repo-Stand auf verified JWT + Claim, ohne lokalen Legacy-Admin-Key als Produktvertrag
+- `save_preview` nutzt einen verifizierten Login-JWT-Vertrag; `preview_page` bleibt bewusst public secret-link
+- `create_codesandbox` ist deaktiviert und nur noch historischer Compat-Kontext
 
-Mitigation:
-- Workflow detects that specific failure text and prints a clear error message.
-- User must provision Android credentials once interactively (outside CI):
-  - run `eas credentials -p android` locally and generate/upload a keystore, OR
-  - set credentials in the Expo dashboard for the project.
+## Bewusst ausserhalb des Repos
 
-## “Preview build” expectation (future direction)
-A “real preview” could mean:
-- a web preview (Expo web / static preview),
-- screenshots/manifest preview,
-- or a lightweight installable APK that at least launches and shows UI.
+- externes `build_admin`-Provisioning
+- produktive Secret-Rotation / Dashboard-Setup
+- Live-/Staging-Verifikation gegen echte Zielumgebungen
 
-This repo’s contract is: preview must be clearly defined, automated, and must not break dev/production builds.
-
-## How to hand this repo to another AI/agent
-Point them to **AI_START_HERE.md** and ask them to read it first.
-For safety, instruct the agent:
-- do not change workflow contracts,
-- propose changes first, then implement in small, testable steps,
-- keep repo clean (avoid generating lots of “patch manifest” files).
+Das sind reale Betriebsaufgaben, aber keine offenen Repo-Codefehler.

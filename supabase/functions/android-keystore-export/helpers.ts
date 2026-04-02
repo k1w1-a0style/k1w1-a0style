@@ -14,8 +14,11 @@ import {
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
+import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 export {
   getJwtPayload,
+  getRequestClientIp,
+  getRequestRateLimitSubject,
   requireJwtRole,
   rateLimit,
   requireDurableRateLimit,
@@ -43,7 +46,7 @@ export function safeString(v: unknown): string {
 }
 
 export function repoOk(repo: string): boolean {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+  return isSafeGitHubRepoFullName(repo);
 }
 
 export { decryptKeystorePayload, deriveAesKeyBytes, encryptWithAesCbcLegacy };

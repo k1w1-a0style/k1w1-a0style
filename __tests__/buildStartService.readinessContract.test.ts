@@ -1,4 +1,4 @@
-import type { ProjectData } from "../shared/types/project";
+import { makeProjectData } from "./helpers/projectTestHelpers";
 
 const mockGetItem = jest.fn();
 const mockAssertBuildReadiness = jest.fn();
@@ -6,14 +6,14 @@ const mockInvoke = jest.fn();
 const mockGetRepoSyncState = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockGetItem(...args),
+  getItem: mockGetItem,
 }));
 
 jest.doMock(require.resolve("../lib/buildReadiness"), () => {
   const actual = jest.requireActual("../lib/buildReadiness");
   return {
     ...actual,
-    assertBuildReadiness: (...args: any[]) => mockAssertBuildReadiness(...args),
+    assertBuildReadiness: mockAssertBuildReadiness,
   };
 });
 
@@ -30,7 +30,7 @@ jest.doMock(require.resolve("../lib/repoSyncOrchestration"), () => {
   const actual = jest.requireActual("../lib/repoSyncOrchestration");
   return {
     ...actual,
-    getRepoSyncState: (...args: any[]) => mockGetRepoSyncState(...args),
+    getRepoSyncState: mockGetRepoSyncState,
     markRepoSyncSignature: jest.fn(),
   };
 });
@@ -49,15 +49,12 @@ jest.doMock(require.resolve("../lib/supabase"), () => ({
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { startBuildJob } = require("../project/services/buildStartService");
 
-function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
-  return {
-    id: "p1",
-    name: "test",
-    files: [{ path: "app.json", content: "{}", updatedAt: Date.now() } as any],
+function makeProject(overrides = {}) {
+  return makeProjectData({
     linkedRepo: "owner/repo",
     linkedBranch: "main",
     ...overrides,
-  } as any;
+  });
 }
 
 describe("startBuildJob readiness contract integration", () => {

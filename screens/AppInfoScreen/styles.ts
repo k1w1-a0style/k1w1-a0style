@@ -335,3 +335,6 @@ export const styles = StyleSheet.create({
   },
 });
 
+
+
+export type AppInfoScreenStyles = typeof styles;

@@ -1,9 +1,10 @@
 import React from "react";
-import { ActivityIndicator, StyleSheet, Text, View, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Animated, StyleSheet, Text, View, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { InlineToast } from "../../../components/diagnostics/InlineToast";
 import { theme } from "../../../theme";
+import type { DiagnosticScreenStyles } from "../styles";
 
 type HeaderStats = {
   name: string;
@@ -13,11 +14,11 @@ type HeaderStats = {
 
 type ToastState = {
   message: string | null;
-  anim: any;
+  anim: Animated.Value;
 };
 
 export function HeaderSection(props: {
-  styles: any;
+  styles: DiagnosticScreenStyles;
   headerStats: HeaderStats;
   busy: boolean;
   running: boolean;

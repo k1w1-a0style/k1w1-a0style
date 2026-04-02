@@ -8,6 +8,7 @@ import { runPreflightChecksProgressive } from "../../../lib/diagnostics/prefligh
 import { runBuildPipelineDiagnostics } from "../../../lib/diagnostics/buildPipelineDiagnostics";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 
 import type { Status } from "../types";
 export const ORDER: Record<Status, number> = { fail: 0, warn: 1, pass: 2 };
@@ -64,7 +65,7 @@ export async function runLocalChecks(params: {
       }
 
       if (stage?.results?.length) {
-        const decorated = (stage.results as PreflightCheckResult[]).map((r) => ({
+        const decorated = stage.results.map((r) => ({
           ...r,
           id: `${t.profile}::${r.id}`,
           title: `${r.title} (${t.profile})`,
@@ -165,7 +166,7 @@ export async function runPipelineChecks(params: {
 
     all.push(...pipelineResults);
     if (mountedRef.current) setResults([...all]);
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (!mountedRef.current) return;
 
     all.push({
@@ -173,7 +174,7 @@ export async function runPipelineChecks(params: {
       title: "Pipeline Diagnostics",
       severity: "high",
       status: "fail",
-      message: e?.message || "Pipeline Diagnostics fehlgeschlagen",
+      message: getDiagnosticUiErrorMessage(e, "Pipeline Diagnostics fehlgeschlagen"),
     });
     if (mountedRef.current) setResults([...all]);
   }

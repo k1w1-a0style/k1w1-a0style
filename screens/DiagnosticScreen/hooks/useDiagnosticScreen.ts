@@ -4,10 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  STORAGE_KEYS,
-  diagnosticLastOkKeyForSelection,
-} from "../../../lib/storageKeys";
+import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
 
 
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
@@ -31,6 +28,7 @@ import { getDiagnosticFixOffer } from "../../../lib/diagnostics/fixResultContrac
 import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 
 import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
+import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 
 export function pipelineCheckAppliesToModes(params: {
   checkId: string;
@@ -70,7 +68,6 @@ export function useDiagnosticScreen(opts: {
   linkedRepo: string;
   linkedBranch?: string;
   setPreferredBuildProfile?: (mode: BuildMode) => void;
-  navigation?: any;
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
 }) {
@@ -172,6 +169,8 @@ export function useDiagnosticScreen(opts: {
   const [results, setResults] = useState<PreflightCheckResult[]>([]);
   const [running, setRunning] = useState(false);
   const runningRef = useRef(false);
+  const diagnosticRunEpochRef = useRef(0);
+  const activeSelectionScopeRef = useRef<string | null>(null);
   const [progressStage, setProgressStage] = useState<string | null>(null);
   const [lastRunAt, setLastRunAt] = useState<number | null>(null);
 
@@ -215,6 +214,12 @@ export function useDiagnosticScreen(opts: {
     return list;
   }, [sortedResults]);
 
+  useEffect(() => {
+    const repoScope = String(linkedRepo ?? "").trim().toLowerCase();
+    const branchScope = String(linkedBranch ?? "").trim();
+    activeSelectionScopeRef.current = repoScope && branchScope ? `${repoScope}::${branchScope}` : null;
+  }, [linkedRepo, linkedBranch]);
+
   const pipelineAppliesToFocus = useCallback(
     (id: string): boolean =>
       pipelineCheckAppliesToModes({
@@ -236,6 +241,19 @@ export function useDiagnosticScreen(opts: {
 
       runningRef.current = true;
       setRunning(true);
+
+      const runEpoch = ++diagnosticRunEpochRef.current;
+      const runScope = activeSelectionScopeRef.current;
+      const isCurrentRun = () =>
+        mountedRef.current &&
+        diagnosticRunEpochRef.current === runEpoch &&
+        activeSelectionScopeRef.current === runScope;
+      const guardedSetResults = (nextResults: PreflightCheckResult[]) => {
+        if (isCurrentRun()) setResults(nextResults);
+      };
+      const guardedSetProgressStage = (nextStage: string | null) => {
+        if (isCurrentRun()) setProgressStage(nextStage);
+      };
 
       const resetSelection = opts?.resetSelection !== false;
       const resetHistory = opts?.resetHistory !== false;
@@ -261,8 +279,8 @@ export function useDiagnosticScreen(opts: {
           files,
           all,
           mountedRef,
-          setResults,
-          setProgressStage,
+          setResults: guardedSetResults,
+          setProgressStage: guardedSetProgressStage,
         });
         await runPipelineChecks({
           includePipelineChecks,
@@ -272,32 +290,38 @@ export function useDiagnosticScreen(opts: {
           pipelineAppliesToFocus,
           all,
           mountedRef,
-          setResults,
-          setProgressStage,
+          setResults: guardedSetResults,
+          setProgressStage: guardedSetProgressStage,
         });
 
-        if (mountedRef.current) {
+        if (isCurrentRun()) {
           setResults(all);
           setLastRunAt(Date.now());
           setProgressStage(null);
-          // Persist diagnostic status (selection-scoped + legacy global fallback)
+          // Persist diagnostic status strictly for the active repo/branch selection.
           const hasFails = all.some((r) => r.status === "fail");
           const diagValue = hasFails ? "false" : "true";
-          const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-            linkedRepo,
-            linkedBranch,
-          });
-          await Promise.all([
-            AsyncStorage.setItem(scopedDiagnosticKey, diagValue).catch(() => {}),
-            AsyncStorage.setItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK, diagValue).catch(() => {}),
-          ]);
+          const hasPersistableSelection = Boolean(String(linkedRepo ?? "").trim() && String(linkedBranch ?? "").trim());
+          if (hasPersistableSelection) {
+            const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
+              linkedRepo,
+              linkedBranch,
+            });
+            await AsyncStorage.setItem(scopedDiagnosticKey, diagValue).catch(() => {});
+          } else {
+            await AsyncStorage.removeItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => {});
+          }
         }
-      } catch (e: any) {
-        Alert.alert("Diagnostics fehlgeschlagen", e?.message || "Unbekannter Fehler");
-        if (mountedRef.current) setProgressStage(null);
+      } catch (e: unknown) {
+        if (isCurrentRun()) {
+          Alert.alert("Diagnostics fehlgeschlagen", getDiagnosticUiErrorMessage(e));
+          setProgressStage(null);
+        }
       } finally {
-        runningRef.current = false;
-        if (mountedRef.current) setRunning(false);
+        if (diagnosticRunEpochRef.current === runEpoch) {
+          runningRef.current = false;
+          if (mountedRef.current) setRunning(false);
+        }
       }
     },
     [
@@ -381,6 +405,50 @@ export function useDiagnosticScreen(opts: {
     applyIssueFix,
     applyFixList,
   } = fixRunner;
+
+  const lastSelectionScopeRef = useRef<string | null>(null);
+  const didInitSelectionScopeRef = useRef(false);
+  useEffect(() => {
+    const repoScope = String(linkedRepo ?? "").trim().toLowerCase();
+    const branchScope = String(linkedBranch ?? "").trim();
+    const nextScope = repoScope && branchScope ? `${repoScope}::${branchScope}` : null;
+    const previousScope = lastSelectionScopeRef.current;
+    lastSelectionScopeRef.current = nextScope;
+
+    if (!didInitSelectionScopeRef.current) {
+      didInitSelectionScopeRef.current = true;
+      return;
+    }
+
+    if (previousScope === nextScope) {
+      return;
+    }
+
+    diagnosticRunEpochRef.current += 1;
+    runningRef.current = false;
+    setRunning(false);
+    setResults([]);
+    setSelected({});
+    setLastRunAt(null);
+    setProgressStage(null);
+    clearHistoryRef.current?.();
+    setReportVisible(false);
+    setIssueSheetVisible(false);
+    setActiveIssue(null);
+    setPreviewVisible(false);
+    setPreviewLabel("");
+    setPreviewEntries([]);
+  }, [
+    linkedRepo,
+    linkedBranch,
+    setSelected,
+    setReportVisible,
+    setIssueSheetVisible,
+    setActiveIssue,
+    setPreviewVisible,
+    setPreviewLabel,
+    setPreviewEntries,
+  ]);
 
   const tabDefs = useMemo(
     () => [

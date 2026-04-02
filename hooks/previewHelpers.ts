@@ -1,7 +1,6 @@
 // hooks/previewHelpers.ts
 // Shared preview helper utilities to keep usePreview/usePreviewScreen aligned.
 
-import { describeLocalEdgeAdminKeyIssue } from "../screens/CredentialsWizardScreen/utils/localAdminKey";
 import { fetchWithTimeout } from "../lib/network/fetchWithTimeout";
 import { isPreviewEdgeErrorCode, type PreviewEdgeErrorCode } from "../shared/previewErrorContract";
 import type { PreviewFiles, PreviewResponse } from "../types/preview";
@@ -212,7 +211,7 @@ function getPreviewEdgeErrorCode(error: unknown): PreviewEdgeErrorCode | null {
 }
 
 export function describeRemotePreviewFailure(params: {
-  adminKey?: string | null;
+  bearerJwt?: string | null;
   statusCode?: number | null;
   error: unknown;
 }): string {
@@ -246,13 +245,19 @@ export function describeRemotePreviewFailure(params: {
     return EMPTY_REMOTE_PREVIEW_FILES_ERROR;
   }
 
-  const localKeyReason = describeLocalEdgeAdminKeyIssue({
-    adminKey: params.adminKey,
-    statusCode: params.statusCode,
-    error: params.error,
-  });
-  if (localKeyReason) {
-    return `Remote-Preview blockiert: ${localKeyReason}`;
+  if (!String(params.bearerJwt ?? "").trim()) {
+    return "Remote-Preview blockiert: Supabase-Login-JWT fehlt oder ist lokal nicht verfuegbar.";
+  }
+
+  if (
+    params.statusCode === 401 ||
+    params.statusCode === 403 ||
+    normalized.includes("bearer") ||
+    normalized.includes("jwt") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("forbidden")
+  ) {
+    return "Remote-Preview blockiert: Der aktuelle Supabase-Login-JWT wurde vom Preview-Edge-Vertrag abgelehnt.";
   }
 
   return "Remote-Preview konnte nicht zuverlässig bereitgestellt werden.";
@@ -285,15 +290,8 @@ function getRuntimeSupabaseUrl(): string | null {
   return typeof envUrl === "string" && envUrl.trim() ? envUrl.trim() : null;
 }
 
-export function isLegacyPreviewOperatorModeEnabled(): boolean {
-  const runtime = globalThis as RuntimeGlobals;
-  const raw = runtime.process?.env?.EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE;
-  const normalized = String(raw ?? "").trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes";
-}
-
 export async function invokeSavePreview(params: {
-  adminKey: string;
+  bearerJwt: string;
   payload: {
     projectId?: string;
     name: string;
@@ -317,7 +315,7 @@ export async function invokeSavePreview(params: {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-k1w1-admin-key": params.adminKey.trim(),
+        Authorization: `Bearer ${params.bearerJwt.trim()}`,
       },
       body: JSON.stringify(params.payload),
     });

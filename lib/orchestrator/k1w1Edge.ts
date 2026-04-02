@@ -1,4 +1,3 @@
-import { getLegacyEdgeAdminKey } from '../../infra/github/githubService';
 import { ensureSupabaseClient } from '../supabase';
 import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
@@ -236,13 +235,14 @@ export async function invokeK1w1Handler({
   timeoutMs,
 }: InvokeK1w1HandlerArgs): Promise<OrchestratorResult> {
   const supabase = await ensureSupabaseClient();
-  const edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
+  const sessionResult = await supabase.auth.getSession().catch(() => null);
+  const userJwt = String(sessionResult?.data?.session?.access_token ?? '').trim();
 
-  if (!edgeAdminKey) {
+  if (!userJwt) {
     return {
       ok: false,
       error:
-        'Lokaler Legacy Edge Admin Key (compat/Sunset) fehlt. k1w1-handler nutzt derzeit noch K1W1_EDGE_ADMIN_KEY; bitte den lokalen Compat-Key nur fuer diesen Altpfad setzen und scoped Keys fuer Workflow/Keystore getrennt pflegen.',
+        'k1w1-handler blockiert ohne Supabase-Login-JWT. Erforderlich ist Authorization: Bearer <jwt>; der JWT muss serverseitig role=build_admin (oder service_role fuer Server-Caller) erfuellen.',
       provider,
       model,
     };
@@ -268,7 +268,7 @@ export async function invokeK1w1Handler({
           messages,
         },
         headers: {
-          'x-k1w1-admin-key': edgeAdminKey,
+          Authorization: `Bearer ${userJwt}`,
         },
         signal: requestController.signal,
       },

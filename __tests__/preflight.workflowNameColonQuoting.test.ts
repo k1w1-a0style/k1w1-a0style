@@ -1,13 +1,13 @@
 import { checkWorkflowYamlNameColonQuoting } from "../lib/diagnostics/checks/workflowSecurity";
+import { makeProjectFile } from "./helpers/preflightTestHelpers";
 
 describe("preflight workflow name colon quoting", () => {
   it("fails and proposes upsert patch with quoted workflow name", () => {
     const result = checkWorkflowYamlNameColonQuoting.run([
-      {
-        path: ".github/workflows/build.yml",
-        content: "name: Foo: Bar\non: workflow_dispatch\njobs: {}\n",
-        updatedAt: Date.now(),
-      } as any,
+      makeProjectFile(
+        ".github/workflows/build.yml",
+        "name: Foo: Bar\non: workflow_dispatch\njobs: {}\n",
+      ),
     ], { mode: "eas", profile: "preview" });
 
     expect(result.status).toBe("fail");

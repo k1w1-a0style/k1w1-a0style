@@ -1,9 +1,5 @@
-import fs from "fs";
-import path from "path";
-
-function read(rel: string): string {
-  return fs.readFileSync(path.join(process.cwd(), rel), "utf8");
-}
+import { asAnySnippet } from "./helpers/invariantSnippetHelpers";
+import { readRepoText as read } from "./helpers/repoSourceHelpers";
 
 describe("patch 483 GitHubReposScreen step 8 invariants", () => {
   it("ignores stale default-branch lookups after a later repo selection", () => {
@@ -27,6 +23,6 @@ describe("patch 483 GitHubReposScreen step 8 invariants", () => {
     const screen = read("screens/GitHubReposScreen/index.tsx");
 
     expect(screen).toContain("projectFiles={projectFiles}");
-    expect(screen).not.toContain("projectFiles={projectFiles as any}");
+    expect(screen).not.toContain(`projectFiles={${asAnySnippet("projectFiles")}}`);
   });
 });

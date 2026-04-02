@@ -2,7 +2,14 @@
 import React, { useCallback, useEffect } from "react";
 import { Alert, BackHandler, KeyboardAvoidingView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  type EventArg,
+  type NavigationAction,
+  type NavigationProp,
+  type ParamListBase,
+} from "@react-navigation/native";
 import { CreationDialog } from "../../components/CreationDialog";
 import { FileActionsModal } from "../../components/FileActionsModal";
 import { EditorBody } from "./components/EditorBody";
@@ -57,11 +64,11 @@ const CodeScreen: React.FC = () => {
     isDirty,
 } = useCodeScreen();
 
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   // Guard against leaving the screen with unsaved edits (Drawer/Tab nav, etc.).
   useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e: EventArg<"beforeRemove", true, { action: NavigationAction }>) => {
       if (!selectedFile || !isDirty) return;
 
       e.preventDefault();

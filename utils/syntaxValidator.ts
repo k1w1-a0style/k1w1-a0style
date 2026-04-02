@@ -52,6 +52,146 @@ const extractImportIdentifiers = (importClause: string): string[] => {
   return Array.from(identifiers);
 };
 
+type DelimiterSummary = {
+  openBrackets: number;
+  closeBrackets: number;
+};
+
+const summarizeDelimitersOutsideLiterals = (code: string): DelimiterSummary => {
+  let openBrackets = 0;
+  let closeBrackets = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let inRegex = false;
+  let escaped = false;
+  const templateExpressionDepths: number[] = [];
+
+  const isInTemplateText = (): boolean =>
+    templateExpressionDepths.length > 0 && templateExpressionDepths[templateExpressionDepths.length - 1] === 0;
+
+  const canStartRegex = (previous: string | null): boolean => {
+    if (!previous) return true;
+    return /[=(:,!&|?;{}\[\]]/.test(previous);
+  };
+
+  let previousSignificant: string | null = null;
+
+  for (let index = 0; index < code.length; index += 1) {
+    const current = code[index];
+    const next = code[index + 1] ?? '';
+
+    if (inLineComment) {
+      if (current === '\n') {
+        inLineComment = false;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (current === '*' && next === '/') {
+        inBlockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+
+    if (inSingleQuote || inDoubleQuote || isInTemplateText() || inRegex) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (current === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (inSingleQuote && current === "'") {
+        inSingleQuote = false;
+        continue;
+      }
+      if (inDoubleQuote && current === '"') {
+        inDoubleQuote = false;
+        continue;
+      }
+      if (isInTemplateText()) {
+        if (current === '`') {
+          templateExpressionDepths.pop();
+          continue;
+        }
+        if (current === '$' && next === '{') {
+          templateExpressionDepths[templateExpressionDepths.length - 1] = 1;
+          previousSignificant = '{';
+          index += 1;
+          continue;
+        }
+      }
+      if (inRegex && current === '/') {
+        inRegex = false;
+        continue;
+      }
+      continue;
+    }
+
+    if (current === '/' && next === '/') {
+      inLineComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (current === '/' && next === '*') {
+      inBlockComment = true;
+      index += 1;
+      continue;
+    }
+
+    if (current === "'") {
+      inSingleQuote = true;
+      continue;
+    }
+
+    if (current === '"') {
+      inDoubleQuote = true;
+      continue;
+    }
+
+    if (current === '`') {
+      templateExpressionDepths.push(0);
+      continue;
+    }
+
+    if (current === '/' && canStartRegex(previousSignificant)) {
+      inRegex = true;
+      continue;
+    }
+
+    if ('([{'.includes(current)) {
+      openBrackets += 1;
+      if (templateExpressionDepths.length > 0 && templateExpressionDepths[templateExpressionDepths.length - 1] > 0) {
+        templateExpressionDepths[templateExpressionDepths.length - 1] += 1;
+      }
+    } else if (')]}'.includes(current)) {
+      closeBrackets += 1;
+      if (
+        current === '}' &&
+        templateExpressionDepths.length > 0 &&
+        templateExpressionDepths[templateExpressionDepths.length - 1] > 0
+      ) {
+        templateExpressionDepths[templateExpressionDepths.length - 1] -= 1;
+      }
+    }
+
+    if (!/\s/.test(current)) {
+      previousSignificant = current;
+    }
+  }
+
+  return { openBrackets, closeBrackets };
+};
+
+const stripImportLines = (code: string): string =>
+  code.replace(/^\s*import\s+.*?\s+from\s+['"].*?['"];?\s*$/gm, '');
+
 export const validateSyntax = (code: string, filePath: string): SyntaxError[] => {
   const errors: SyntaxError[] = [];
   const extension = filePath.match(/\.(jsx?|tsx?|json|md)$/i)?.[1]?.toLowerCase();
@@ -61,9 +201,8 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
 
   // TypeScript/JavaScript validation
   if (['js', 'jsx', 'ts', 'tsx'].includes(extension)) {
-    // Check for unmatched brackets
-    const openBrackets = (code.match(/[\[{(]/g) || []).length;
-    const closeBrackets = (code.match(/[\]})]/g) || []).length;
+    // Check for unmatched brackets outside strings/comments/regex literals.
+    const { openBrackets, closeBrackets } = summarizeDelimitersOutsideLiterals(code);
     if (openBrackets !== closeBrackets) {
       errors.push({
         message: `Ungleiche Anzahl von Klammern: ${openBrackets} geöffnet, ${closeBrackets} geschlossen`,
@@ -76,7 +215,7 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
     lines.forEach((line, index) => {
       // Skip comments
       if (line.trim().startsWith('//') || line.trim().startsWith('/*')) return;
-      
+
       const quotes = line.match(/["'`]/g) || [];
       if (quotes.length % 2 !== 0) {
         errors.push({
@@ -116,8 +255,9 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
       }
     }
 
-    // Check for unused imports (basic check)
+    // Check for unused imports (basic check, excluding import declarations themselves).
     const importMatches = code.match(/import\s+.*?\s+from\s+['"].*?['"]/g) || [];
+    const codeWithoutImports = stripImportLines(code);
     importMatches.forEach((importLine) => {
       const clauseMatch = importLine.match(/^import\s+(.+?)\s+from\s+['"]/i);
       if (!clauseMatch) return;
@@ -125,8 +265,8 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
       const identifiers = extractImportIdentifiers(clauseMatch[1]);
       identifiers.forEach((identifier) => {
         const usageRegex = new RegExp(`\\b${escapeRegex(identifier)}\\b`, 'g');
-        const usageCount = (code.match(usageRegex) || []).length;
-        if (usageCount <= 1) {
+        const usageCount = (codeWithoutImports.match(usageRegex) || []).length;
+        if (usageCount < 1) {
           errors.push({
             message: `Import "${identifier}" scheint ungenutzt zu sein`,
             severity: 'warning',

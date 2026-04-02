@@ -6,14 +6,13 @@ function read(relPath: string): string {
 }
 
 describe("docs index links sanity", () => {
-  it("contains links to 06/07/08/09/10 and runbooks/APP_RUNBOOK.md", () => {
+  it("contains canonical links to active docs and archive", () => {
     const index = read("docs/INDEX.md");
 
-    expect(index).toContain("06-build-readiness.md");
-    expect(index).toContain("07-diagnostics-fix-playbook.md");
-    expect(index).toContain("08-test-coverage-matrix.md");
-    expect(index).toContain("09-gap-tickets.md");
-    expect(index).toContain("10-product-and-flows.md");
-    expect(index).toContain("runbooks/APP_RUNBOOK.md");
+    expect(index).toContain("[00-overview.md](00-overview.md)");
+    expect(index).toContain("[06-build-readiness.md](06-build-readiness.md)");
+    expect(index).toContain("[08-test-coverage-matrix.md](08-test-coverage-matrix.md)");
+    expect(index).toContain("[runbooks/APP_RUNBOOK.md](runbooks/APP_RUNBOOK.md)");
+    expect(index).toContain("[patches/README.md](patches/README.md)");
   });
 });

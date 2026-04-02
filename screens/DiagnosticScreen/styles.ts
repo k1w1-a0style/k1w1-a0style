@@ -502,3 +502,6 @@ export const styles = StyleSheet.create({
     backgroundColor: theme.palette.background,
   },
 });
+
+
+export type DiagnosticScreenStyles = typeof styles;

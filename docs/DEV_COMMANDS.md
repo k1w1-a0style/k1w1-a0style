@@ -1,5 +1,7 @@
 # Developer Commands
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 This file collects the most useful terminal commands for working on this repo (without requiring extra tools like `rg`).
 
 ## Run checks

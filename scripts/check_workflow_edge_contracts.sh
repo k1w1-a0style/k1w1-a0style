@@ -110,6 +110,8 @@ require_fixed "$LOGS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow
 require_fixed "$DISPATCH_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
 require_fixed "$DISPATCH_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")'
+require_fixed "$DISPATCH_EDGE" 'const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();'
+forbid_fixed "$DISPATCH_EDGE" 'Deno.env.get("K1W1_ALLOWED_REF_REGEX")'
 require_fixed "$DISPATCH_EDGE" 'code: "missing_workflow"'
 require_fixed "$DISPATCH_EDGE" "Dispatch is mutation-free"
 forbid_fixed "$DISPATCH_EDGE" "ensureWorkflowFileExists("
@@ -138,15 +140,18 @@ forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'Invalid branch.'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-status")'
-require_pattern "$K1W1_HANDLER_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
-require_fixed "$K1W1_HANDLER_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
-forbid_fixed "$K1W1_HANDLER_EDGE" 'requireAdminKey(req)'
-require_pattern "$CREATE_CODESANDBOX_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
-require_fixed "$CREATE_CODESANDBOX_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
-forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'requireAdminKey(req)'
-require_pattern "$SAVE_PREVIEW_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
-require_fixed "$SAVE_PREVIEW_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
-forbid_fixed "$SAVE_PREVIEW_EDGE" 'requireAdminKey(req)'
+forbid_fixed "$K1W1_HANDLER_EDGE" 'requireScopedEdgeAuth(req, {'
+forbid_fixed "$K1W1_HANDLER_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+forbid_fixed "$K1W1_HANDLER_EDGE" 'x-k1w1-admin-key'
+require_fixed "supabase/config.toml" '[functions.create_codesandbox]'
+require_fixed "supabase/config.toml" 'enabled = false'
+forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'requireScopedEdgeAuth(req, {'
+forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+require_fixed "$CREATE_CODESANDBOX_EDGE" 'status: 410'
+require_fixed "$CREATE_CODESANDBOX_EDGE" 'legacy_create_codesandbox_disabled'
+require_fixed "$SAVE_PREVIEW_EDGE" 'requireVerifiedJwt(req, "save_preview")'
+forbid_fixed "$SAVE_PREVIEW_EDGE" 'requireScopedEdgeAuth(req, {'
+forbid_fixed "$SAVE_PREVIEW_EDGE" 'x-k1w1-admin-key'
 require_pattern "$LEGACY_TEST_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_fixed "$LEGACY_TEST_EDGE" 'scope: "test"'
 require_fixed "$LEGACY_TEST_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
@@ -161,9 +166,10 @@ require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
 forbid_fixed "$WIZARD_HOOK" "getLegacyEdgeAdminKey"
 require_fixed "$SIGNING_GATE" "getAndroidKeystoreExportAdminKey"
 forbid_fixed "$SIGNING_GATE" "getLegacyEdgeAdminKey"
-require_fixed "$PREVIEW_HOOK" 'isLegacyPreviewOperatorModeEnabled'
-require_fixed "$PREVIEW_HOOK" 'LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED'
-require_fixed "$PREVIEW_HOOK" 'Legacy save_preview ist jetzt ein expliziter Operator-/Maintenance-Vertrag'
+require_fixed "$PREVIEW_HOOK" 'Missing Supabase Preview JWT'
+require_fixed "$PREVIEW_HOOK" 'bearerJwt: userJwt'
+forbid_fixed "$PREVIEW_HOOK" 'isLegacyPreviewOperatorModeEnabled'
+forbid_fixed "$PREVIEW_HOOK" 'LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED'
 require_fixed "$CI_LITE_MODAL" "lokalen Workflow Admin Key (scoped)"
 require_fixed "$CI_LITE_MODAL" "Legacy-Compat/Sunset-Vertrag"
 require_fixed "$WIZARD_HOOK" "build_admin (oder service_role fuer Server-Caller)"
@@ -198,6 +204,10 @@ forbid_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=authenticated"
 
 require_fixed "$ROOT_CONFIG" '[functions.android-keystore-generate]'
 require_fixed "$ROOT_CONFIG" '[functions.android-keystore-status]'
+require_fixed "$ROOT_CONFIG" '[functions.save_preview]'
+awk '/^\[functions\.save_preview\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG" \
+  || fail "save_preview must keep verify_jwt = true in $ROOT_CONFIG"
+
 require_fixed "$ROOT_CONFIG" '[functions.android-keystore-export]'
 awk '/^\[functions\.android-keystore-generate\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG" \
   || fail "android-keystore-generate must keep verify_jwt = true in $ROOT_CONFIG"
@@ -223,6 +233,7 @@ forbid_fixed "$AUTH_SHARED" "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"
 require_fixed "$AUTH_SHARED" '"Missing required auth secrets for this Edge Function."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: send either admin key OR bearer token, not both."'
 require_fixed "$AUTH_SHARED" '"Unauthorized: missing authentication header."'
+require_fixed "$AUTH_SHARED" "export async function requireVerifiedJwt(req: Request, scope: string): Promise<Response | null> {"
 
 require_fixed "$TRIGGER_WF" "job_id: \${{ steps.resolve.outputs.job_id }}"
 require_fixed "$TRIGGER_WF" "autofix: \${{ steps.resolve.outputs.autofix }}"
@@ -252,8 +263,11 @@ require_fixed "$ARTIFACT_EDGE" 'json: parsed'
 require_fixed "$ARTIFACT_EDGE" 'artifactId: artifact.id'
 require_fixed "$ARTIFACT_EDGE" 'artifactName: artifact.name'
 require_fixed "$ARTIFACT_EDGE" 'filePath,'
+require_fixed "$ARTIFACT_EDGE" 'isAllowedGithubRepo(githubRepo)'
 
 require_fixed "$RUNS_EDGE" 'error: "workflowId not found"'
+require_fixed "$RUNS_EDGE" 'isAllowedGithubRepo(githubRepo)'
+require_fixed "$LOGS_EDGE" 'isAllowedGithubRepo(normalizedGithubRepo)'
 require_fixed "$LOGS_EDGE" 'logsText: text'
 require_fixed "$LOGS_EDGE" 'truncated,'
 
@@ -282,6 +296,9 @@ require_fixed "$EDGE_STATUS_DOC" '`github-run-artifact-json`'
 require_fixed "$EDGE_STATUS_DOC" '`android-keystore-export`'
 require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_WORKFLOW_ADMIN_KEY'
 require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY'
+require_fixed "$K1W1_HANDLER_EDGE" 'requireAiOperatorJwtRole(req, "k1w1-handler")'
+require_fixed "$AUTH_SHARED" 'export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {'
+awk '/^\[functions\.k1w1-handler\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG"   || fail "k1w1-handler must keep verify_jwt = true in $ROOT_CONFIG"
 
 require_fixed "$CI_LITE_ENV_LOAD" 'WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"'
 require_fixed "$CI_LITE_ENV_LOAD" 'Missing required K1W1_EDGE_WORKFLOW_ADMIN_KEY'

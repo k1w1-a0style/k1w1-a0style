@@ -1,49 +1,39 @@
 # 00 — Overview
 
-Stand: **2026-03-17 (Patch 477)**
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-## Zielbild (operativ)
+## Zielbild
 
-k1w1-a0style führt Operatoren durch eine stabile Kette:
+k1w1-a0style fuehrt Operatoren durch eine stabile Kette:
 
-1. `GitHub Repos` — Repo + Branch explizit setzen
-2. `Verbindungen` — Tokens/Connectivity prüfen
-3. `Diagnose` — Checks ausführen und Fix-Loop schließen
-4. `Build` — nur bei grüner Readiness starten
-5. `Status/History` — Verlauf und Laufzeitstatus verfolgen
+1. **Repo/Branch setzen**
+2. **Verbindungen / Secrets pruefen**
+3. **Diagnostics ausfuehren und Fix-Loops schliessen**
+4. **Build nur bei gruener Readiness starten**
+5. **Status / History / Logs kontrolliert verfolgen**
 
-## Source-of-Truth (SoT)
+## Aktueller Repo-Status
 
-- **Repo/Branch:** `projectData.linked*` ist die führende Auswahl; kein stilles Erraten.
-- **Workflow-Ref:** produktive Deploy-/Build-Pfade sind explizit ref-gesteuert.
-- **CI-Lite-Ausnahme:** branch-basierte Chain ist bewusst dokumentiert und begrenzt.
-- **Build-Job-ID:** positive numerische `jobId` (bigint-backed).
-- **Diagnostics-Upload-ID:** im Client opaque string; Backend bleibt bigint-backed.
+- keine offenen bestaetigten Repo-Muss-Punkte im aktuell geprueften Stand
+- produktive Deploy-/Workflow-Flows bleiben explizit ref-gesteuert
+- Build-/Workflow-/Artifact-/Keystore-Routen bleiben fail-closed und auth-/scope-gebunden
+- `create_codesandbox` ist deaktiviert und **kein** aktiver Produktpfad mehr
 
-## Sicherheits- und Governance-Leitplanken
+## Source of Truth
 
-- Keine Service-Role-Key-Nutzung mehr in Client-Pfaden.
-- Workflow-/Edge-Verträge bleiben über Guard-Skripte + Invariants gegen Drift abgesichert.
-- Legacy-/Retired-Edge-Funktionen bleiben explizit als deaktiviert dokumentiert.
+- **Repo/Branch:** `projectData.linked*`
+- **Build-Readiness:** selection-scoped Diagnostics und explizite Preconditions
+- **Build-Laufkontext:** `currentBuild.githubRepo` + `currentBuild.runId`
+- **Edge-/Auth-Vertraege:** `docs/EDGE_FUNCTIONS_STATUS.md` und `docs/06-build-readiness.md`
+- **Restpunkte / aktueller Stand:** `docs/TODO.md` + `docs/reviews/Review.md`
 
-## Was dieses Dokument bewusst **nicht** ist
+## Nicht-Ziele dieses Dokuments
 
-- Kein vollständiges Incident-Runbook.
-- Keine Patch-Historie im Detail.
+- keine Patch-Historie im Detail
+- kein Incident-Runbook
+- keine Parallel-Review
 
-Für diese Bereiche:
-- Runbook: `docs/runbooks/APP_RUNBOOK.md`
-- Patch-Historie: `docs/patches/PATCHLOG_ROOT.md`
-
-## Operator-Kurzchecks
-
-Vor jedem Build:
-- Repo/Branch gesetzt
-- Diagnostics zuletzt grün (`diagnostic_last_ok = true`)
-- notwendige Secrets/Tokens vorhanden
-- Profil korrekt (z. B. `production`)
-
-## Nächste Pflegepunkte
-
-- Kern-MDs weiterhin synchron halten (`README.md`, `docs/INDEX.md`, diese Übersicht, Screen-/Flow-Dokus).
-- Historienballast aus Kernflächen fernhalten; Details in Patchnotizen belassen.
+Dafuer gelten:
+- `PROJECT_CHECKLOG.md`
+- `docs/patches/PATCHLOG_ROOT.md`
+- `docs/runbooks/APP_RUNBOOK.md`

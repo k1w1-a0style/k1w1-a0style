@@ -6,6 +6,7 @@ import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
 import { logger } from "../../lib/logger";
 import { fetchGitHub } from "./utils";
+import { hasGitHubErrorMessageContaining, readGitHubMessage, readJsonRecordSafe, readStringField } from "./githubResponseHelpers";
 
 export type { GitHubBranch } from "./branchOps";
 export { createBranch, deleteBranch, renameBranch, getBranches, getDefaultBranch, getBranchHeadSha } from "./branchOps";
@@ -27,10 +28,8 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
     body: JSON.stringify({ name: repoName, private: isPrivate }),
   });
 
-  let json: any;
-  try {
-    json = await resp.json();
-  } catch {
+  const json = await readJsonRecordSafe(resp);
+  if (!Object.keys(json).length) {
     const textResponse = await resp.text();
     throw new Error(
       `GitHub API Fehler (Status ${resp.status}): Kein JSON empfangen. Antwort: ${textResponse}`,
@@ -49,9 +48,7 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
       throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
     }
 
-    const alreadyExistsError = json.errors?.find((e: any) =>
-      e.message?.includes("name already exists"),
-    );
+    const alreadyExistsError = hasGitHubErrorMessageContaining(json, "name already exists");
 
     if (status === 422 && alreadyExistsError) {
       logger.warn("Repo existiert bereits, verwende es", { repoName });
@@ -62,20 +59,21 @@ export const createRepo = async (repoName: string, isPrivate = true) => {
           Authorization: `Bearer ${token}`,
         },
       });
-      const userData = await userResp.json();
-      if (!userData.login) throw new Error("Konnte User-Login nicht abrufen.");
+      const userData = await readJsonRecordSafe(userResp);
+      const login = readStringField(userData, "login");
+      if (!login) throw new Error("Konnte User-Login nicht abrufen.");
 
       return {
-        owner: { login: userData.login },
+        owner: { login },
         name: repoName,
-        html_url: `https://github.com/${userData.login}/${repoName}`,
+        html_url: `https://github.com/${login}/${repoName}`,
       };
     }
 
     const errorDetails = JSON.stringify(json, null, 2);
     logger.error("GitHub API Fehlerdetails", { errorDetails });
     throw new Error(
-      `GitHub API Fehler (Status ${status}): ${json.message || errorDetails}`,
+      `GitHub API Fehler (Status ${status}): ${readGitHubMessage(json) || errorDetails}`,
     );
   }
 
@@ -132,7 +130,7 @@ export const renameRepo = async (
     body: JSON.stringify({ name }),
   });
 
-  const json: any = await resp.json().catch(() => ({}));
+  const json = await readJsonRecordSafe(resp);
 
   if (!resp.ok) {
     if (resp.status === 401) throw new Error("GitHub Token ungültig.");
@@ -140,14 +138,14 @@ export const renameRepo = async (
       throw new Error("Keine Berechtigung. Token benötigt Repo-Admin Rechte.");
     if (resp.status === 404) throw new Error("Repository nicht gefunden.");
     throw new Error(
-      json.message || `Repo umbenennen fehlgeschlagen (${resp.status})`,
+      readGitHubMessage(json) || `Repo umbenennen fehlgeschlagen (${resp.status})`,
     );
   }
 
   return {
-    full_name: json.full_name,
-    name: json.name,
-    html_url: json.html_url,
+    full_name: readStringField(json, "full_name"),
+    name: readStringField(json, "name"),
+    html_url: readStringField(json, "html_url"),
   };
 };
 

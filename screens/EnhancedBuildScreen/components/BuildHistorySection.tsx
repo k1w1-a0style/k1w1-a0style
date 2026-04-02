@@ -145,7 +145,7 @@ export function BuildHistorySection({
                   activeOpacity={0.8}
                   accessibilityLabel="Historie als JSON kopieren"
                 >
-                  <Text style={styles.secondaryBtnText}>📋 Copy JSON</Text>
+                  <Text style={styles.secondaryBtnText}>📋 JSON kopieren</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -154,7 +154,7 @@ export function BuildHistorySection({
                   activeOpacity={0.8}
                   accessibilityLabel="Historie als CSV teilen"
                 >
-                  <Text style={styles.secondaryBtnText}>📤 Share CSV</Text>
+                  <Text style={styles.secondaryBtnText}>📤 CSV teilen</Text>
                 </TouchableOpacity>
               </View>
             )}

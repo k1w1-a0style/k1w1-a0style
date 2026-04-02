@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -44,7 +46,7 @@ describe("runBuildPipelineDiagnostics - EAS projectId source priority", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easProjectId");
+    const check = findCheckById(res.checks, "repo.easProjectId");
     expect(check?.status).toBe("pass");
     expect(check?.details).toContain(UUID_A);
     expect(check?.details).toContain("source: eas-project.json");
@@ -61,7 +63,7 @@ describe("runBuildPipelineDiagnostics - EAS projectId source priority", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easProjectId");
+    const check = findCheckById(res.checks, "repo.easProjectId");
     expect(check?.status).toBe("pass");
     expect(check?.details).toContain(UUID_B);
     expect(check?.details).toContain("source: app.json");
@@ -77,7 +79,7 @@ describe("runBuildPipelineDiagnostics - EAS projectId source priority", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easProjectId");
+    const check = findCheckById(res.checks, "repo.easProjectId");
     expect(check?.status).toBe("pass");
     expect(check?.details).toContain(UUID_C);
     expect(check?.details).toContain("source: app.config");

@@ -1,20 +1,17 @@
 import { CI_LITE_PERSISTENCE_REASONS, CI_LITE_WORKFLOW_ID } from "../lib/ciLitePersistence";
 import { evaluateBuildReadiness } from "../lib/buildReadiness";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
-import type { ProjectData } from "../shared/types/project";
+import { makeProjectData } from "./helpers/projectTestHelpers";
 
 const NOW = 1_710_000_000_000;
 const SHA = "a".repeat(40);
 
-function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
-  return {
-    id: "p1",
-    name: "test",
-    files: [{ path: "app.json", content: "{}", updatedAt: NOW } as any],
+function makeProject(overrides = {}) {
+  return makeProjectData({
     linkedRepo: "owner/repo",
     linkedBranch: "main",
     ...overrides,
-  } as any;
+  });
 }
 
 function buildScopedGreenStorageMap(params: {

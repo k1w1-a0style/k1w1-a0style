@@ -18,7 +18,7 @@ export interface BuildStatusDetails {
     /** Optional: direct artifact/build download URL (UI convenience) */
     buildUrl?: string | null;
   };
-  raw?: any;
+  raw?: unknown;
   errorMessage?: string;
   runId?: number | null;
   /** Exact commit SHA that the workflow checked out for this build job. */

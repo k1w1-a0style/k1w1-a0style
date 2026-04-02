@@ -1,11 +1,12 @@
 import { checkLockfileConsistency } from "../lib/diagnostics/checks/assetsAndFiles";
+import { makeProjectFile } from "./helpers/projectTestHelpers";
 
 describe("preflight lockfile-consistency", () => {
   it("warns for multiple lockfiles and proposes delete patch", () => {
     const result = checkLockfileConsistency.run([
-      { path: "package.json", content: "{}" } as any,
-      { path: "yarn.lock", content: "yarn" } as any,
-      { path: "package-lock.json", content: "npm" } as any,
+      makeProjectFile("package.json", "{}"),
+      makeProjectFile("yarn.lock", "yarn"),
+      makeProjectFile("package-lock.json", "npm"),
     ], { mode: "eas", profile: "all" });
 
     expect(result.id).toBe("lockfile-consistency");

@@ -1,50 +1,45 @@
 # Testing Guide
 
-Stand: **2026-03-31 (Patch 655)**
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-## Zweck
-
-Diese Datei beschreibt den **aktuellen** lokalen Testpfad. Historische Preview-spezifische Schrittlisten wurden entfernt, weil sie veraltete Umgebungspfade und alte Suite-Zahlen enthielten.
-
-## Kanonischer Ablauf (lokal)
-
-1. Abhaengigkeiten sauber installieren.
-2. Typecheck, Lint und Tests in genau dieser Reihenfolge laufen lassen.
+## Kanonischer lokaler Ablauf
 
 ```bash
 npm ci
 npm run typecheck
+npm run typecheck:edge
+npm run typecheck:strict
 npm run lint:ci
 npm run test:silent
 ```
 
-## Voraussetzungen
-
-- Node.js `>=20.0.0`
-- npm `>=10.0.0`
+Optional:
 
 ```bash
-node --version
-npm --version
+npm run test:e2e:smoke
+npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
 ```
 
-## Erwartete Ergebnisse
+## Read-only Live-/Staging-Checks
 
-- Jeder Command endet mit Exit-Code `0`.
-- Keine TypeScript-Fehler.
-- Keine ESLint-Fehler.
-- Jest-Suite komplett gruen.
-
-## Bekannte externe Warnung
-
-In manchen Umgebungen kann waehrend `npm`-Aufrufen folgende Warnung erscheinen:
-
-```txt
-npm warn Unknown env config "http-proxy"
+```bash
+EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run edge:check:live
 ```
 
-Das ist externer Umgebungs-Noise (Runner/Host) und kein Repo-Code-Defekt.
+Oder als kompletter Verify-Pfad:
 
-## Verweis
+```bash
+EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run verify:release
+```
 
-- Fuer den reproduzierbaren Fresh-Checkout-Verifikationspfad siehe: `docs/FRESH_CHECKOUT_GREEN_PATH.md`.
+## Zweck
+
+- lokale Verifikation reproduzierbar halten
+- Edge-/Docs-/Contract-Checks nicht von Hauptsuite entkoppeln
+- Read-only Live-Checks klar von produktiven Mutationen trennen
+
+## Verweise
+
+- `docs/FRESH_CHECKOUT_GREEN_PATH.md`
+- `docs/04-testing-smoke-plan.md`
+- `docs/08-test-coverage-matrix.md`

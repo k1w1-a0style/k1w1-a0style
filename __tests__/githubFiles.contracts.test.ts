@@ -52,7 +52,7 @@ describe("infra/github/files contracts", () => {
       response({
         ok: true,
         json: async () => ({ path: "README.md", encoding: "base64" }),
-      }) as any,
+      }),
     );
 
     await expect(
@@ -66,14 +66,14 @@ describe("infra/github/files contracts", () => {
         response({
           ok: false,
           status: 404,
-        }) as any,
+        }),
       )
       .mockResolvedValueOnce(
         response({
           ok: false,
           status: 500,
           json: async () => ({ reason: "missing-message-field" }),
-        }) as any,
+        }),
       );
 
     await expect(

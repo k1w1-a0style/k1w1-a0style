@@ -4,8 +4,11 @@ jest.mock("@react-navigation/native", () => ({
 
 import React from "react";
 import { Text, TouchableOpacity, Alert } from "react-native";
-import { act, render, fireEvent, waitFor, cleanup } from "@testing-library/react-native";
+import { act, render, fireEvent, waitFor, cleanup, type RenderAPI } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import type { BuildProfile } from "../screens/EnhancedBuildScreen/types";
+import type { DeployStep, DeployStepId } from "../screens/EnhancedBuildScreen/hooks/useOneClickDeploy";
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
@@ -16,7 +19,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
   },
 }));
 
-const mockAsyncStorage = AsyncStorage as any;
+const mockAsyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
 
 // IMPORTANT:
 // useOneClickDeploy imports deep-relative module ids like "../../../infra/github/githubService".
@@ -34,9 +37,11 @@ const mockSecrets = {
   autoSyncRepoSecrets: jest.fn(),
 };
 
+const mockProjectData = { files: [] as { path: string; content: string }[] };
+
 const mockProject = {
   useProject: () => ({
-    projectData: { files: [] },
+    projectData: mockProjectData,
   }),
 };
 
@@ -50,14 +55,15 @@ jest.doMock(secretsPath, () => mockSecrets);
 jest.doMock(projectCtxPath, () => mockProject);
 
 // Require AFTER mocks
+type OneClickDeployModule = typeof import("../screens/EnhancedBuildScreen/hooks/useOneClickDeploy");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { useOneClickDeploy } = require("../screens/EnhancedBuildScreen/hooks/useOneClickDeploy");
+const { useOneClickDeploy }: OneClickDeployModule = require("../screens/EnhancedBuildScreen/hooks/useOneClickDeploy");
 
 function Harness(props: {
-  profile: any;
+  profile: BuildProfile;
   repo: string;
   branch: string;
-  startBuild?: (profile: any) => Promise<void>;
+  startBuild?: (profile: BuildProfile) => Promise<void>;
 }) {
   const hook = useOneClickDeploy(
     props.profile,
@@ -82,12 +88,18 @@ function Harness(props: {
   );
 }
 
-function getSteps(getByTestId: any) {
-  const raw = getByTestId("steps").props.children;
-  return JSON.parse(raw);
+function getSteps(getByTestId: RenderAPI["getByTestId"]): DeployStep[] {
+  const raw = String(getByTestId("steps").props.children ?? "[]");
+  return JSON.parse(raw) as DeployStep[];
 }
 
-async function pressRun(getByTestId: any) {
+function findStep(steps: DeployStep[], id: DeployStepId): DeployStep {
+  const step = steps.find((s) => s.id === id);
+  if (!step) throw new Error(`Missing deploy step: ${id}`);
+  return step;
+}
+
+async function pressRun(getByTestId: RenderAPI["getByTestId"]) {
   await act(async () => {
     fireEvent.press(getByTestId("run"));
     await Promise.resolve();
@@ -95,13 +107,14 @@ async function pressRun(getByTestId: any) {
 }
 
 describe("useOneClickDeploy", () => {
+  let alertSpy: jest.SpiedFunction<typeof Alert.alert>;
   beforeAll(() => {
     jest.useRealTimers();
     jest.setTimeout(20000);
   });
   beforeEach(() => {
     jest.useRealTimers();
-    jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
 
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
@@ -117,10 +130,11 @@ describe("useOneClickDeploy", () => {
     mockAsyncStorage.removeItem?.mockResolvedValue?.(undefined);
     mockGitHub.getBranchHeadSha.mockResolvedValue("a".repeat(40));
     mockGitHub.getAndroidKeystoreExportAdminKey.mockResolvedValue("keystore-admin-key-12345678901234567890");
+    mockProjectData.files = [];
   });
 
   afterEach(() => {
-    (Alert.alert as any).mockRestore?.();
+    alertSpy.mockRestore();
     jest.clearAllTimers();
     cleanup();
   });
@@ -149,7 +163,7 @@ describe("useOneClickDeploy", () => {
     await waitFor(
       () => {
         const steps = getSteps(getByTestId);
-        const signing = steps.find((s: any) => s.id === "signing_key");
+        const signing = findStep(steps, "signing_key");
         expect(signing.status).toBe("fail");
         expect(signing.detail).toMatch(/lokaler android keystore export admin key wurde vom edge-server abgelehnt|lokaler android keystore export admin key fehlt/i);
       },
@@ -157,8 +171,8 @@ describe("useOneClickDeploy", () => {
     );
 
     const steps = getSteps(getByTestId);
-    const tokens = steps.find((s: any) => s.id === "tokens");
-    const build = steps.find((s: any) => s.id === "build");
+    const tokens = findStep(steps, "tokens");
+    const build = findStep(steps, "build");
 
     expect(tokens.status).toBe("pending");
     expect(build.status).toBe("pending");
@@ -191,13 +205,82 @@ describe("useOneClickDeploy", () => {
 
     await waitFor(() => {
       const steps = getSteps(getByTestId);
-      const readiness = steps.find((s: any) => s.id === "readiness");
+      const readiness = findStep(steps, "readiness");
       expect(readiness.status).toBe("fail");
     });
 
     const steps = getSteps(getByTestId);
-    const build = steps.find((s: any) => s.id === "build");
+    const build = findStep(steps, "build");
     expect(build.status).toBe("pending");
+    expect(startBuild).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a legacy global diagnostic flag as sufficient for the current repo/branch", async () => {
+    mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
+      if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok") return "true";
+      return null;
+    });
+
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const readiness = findStep(steps, "readiness");
+      expect(readiness.status).toBe("fail");
+    });
+
+    expect(startBuild).not.toHaveBeenCalled();
+  });
+
+  it("fails readiness early when the project has no files", async () => {
+    mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
+      if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
+      if (k === "ci_lite_lint_ok") return "true";
+      if (k === "ci_lite_typecheck_ok") return "true";
+      if (k === "ci_lite_last_repo") return "owner/repo";
+      if (k === "ci_lite_last_branch") return "main";
+      if (k === "ci_lite_last_run_at") return String(Date.now());
+      if (k === "ci_lite_last_sha") return "a".repeat(40);
+      return null;
+    });
+
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const readiness = findStep(steps, "readiness");
+      expect(readiness.status).toBe("fail");
+      expect(String(readiness.detail || "")).toMatch(/Projekt ist leer/i);
+    });
+
     expect(startBuild).not.toHaveBeenCalled();
   });
 
@@ -244,8 +327,8 @@ describe("useOneClickDeploy", () => {
     );
 
     const steps = getSteps(getByTestId);
-    const pushFiles = steps.find((s: any) => s.id === "push_files");
-    const build = steps.find((s: any) => s.id === "build");
+    const pushFiles = findStep(steps, "push_files");
+    const build = findStep(steps, "build");
     expect(pushFiles.status).toBe("skip");
     expect(["Repo-Sync erfolgt im Build-Start (SHA-sicher)", "Keine Dateien zum Synchronisieren"]).toContain(
       String(pushFiles.detail || ""),
@@ -254,6 +337,48 @@ describe("useOneClickDeploy", () => {
     expect(startBuild).toHaveBeenCalledTimes(1);
     expect(mockGitHub.getGitHubToken).toHaveBeenCalledTimes(1);
     expect(mockGitHub.getExpoToken).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("blocks before build when repo sync state is unknown", async () => {
+    const sha = "a".repeat(40);
+    mockProjectData.files = [{ path: "App.tsx", content: "export default 1;" }];
+    mockAsyncStorage.getItem.mockImplementation(async (k: string) => {
+      if (k === "cred_key_exists_preview") return "true";
+      if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
+      if (k === "ci_lite_lint_ok") return "true";
+      if (k === "ci_lite_typecheck_ok") return "true";
+      if (k === "ci_lite_last_repo") return "owner/repo";
+      if (k === "ci_lite_last_branch") return "main";
+      if (k === "ci_lite_last_run_at") return String(Date.now());
+      if (k === "ci_lite_last_sha") return sha;
+      return null;
+    });
+
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+    mockGitHub.getBranchHeadSha.mockResolvedValue(sha);
+
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const readiness = findStep(steps, "readiness");
+      expect(readiness.status).toBe("fail");
+      expect(String(readiness.detail || "")).toMatch(/Repo-Sync-Status unklar/i);
+    });
+
+    expect(startBuild).not.toHaveBeenCalled();
   });
 
   it("blocks before build when CI-Lite SHA no longer matches the current branch head", async () => {
@@ -287,7 +412,7 @@ describe("useOneClickDeploy", () => {
 
     await waitFor(() => {
       const steps = getSteps(getByTestId);
-      const readiness = steps.find((s: any) => s.id === "readiness");
+      const readiness = findStep(steps, "readiness");
       expect(readiness.status).toBe("fail");
       expect(String(readiness.detail || "")).toMatch(/SHA-Mismatch/);
     });

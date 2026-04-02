@@ -40,4 +40,20 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(logs).not.toContain("isScopedCiBearerRequest(");
     expect(logs).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-logs")');
   });
+  it("keeps workflow read routes on the same repo allowlist helper as write routes", () => {
+    const dispatch = read("supabase/functions/github-workflow-dispatch/index.ts");
+    const trigger = read("supabase/functions/trigger-eas-build/index.ts");
+    const runs = read("supabase/functions/github-workflow-runs/index.ts");
+    const logs = read("supabase/functions/github-workflow-logs/index.ts");
+    const artifact = read("supabase/functions/github-run-artifact-json/index.ts");
+    expect(dispatch).toContain("isAllowedGithubRepo");
+    expect(trigger).toContain("isAllowedGithubRepo");
+    expect(runs).toContain("isAllowedGithubRepo");
+    expect(logs).toContain("isAllowedGithubRepo");
+    expect(artifact).toContain("isAllowedGithubRepo");
+    expect(runs).toContain('error: "githubRepo not allowed"');
+    expect(logs).toContain('"githubRepo not allowed"');
+    expect(artifact).toContain('errorResponse("githubRepo not allowed"');
+  });
+
 });

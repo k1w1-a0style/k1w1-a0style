@@ -27,9 +27,11 @@ const getRuntimeEnv = (key: string): string | undefined => {
  * In Produktion: Nur spezifische Domains erlauben
  * In Entwicklung: Localhost und Expo-Dev-Server erlauben
  */
+const DEFAULT_PRODUCTION_ORIGIN = "https://k1w1.app";
+
 const ALLOWED_ORIGINS = [
   // Produktion
-  "https://k1w1.app",
+  DEFAULT_PRODUCTION_ORIGIN,
   "https://www.k1w1.app",
   // Entwicklung - Expo Dev Server
   "http://localhost:8081",
@@ -43,11 +45,11 @@ const ALLOWED_ORIGINS = [
 /**
  * Prüft ob eine Origin erlaubt ist
  */
-function isAllowedOrigin(origin: string | null): boolean {
+function isAllowedOrigin(origin: string | null): origin is string {
   if (!origin) return false;
 
   // Entwicklungsmodus: Erlaube alle localhost und Expo-Origins
-  const isDev = (getRuntimeEnv("ENVIRONMENT") ?? "development") !== "production";
+  const isDev = (getRuntimeEnv("ENVIRONMENT") ?? "production").trim().toLowerCase() === "development";
   if (isDev) {
     if (origin.startsWith("http://localhost:")) return true;
     if (origin.startsWith("http://192.168.")) return true; // Lokales Netzwerk für Expo
@@ -67,10 +69,10 @@ function isAllowedOrigin(origin: string | null): boolean {
  * Generiert CORS-Header basierend auf der Origin
  */
 export function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = isAllowedOrigin(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowedOrigin = isAllowedOrigin(origin) ? origin : DEFAULT_PRODUCTION_ORIGIN;
 
   return {
-    "Access-Control-Allow-Origin": allowedOrigin || "*",
+    "Access-Control-Allow-Origin": allowedOrigin,
     "Access-Control-Allow-Headers":
       "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
     "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
@@ -94,7 +96,7 @@ export function corsHeadersForRequest(req: Request): Record<string, string> {
  * @deprecated Verwende getCorsHeaders(origin) für produktionsreife CORS
  */
 export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": DEFAULT_PRODUCTION_ORIGIN,
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-k1w1-admin-key",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",

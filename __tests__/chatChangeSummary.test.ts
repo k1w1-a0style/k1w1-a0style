@@ -1,3 +1,4 @@
+import type { OrchestratorResult } from "../lib/orchestrator";
 import { buildChangeConfirmationText } from "../hooks/chatChangeSummary";
 
 describe("chat change confirmation summary", () => {
@@ -9,10 +10,11 @@ describe("chat change confirmation summary", () => {
       updated: ["src/changed.ts"],
       skipped: ["src/skip.ts"],
       aiResponse: {
+        ok: true,
         provider: "openai",
         keysRotated: 2,
-        timing: { durationMs: 1234 },
-      } as any,
+        timing: { startMs: 0, endMs: 1234, durationMs: 1234 },
+      } satisfies OrchestratorResult,
     });
 
     expect(text).toContain("🆕 Neue Dateien: 1");
@@ -31,7 +33,7 @@ describe("chat change confirmation summary", () => {
       created: [],
       updated: [],
       skipped: [],
-      aiResponse: { provider: "system" } as any,
+      aiResponse: { ok: true, provider: "system" } satisfies OrchestratorResult,
     });
 
     expect(text).toContain("🆕 Neue Dateien: 0");

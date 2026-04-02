@@ -5,8 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 // ✅ Step 4B: normalizePath direkt aus lib/validators (Single Source of Truth)
 import { normalizePath } from '../lib/validators';
 
-// validateProjectFiles bleibt in chatUtils (exists there + used by tests/flow)
-import { validateProjectFiles } from './chatUtils';
+import { validateProjectFiles } from './chatValidation';
 
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
@@ -97,7 +96,7 @@ export const handleMetaCommand = (
   // Command: Zeige Datei <pfad>  (liefert Volltext, damit die KI „lesen vor schreiben“ kann)
   // Beispiele:
   // - "zeige datei screens/ChatScreen.tsx"
-  // - "cat utils/chatUtils.ts"
+  // - "cat utils/chatJsonUtils.ts"
   const showMatch = normalizedInput.match(/^(?:zeige\s+datei|cat)\s+(.+)$/);
   if (showMatch?.[1]) {
     const rawPath = showMatch[1].trim().replace(/^['"`]+|['"`]+$/g, '');

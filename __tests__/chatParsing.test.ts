@@ -1,4 +1,4 @@
-import { extractJsonArray, safeJsonParse } from '../utils/chatUtils';
+import { extractJsonArray, safeJsonParse } from '../utils/chatJsonUtils';
 
 describe('Chat/AI parsing helpers', () => {
   describe('extractJsonArray', () => {

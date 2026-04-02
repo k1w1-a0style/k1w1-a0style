@@ -92,8 +92,6 @@ describe("ConnectionsScreen", () => {
       setWorkflowAdminKey: jest.fn(),
       androidKeystoreExportAdminKey: "keystore-admin-key",
       setAndroidKeystoreExportAdminKey: jest.fn(),
-      legacyEdgeAdminKey: "legacy-edge-admin-key",
-      setLegacyEdgeAdminKey: jest.fn(),
       showGitHub: false,
       setShowGitHub: jest.fn(),
       showExpo: false,
@@ -102,8 +100,6 @@ describe("ConnectionsScreen", () => {
       setShowWorkflowAdmin: jest.fn(),
       showKeystoreAdmin: false,
       setShowKeystoreAdmin: jest.fn(),
-      showLegacyEdge: false,
-      setShowLegacyEdge: jest.fn(),
       showSupabaseAnon: false,
       setShowSupabaseAnon: jest.fn(),
       supabaseRaw: "https://demo.supabase.co",
@@ -135,5 +131,7 @@ describe("ConnectionsScreen", () => {
     expect(screen.getAllByText("Sync Summary").length).toBeGreaterThan(0);
     expect(screen.getByText("Repo: owner/repo (main)")).toBeTruthy();
     expect(screen.getByText("GitHub Scopes: repo,workflow")).toBeTruthy();
+    expect(screen.queryByText(/Legacy Edge Admin/i)).toBeNull();
+    expect(screen.queryByText(/K1W1_EDGE_ADMIN_KEY/)).toBeNull();
   });
 });

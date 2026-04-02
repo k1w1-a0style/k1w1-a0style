@@ -116,7 +116,6 @@ export const resolveConnectionsStatusFlags = (params: {
   expoToken: string;
   workflowAdminKey: string;
   androidKeystoreExportAdminKey: string;
-  legacyEdgeAdminKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   linkedRepo: string | null | undefined;
@@ -135,8 +134,7 @@ export const resolveConnectionsStatusFlags = (params: {
   const ex = !!params.expoToken.trim();
   const edge =
     !!params.workflowAdminKey.trim() ||
-    !!params.androidKeystoreExportAdminKey.trim() ||
-    !!params.legacyEdgeAdminKey.trim();
+    !!params.androidKeystoreExportAdminKey.trim();
   const sbUrl = !!params.supabaseUrl.trim();
   const sbAnon = !!params.supabaseAnonKey.trim();
   const linked = !!(params.linkedRepo || params.activeRepo);

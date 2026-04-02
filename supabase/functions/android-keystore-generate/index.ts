@@ -3,11 +3,12 @@
 
 import {
   resolveMode, getForge, safeString, repoOk,
-  bytesToBinaryStringChunked, encryptText, ensureBucketExists,
+  encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
+  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
+import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -25,7 +26,7 @@ Deno.serve(async (req) => {
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",
-    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    subject: getRequestRateLimitSubject(req),
     max: 30,
     windowMs: 60_000,
   });
@@ -48,7 +49,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, 20_000);
+    if (isParsedJsonBodyError(parsedBody)) {
+      const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
+      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+    }
+    const body = parsedBody.body;
     const repo = safeString(body?.repo);
     let mode: Mode;
     try {

@@ -2,10 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
-import {
-  STORAGE_KEYS,
-  diagnosticLastOkKeyForSelection,
-} from "../../../lib/storageKeys";
+import { diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
 import {
   normalizeVerificationContract,
   type VerificationContractState,
@@ -56,9 +53,8 @@ export async function readBuildReadinessState(params: {
     linkedBranch: branchName,
   });
 
-  const [diagScopedVal, diagLegacyVal, persistedCiLite] = await Promise.all([
+  const [diagScopedVal, persistedCiLite] = await Promise.all([
     storageGetItem(scopedDiagnosticKey).catch(() => null),
-    storageGetItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null),
     readPersistedCiLiteSelection({
       repoFullName,
       branchName,
@@ -70,7 +66,7 @@ export async function readBuildReadinessState(params: {
     }),
   ]);
 
-  const diagVal = diagScopedVal ?? diagLegacyVal;
+  const diagVal = diagScopedVal;
   const diagnosticContract = normalizeVerificationContract({
     explicitState: diagVal === "true" ? "verified" : "unknown",
   });

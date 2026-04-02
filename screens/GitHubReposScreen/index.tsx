@@ -33,6 +33,7 @@ import { ManageTextModal } from "./components/ManageTextModal";
 import { LocalRemoteDiffSection } from "./components/LocalRemoteDiffSection";
 import { PushOptionsModal } from "./components/PushOptionsModal";
 import { PullPreviewModal } from "./components/PullPreviewModal";
+import { getErrorMessage } from "./hooks/githubReposScreenErrorHelpers";
 
 export default function GitHubReposScreen() {
   const s = styles;
@@ -420,8 +421,8 @@ export default function GitHubReposScreen() {
         onConfirm={async () => {
           try {
             await confirmManageModal();
-          } catch (e: any) {
-            Alert.alert("❌", e?.message ?? "Aktion fehlgeschlagen");
+          } catch (e: unknown) {
+            Alert.alert("❌", getErrorMessage(e, "Aktion fehlgeschlagen"));
           }
         }}
         busy={manageBusy}

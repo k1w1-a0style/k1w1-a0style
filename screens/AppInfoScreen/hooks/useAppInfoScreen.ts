@@ -19,6 +19,7 @@ import {
 } from "../../../lib/appInfoScopedBackup";
 import { STORAGE_KEYS, legacyClientServiceRoleStorageKeys } from "../../../lib/storageKeys";
 import { getSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
+import { normalizeStoredSupabaseRaw } from "../../ConnectionsScreen/utils/validation";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import {
   getGitHubToken,
@@ -33,9 +34,6 @@ import {
   getAndroidKeystoreExportAdminKey,
   saveAndroidKeystoreExportAdminKey,
   deleteAndroidKeystoreExportAdminKey,
-  getLegacyEdgeAdminKey,
-  saveLegacyEdgeAdminKey,
-  deleteLegacyEdgeAdminKey,
   getSigningAdminKey,
   saveSigningAdminKey,
   deleteSigningAdminKey,
@@ -96,7 +94,6 @@ function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
     EAS_PROJECT_ID: payload.connections.easProjectId,
     K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
     K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
-    K1W1_EDGE_ADMIN_KEY: payload.tokens.legacyEdgeAdminKey ?? "",
     SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
     SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
   };
@@ -238,7 +235,6 @@ export function useAppInfoScreen() {
       expoToken,
       workflowAdminKey,
       androidKeystoreExportAdminKey,
-      legacyEdgeAdminKey,
       signingAdminKey,
       signingMasterKey,
     ] = await Promise.all([
@@ -246,7 +242,6 @@ export function useAppInfoScreen() {
       getExpoToken().catch(() => null),
       getWorkflowAdminKey().catch(() => null),
       getAndroidKeystoreExportAdminKey().catch(() => null),
-      getLegacyEdgeAdminKey().catch(() => null),
       getSigningAdminKey().catch(() => null),
       getSigningMasterKey().catch(() => null),
     ]);
@@ -262,9 +257,11 @@ export function useAppInfoScreen() {
       AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
     ]);
 
+    const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
+
     const payload = createSecretBackupPayload({
       connections: {
-        supabaseRaw: supabaseRaw ?? "",
+        supabaseRaw: normalizedSupabaseRaw,
         supabaseUrl: supabaseUrl ?? "",
         supabaseAnonKey: supabaseAnonKey ?? "",
         easProjectId: easProjectId ?? "",
@@ -274,8 +271,7 @@ export function useAppInfoScreen() {
         expoToken,
         workflowAdminKey,
         androidKeystoreExportAdminKey,
-        legacyEdgeAdminKey,
-        signingAdminKey,
+          signingAdminKey,
         signingMasterKey,
       },
       ciSecrets: {},
@@ -297,7 +293,8 @@ export function useAppInfoScreen() {
       const c = payload.connections;
       const ops: Promise<unknown>[] = [];
 
-      ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, c.supabaseRaw));
+      const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
+      ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw));
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl));
       ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId));
@@ -319,11 +316,6 @@ export function useAppInfoScreen() {
         t.androidKeystoreExportAdminKey?.trim() ||
         cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
         "";
-      const legacyEdgeAdminKey =
-        t.legacyEdgeAdminKey?.trim() ||
-        t.edgeAdminKey?.trim() ||
-        cs.K1W1_EDGE_ADMIN_KEY?.trim() ||
-        "";
       const signingAdminKey =
         t.signingAdminKey?.trim() ||
         cs.SIGNING_ADMIN_KEY?.trim() ||
@@ -341,9 +333,6 @@ export function useAppInfoScreen() {
 
       if (androidKeystoreExportAdminKey) await saveAndroidKeystoreExportAdminKey(androidKeystoreExportAdminKey);
       else await deleteAndroidKeystoreExportAdminKey();
-
-      if (legacyEdgeAdminKey) await saveLegacyEdgeAdminKey(legacyEdgeAdminKey);
-      else await deleteLegacyEdgeAdminKey();
 
       if (signingAdminKey) await saveSigningAdminKey(signingAdminKey);
       else await deleteSigningAdminKey();

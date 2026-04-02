@@ -5,8 +5,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../theme";
 
 export type Severity = "critical" | "warning" | "info" | "pass";
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
-const META: Record<Severity, { label: string; icon: any; color: string; bg: string }> = {
+const META: Record<Severity, { label: string; icon: IoniconName; color: string; bg: string }> = {
   critical: {
     label: "Critical",
     icon: "alert-circle",

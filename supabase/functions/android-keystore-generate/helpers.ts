@@ -13,15 +13,18 @@ import {
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
+import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 export {
+  getRequestClientIp,
+  getRequestRateLimitSubject,
   getServiceRoleKey,
   getSigningMasterKey,
   getSupabaseUrl,
   rateLimit,
+  requireDurableRateLimit,
   requirePrivilegedOperatorJwtRole,
   requireScopedEdgeAuth,
 } from "../_shared/auth.ts";
-export { requireDurableRateLimit } from "../_shared/auth.ts";
 
 
 export type Mode = "development" | "preview" | "production";
@@ -44,7 +47,46 @@ export function resolveMode(input: string): Mode {
   throw new Error("Invalid mode. Expected dev|development|preview|production.");
 }
 // node-forge loader (lazy) + WebCrypto RNG patch
-let _forgePromise: Promise<any> | null = null;
+
+
+type ForgeGetBytesCallback = (error: unknown, bytes: string) => void;
+
+type ForgeCertificate = {
+  publicKey: unknown;
+  serialNumber: string;
+  validity: { notBefore: Date; notAfter: Date };
+  setSubject: (attrs: Array<{ name: string; value: string }>) => void;
+  setIssuer: (attrs: Array<{ name: string; value: string }>) => void;
+  setExtensions: (extensions: Array<Record<string, unknown>>) => void;
+  sign: (privateKey: unknown, md: unknown) => void;
+};
+
+type ForgeRuntime = {
+  random: {
+    getBytesSync: (count: number) => string;
+    getBytes: (count: number, cb?: ForgeGetBytesCallback) => string | void;
+  };
+  util: { bytesToHex: (bytes: string) => string };
+  pki: {
+    privateKeyFromAsn1: (asn1: unknown) => unknown;
+    publicKeyFromAsn1: (asn1: unknown) => unknown;
+    createCertificate: () => ForgeCertificate;
+  };
+  asn1: {
+    fromDer: (input: string) => unknown;
+    toDer: (asn1: unknown) => { getBytes: () => string };
+  };
+  md: { sha256: { create: () => unknown } };
+  pkcs12: {
+    toPkcs12Asn1: (
+      privateKey: unknown,
+      certs: ForgeCertificate[],
+      password: string,
+      options: { algorithm: string; friendlyName: string; generateLocalKeyId: boolean },
+    ) => unknown;
+  };
+};
+let _forgePromise: Promise<ForgeRuntime> | null = null;
 
 export function bytesToBinaryStringChunked(bytes: Uint8Array): string {
   const chunk = 0x8000;
@@ -55,15 +97,15 @@ export function bytesToBinaryStringChunked(bytes: Uint8Array): string {
   return out;
 }
 
-export async function getForge(): Promise<any> {
+export async function getForge(): Promise<ForgeRuntime> {
   if (_forgePromise) return _forgePromise;
 
   _forgePromise = (async () => {
     // If your Edge runtime blocks esm.sh at runtime, vendor forge or use an allowed host.
-    const mod: any = await import(
+    const mod = (await import(
       "https://esm.sh/node-forge@1.3.1?pin=v135&target=deno",
-    );
-    const forge: any = mod?.default ?? mod;
+    )) as { default?: ForgeRuntime } & ForgeRuntime;
+    const forge: ForgeRuntime = mod.default ?? mod;
 
     if (!globalThis.crypto?.getRandomValues) {
       throw new Error("WebCrypto not available: crypto.getRandomValues is missing");
@@ -76,7 +118,7 @@ export async function getForge(): Promise<any> {
     };
 
     forge.random.getBytesSync = (count: number) => rngBytes(count);
-    forge.random.getBytes = (count: number, cb?: any) => {
+    forge.random.getBytes = (count: number, cb?: ForgeGetBytesCallback) => {
       const out = rngBytes(count);
       // node-forge supports BOTH forms:
       //   getBytes(n) -> string
@@ -106,7 +148,7 @@ export function safeString(v: unknown): string {
 }
 
 export function repoOk(repo: string): boolean {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+  return isSafeGitHubRepoFullName(repo);
 }
 
 export { deriveAesKeyBytes, encryptKeystorePayload, encryptWithAesCbcLegacy };
@@ -154,6 +196,7 @@ export async function ensureBucketExists(
     }
   } catch (e) {
     // If we can't ensure the bucket, fail loudly – upload will fail anyway.
-    throw new Error(`Could not ensure storage bucket '${bucket}': ${e?.message || String(e)}`);
+    const message = e instanceof Error ? e.message : String(e);
+    throw new Error(`Could not ensure storage bucket '${bucket}': ${message}`);
   }
 }

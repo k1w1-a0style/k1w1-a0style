@@ -1,13 +1,13 @@
-import type { ProjectData } from "../shared/types/project";
+import { makeProjectData } from "./helpers/projectTestHelpers";
 
 const mockGetItem = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockGetItem(...args),
+  getItem: mockGetItem,
 }));
 
 const mockGitHub = {
-  getLegacyEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
 };
 const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
@@ -29,28 +29,27 @@ jest.doMock(require.resolve("../lib/supabase"), () => ({
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { startBuildJob } = require("../project/services/buildStartService");
 
-function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
-  return {
-    id: "p1",
-    name: "test",
-    files: [{ path: "app.json", content: "{}", updatedAt: Date.now() } as any],
+function makeProject(overrides = {}) {
+  return makeProjectData({
     linkedRepo: "k1w1-a0style/musik-player",
     linkedBranch: "main",
     ...overrides,
-  } as any;
+  });
 }
 
-describe("build readiness gate - diagnostic_last_ok", () => {
+describe("build readiness gate - scoped diagnostic readiness", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockGetItem.mockResolvedValue("false");
-    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGetItem.mockImplementation(async (key: string) => ({
+      "diagnostic_last_ok::k1w1-a0style%2Fmusik-player::main": "false",
+    }[key] ?? null));
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
     mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });
   });
 
-  it("blocks build start when DIAGNOSTIC_LAST_OK is not true and has no side effects", async () => {
+  it("blocks build start when the scoped diagnostic key is not true and has no side effects", async () => {
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview" })).rejects.toThrow(
       /Diagnostik nicht gruen/i,
     );

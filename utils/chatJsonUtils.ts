@@ -1,5 +1,5 @@
 // utils/chatJsonUtils.ts
-// Extracted from chatUtils.ts: JSON parsing and extraction utilities.
+// JSON parsing and extraction utilities.
 
 import { jsonrepair } from "jsonrepair";
 import type { ProjectFile } from "../shared/types/project";

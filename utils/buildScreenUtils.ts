@@ -175,8 +175,6 @@ export const formatRelativeTime = (dateString: string): string => {
   }
 };
 
-/** @deprecated Verwende formatRelativeTime */
-export const formatHistoryDate = formatRelativeTime;
 
 /**
  * Gibt das passende Emoji für einen Build-Status zurück

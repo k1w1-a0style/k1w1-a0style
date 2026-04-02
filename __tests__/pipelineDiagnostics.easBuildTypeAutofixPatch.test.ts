@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -39,14 +41,14 @@ describe("runBuildPipelineDiagnostics - preview buildType autofix", () => {
 
   it("warns when unset and offers patch to apk", async () => {
     const res = await runWithBuildType(undefined);
-    const check = res.checks.find((c: any) => c.id === "repo.easBuildType.preview");
+    const check = findCheckById(res.checks, "repo.easBuildType.preview");
     expect(check?.status).toBe("warn");
     expect(check?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.preview?.android?.buildType).toBe("apk");
   });
 
   it("fails when not apk and offers patch to apk", async () => {
     const res = await runWithBuildType("app-bundle");
-    const check = res.checks.find((c: any) => c.id === "repo.easBuildType.preview");
+    const check = findCheckById(res.checks, "repo.easBuildType.preview");
     expect(check?.status).toBe("fail");
     expect(check?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.preview?.android?.buildType).toBe("apk");
   });

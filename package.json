@@ -18,7 +18,7 @@
     "test:coverage": "jest --coverage",
     "test:verbose": "VERBOSE=true jest --verbose",
     "test:unit": "jest --testPathPattern=__tests__",
-    "test:integration": "jest --testPathPattern=integration",
+    "test:integration": "npm run test:e2e:smoke",
     "test:clear": "jest --clearCache",
     "postinstall": "patch-package",
     "preflight": "npm run typecheck && npm run edge:check && npm run lint:ci && npm run test:silent && npm run audit:types && npm run audit:imports",
@@ -30,7 +30,12 @@
     "docs:lint": "node scripts/docsLint.js",
     "lint:edge": "eslint \"supabase/functions/**/*.ts\"",
     "edge:check": "npm run lint:edge && npm run typecheck:edge",
-    "typecheck:edge": "tsc -p supabase/functions/tsconfig.json --noEmit"
+    "typecheck:edge": "tsc -p supabase/functions/tsconfig.json --noEmit",
+    "edge:check:live": "bash scripts/check_edge_live_contracts.sh",
+    "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
+    "docs:check:contracts": "node scripts/check_docs_contracts.js",
+    "verify:release": "bash scripts/check_release_readiness.sh",
+    "test:e2e:smoke": "jest --runInBand --testPathPattern=__tests__/e2e\\.smoke\\."
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

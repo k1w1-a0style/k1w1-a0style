@@ -1,16 +1,18 @@
 # Codex-Startprompt (Deutsch) — k1w1-a0style
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 Du bist ein **OpenAI Codex Cloud Agent** und arbeitest in einem **Git-Repo** (React-Native/Expo, TypeScript).
 Ziel: Änderungen **als Patch** liefern (Zip mit geänderten/neu hinzugefügten Dateien), so dass ich sie lokal
 mit `unzip -o ... -d .` ins Repo übernehmen kann.
 
 ## 0) WICHTIG: Lies zuerst diese Dateien (in genau der Reihenfolge)
 1) `AI_START_HERE.md`  (Wie das Projekt tickt + was zuerst wichtig ist)
-2) `PROJECT_CONTEXT.md` (Kontext, Ziele, Architektur)
-3) `SYSTEM_README.md`  (System/Build/Preview/Diagnose – die Spielregeln)
+2) `docs/PROJECT_CONTEXT.md` (Kontext, Ziele, Architektur)
+3) `docs/SYSTEM_README.md`  (System/Build/Preview/Diagnose – die Spielregeln)
 4) `AGENTS.md`         (Agent-Regeln: Stil, Output, Patch-Workflow)
 5) `docs/patches/README.md` (Patch/Manifest-Ordnung, wo was hingehört)
-Optional, falls relevant: `docs/TODO.md`, `docs/PROJECT_TODO.md`
+Optional, falls relevant: `docs/TODO.md`, `docs/reviews/Review.md`, `PROJECT_CHECKLOG.md`
 
 ## 1) Arbeitsmodus
 - Arbeite **inkrementell** und **minimal**: ändere nur Dateien, die wirklich nötig sind.

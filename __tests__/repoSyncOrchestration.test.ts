@@ -3,11 +3,12 @@ import {
   getRepoSyncState,
   markRepoSyncSignature,
 } from "../lib/repoSyncOrchestration";
+import { makeProjectFile } from "./helpers/projectTestHelpers";
 
 describe("repoSyncOrchestration", () => {
   it("returns in_sync after marking signature for same files", async () => {
     const store = new Map<string, string>();
-    const files = [{ path: "app.json", content: "{}" }] as any;
+    const files = [makeProjectFile("app.json", "{}")];
 
     await markRepoSyncSignature({
       linkedRepo: "owner/repo",
@@ -31,14 +32,14 @@ describe("repoSyncOrchestration", () => {
     await markRepoSyncSignature({
       linkedRepo: "owner/repo",
       linkedBranch: "main",
-      files: [{ path: "a.ts", content: "export const a = 1;" }] as any,
+      files: [makeProjectFile("a.ts", "export const a = 1;")],
       storageSetItem: async (k, v) => void store.set(k, v),
     });
 
     const state = await getRepoSyncState({
       linkedRepo: "owner/repo",
       linkedBranch: "main",
-      files: [{ path: "a.ts", content: "export const a = 2;" }] as any,
+      files: [makeProjectFile("a.ts", "export const a = 2;")],
       storageGetItem: async (k) => store.get(k) ?? null,
     });
 
@@ -47,13 +48,13 @@ describe("repoSyncOrchestration", () => {
 
   it("signature is deterministic regardless of file order", () => {
     const a = computeProjectFilesSignature([
-      { path: "b.ts", content: "2" },
-      { path: "a.ts", content: "1" },
-    ] as any);
+      makeProjectFile("b.ts", "2"),
+      makeProjectFile("a.ts", "1"),
+    ]);
     const b = computeProjectFilesSignature([
-      { path: "a.ts", content: "1" },
-      { path: "b.ts", content: "2" },
-    ] as any);
+      makeProjectFile("a.ts", "1"),
+      makeProjectFile("b.ts", "2"),
+    ]);
 
     expect(a).toBe(b);
   });

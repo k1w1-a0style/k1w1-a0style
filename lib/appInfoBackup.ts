@@ -1,4 +1,6 @@
-import type { AIConfig, AllAIProviders } from "../contexts/AIContext";
+import type { AIConfig, AllAIProviders } from "../contexts/AIContext/models";
+import { PROVIDER_DEFAULTS } from "../contexts/AIContext/models";
+import { asRecord, isRecord, readBoolean, readFiniteNumber, readOptionalString, readString, readStringArray } from "./validation/recordReaders";
 
 const PROVIDERS: AllAIProviders[] = [
   "groq",
@@ -9,32 +11,23 @@ const PROVIDERS: AllAIProviders[] = [
 ];
 const PROVIDER_SET: ReadonlySet<AllAIProviders> = new Set(PROVIDERS);
 
+export const BACKUP_AI_CONFIG_FALLBACK: AIConfig = {
+  version: 4,
+  selectedChatProvider: "groq",
+  selectedChatMode: PROVIDER_DEFAULTS.groq.speed,
+  selectedAgentProvider: "anthropic",
+  selectedAgentMode: PROVIDER_DEFAULTS.anthropic.quality,
+  qualityMode: "speed",
+  agentEnabled: true,
+  apiKeys: { groq: [], gemini: [], openai: [], anthropic: [], huggingface: [] },
+};
+
 type ApiBackupV1 = {
   version: 1;
   exportDate?: string;
   appVersion?: string;
   config: unknown;
 };
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === "object" && !Array.isArray(v);
-}
-
-function asRecord(v: unknown): Record<string, unknown> | null {
-  return isPlainObject(v) ? v : null;
-}
-
-function getString(v: unknown): string | null {
-  return typeof v === "string" ? v : null;
-}
-
-function getNumber(v: unknown): number | null {
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function getBoolean(v: unknown): boolean | null {
-  return typeof v === "boolean" ? v : null;
-}
 
 function isProvider(value: unknown): value is AllAIProviders {
   return typeof value === "string" && PROVIDER_SET.has(value as AllAIProviders);
@@ -47,25 +40,8 @@ function normalizeQualityMode(raw: unknown, fallback: AIConfig["qualityMode"]): 
   return fallback;
 }
 
-function sanitizeKeyList(v: unknown, maxKeys: number): string[] {
-  if (!Array.isArray(v)) return [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-
-  for (const raw of v) {
-    if (typeof raw !== "string") continue;
-    const k = raw.trim();
-    if (!k) continue;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(k);
-    if (out.length >= maxKeys) break;
-  }
-  return out;
-}
-
 export function validateApiBackupJson(parsed: unknown): ApiBackupV1 {
-  if (!isPlainObject(parsed)) throw new Error("Ungültiges Backup-Format");
+  if (!isRecord(parsed)) throw new Error("Ungültiges Backup-Format");
   if (parsed.version !== 1) throw new Error("Nicht unterstützte Backup-Version");
   if (!("config" in parsed)) throw new Error("Ungültiges Backup-Format");
 
@@ -73,16 +49,19 @@ export function validateApiBackupJson(parsed: unknown): ApiBackupV1 {
   if (!cfg) throw new Error("Ungültiges Backup-Format");
 
   // Minimal schema validation: apiKeys must be an object when present.
-  if ("apiKeys" in cfg && cfg.apiKeys !== undefined && !isPlainObject(cfg.apiKeys)) {
+  if ("apiKeys" in cfg && cfg.apiKeys !== undefined && !isRecord(cfg.apiKeys)) {
     throw new Error("Ungültiges Backup-Format");
   }
 
-  return {
+  const validated: ApiBackupV1 = {
     version: 1,
-    exportDate: getString(parsed.exportDate) ?? undefined,
-    appVersion: getString(parsed.appVersion) ?? undefined,
     config: cfg,
   };
+  const exportDate = readOptionalString(parsed.exportDate);
+  const appVersion = readOptionalString(parsed.appVersion);
+  if (exportDate) validated.exportDate = exportDate;
+  if (appVersion) validated.appVersion = appVersion;
+  return validated;
 }
 
 export function sanitizeAiConfigFromBackup(
@@ -101,11 +80,11 @@ export function sanitizeAiConfigFromBackup(
 
   if (apiKeysRaw) {
     for (const p of PROVIDERS) {
-      apiKeys[p] = sanitizeKeyList(apiKeysRaw[p], maxKeys);
+      apiKeys[p] = readStringArray(apiKeysRaw[p], maxKeys);
     }
   }
 
-  const version = getNumber(source.version) ?? base.version;
+  const version = readFiniteNumber(source.version) ?? base.version;
 
   const selectedChatProviderRaw = source.selectedChatProvider;
   const selectedAgentProviderRaw = source.selectedAgentProvider ?? source.selectedAutofixProvider;
@@ -128,9 +107,9 @@ export function sanitizeAiConfigFromBackup(
     apiKeys,
     selectedChatProvider,
     selectedAgentProvider,
-    selectedChatMode: getString(selectedChatModeRaw) ?? base.selectedChatMode,
-    selectedAgentMode: getString(selectedAgentModeRaw) ?? base.selectedAgentMode,
-    agentEnabled: getBoolean(agentEnabledRaw) ?? base.agentEnabled,
+    selectedChatMode: readString(selectedChatModeRaw, base.selectedChatMode),
+    selectedAgentMode: readString(selectedAgentModeRaw, base.selectedAgentMode),
+    agentEnabled: readBoolean(agentEnabledRaw) ?? base.agentEnabled,
     qualityMode,
   };
 }

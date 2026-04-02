@@ -85,8 +85,8 @@ describe("parseBridgeMessage – end-to-end parsing", () => {
 
   it("returns null for empty / falsy input", () => {
     expect(parseBridgeMessage("")).toBeNull();
-    expect(parseBridgeMessage(null as any)).toBeNull();
-    expect(parseBridgeMessage(undefined as any)).toBeNull();
+    expect(parseBridgeMessage(null as unknown as string)).toBeNull();
+    expect(parseBridgeMessage(undefined as unknown as string)).toBeNull();
   });
 
   it("returns null for valid JSON that isn't a known message", () => {
@@ -109,7 +109,7 @@ describe("parseBridgeMessage – end-to-end parsing", () => {
 
     const result = parseBridgeMessage(payload);
     expect(result).toEqual({ t: "value", value: "ok" });
-    expect((Object.prototype as any).admin).toBeUndefined();
+    expect((Object.prototype as { admin?: unknown }).admin).toBeUndefined();
   });
 });
 

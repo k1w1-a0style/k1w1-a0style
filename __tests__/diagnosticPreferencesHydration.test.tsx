@@ -3,6 +3,8 @@ import { act, render } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useDiagnosticPreferences } from "../screens/DiagnosticScreen/hooks/useDiagnosticPreferences";
+import { resetMockAsyncStorage, seedMockAsyncStorage } from "./helpers/asyncStorageMockHelpers";
+import { makeProjectData } from "./helpers/projectTestHelpers";
 
 function createHarness<T>(useHook: () => T) {
   let api: T | null = null;
@@ -28,7 +30,7 @@ function flushMicrotasks() {
 describe("useDiagnosticPreferences hydration gate", () => {
   beforeEach(() => {
     jest.useFakeTimers();
-    (AsyncStorage as any).__resetMockStorage?.();
+    resetMockAsyncStorage();
     jest.clearAllMocks();
   });
 
@@ -38,13 +40,13 @@ describe("useDiagnosticPreferences hydration gate", () => {
 
   it("does not save defaults before async load completes", async () => {
     // stored preference: syncFixesToGitHub = true
-    (AsyncStorage as any).__setMockStorage?.({
+    seedMockAsyncStorage({
       k1w1_diag_sync_fixes: "1",
     });
 
     // Simulate slow storage: multiGet resolves after 800ms.
-    const origMultiGet = AsyncStorage.multiGet;
-    (AsyncStorage.multiGet as any) = jest.fn((keys: string[]) => {
+    const origMultiGet = AsyncStorage.multiGet.bind(AsyncStorage);
+    jest.spyOn(AsyncStorage, "multiGet").mockImplementation((keys) => {
       return new Promise((resolve) => {
         setTimeout(async () => {
           const res = await origMultiGet(keys);
@@ -55,13 +57,13 @@ describe("useDiagnosticPreferences hydration gate", () => {
 
     const { Harness, getApi } = createHarness(() =>
       useDiagnosticPreferences({
-        projectData: {
+        projectData: makeProjectData({
           name: "p",
           files: [],
           chatHistory: [],
           createdAt: "now",
           lastModified: "now",
-        } as any,
+        }),
         linkedRepo: "k1w1-a0style/k1w1-a0style",
         recommendedMode: "preview",
       }),

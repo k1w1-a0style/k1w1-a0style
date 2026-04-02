@@ -4,15 +4,17 @@
 
 > Quick Reference (kompakt): `docs/14-state-quickref.md`
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 ## A) Global State Inventory
 
 ### A.1 Core Selection State (autoritativ für Repo/Branch/Profile)
 
 | Zustand | Typ | Default | Persistenz | SoT aktuell | Read/Write-Orte |
 |---|---|---|---|---|---|
-| `projectData.linkedRepo` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(...)`; Lesen: Build/Diagnostic/Wizard/Connections über `projectData` |
-| `projectData.linkedBranch` | `string \| null \| undefined` | neues Projekt: `undefined` | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(repo, branch)`; Lesen: Build/Diagnostic/Wizard/Connections |
-| `projectData.preferredBuildProfile` | `"development" \| "preview" \| "production" \| null` | initial meist UI-Fallback (`preview` oder `dev`) | im Projekt-Blob `k1w1_project_data` | `ProjectContext` / `ProjectData` | Schreiben: `setPreferredBuildProfile(...)`; Lesen: Build + Wizard + Drawer-Chip |
+| `projectData.linkedRepo` | `string \| null \| undefined` | neues Projekt: `undefined` | im verschlüsselten Projekt-Blob `k1w1_project_data` (AsyncStorage) | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(...)`; Lesen: Build/Diagnostic/Wizard/Connections über `projectData` |
+| `projectData.linkedBranch` | `string \| null \| undefined` | neues Projekt: `undefined` | im verschlüsselten Projekt-Blob `k1w1_project_data` (AsyncStorage) | `ProjectContext` / `ProjectData` | Schreiben: `setLinkedRepo(repo, branch)`; Lesen: Build/Diagnostic/Wizard/Connections |
+| `projectData.preferredBuildProfile` | `"development" \| "preview" \| "production" \| null` | initial meist UI-Fallback (`preview` oder `dev`) | im verschlüsselten Projekt-Blob `k1w1_project_data` (AsyncStorage) | `ProjectContext` / `ProjectData` | Schreiben: `setPreferredBuildProfile(...)`; Lesen: Build + Wizard + Drawer-Chip |
 | `activeRepo` (GitHubContext) | `string \| null` | aus `projectData.linkedRepo` abgeleitet | keine eigene Persistenz (Legacy-Key wird bereinigt) | **Derived Read-Model** (nicht autoritativ) | Schreiben: indirekt über `setLinkedRepo(...)`; Lesen: Header/Drawer/Repo-Screen |
 | `activeBranch` (GitHubContext) | `string \| null` | aus `projectData.linkedBranch` abgeleitet | keine eigene Persistenz (Legacy-Key wird bereinigt) | **Derived Read-Model** (nicht autoritativ) | Schreiben: indirekt über `setLinkedRepo(repo, branch)`; Lesen: Header/Drawer/Repo-Screen |
 | `recentRepos` (GitHubContext) | `string[]` | `[]` | `k1w1_github_recent_repos` | GitHubContext | Schreiben: `addRecentRepo`; Lesen: Repo-Screen |
@@ -35,9 +37,8 @@
 
 | Zustand | Typ | Default | Persistenz-Key | SoT aktuell | Read/Write-Orte |
 |---|---|---|---|---|---|
-| Diagnostic letzter OK | `"true"/"false"` | unknown (fehlender Key) | `DIAGNOSTIC_LAST_OK` | AsyncStorage | Schreiben: Diagnostic Run-Ende; Lesen: Build Preconditions |
-| CI Lite Lint/Typecheck OK | `"true"/"false"` | unknown | `CI_LITE_LINT_OK`, `CI_LITE_TYPECHECK_OK` | AsyncStorage | Schreiben: CI Lite Hook bei completed run; Lesen: Build Preconditions |
-| CI Lite Last Run At | `string` (epoch ms) | fehlt | `CI_LITE_LAST_RUN_AT` | AsyncStorage | Schreiben: CI Lite Hook |
+| Diagnostic letzter OK | `"true"/"false"` | unknown (fehlender Key) | `diagnosticLastOkKeyForSelection(repo, branch)` → repo/branch-scoped, Legacy nur ohne Selection | AsyncStorage Read-Model | Schreiben: Diagnostic Run-Ende; Lesen: Build Preconditions |
+| CI Lite Snapshot | JSON-Blob | unknown | `ciLiteSnapshotKeyForSelection(repo, branch)` → repo/branch-scoped Snapshot, Legacy nur ohne Selection | AsyncStorage Read-Model | Schreiben: CI Lite Hook bei completed run; Lesen: Build Preconditions |
 | Build History | `BuildHistoryEntry[]` | `[]` | `BUILD_HISTORY` | AsyncStorage + Helper | Schreiben: `addBuildToHistory/update...`; Lesen: Build UI |
 | Chat Persist History | bool (als `1/0`) | `true` | `CHAT_PERSIST_HISTORY` | AsyncStorage + helper API | Lesen/Schreiben: `chatPrivacySettings` + Settings |
 | Chat Retention Limit | Zahl | `200` | `CHAT_RETENTION_LIMIT` | AsyncStorage + helper API | Lesen/Schreiben: `chatPrivacySettings` |
@@ -75,7 +76,7 @@
 - **Repo/Branch:** nur `ProjectContext.setLinkedRepo(...)` ist autoritativer Writer.
 - **Build Profile:** nur `ProjectContext.setPreferredBuildProfile(...)`.
 - **Tokens/Secrets:** nur `infra/github/tokenStore.ts` (`save*/delete*`).
-- **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur Compat-/Sunset-Slot und im Preview-Vertrag (Patch 615) **kein Standardpfad** mehr: `save_preview` darf nur noch bei explizitem Operator-/Maintenance-Flag (`EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`) genutzt werden.
+- **Scoped lokale Admin-Keys:** Workflow (`workflowAdminKey`) und Android Keystore Export (`androidKeystoreExportAdminKey`) bleiben getrennte SecureStore-Slots; `legacyEdgeAdminKey` ist nur noch Compat-/Sunset-Slot fuer klar begrenzte Altpfade. Produktive Preview- (`save_preview`) und KI-Pfade (`k1w1-handler`) laufen im aktuellen Repo-Stand ohne lokalen Legacy-Key.
 - **Operator-Claim ist externer Betriebsvertrag:** `build_admin` wird ausserhalb des Repos provisioniert; App-/Repo-Code simuliert diesen Claim bewusst nicht.
 - **Connection-Lampen:** nur `useConnectionsScreen` schreibt `CONN_*` und `EAS_PROJECT_ID` (außer klar definierte Import-Flows).
 - **Wizard key-exists Flags:** nur `useCredentialsWizardScreen.refreshStatusCore(...)`.
@@ -104,7 +105,7 @@
 
 ## C.2 Persistenzgrenzen
 
-- **Projektweite Domäne** (`ProjectData`) wird als ein JSON-Blob gespeichert (`k1w1_project_data`).
+- **Projektweite Domäne** (`ProjectData`) wird als verschlüsselter JSON-Blob in AsyncStorage gespeichert (`k1w1_project_data`); Bestandsdaten im alten Klartextformat werden beim Laden kontrolliert auf die verschlüsselte Persistenz migriert.
 - **Feature-Flags/Lights** bleiben absichtlich als separate AsyncStorage Keys.
 - **Secrets** bleiben in SecureStore; Legacy AsyncStorage Service-Role-Key wird migriert und entfernt.
 
@@ -170,14 +171,16 @@ const activeBranch = useMemo(
 );
 ```
 
-### E3 — Persistenz von `ProjectData` als JSON-Blob
+### E3 — Persistenz von `ProjectData` als verschlüsselter JSON-Blob
 **Datei:** `infra/storage/projectPersistence.ts` — **Symbole:** `saveProjectToStorage`, `loadProjectFromStorage`
 ```ts
 const projectString = JSON.stringify(projectToSave);
-await AsyncStorage.setItem(PROJECT_STORAGE_KEY, projectString);
+const encryptedProjectString = await encryptProjectStoragePayload(projectString);
+await AsyncStorage.setItem(PROJECT_STORAGE_KEY, encryptedProjectString);
 
-const projectString = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
-if (!projectString) return null;
+const persisted = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+if (!persisted) return null;
+const { projectString, migratedFromPlaintext } = await deserializeProjectStoragePayload(persisted);
 const project = JSON.parse(projectString);
 ```
 

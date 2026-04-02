@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { materializeProjectFiles } from "../../lib/projectMaterializer";
 import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
 
-// ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatUtils
+// ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatValidation
 import { normalizePath, Validators } from '../../lib/validators';
 
 import { zip, unzip } from 'react-native-zip-archive';

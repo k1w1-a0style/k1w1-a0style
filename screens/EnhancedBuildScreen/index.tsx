@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 
 import { BuildLogsModal } from "../../components/BuildLogsModal";
 import { theme } from "../../theme";
@@ -25,7 +26,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function EnhancedBuildScreen(): React.ReactElement {
   const s = useEnhancedBuildScreen();
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
 
   const checklistChipsById = useMemo(() => {
     const byId: Record<string, CheckActionChip[]> = {};
@@ -143,6 +144,24 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           <BuildModeDropdown value={s.buildProfile} onChange={s.onSelectBuildProfile} />
         </View>
 
+        {/* Gate summary */}
+        {s.buildBlockedAction ? (
+          <View style={st.blockedCard}>
+            <View style={st.blockedHeader}>
+              <Ionicons name="alert-circle" size={18} color={theme.palette.error} />
+              <Text style={st.blockedTitle}>{s.buildBlockedAction.title}</Text>
+            </View>
+            <Text style={st.blockedDetail}>{s.buildBlockedAction.detail}</Text>
+            <Pressable
+              style={st.blockedCta}
+              onPress={() => navigation.navigate(s.buildBlockedAction.screen, s.buildBlockedAction.params)}
+            >
+              <Ionicons name="arrow-forward-circle-outline" size={16} color={theme.palette.error} />
+              <Text style={st.blockedCtaText}>{s.buildBlockedAction.ctaLabel}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         {/* One-Click Deploy */}
         <OneClickDeployCard
           steps={deploy.steps}
@@ -218,6 +237,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
           status={s.status}
           shouldLoadLogs={s.shouldLoadLogs}
           githubRepoForLogs={s.githubRepoForLogs}
+          logsWaitingReason={s.logsWaitingReason}
           logsLoading={s.logsLoading}
           logsError={s.logsError}
           logs={s.logs}

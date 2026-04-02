@@ -8,14 +8,11 @@ import { useProject } from "../contexts/ProjectContext";
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
-import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
-import { getLegacyEdgeAdminKey } from "../infra/github/githubService";
 import type { PreviewFiles } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
   describeEmptyRemotePreviewFiles,
-  isLegacyPreviewOperatorModeEnabled,
   describeRemotePreviewFailure,
   invokeSavePreview,
   isAllowedFile,
@@ -381,28 +378,16 @@ if (container) {
       try {
         const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
         const files = normalizeForWebPreview(ensureMinimumFiles(fileMap));
-        const legacyOperatorMode = isLegacyPreviewOperatorModeEnabled();
-
         // 1) Prefer Supabase-hosted preview (visual mode)
         if (attemptSupabaseFirst && hasRemoteProjectFiles) {
-          let edgeAdminKey: string | null = null;
+          let userJwt: string | null = null;
           try {
-            await ensureSupabaseClient();
+            const supabase = await ensureSupabaseClient();
+            const sessionResult = await supabase.auth.getSession().catch(() => null);
+            userJwt = String(sessionResult?.data?.session?.access_token ?? '').trim() || null;
 
-            if (!legacyOperatorMode) {
-              throw new Error("LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED");
-            }
-
-            edgeAdminKey = await getLegacyEdgeAdminKey().catch(() => null);
-            const trimmedEdgeAdminKey = String(edgeAdminKey ?? "").trim();
-
-            // Security: save_preview currently remains on the legacy compat admin scope.
-            // Keep this path explicit and fail-closed: no silent fallback to other local keys.
-            if (!trimmedEdgeAdminKey) {
-              throw new Error("Missing Legacy Edge Admin Key");
-            }
-            if (!isLikelyValidAdminKey(trimmedEdgeAdminKey)) {
-              throw new Error("Invalid Legacy Edge Admin Key");
+            if (!userJwt) {
+              throw new Error("Missing Supabase Preview JWT");
             }
 
             const snackFiles: PreviewFiles = {};
@@ -430,7 +415,7 @@ if (container) {
             };
 
             const resp = await invokeSavePreview({
-              adminKey: trimmedEdgeAdminKey,
+              bearerJwt: userJwt,
               payload: invokeOpts,
             });
             const previewUrl =
@@ -459,27 +444,18 @@ if (container) {
 
             throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
           } catch (supErr: unknown) {
-            if (supErr instanceof Error && supErr.message === "LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED") {
-              safeSetRemoteFailure(
-                "Remote-Preview blockiert: Legacy save_preview ist jetzt ein expliziter Operator-/Maintenance-Vertrag. Standard-Clientflow nutzt keinen stillen Legacy-Admin-Key mehr.",
-              );
-              logger.warn(
-                "[usePreview] ⚠️ Legacy save_preview nur noch im expliziten Operator-/Maintenance-Mode",
-              );
-            } else {
             const statusCode =
               typeof (supErr as { status?: unknown } | null)?.status === "number"
                 ? Number((supErr as { status?: number }).status)
                 : null;
             safeSetRemoteFailure(
               describeRemotePreviewFailure({
-                adminKey: edgeAdminKey,
+                bearerJwt: userJwt,
                 statusCode,
                 error: supErr,
               }),
             );
             logger.warn("[usePreview] ⚠️ Supabase Preview fehlgeschlagen", supErr);
-            }
           }
         } else if (attemptSupabaseFirst) {
           safeSetRemoteFailure(
@@ -493,7 +469,7 @@ if (container) {
 
         if (!localFallbackExplicitlyEnabled) {
           throw new Error(
-            "Remote-Preview im Standardpfad nicht verfuegbar. Legacy save_preview ist nur im expliziten Operator-/Maintenance-Modus erlaubt; lokaler HTML-/Eval-Fallback nur im expliziten Local-/Dev-Modus.",
+            "Remote-Preview im Standardpfad nicht verfuegbar. Entweder fehlt ein gueltiger Supabase-Login-JWT fuer save_preview oder der Edge-Call ist fehlgeschlagen; lokaler HTML-/Eval-Fallback bleibt nur im expliziten Local-/Dev-Modus.",
           );
         }
 

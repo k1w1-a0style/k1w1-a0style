@@ -59,7 +59,6 @@ const RISKY_FILES = new Set([
   "app.config.js",
   "android/app/build.gradle",
   "README.md",
-  "README_EXTENDED.md",
 ]);
 
 function isRiskyPath(path: string): boolean {

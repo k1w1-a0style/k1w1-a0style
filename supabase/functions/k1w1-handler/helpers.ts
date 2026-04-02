@@ -28,7 +28,7 @@ export interface HandlerRequestBody {
 }
 
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
-export { requireScopedEdgeAuth, rateLimit } from "../_shared/auth.ts";
+export { getRequestClientIp, getRequestRateLimitSubject, requireAiOperatorJwtRole, requireDurableRateLimit, rateLimit } from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
@@ -116,6 +116,38 @@ function resolveDefaultModelForQuality<T extends { speed: string; quality: strin
   quality: HandlerRequestBody["quality"],
 ): string {
   return quality === "quality" || quality === "review" ? defaults.quality : defaults.speed;
+}
+
+
+type TextPartRecord = { text?: unknown; type?: unknown };
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object");
+}
+
+function readTextPartValue(part: unknown): string {
+  const record = asRecord(part);
+  if (!record) return "";
+  return typeof record.text === "string" ? record.text : "";
+}
+
+export function readGeminiTextParts(value: unknown): string {
+  return asRecordArray(value)
+    .map((part) => readTextPartValue(part))
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function readAnthropicTextParts(value: unknown): string {
+  return asRecordArray(value)
+    .map((part) => {
+      const record = asRecord(part) as TextPartRecord | null;
+      if (!record || record.type !== "text") return "";
+      return typeof record.text === "string" ? record.text : "";
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 export type K1w1HandlerErrorCode =
@@ -450,14 +482,13 @@ export async function callGemini(
   }
 
   const json = await res.json();
-  const parts = json?.candidates?.[0]?.content?.parts ?? [];
-  const text = parts.map((p: any) => p.text || "").join("\n");
+  const candidate = Array.isArray(json?.candidates) ? json.candidates[0] : null;
+  const candidateRecord = asRecord(candidate);
+  const contentRecord = asRecord(candidateRecord?.content);
+  const text = readGeminiTextParts(contentRecord?.parts);
 
   return { content: text, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
-
-// ----------------- Main Handler -----------------
-
 
 
 function toPlainPrompt(messages: ChatMessage[]): string {
@@ -469,7 +500,7 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 export async function callOpenAI(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
-  const apiKey = getRuntimeEnv("OPENAI_API_KEY"); // Deno.env.get("OPENAI_API_KEY")
+  const apiKey = getRuntimeEnv("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
   }
@@ -514,7 +545,7 @@ export async function callOpenAI(
 export async function callAnthropic(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
-  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY"); // Deno.env.get("ANTHROPIC_API_KEY")
+  const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY");
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
   }
@@ -564,11 +595,7 @@ export async function callAnthropic(
   }
 
   const json = await res.json();
-  const content = Array.isArray(json?.content)
-    ? json.content
-        .map((part: any) => (part?.type === "text" ? String(part.text || "") : ""))
-        .join("\n")
-    : "";
+  const content = readAnthropicTextParts(json?.content);
 
   return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
@@ -576,7 +603,7 @@ export async function callAnthropic(
 export async function callHuggingFace(
   body: HandlerRequestBody,
 ): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
-  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY"); // Deno.env.get("HUGGINGFACE_API_KEY")
+  const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY");
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
   }

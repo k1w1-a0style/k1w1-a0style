@@ -71,16 +71,19 @@ export const BranchSelector = memo(function BranchSelector({
     const load = async () => {
       setLoading(true);
       try {
-        const [branchList, defaultBranch] = await Promise.all([
-          loadBranches(owner, repo),
-          loadDefaultBranch(owner, repo),
-        ]);
-
+        const branchList = await loadBranches(owner, repo);
         if (currentGen !== generationRef.current) return;
-
         setBranches(branchList);
-        if (!activeBranch && defaultBranch) {
-          onSelectBranch(defaultBranch);
+
+        try {
+          const defaultBranch = await loadDefaultBranch(owner, repo);
+          if (currentGen !== generationRef.current) return;
+          if (!activeBranch && defaultBranch) {
+            onSelectBranch(defaultBranch);
+          }
+        } catch (defaultBranchError) {
+          if (currentGen !== generationRef.current) return;
+          console.warn("[BranchSelector] Default-Branch konnte nicht ermittelt werden:", defaultBranchError);
         }
       } catch (e) {
         if (currentGen !== generationRef.current) return;

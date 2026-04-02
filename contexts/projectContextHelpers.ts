@@ -4,6 +4,18 @@ const DEFAULT_PROJECT_NAME = "Neues Projekt";
 const DEFAULT_PROJECT_SLUG = "neues-projekt";
 const DEFAULT_PREVIEW_MODE: PreferredPreviewMode = "supabase";
 
+export const normalizeProjectSlug = (value: string | null | undefined): string => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || DEFAULT_PROJECT_SLUG;
+};
+
 type BuildProjectForCreationParams = {
   id: string;
   files: ProjectFile[];
@@ -16,6 +28,7 @@ type BuildProjectForCreationParams = {
 
 export const normalizeLoadedProjectData = (project: ProjectData): ProjectData => ({
   ...project,
+  slug: normalizeProjectSlug(project.slug ?? project.name),
   files: project.files ?? [],
   chatHistory: project.chatHistory ?? [],
   preferredPreviewMode: project.preferredPreviewMode ?? DEFAULT_PREVIEW_MODE,

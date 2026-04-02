@@ -1,32 +1,14 @@
 // hooks/buildStatusTypes.ts
-// Extracted from useBuildStatus.ts: types and constants.
+// Extracted from useBuildStatus.ts: shared constants and polling helpers.
 
-// hooks/useBuildStatus.ts - OPTIMIZED VERSION
-// ✅ Timeout bei Netzwerkfehlern
-// ✅ Error-Counter stoppt Polling nach 5 Fehlern (mit useRef statt State)
-// ✅ Automatischer Stop bei finalen Status (success/failed)
-// ✅ Besseres Status-Mapping (zentralisiert über buildStatusMapper)
-// ✅ Callbacks statt Alert (bessere Testbarkeit)
-// ✅ Kein Race Condition durch errorCount in Dependencies
+import type { BuildStatusDetails } from "../shared/types/build";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { AppState } from "react-native";
-import type { BuildStatus, BuildStatusDetails } from "../shared/types/build";
-import {
-  pollBuildStatusOnce,
-  isFinalStatus,
-} from "../project/services/buildPollingService";
-
-import { logger } from "../lib/logger";
-
-
-export const POLL_INTERVAL_MS = 6000; // 6 Sekunden
+export const POLL_INTERVALS_MS = [6_000, 10_000, 15_000, 30_000] as const;
+const DEFAULT_POLL_MAX_INTERVAL_MS = 30_000;
+export const POLL_MAX_INTERVAL_MS = POLL_INTERVALS_MS[POLL_INTERVALS_MS.length - 1] ?? DEFAULT_POLL_MAX_INTERVAL_MS;
 export const MAX_ERRORS = 5; // Nach 5 Fehlern stoppen
-export const REQUEST_TIMEOUT_MS = 10000; // 10 Sekunden Timeout pro Request
+export const REQUEST_TIMEOUT_MS = 10_000; // 10 Sekunden Timeout pro Request
 
-// ============================================
-// CALLBACK TYPES
-// ============================================
 export interface UseBuildStatusCallbacks {
   onSuccess?: (details: BuildStatusDetails) => void;
   onFailed?: (details: BuildStatusDetails) => void;
@@ -34,6 +16,21 @@ export interface UseBuildStatusCallbacks {
   onMaxErrors?: (lastError: string, maxErrors: number) => void;
 }
 
-// ============================================
-// HOOK
-// ============================================
+export type BuildStatusPollIntervalParams = {
+  errorCount: number;
+  elapsedMs: number;
+};
+
+export function getBuildStatusPollInterval({
+  errorCount,
+  elapsedMs,
+}: BuildStatusPollIntervalParams): number {
+  if (errorCount > 2) return POLL_MAX_INTERVAL_MS;
+  const boundedElapsed = Math.max(0, elapsedMs);
+  const idx = Math.min(
+    Math.floor(boundedElapsed / 120_000),
+    POLL_INTERVALS_MS.length - 1,
+  );
+  const interval = POLL_INTERVALS_MS[idx];
+  return interval ?? POLL_MAX_INTERVAL_MS;
+}

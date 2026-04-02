@@ -161,7 +161,7 @@ export function useAppStatusScreen() {
       dependencies: Object.keys(deps).length,
       devDependencies: Object.keys(devDeps).length,
       // Reuse existing fields, but broaden meaning:
-      // - hasAppConfig: any Expo config source
+      // - hasAppConfig: some Expo config source
       // - hasAppTsx: resolved entry point exists
       hasAppConfig: hasAnyAppConfig,
       hasPackageJson: !!pkgFile,

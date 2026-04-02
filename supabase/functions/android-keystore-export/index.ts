@@ -9,6 +9,7 @@ import {
   handleCors,
   jsonResponse,
   rateLimit,
+  getRequestClientIp, getRequestRateLimitSubject,
   requireDurableRateLimit,
   repoOk,
   requireJwtRole,
@@ -16,6 +17,7 @@ import {
   resolveMode,
   safeString,
 } from "./helpers.ts";
+import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -37,7 +39,7 @@ Deno.serve(async (req) => {
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-export",
-    subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+    subject: getRequestRateLimitSubject(req),
     max: 30,
     windowMs: 60_000,
   });
@@ -66,7 +68,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, 20_000);
+    if (isParsedJsonBodyError(parsedBody)) {
+      const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
+      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+    }
+    const body = parsedBody.body;
     const repo = safeString(body?.repo);
 
     if (!repoOk(repo)) {
@@ -110,9 +117,7 @@ Deno.serve(async (req) => {
     try {
       const payload = getJwtPayload(req);
       const actor = typeof payload?.sub === "string" ? payload.sub : "service_role";
-      const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "")
-        .split(",")[0]
-        .trim();
+      const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
       await supabase.from("signing_audit_log").insert({
         repo,

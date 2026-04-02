@@ -176,9 +176,6 @@ export {
   saveExpoToken,
   getExpoToken,
   syncRepoSecrets,
-  getLegacyEdgeAdminKey,
-  saveLegacyEdgeAdminKey,
-  deleteLegacyEdgeAdminKey,
 } from "../infra/github/githubService";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
@@ -468,17 +465,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               const result = await importProjectZip();
               
+              const normalizedProject = normalizeLoadedProjectData(result.project);
+
               const release = await mutexRef.current.acquire();
               try {
-                setProjectData(result.project);
-                await saveProjectToStorage(result.project);
+                setProjectData(normalizedProject);
+                await saveProjectToStorage(normalizedProject);
               } finally {
                 release();
               }
 
               Alert.alert(
                 "Import erfolgreich",
-                `Projekt "${result.project.name}" importiert (${result.fileCount} Dateien).`,
+                `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
               );
             } catch (error: unknown) {
               Alert.alert(

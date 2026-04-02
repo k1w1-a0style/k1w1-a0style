@@ -1,4 +1,5 @@
 import type { PreflightCheckResult } from "../lib/diagnostics/preflightTypes";
+import { createMountedRef, makeProjectFile } from "./helpers/projectTestHelpers";
 
 jest.mock("../lib/diagnostics/buildPipelineDiagnostics", () => ({
   runBuildPipelineDiagnostics: jest.fn(async () => ({
@@ -10,7 +11,7 @@ jest.mock("../lib/diagnostics/buildPipelineDiagnostics", () => ({
 
 const mockGetItem = jest.fn();
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockGetItem(...args),
+  getItem: mockGetItem,
 }));
 
 import { runLocalChecks, runPipelineChecks } from "../screens/DiagnosticScreen/hooks/diagnosticRunners";
@@ -22,8 +23,8 @@ describe("runPipelineChecks repo sync guard", () => {
   });
 
   it("blocks pipeline checks when local state drifted from tracked repo signature", async () => {
-    const files = [{ path: "app.json", content: "{}" }] as any;
-    const staleSig = computeProjectFilesSignature([{ path: "app.json", content: "{\"x\":1}" }] as any);
+    const files = [makeProjectFile("app.json", "{}")];
+    const staleSig = computeProjectFilesSignature([makeProjectFile("app.json", "{\"x\":1}")]);
     const key = `repo_sync_signature::${encodeURIComponent("owner/repo")}::${encodeURIComponent("main")}`;
     mockGetItem.mockImplementation(async (k: string) => (k === key ? staleSig : null));
 
@@ -35,7 +36,7 @@ describe("runPipelineChecks repo sync guard", () => {
       files,
       pipelineAppliesToFocus: () => true,
       all,
-      mountedRef: { current: true } as any,
+      mountedRef: createMountedRef(),
       setResults: () => {},
       setProgressStage: () => {},
     });
@@ -53,7 +54,7 @@ describe("runPipelineChecks repo sync guard", () => {
       focusedProfiles: ["development"],
       files,
       all,
-      mountedRef: { current: true } as any,
+      mountedRef: createMountedRef(),
       setResults: () => {},
       setProgressStage,
     });

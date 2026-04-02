@@ -16,9 +16,9 @@ const mockGetRepoFileText = jest.fn();
 const mockListRepoSecretNames = jest.fn(async () => []);
 
 jest.mock("../infra/github/githubService", () => ({
-  createOrUpdateFile: (...args: any[]) => (mockCreateOrUpdateFile as any)(...args),
-  getRepoFileText: (...args: any[]) => (mockGetRepoFileText as any)(...args),
-  listRepoSecretNames: (...args: any[]) => (mockListRepoSecretNames as any)(...args),
+  createOrUpdateFile: mockCreateOrUpdateFile,
+  getRepoFileText: mockGetRepoFileText,
+  listRepoSecretNames: mockListRepoSecretNames,
 }));
 
 import { autoFixCIWorkflows } from "../lib/diagnostics/ciAutoFix";

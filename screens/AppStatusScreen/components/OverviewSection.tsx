@@ -5,11 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../../theme';
 import { styles } from '../styles';
 import type { BuildConfig, ProjectStats } from '../types';
+import type { ProjectData } from '../../../shared/types/project';
 
 type Props = {
   buildConfig: BuildConfig | null;
   projectStats: ProjectStats | null;
-  projectData: any;
+  projectData: Pick<ProjectData, 'lastModified'>;
 };
 
 export function OverviewSection({ buildConfig, projectStats, projectData }: Props) {

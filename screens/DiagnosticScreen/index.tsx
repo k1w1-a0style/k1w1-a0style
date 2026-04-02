@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import type { NavigationProp, ParamListBase, RouteProp } from "@react-navigation/native";
 import {
   ScrollView,
 
@@ -25,12 +26,16 @@ import { getDiagnosticFixOffer } from "../../lib/diagnostics/fixResultContract";
 import type { PreflightCheckResult, PreflightStatus } from "../../lib/diagnostics/preflightTypes";
 
 import { styles } from "./styles";
+import { getDiagnosticFailResults, getDiagnosticFailSummaryLines } from "./diagnosticScreenDisplayHelpers";
 
 const FIX_MODAL_MAX_LINES = 7;
 
+type DiagnosticRouteParams = { autoRun?: boolean };
+type DiagnosticRoute = RouteProp<{ Diagnostic: DiagnosticRouteParams | undefined }, "Diagnostic">;
+
 export default function DiagnosticScreen() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const navigation = useNavigation<NavigationProp<ParamListBase>>();
+  const route = useRoute<DiagnosticRoute>();
   const autoRunDoneRef = useRef(false);
   const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
     useProject();
@@ -88,14 +93,14 @@ export default function DiagnosticScreen() {
     linkedRepo,
     linkedBranch,
     setPreferredBuildProfile,
-    navigation,
     updateProjectFiles,
     deleteFile,
   });
 
   const onDebug = () => {
-    const fails = (results || []).filter((r: any) => r.status === "fail");
-    const lines = fails.slice(0, 12).map((r: any) => `- ${r.title}: ${r.message || ""}`.trim());
+    const allResults = results || [];
+    const fails = getDiagnosticFailResults(allResults);
+    const lines = getDiagnosticFailSummaryLines(allResults, 12);
     const msg =
       `Bitte debugge meinen Diagnostic Report.\n` +
       `Projekt: ${headerStats?.name || "?"}\n` +

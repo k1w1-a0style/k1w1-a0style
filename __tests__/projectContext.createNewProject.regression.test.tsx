@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, type AlertButton } from "react-native";
 import { act, render, waitFor } from "@testing-library/react-native";
 import { ProjectProvider, useProject } from "../contexts/ProjectContext";
 
@@ -8,12 +8,12 @@ const mockSaveProjectToStorage = jest.fn();
 const mockLoadTemplateFromFile = jest.fn();
 
 jest.mock("../infra/storage/projectPersistence", () => ({
-  loadProjectFromStorage: (...args: any[]) => mockLoadProjectFromStorage(...args),
-  saveProjectToStorage: (...args: any[]) => mockSaveProjectToStorage(...args),
+  loadProjectFromStorage: mockLoadProjectFromStorage,
+  saveProjectToStorage: mockSaveProjectToStorage,
 }));
 
 jest.mock("../project/services/templateLoader", () => ({
-  loadTemplateFromFile: (...args: any[]) => mockLoadTemplateFromFile(...args),
+  loadTemplateFromFile: mockLoadTemplateFromFile,
 }));
 
 jest.mock("../hooks/useBuildStatus", () => ({
@@ -30,9 +30,10 @@ describe("ProjectContext createNewProject regression", () => {
 
   beforeEach(() => {
     ctx = null;
-    jest.spyOn(Alert, "alert").mockImplementation((title: any, _message?: any, buttons?: any) => {
+    jest.spyOn(Alert, "alert").mockImplementation((...args: Parameters<typeof Alert.alert>) => {
+      const [title, _message, buttons] = args;
       if (title === "Neues Projekt") {
-        const confirm = buttons?.find((b: any) => b.text === "Neu erstellen");
+        const confirm = (buttons ?? []).find((button: AlertButton) => button.text === "Neu erstellen");
         confirm?.onPress?.();
       }
     });

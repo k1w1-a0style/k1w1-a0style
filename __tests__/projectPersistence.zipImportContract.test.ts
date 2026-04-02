@@ -31,6 +31,10 @@ jest.mock('../infra/storage/persistenceHelpers', () => {
   };
 });
 
+jest.mock('../infra/storage/zipInspection', () => ({
+  inspectZipArchiveFromUri: jest.fn(),
+}));
+
 jest.mock('../lib/validators', () => {
   const actual = jest.requireActual('../lib/validators');
   return {
@@ -43,15 +47,40 @@ describe('projectPersistence ZIP import contract', () => {
   const DocumentPicker = require('expo-document-picker');
   const helpers = require('../infra/storage/persistenceHelpers');
   const validators = require('../lib/validators');
+  const zipInspection = require('../infra/storage/zipInspection');
   const zipArchive = require('react-native-zip-archive');
   const FileSystem = require('expo-file-system/legacy');
 
   beforeEach(() => {
     jest.clearAllMocks();
+    zipInspection.inspectZipArchiveFromUri.mockResolvedValue({
+      valid: true,
+      entries: [{ path: 'components/A.tsx', compressedBytes: 10, uncompressedBytes: 10, isDirectory: false }],
+      totalCompressedBytes: 10,
+      totalUncompressedBytes: 10,
+      issues: [],
+      errors: [],
+    });
     DocumentPicker.getDocumentAsync.mockResolvedValue({
       canceled: false,
       assets: [{ uri: 'file:///cache/test.zip', name: 'test.zip', size: 1024 }],
     });
+  });
+
+
+  it('rejects invalid archive metadata before unzip', async () => {
+    zipInspection.inspectZipArchiveFromUri.mockResolvedValue({
+      valid: false,
+      entries: [],
+      totalCompressedBytes: 10,
+      totalUncompressedBytes: 10,
+      issues: [{ path: '../../etc/passwd', reason: 'Pfad enthält ungültige Segmente' }],
+      errors: ['ZIP-Metadatenprüfung fehlgeschlagen'],
+    });
+
+    await expect(importProjectFromZipFile()).rejects.toThrow(/ZIP-Metadatenprüfung vor dem Entpacken fehlgeschlagen/i);
+    expect(zipArchive.unzip).not.toHaveBeenCalled();
+    expect(helpers.readDirectoryRecursive).not.toHaveBeenCalled();
   });
 
   it('fails as strict all-or-nothing when validator reports invalid files', async () => {

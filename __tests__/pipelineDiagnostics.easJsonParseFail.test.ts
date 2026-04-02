@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -32,7 +34,7 @@ describe("runBuildPipelineDiagnostics - invalid eas.json", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const parseCheck = res.checks.find((c: any) => c.id === "repo.easJson.parse");
+    const parseCheck = findCheckById(res.checks, "repo.easJson.parse");
     expect(parseCheck?.status).toBe("fail");
     expect(`${parseCheck?.title} ${parseCheck?.fixHint ?? ""}`).toMatch(/parse|JSON|Unexpected|invalid/i);
   });

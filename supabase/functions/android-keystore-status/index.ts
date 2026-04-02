@@ -5,24 +5,24 @@
 import {
   createClient,
   errorResponse,
+  getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
   handleCors,
   jsonResponse,
   rateLimit,
+  requireDurableRateLimit,
   repoOk,
   requirePrivilegedOperatorJwtRole,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
 } from "./helpers.ts";
+import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
-
-  const rl = rateLimit(req, "android-keystore-status", 60, 60_000);
-  if (rl) return rl;
 
   const auth = requireScopedEdgeAuth(req, {
     scope: "android-keystore-status",
@@ -34,6 +34,17 @@ Deno.serve(async (req) => {
   const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-status");
   if (jwtRoleGuard) return jwtRoleGuard;
 
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "android-keystore-status",
+    subject: getRequestRateLimitSubject(req),
+    max: 60,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+
+  const rl = rateLimit(req, "android-keystore-status", 60, 60_000);
+  if (rl) return rl;
+
   try {
     const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
@@ -41,7 +52,12 @@ Deno.serve(async (req) => {
       return errorResponse("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", req, 500);
     }
 
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, 20_000);
+    if (isParsedJsonBodyError(parsedBody)) {
+      const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
+      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+    }
+    const body = parsedBody.body;
     const repo = safeString(body?.repo);
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);

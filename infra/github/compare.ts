@@ -2,6 +2,7 @@ import { githubLimiter } from "./rateLimit";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
 import { fetchGitHub } from "./utils";
+import { readGitHubMessage, readJsonRecordSafe, readRecordArrayField, readStringField } from "./githubResponseHelpers";
 
 export type GitHubCompareFile = {
   filename: string;
@@ -44,32 +45,39 @@ export async function compareBranches(params: {
     },
   });
 
-  const json: any = await resp.json().catch(() => ({}));
+  const json = await readJsonRecordSafe(resp);
 
   if (!resp.ok) {
     if (resp.status === 401) throw new Error("GitHub Token ungültig.");
     if (resp.status === 403)
       throw new Error('Keine Berechtigung. Token benötigt "repo" Scope.');
     if (resp.status === 404) throw new Error("Repo/Branch nicht gefunden.");
-    throw new Error(json?.message || `Compare fehlgeschlagen (${resp.status})`);
+    throw new Error(readGitHubMessage(json) || `Compare fehlgeschlagen (${resp.status})`);
   }
 
-  const files: GitHubCompareFile[] = Array.isArray(json?.files)
-    ? json.files
-        .map((f: any) => ({
-          filename: String(f?.filename || ""),
-          status: f?.status ? String(f.status) : undefined,
-          additions: Number.isFinite(f?.additions) ? Number(f.additions) : undefined,
-          deletions: Number.isFinite(f?.deletions) ? Number(f.deletions) : undefined,
-          changes: Number.isFinite(f?.changes) ? Number(f.changes) : undefined,
-        }))
-        .filter((f: GitHubCompareFile) => !!f.filename)
-    : [];
+  const files: GitHubCompareFile[] = readRecordArrayField(json, "files")
+    .map((file) => {
+      const additions = file.additions;
+      const deletions = file.deletions;
+      const changes = file.changes;
+      return {
+        filename: readStringField(file, "filename"),
+        status: readStringField(file, "status") || undefined,
+        additions: typeof additions === "number" && Number.isFinite(additions) ? additions : undefined,
+        deletions: typeof deletions === "number" && Number.isFinite(deletions) ? deletions : undefined,
+        changes: typeof changes === "number" && Number.isFinite(changes) ? changes : undefined,
+      };
+    })
+    .filter((file) => !!file.filename);
+
+  const aheadBy = json.ahead_by;
+  const behindBy = json.behind_by;
+  const totalCommits = json.total_commits;
 
   return {
-    aheadBy: Number.isFinite(json?.ahead_by) ? Number(json.ahead_by) : 0,
-    behindBy: Number.isFinite(json?.behind_by) ? Number(json.behind_by) : 0,
-    totalCommits: Number.isFinite(json?.total_commits) ? Number(json.total_commits) : 0,
+    aheadBy: typeof aheadBy === "number" && Number.isFinite(aheadBy) ? aheadBy : 0,
+    behindBy: typeof behindBy === "number" && Number.isFinite(behindBy) ? behindBy : 0,
+    totalCommits: typeof totalCommits === "number" && Number.isFinite(totalCommits) ? totalCommits : 0,
     files,
   };
 }

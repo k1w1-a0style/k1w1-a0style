@@ -56,8 +56,6 @@ export default function ConnectionsScreen() {
     setWorkflowAdminKey,
     androidKeystoreExportAdminKey,
     setAndroidKeystoreExportAdminKey,
-    legacyEdgeAdminKey,
-    setLegacyEdgeAdminKey,
 
     showGitHub,
     setShowGitHub,
@@ -67,8 +65,6 @@ export default function ConnectionsScreen() {
     setShowWorkflowAdmin,
     showKeystoreAdmin,
     setShowKeystoreAdmin,
-    showLegacyEdge,
-    setShowLegacyEdge,
 
     showSupabaseAnon,
     setShowSupabaseAnon,
@@ -120,17 +116,15 @@ export default function ConnectionsScreen() {
     lines.push("- EAS_PROJECT_ID (optional)");
     lines.push("- K1W1_EDGE_WORKFLOW_ADMIN_KEY (optional, scoped Workflow-Key)");
     lines.push("- K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, scoped Keystore-Key)");
-    lines.push("- K1W1_EDGE_ADMIN_KEY (legacy optional)");
     lines.push("");
     lines.push("Lokale App-Werte (SecureStore, getrennte Scopes):");
     lines.push(`- Workflow Admin Key: ${workflowAdminKey.trim() ? "gesetzt" : "leer"}`);
     lines.push(`- Android Keystore Export Admin Key: ${androidKeystoreExportAdminKey.trim() ? "gesetzt" : "leer"}`);
-    lines.push(`- Legacy Edge Admin Key (compat): ${legacyEdgeAdminKey.trim() ? "gesetzt" : "leer"}`);
     lines.push("");
     lines.push("Nicht aus der App auto-synchronisiert:");
     lines.push("- GITHUB_TOKEN / SUPABASE_ANON_KEY (bleiben lokal auf dem Gerät)");
     return lines;
-  }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easState, easLastVerifiedAt, workflowAdminKey, androidKeystoreExportAdminKey, legacyEdgeAdminKey]);
+  }, [repoLine, githubOk, githubUser, githubScopes, supabaseUrl, supabaseRef, supabaseOk, expoOk, expoUser, easProjectId, easState, easLastVerifiedAt, workflowAdminKey, androidKeystoreExportAdminKey]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -195,8 +189,6 @@ export default function ConnectionsScreen() {
           onChangeWorkflowAdminKey={setWorkflowAdminKey}
           androidKeystoreExportAdminKey={androidKeystoreExportAdminKey}
           onChangeAndroidKeystoreExportAdminKey={setAndroidKeystoreExportAdminKey}
-          legacyEdgeAdminKey={legacyEdgeAdminKey}
-          onChangeLegacyEdgeAdminKey={setLegacyEdgeAdminKey}
           showGitHub={showGitHub}
           onToggleShowGitHub={() => setShowGitHub((p) => !p)}
           showExpo={showExpo}
@@ -205,8 +197,6 @@ export default function ConnectionsScreen() {
           onToggleShowWorkflowAdmin={() => setShowWorkflowAdmin((p) => !p)}
           showKeystoreAdmin={showKeystoreAdmin}
           onToggleShowKeystoreAdmin={() => setShowKeystoreAdmin((p) => !p)}
-          showLegacyEdge={showLegacyEdge}
-          onToggleShowLegacyEdge={() => setShowLegacyEdge((p) => !p)}
           onSave={saveAll}
           onTestGitHub={testGitHub}
           onTestExpo={testExpo}

@@ -2,10 +2,11 @@ import {
   getDiagnosticFixExecutionResult,
   getDiagnosticFixOffer,
 } from "../lib/diagnostics/fixResultContract";
+import { makePreflightPatch, makePreflightResult } from "./helpers/preflightTestHelpers";
 
 describe("diagnostic fix result contract", () => {
   test("distinguishes advisory, patch applied, workflow dispatched, blocked and failed states", () => {
-    const advisory = getDiagnosticFixOffer({ status: "warn" } as any);
+    const advisory = getDiagnosticFixOffer(makePreflightResult({ status: "warn" }));
     const patchApplied = getDiagnosticFixExecutionResult({ status: "patch_applied" });
     const workflowDispatched = getDiagnosticFixExecutionResult({ status: "workflow_dispatched" });
     const blocked = getDiagnosticFixExecutionResult({ status: "blocked", detail: "guard" });
@@ -21,15 +22,19 @@ describe("diagnostic fix result contract", () => {
   });
 
   test("returns honest offer/badge/action texts for patch, workflow-only and advisory fixes", () => {
-    const patchOffer = getDiagnosticFixOffer({
-      status: "fail",
-      fix: { patch: { upsert: [{ path: "app.json", content: "{}" }] } },
-    } as any);
-    const workflowOffer = getDiagnosticFixOffer({
-      status: "fail",
-      fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } },
-    } as any);
-    const advisory = getDiagnosticFixOffer({ status: "warn" } as any);
+    const patchOffer = getDiagnosticFixOffer(
+      makePreflightResult({
+        status: "fail",
+        fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{}" }] }) },
+      }),
+    );
+    const workflowOffer = getDiagnosticFixOffer(
+      makePreflightResult({
+        status: "fail",
+        fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } },
+      }),
+    );
+    const advisory = getDiagnosticFixOffer(makePreflightResult({ status: "warn" }));
 
     expect(patchOffer.badgeText).toBe("Patch-Fix verfügbar");
     expect(patchOffer.actionLabel).toBe("Patch-Fix anwenden");

@@ -11,9 +11,7 @@
  *
  * Response is intentionally minimized & sanitized to avoid leaking huge GitHub objects.
  */
-import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
-import { requireAdminKey, rateLimit } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
+import { errorResponse, jsonResponse } from "../_shared/cors.ts";
 import { githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
@@ -34,6 +32,10 @@ export function asString(v: unknown): string | undefined {
 }
 export function asNumber(v: unknown): number | undefined {
   return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+export function asRecord(v: unknown): Json | undefined {
+  return v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : undefined;
 }
 
 export function parseGithubRepo(v: unknown): { owner: string; repo: string } | null {
@@ -116,7 +118,6 @@ export async function fetchLogsZip(
   owner: string,
   repo: string,
   runId: number,
-  token?: string,
 ): Promise<Uint8Array> {
   const api = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${runId}/logs`;
 
@@ -137,14 +138,14 @@ export async function fetchLogsZip(
       });
 
       if (rr.status === 200) {
-        let runJson: any = null;
+        let runJson: Json | null = null;
         try {
-          runJson = await rr.json();
+          runJson = asRecord(await rr.json()) ?? null;
         } catch {
           runJson = null;
         }
 
-        const runStatus = String(runJson?.status ?? "");
+        const runStatus = asString(runJson?.status) ?? "";
         const runConclusion = runJson?.conclusion != null ? String(runJson.conclusion) : null;
 
         // If the run is still executing, logs zip may not exist yet.

@@ -7,12 +7,11 @@ import {
   type AllAIProviders,
 } from "../../../contexts/AIContext";
 import { maskApiKey } from "../../../lib/apiKeyMasking";
+import type { AppInfoApiKeysConfig, AppInfoScreenStyles } from "../componentTypes";
 
 type Props = {
-  styles: any;
-  config: {
-    apiKeys: Record<string, string[]>;
-  };
+  styles: AppInfoScreenStyles;
+  config: AppInfoApiKeysConfig;
 };
 
 const PROVIDERS: AllAIProviders[] = [

@@ -125,7 +125,6 @@ describe("useConnectionsScreenHelpers", () => {
         expoToken: "",
         workflowAdminKey: " ",
         androidKeystoreExportAdminKey: "k",
-        legacyEdgeAdminKey: "",
         supabaseUrl: " https://x.supabase.co ",
         supabaseAnonKey: "",
         linkedRepo: "",

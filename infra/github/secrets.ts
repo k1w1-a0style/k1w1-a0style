@@ -4,14 +4,13 @@ import { ensureGitHubRepoParts } from "./utils";
 import { getGitHubToken } from "./tokenStore";
 import { githubApiUrl } from "../../shared/constants/github";
 import { fetchGitHub } from "./utils";
+import { readJsonRecordSafe, readRecordArrayField, readStringField } from "./githubResponseHelpers";
 
 export type RepoSecretsPayload = Partial<{
   expoToken: string | null | undefined;
   supabaseUrl: string | null | undefined;
   supabaseServiceRole: string | null | undefined;
   easProjectId: string | null | undefined;
-  /** Optional legacy/shared admin secret for older Edge paths (x-k1w1-admin-key) */
-  edgeAdminKey: string | null | undefined;
   /** Scoped workflow/admin secret for workflow-facing Edge Functions */
   workflowAdminKey: string | null | undefined;
   /** Scoped admin-only secret for android-keystore-export */
@@ -25,7 +24,6 @@ const SECRET_NAME_MAP: Record<keyof RepoSecretsPayload, string> = {
   supabaseUrl: "SUPABASE_URL",
   supabaseServiceRole: "SUPABASE_SERVICE_ROLE_KEY",
   easProjectId: "EAS_PROJECT_ID",
-  edgeAdminKey: "K1W1_EDGE_ADMIN_KEY",
   workflowAdminKey: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
   androidKeystoreExportAdminKey: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   signingAdminKey: "SIGNING_ADMIN_KEY",
@@ -134,7 +132,8 @@ export const listRepoSecretNames = async (
     throw new Error(`Secrets read Fehler (${resp.status}): ${text}`);
   }
 
-  const json = await resp.json();
-  const secrets = Array.isArray(json?.secrets) ? json.secrets : [];
-  return secrets.map((s: any) => String(s?.name || "")).filter(Boolean);
+  const json = await readJsonRecordSafe(resp);
+  return readRecordArrayField(json, "secrets")
+    .map((secret) => readStringField(secret, "name"))
+    .filter(Boolean);
 };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ComponentProps } from "react";
 import { LayoutAnimation, Text, TouchableOpacity, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -8,6 +8,17 @@ import { SectionCard } from "../../../components/diagnostics/SectionCard";
 import type { ModeDef, StatusResult, UiModeId } from "../types";
 import { InlineHint, PrimaryButton, TertiaryButton } from "./ui";
 import { styles } from "../styles";
+
+type KeystoreStatusMeta = {
+  icon: ComponentProps<typeof Ionicons>["name"];
+  text: string;
+  color: string;
+  detail: string;
+  state: string;
+  requiresManualRecheck: boolean;
+  treatsAsMissing: boolean;
+  treatsAsVerified: boolean;
+};
 
 export function KeystoreStatusSection({
   modes,
@@ -30,16 +41,7 @@ export function KeystoreStatusSection({
   setSelectedMode: (v: UiModeId) => void;
   canRun: boolean;
   busy: string | null;
-  metaForStatus: (s: StatusResult | null, mode: UiModeId) => {
-    icon: any;
-    text: string;
-    color: string;
-    detail: string;
-    state: string;
-    requiresManualRecheck: boolean;
-    treatsAsMissing: boolean;
-    treatsAsVerified: boolean;
-  };
+  metaForStatus: (s: StatusResult | null, mode: UiModeId) => KeystoreStatusMeta;
   normalizeModeForUi: (mode?: string) => UiModeId | undefined;
   pickStorageBucket: (record?: StatusResult["record"]) => string | undefined;
   pickStoragePath: (record?: StatusResult["record"]) => string | undefined;

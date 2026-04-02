@@ -1,5 +1,7 @@
 # Codex (Deutsch)
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 Hier liegt der Copy/Paste Startprompt für einen Codex Cloud Agent.
 
 - Prompt: `docs/codex/PROMPT_DE.md`

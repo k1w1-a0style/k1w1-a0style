@@ -13,7 +13,7 @@ Ziel: **kleine, sichere Änderungen**, reproduzierbar, mit Tests.
 
 ## Standard-Workflow
 
-1. Code lesen & Kontext verstehen (`PROJECT_CONTEXT.md`, `SYSTEM_README.md`).
+1. Code lesen & Kontext verstehen (`docs/PROJECT_CONTEXT.md`, `docs/SYSTEM_README.md`).
 2. Änderung umsetzen.
 3. Lokale Checks laufen lassen:
 
@@ -66,11 +66,12 @@ Vor Auslieferung eines Patch-Artefakts:
 - `npm run test:silent -- --runInBand edgeHelperVisibility.invariants.test.ts`
 - `npm run test:silent -- --runInBand k1w1Handler.providers.invariants.test.ts`
 
-Jeder Patch aktualisiert:
+Jeder Patch dokumentiert mindestens:
 - `docs/patches/patch_<PATCHNUM>.md`
 - `docs/patches/PATCHLOG_ROOT.md`
 - `PROJECT_CHECKLOG.md`
-- ggf. `README.md` / `docs/TODO.md` (wenn relevant)
+
+Kern-MDs (`README.md`, `docs/TODO.md`, `docs/INDEX.md`, `docs/TESTING_GUIDE.md`, `docs/FRESH_CHECKOUT_GREEN_PATH.md` sowie betroffene Review-/Status-MDs) werden **nicht nur ggf.**, sondern vor Abschluss immer aktiv auf Drift geprueft und bei Bedarf synchronisiert.
 
 ## Verbindlicher Doku-/SoT-Abgleich vor Abschluss
 

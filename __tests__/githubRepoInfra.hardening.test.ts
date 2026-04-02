@@ -95,6 +95,35 @@ describe("GitHub repo infra hardening", () => {
     ]);
   });
 
+  it("fails closed when the repo payload has no usable default branch", async () => {
+    const callbacks = {
+      onPullError: jest.fn(),
+    };
+
+    fetchWithBackoffMock
+      .mockResolvedValueOnce(createResponse({ ok: true, json: {} }));
+
+    const { result } = renderHook(() => useGitHubRepos("ghp_test_token", callbacks));
+
+    let pulled: Awaited<ReturnType<typeof result.current.pullFromRepo>> = null;
+    await act(async () => {
+      pulled = await result.current.pullFromRepo("owner", "repo");
+    });
+
+    expect(pulled).toBeNull();
+    expect(callbacks.onPullError).toHaveBeenCalledWith(
+      expect.stringContaining("Default-Branch konnte nicht eindeutig ermittelt werden."),
+    );
+  });
+
+  it("fails closed when loadDefaultBranch is called without a token", async () => {
+    const { result } = renderHook(() => useGitHubRepos(null));
+
+    await expect(result.current.loadDefaultBranch("owner", "repo")).rejects.toThrow(
+      /GitHub-Token fehlt/i,
+    );
+  });
+
   it("aborts pulls honestly when a repo exceeds the hard text-file cap", async () => {
     const callbacks = {
       onPullError: jest.fn(),

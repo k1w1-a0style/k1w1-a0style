@@ -1,15 +1,14 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
 import { loadProjectFromStorage } from "../infra/storage/projectPersistence";
+import { resetMockAsyncStorage, seedMockAsyncStorage } from "./helpers/asyncStorageMockHelpers";
 
 describe("chat history migration", () => {
   beforeEach(() => {
-    (AsyncStorage as any).__resetMockStorage?.();
+    resetMockAsyncStorage();
     jest.clearAllMocks();
   });
 
   it("adds ids to old chatHistory entries that lack id", async () => {
-    const legacyProject: any = {
+    const legacyProject = {
       name: "legacy",
       files: [],
       chatHistory: [
@@ -20,7 +19,7 @@ describe("chat history migration", () => {
       lastModified: "2026-01-01T00:00:00.000Z",
     };
 
-    (AsyncStorage as any).__setMockStorage?.({
+    seedMockAsyncStorage({
       k1w1_project_data: JSON.stringify(legacyProject),
     });
 
@@ -38,7 +37,7 @@ describe("chat history migration", () => {
   });
 
   it("migrates old 'messages' property to chatHistory and adds ids", async () => {
-    const legacyProject: any = {
+    const legacyProject = {
       name: "legacy2",
       files: [],
       messages: [{ role: "user", content: "old", timestamp: "2026-01-02T00:00:00.000Z" }],
@@ -46,7 +45,7 @@ describe("chat history migration", () => {
       lastModified: "2026-01-02T00:00:00.000Z",
     };
 
-    (AsyncStorage as any).__setMockStorage?.({
+    seedMockAsyncStorage({
       k1w1_project_data: JSON.stringify(legacyProject),
     });
 

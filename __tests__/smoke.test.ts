@@ -6,6 +6,19 @@
  * @jest-environment node
  */
 
+type MockAsyncStorageModule = {
+  __resetMockStorage: () => void;
+  setItem: (key: string, value: string) => Promise<void>;
+  getItem: (key: string) => Promise<string | null>;
+  clear: () => Promise<void>;
+};
+
+type MockSecureStoreModule = {
+  __resetMockStorage: () => void;
+  setItemAsync: (key: string, value: string) => Promise<void>;
+  getItemAsync: (key: string) => Promise<string | null>;
+};
+
 describe('Smoke Tests - Basic Setup', () => {
   describe('Jest Configuration', () => {
     it('sollte Tests ausführen können', () => {
@@ -120,11 +133,11 @@ describe('Smoke Tests - Basic Setup', () => {
   });
 
   describe('Mocks - AsyncStorage', () => {
-    let AsyncStorage: any;
+    let AsyncStorage: MockAsyncStorageModule;
 
     beforeAll(() => {
       // Require statt import für CommonJS Mocks
-      AsyncStorage = require('@react-native-async-storage/async-storage');
+      AsyncStorage = require('@react-native-async-storage/async-storage') as MockAsyncStorageModule;
     });
 
     beforeEach(() => {
@@ -160,11 +173,11 @@ describe('Smoke Tests - Basic Setup', () => {
   });
 
   describe('Mocks - SecureStore', () => {
-    let SecureStore: any;
+    let SecureStore: MockSecureStoreModule;
 
     beforeAll(() => {
       // Require statt import für CommonJS Mocks
-      SecureStore = require('expo-secure-store');
+      SecureStore = require('expo-secure-store') as MockSecureStoreModule;
     });
 
     beforeEach(() => {

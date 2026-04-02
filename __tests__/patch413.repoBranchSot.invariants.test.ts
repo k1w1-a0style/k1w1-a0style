@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 
-const read = (rel: string) =>
-  fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+const repoPath = (rel: string) => path.join(process.cwd(), rel);
+const read = (rel: string) => fs.readFileSync(repoPath(rel), "utf8");
+const exists = (rel: string) => fs.existsSync(repoPath(rel));
 
 describe("Patch 413 repo/branch SoT invariants", () => {
   it("removes config repo fallback from build start", () => {
@@ -33,10 +34,9 @@ describe("Patch 413 repo/branch SoT invariants", () => {
     expect(src).toContain("Kein Branch ausgewählt.");
   });
 
-  it("keeps diff views free of silent main fallbacks", () => {
-    const diffFiles = read("screens/GitHubReposScreen/components/DiffFilesSection.tsx");
+  it("keeps the active diff view free of silent main fallbacks and removes the dead legacy diff section", () => {
     const localRemote = read("screens/GitHubReposScreen/components/LocalRemoteDiffSection.tsx");
-    expect(diffFiles).not.toContain('defaultBranch || "main"');
+    expect(exists("screens/GitHubReposScreen/components/DiffFilesSection.tsx")).toBe(false);
     expect(localRemote).not.toContain('(activeBranch || "main").trim() || "main"');
   });
 });

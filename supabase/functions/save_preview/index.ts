@@ -5,10 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import {
   getPreviewServiceRoleKey,
   getPreviewSupabaseUrl,
-  requireScopedEdgeAuth,
+  getRequestRateLimitSubject,
+  requireDurableRateLimit,
+  requireVerifiedJwt,
   rateLimit,
 } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
+import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import {
   SnackFiles,
@@ -34,12 +36,16 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: cors });
   }
 
-  const auth = requireScopedEdgeAuth(req, {
-    scope: "save_preview",
-    allowAdmin: true,
-    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
-  });
+  const auth = await requireVerifiedJwt(req, "save_preview");
   if (auth) return auth;
+
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "save_preview",
+    subject: getRequestRateLimitSubject(req),
+    max: 60,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
 
   const rl = rateLimit(req, "save_preview");
   if (rl) return rl;
@@ -63,8 +69,8 @@ Deno.serve(async (req) => {
 
   let body: Payload;
   const parsed = await parseJsonBody(req, MAX_PAYLOAD_BYTES);
-  if (!parsed.ok) {
-    const parseError = (parsed as { ok: false; error: string }).error;
+  if (isParsedJsonBodyError(parsed)) {
+    const parseError = parsed.error;
     return jsonPreviewError({
       origin,
       code: classifySavePreviewPayloadError(parseError),

@@ -47,7 +47,6 @@ export const validateBeforeSave = (p: {
   expoToken: string;
   workflowAdminKey: string;
   androidKeystoreExportAdminKey: string;
-  legacyEdgeAdminKey: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   easProjectId?: string;
@@ -105,13 +104,6 @@ export const validateBeforeSave = (p: {
   );
   if (!keystoreKeyValidation.ok) return keystoreKeyValidation;
 
-  const legacyKeyValidation = validateScopedAdminKey(
-    p.legacyEdgeAdminKey,
-    "Ungültiger lokaler Legacy Edge Admin Key",
-    "Legacy-Key ist zu kurz oder enthält Leerzeichen.",
-  );
-  if (!legacyKeyValidation.ok) return legacyKeyValidation;
-
   const sbUrl = p.supabaseUrl.trim();
   if (sbUrl) {
     if (!/^https:\/\//i.test(sbUrl) || !/\.supabase\.co\b/i.test(sbUrl)) {
@@ -151,4 +143,22 @@ export const deriveSupabaseUrl = (raw: string): { projectId: string; url: string
   }
 
   return { projectId: "", url: "" };
+};
+
+
+export const normalizeStoredSupabaseRaw = (raw: string, derivedUrl?: string): string => {
+  const trimmedRaw = (raw || "").trim();
+  const rawDerived = deriveSupabaseUrl(trimmedRaw);
+  if (rawDerived.projectId) {
+    return trimmedRaw.startsWith("http://") || trimmedRaw.startsWith("https://")
+      ? rawDerived.url
+      : rawDerived.projectId;
+  }
+
+  const urlDerived = deriveSupabaseUrl(derivedUrl || "");
+  if (urlDerived.projectId) {
+    return urlDerived.url;
+  }
+
+  return "";
 };

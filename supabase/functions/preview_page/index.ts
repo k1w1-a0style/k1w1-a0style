@@ -5,7 +5,7 @@ import {
   TABLE, MAX_FILES_BYTES, MAX_RESPONSE_BYTES,
   escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
-  rateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
+  getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
   classifyPreviewPageUnexpectedError, previewPageErrorResponse,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
@@ -338,13 +338,19 @@ function renderPage(params: {
 }
 
 Deno.serve(async (req) => {
-  const rl = rateLimit(req, "preview_page");
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "preview_page",
+    subject: getRequestClientIp(req),
+    max: 60,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+
+  const rl = rateLimit(req, "preview_page", 60, 60_000);
   if (rl) return rl;
 
   const started = Date.now();
-  const ip =
-    (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
-    "unknown";
+  const ip = getRequestClientIp(req);
 
   try {
     const url = new URL(req.url);

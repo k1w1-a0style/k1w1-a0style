@@ -2,8 +2,9 @@ import React from "react";
 import { act, render } from "@testing-library/react-native";
 
 import { useDiagnosticFixRunner } from "../screens/DiagnosticScreen/hooks/useDiagnosticFixRunner";
-import type { ProjectData } from "../shared/types/project";
 import type { PreflightCheckResult } from "../lib/diagnostics/preflightTypes";
+import { createMountedRef } from "./helpers/projectTestHelpers";
+import { makePreflightPatch, makePreflightResult, makeProjectRef } from "./helpers/preflightTestHelpers";
 
 function createHarness<T>(useHook: () => T) {
   let api: T | null = null;
@@ -19,32 +20,29 @@ function createHarness<T>(useHook: () => T) {
 describe("useDiagnosticFixRunner smartFix", () => {
   test("applies only fixable fail issues", async () => {
     const updateProjectFiles = jest.fn(async () => undefined);
-    const projectRef = {
-      current: {
-        id: "p1",
-        name: "demo",
-        files: [{ path: "app.json", content: "{}" }],
-      } as any as ProjectData,
-    };
+    const projectRef = makeProjectRef({
+      id: "p1",
+      name: "demo",
+      files: [{ path: "app.json", content: "{}" }],
+    });
 
     const fixableResults: PreflightCheckResult[] = [
-      {
+      makePreflightResult({
         id: "fixable",
         title: "Fixable",
-        status: "fail",
-        fix: { patch: { upsert: [{ path: "app.json", content: '{"expo":{}}' }] } as any, label: "fix" },
-      } as any,
-      {
+        fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: '{"expo":{}}' }] }), label: "fix" },
+      }),
+      makePreflightResult({
         id: "not-fixable",
         title: "Not fixable",
-        status: "fail",
-      } as any,
+        fix: undefined,
+      }),
     ];
 
     const getApi = createHarness(() =>
       useDiagnosticFixRunner({
-        projectRef: projectRef as any,
-        mountedRef: { current: true } as any,
+        projectRef,
+        mountedRef: createMountedRef(),
         linkedRepo: "",
         linkedBranch: "main",
         updateProjectFiles,
@@ -72,29 +70,27 @@ describe("useDiagnosticFixRunner smartFix", () => {
 
   test("does not auto-apply warn-only fixes in smartFix", async () => {
     const updateProjectFiles = jest.fn(async () => undefined);
-    const projectRef = {
-      current: {
-        id: "p1",
-        name: "demo",
-        files: [{ path: "app.json", content: "{}" }],
-      } as any as ProjectData,
-    };
+    const projectRef = makeProjectRef({
+      id: "p1",
+      name: "demo",
+      files: [{ path: "app.json", content: "{}" }],
+    });
 
     const warnOnly: PreflightCheckResult[] = [
-      {
+      makePreflightResult({
         id: "warn-fixable",
         title: "Warn fixable",
         status: "warn",
-        fix: { patch: { upsert: [{ path: "app.json", content: '{"expo":{}}' }] } as any, label: "fix" },
-      } as any,
+        fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: '{"expo":{}}' }] }), label: "fix" },
+      }),
     ];
 
     const alertSpy = jest.spyOn(require("react-native").Alert, "alert").mockImplementation(() => {});
 
     const getApi = createHarness(() =>
       useDiagnosticFixRunner({
-        projectRef: projectRef as any,
-        mountedRef: { current: true } as any,
+        projectRef,
+        mountedRef: createMountedRef(),
         linkedRepo: "",
         linkedBranch: "main",
         updateProjectFiles,

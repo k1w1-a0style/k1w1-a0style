@@ -18,8 +18,6 @@ import {
   saveWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
   saveAndroidKeystoreExportAdminKey,
-  getEdgeAdminKey,
-  saveEdgeAdminKey,
   getLegacyEdgeAdminKey,
   saveLegacyEdgeAdminKey,
   getSigningAdminKey,
@@ -42,7 +40,7 @@ describe("admin key token store split contract", () => {
 
     await saveWorkflowAdminKey("  workflow-admin-key-12345678901234567890  ");
     await saveAndroidKeystoreExportAdminKey("  android-export-key-12345678901234567890  ");
-    await saveEdgeAdminKey("  legacy-edge-key-12345678901234567890  ");
+    await saveLegacyEdgeAdminKey("  legacy-edge-key-12345678901234567890  ");
     await saveSigningAdminKey("  signing-admin-key-12345678901234567890  ");
 
     expect(mockSecureStore.setItemAsync).toHaveBeenCalledWith(
@@ -64,7 +62,6 @@ describe("admin key token store split contract", () => {
 
     await expect(getWorkflowAdminKey()).resolves.toBe("workflow-admin-key-12345678901234567890");
     await expect(getAndroidKeystoreExportAdminKey()).resolves.toBe("android-export-key-12345678901234567890");
-    await expect(getEdgeAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
     await expect(getLegacyEdgeAdminKey()).resolves.toBe("legacy-edge-key-12345678901234567890");
     await expect(getSigningAdminKey()).resolves.toBe("signing-admin-key-12345678901234567890");
   });

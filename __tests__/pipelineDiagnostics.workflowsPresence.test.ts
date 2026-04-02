@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -32,8 +34,8 @@ describe("runBuildPipelineDiagnostics - missing workflows", () => {
 
   it("fails both workflow checks and mentions filenames", async () => {
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const easLink = res.checks.find((c: any) => c.id === "repo.workflow.easLink");
-    const triggered = res.checks.find((c: any) => c.id === "repo.workflow.triggeredBuild");
+    const easLink = findCheckById(res.checks, "repo.workflow.easLink");
+    const triggered = findCheckById(res.checks, "repo.workflow.triggeredBuild");
 
     expect(easLink?.status).toBe("fail");
     expect(`${easLink?.title} ${easLink?.fixHint ?? ""}`).toMatch(/eas-link\.yml/);

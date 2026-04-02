@@ -1,6 +1,6 @@
 # 10 — Product and Flows
 
-Stand: **2026-03-17 (Patch 477)**
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
 ## Produktkern
 
@@ -27,6 +27,12 @@ Ziel: reproduzierbare, transparente Build-Starts ohne stille Fallbacks.
 4. **Vertragsklarheit bei IDs**
    - Build-Jobs liefern eine **positive numerische `jobId`** (bigint-backed).
    - Diagnostics-Upload-ID wird im Client als opaque string behandelt.
+
+5. **Chat-/Preview-/ZIP-Wahrheit**
+   - Chat-Drafts werden erst nach bestätigtem Erfolg geleert.
+   - Blur/Navigation aborten laufende KI-Requests sichtbar statt still.
+   - Preview-Fullscreen ist nur bei aktiver, gültiger Preview-Quelle möglich.
+   - ZIP-Importe laufen vor Persistenz durch denselben Normalisierungspfad wie reguläre Projekt-Ladevorgänge.
 
 ## Haupt-Journeys
 

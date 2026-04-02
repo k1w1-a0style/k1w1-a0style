@@ -6,6 +6,7 @@ import {
   checkRepoSecrets,
   parseOwnerRepo,
 } from "../../../lib/diagnostics/ciAutoFix";
+import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 
 export function useDiagnosticCiAutofix(opts: {
   linkedRepo: string;
@@ -63,9 +64,10 @@ export function useDiagnosticCiAutofix(opts: {
           ? "Workflows gefixt. Es fehlen noch Secrets."
           : "Workflows sind gefixt & Secrets sehen gut aus.",
       );
-    } catch (e: any) {
-      setCiFixLog(String(e?.message || e));
-      Alert.alert("CI/Workflows", "Fehler beim Fixen: " + String(e?.message || e));
+    } catch (e: unknown) {
+      const message = getDiagnosticUiErrorMessage(e);
+      setCiFixLog(message);
+      Alert.alert("CI/Workflows", "Fehler beim Fixen: " + message);
     } finally {
       setCiFixing(false);
     }

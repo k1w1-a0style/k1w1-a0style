@@ -1,9 +1,10 @@
 import React from "react";
 import { View, Text } from "react-native";
+import type { AppInfoProjectInfoData, AppInfoScreenStyles } from "../componentTypes";
 
 type Props = {
-  styles: any;
-  projectData: any;
+  styles: AppInfoScreenStyles;
+  projectData: AppInfoProjectInfoData;
   fileCount: number;
   messageCount: number;
 };

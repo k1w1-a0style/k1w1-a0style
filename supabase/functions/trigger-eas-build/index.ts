@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
   getRuntimeEnv,
+  getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
   requireWorkflowOperatorJwtRole,
@@ -10,23 +11,12 @@ import {
   requireDurableRateLimit,
 } from "../_shared/auth.ts";
 import {
+  isParsedJsonBodyError,
   parseJsonBody,
   validateTriggerBuildRequest,
 } from "../_shared/validation.ts";
-import { githubFetch, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
+import { githubFetch, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-
-function parseCsvEnv(name: string): string[] {
-  const raw = (getRuntimeEnv(name) ?? "").trim();
-  if (!raw) return [];
-  return raw.split(",").map((s) => s.trim()).filter(Boolean);
-}
-
-function isAllowedRepo(repo: string): boolean {
-  const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
-  if (allow.length === 0) return true; // rollout mode
-  return allow.includes(repo);
-}
 
 function isAllowedRef(ref: string | null | undefined): boolean {
   const r = (ref ?? "").trim();
@@ -42,12 +32,6 @@ function isAllowedRef(ref: string | null | undefined): boolean {
   } catch {
     return false;
   }
-}
-
-function isParsedBodyError(
-  result: Awaited<ReturnType<typeof parseJsonBody>>,
-): result is { ok: false; error: string } {
-  return !result.ok;
 }
 
 function isTriggerValidationError(
@@ -81,7 +65,7 @@ Deno.serve(async (req) => {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "trigger-eas-build",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 10,
       windowMs: 60_000,
     });
@@ -91,7 +75,7 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (isParsedBodyError(parsed)) {
+    if (isParsedJsonBodyError(parsed)) {
       return errorResponse(parsed.error, req, 400);
     }
 
@@ -116,7 +100,7 @@ Deno.serve(async (req) => {
 
     const { githubRepo, buildProfile, branch } = validation.data!;
 
-    if (!isAllowedRepo(githubRepo)) {
+    if (!isAllowedGithubRepo(githubRepo)) {
       return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
     }
 

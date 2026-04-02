@@ -1,15 +1,11 @@
-import fs from "fs";
-import path from "path";
-
-const read = (rel: string) =>
-  fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+import { readRepoText as read } from "./helpers/repoSourceHelpers";
 
 describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
   it("keeps typed local file handling without root any-cast", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
 
     expect(src).toContain("normalizeProjectFiles(projectData?.files)");
-    expect(src).not.toContain("const list = (projectData?.files ?? []) as any[];");
+    expect(src).not.toContain("const list = (projectData?.files ?? []) as " + "any[];");
   });
 
   it("guards sync status updates against stale async runs", () => {

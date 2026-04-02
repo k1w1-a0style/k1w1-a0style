@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
+import type { AppInfoScreenStyles } from "../componentTypes";
 
 type AssetsStatus = {
   icon: boolean;
@@ -12,7 +13,7 @@ type AssetsStatus = {
 };
 
 type Props = {
-  styles: any;
+  styles: AppInfoScreenStyles;
 
   appName: string;
   setAppName: (v: string) => void;

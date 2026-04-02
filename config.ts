@@ -1,13 +1,79 @@
 // Zentrale Konfiguration für Validierung, Pfade, API-Endpunkte usw.
+import Constants from "expo-constants";
+
+type ExpoConfigExtra = Record<string, unknown>;
+
+function readExpoExtra(): ExpoConfigExtra {
+  const expoConfig = (Constants as { expoConfig?: { extra?: ExpoConfigExtra } | null }).expoConfig;
+  return expoConfig?.extra && typeof expoConfig.extra === "object" ? expoConfig.extra : {};
+}
+
+function readRuntimeConfigString(envKeys: string[], extraKeys: string[]): string | undefined {
+  const extra = readExpoExtra();
+
+  for (const key of extraKeys) {
+    const value = extra[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  if (typeof process !== "undefined" && process?.env) {
+    for (const key of envKeys) {
+      const value = process.env[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function readRuntimeConfigNumber(params: {
+  envKeys: string[];
+  extraKeys: string[];
+  fallback: number;
+  min?: number;
+}): number {
+  const raw = readRuntimeConfigString(params.envKeys, params.extraKeys);
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return params.fallback;
+  if (typeof params.min === "number" && parsed < params.min) return params.fallback;
+  return parsed;
+}
+
+const runtimeMaxFiles = readRuntimeConfigNumber({
+  envKeys: ["EXPO_PUBLIC_K1W1_MAX_FILES", "K1W1_MAX_FILES"],
+  extraKeys: ["k1w1MaxFiles", "maxFiles"],
+  fallback: 200,
+  min: 1,
+});
+
+const runtimePromptMaxSnapshotFiles = readRuntimeConfigNumber({
+  envKeys: ["EXPO_PUBLIC_K1W1_PROMPT_MAX_SNAPSHOT_FILES", "K1W1_PROMPT_MAX_SNAPSHOT_FILES"],
+  extraKeys: ["k1w1PromptMaxSnapshotFiles", "promptMaxSnapshotFiles"],
+  fallback: 28,
+  min: 1,
+});
+
+const runtimePromptMaxLinesPerFile = readRuntimeConfigNumber({
+  envKeys: ["EXPO_PUBLIC_K1W1_PROMPT_MAX_LINES_PER_FILE", "K1W1_PROMPT_MAX_LINES_PER_FILE"],
+  extraKeys: ["k1w1PromptMaxLinesPerFile", "promptMaxLinesPerFile"],
+  fallback: 40,
+  min: 1,
+});
+
+const runtimeSupabaseEdgeUrl = readRuntimeConfigString(
+  ["EXPO_PUBLIC_SUPABASE_EDGE_URL"],
+  ["supabaseEdgeUrl"],
+);
+const runtimeSupabaseUrl = readRuntimeConfigString(
+  ["EXPO_PUBLIC_SUPABASE_URL"],
+  ["supabaseUrl"],
+);
+
 export const CONFIG = {
   VALIDATION: {
     MIN_LINES_TSX: 8,
     MIN_LINES_TS: 5,
-    MAX_FILES: (() => {
-      const raw = process.env.EXPO_PUBLIC_K1W1_MAX_FILES ?? process.env.K1W1_MAX_FILES;
-      const n = Number(raw);
-      return Number.isFinite(n) && n > 0 ? n : 200;
-    })(),
+    MAX_FILES: runtimeMaxFiles,
     MAX_FILE_SIZE_MB: 10,
     PATTERNS: {
       COMPONENT:
@@ -181,22 +247,20 @@ export const CONFIG = {
 
   API: {
     // Prefer explicit edge URL. If only SUPABASE_URL is set, derive /functions/v1.
-    SUPABASE_EDGE_URL: (() => {
-      const explicit = process.env.EXPO_PUBLIC_SUPABASE_EDGE_URL as string | undefined;
-      if (explicit && explicit.trim()) return explicit.trim();
-
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string | undefined;
-      if (supabaseUrl && supabaseUrl.trim()) {
-        return `${supabaseUrl.trim().replace(/\/+$/, "")}/functions/v1`;
-      }
-
-      // Intentionally empty: Connections/Supabase UI should guide the user to set env or paste URL.
-      return "";
-    })(),
+    SUPABASE_EDGE_URL: runtimeSupabaseEdgeUrl
+      ? runtimeSupabaseEdgeUrl
+      : runtimeSupabaseUrl
+        ? `${runtimeSupabaseUrl.replace(/\/+$/, "")}/functions/v1`
+        : "",
   },
 
   BUILD: {
     GITHUB_REPO: "",
+  },
+
+  PROMPT: {
+    MAX_SNAPSHOT_FILES: runtimePromptMaxSnapshotFiles,
+    MAX_LINES_PER_FILE: runtimePromptMaxLinesPerFile,
   },
 
   TOKEN_RATIO: {

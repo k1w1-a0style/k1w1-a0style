@@ -1,7 +1,7 @@
 // supabase/functions/k1w1-handler/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireScopedEdgeAuth } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, getRequestRateLimitSubject, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAiOperatorJwtRole, requireDurableRateLimit } from "./helpers.ts";
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -9,14 +9,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const responseCorsHeaders = corsHeadersForRequest(req);
 
-  const auth = requireScopedEdgeAuth(req, {
-    scope: "k1w1-handler",
-    allowAdmin: true,
-    adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
-  });
-  if (auth) return auth;
+  const jwtRoleGuard = await requireAiOperatorJwtRole(req, "k1w1-handler");
+  if (jwtRoleGuard) return jwtRoleGuard;
 
-  const rl = rateLimit(req, "k1w1-handler");
+  const durableRl = await requireDurableRateLimit(req, {
+    scope: "k1w1-handler",
+    subject: getRequestRateLimitSubject(req),
+    max: 20,
+    windowMs: 60_000,
+  });
+  if (durableRl) return durableRl;
+
+  const rl = rateLimit(req, "k1w1-handler", 20, 60_000);
   if (rl) return rl;
 
   if (req.method !== "POST") {

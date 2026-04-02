@@ -81,6 +81,10 @@ export type JsonMergeResult =
   | { ok: true; nextText: string; nextObj: unknown }
   | { ok: false; error: string };
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 /**
  * Apply JSON merge patch on a JSON text.
  * - If createIfMissing is false and baseText is empty/missing → error.
@@ -99,10 +103,10 @@ export function applyJsonMerge(
   if (trimmed) {
     try {
       baseObj = JSON.parse(trimmed);
-    } catch (e: any) {
+    } catch (e: unknown) {
       return {
         ok: false,
-        error: `Invalid JSON: ${e?.message ?? "parse failed"}`,
+        error: `Invalid JSON: ${getErrorMessage(e, "parse failed")}`,
       };
     }
   }
@@ -111,8 +115,8 @@ export function applyJsonMerge(
     const nextObj = deepMergeSafe(baseObj, patch);
     const nextText = JSON.stringify(nextObj, null, 2) + "\n";
     return { ok: true, nextText, nextObj };
-  } catch (e: any) {
-    return { ok: false, error: e?.message ?? "Merge failed" };
+  } catch (e: unknown) {
+    return { ok: false, error: getErrorMessage(e, "Merge failed") };
   }
 }
 

@@ -15,6 +15,21 @@ afterAll(() => {
 // Mock global fetch
 const mockFetch = jest.fn();
 
+interface RetryableTestError extends Error {
+  retryable?: boolean;
+}
+
+function makeRetryableError(message: string, retryable: boolean): RetryableTestError {
+  const error = new Error(message) as RetryableTestError;
+  error.retryable = retryable;
+  return error;
+}
+
+function shouldRetryTaggedError(error: unknown): boolean {
+  return !!error && typeof error === "object" && (error as RetryableTestError).retryable === true;
+}
+
+
 describe('retryWithBackoff', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -200,13 +215,10 @@ describe('retryWithBackoff', () => {
     });
 
     it('should respect shouldRetry callback', async () => {
-      const retryableError = new Error('Retryable');
-      (retryableError as any).retryable = true;
-      
-      const nonRetryableError = new Error('Not retryable');
-      (nonRetryableError as any).retryable = false;
+      const retryableError = makeRetryableError('Retryable', true);
+      const nonRetryableError = makeRetryableError('Not retryable', false);
 
-      const shouldRetry = (error: any) => error.retryable === true;
+      const shouldRetry = shouldRetryTaggedError;
 
       // Test retryable error
       const operation1 = jest.fn()

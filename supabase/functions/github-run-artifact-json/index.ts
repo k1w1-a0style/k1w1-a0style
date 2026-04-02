@@ -1,11 +1,13 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
+  getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { githubFetchJson, githubFetchRaw, getGithubToken } from "../_shared/github.ts";
+import { githubFetchJson, githubFetchRaw, getGithubToken, isAllowedGithubRepo } from "../_shared/github.ts";
+import { isParsedJsonBodyError, isSafeGitHubRepoFullName, parseJsonBody } from "../_shared/validation.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
 // is often blocked by edge bundlers. Use a small, bundler-friendly unzipper.
@@ -39,10 +41,6 @@ function pickFileFromZip(files: Record<string, Uint8Array>, wanted: string): Uin
   return null;
 }
 
-function isSafeGitHubRepo(repo: string): boolean {
-  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
-}
-
 Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -60,7 +58,7 @@ Deno.serve(async (req: Request) => {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-run-artifact-json",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 30,
       windowMs: 60_000,
     });
@@ -75,13 +73,20 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Missing GitHub token for artifact lookup", req, 500);
     }
 
-    const body = (await req.json().catch((): null => null)) as ReqBody | null;
-    if (!body) return errorResponse("Invalid JSON body", req, 400);
+    const parsedBody = await parseJsonBody(req, 20_000);
+    if (isParsedJsonBodyError(parsedBody)) {
+      const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
+      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+    }
 
+    const body = parsedBody.body as ReqBody;
     const { githubRepo, runId, artifactName, filePath } = body;
 
-    if (!githubRepo || !isSafeGitHubRepo(githubRepo)) {
+    if (!isSafeGitHubRepoFullName(githubRepo)) {
       return errorResponse("Invalid githubRepo", req, 400);
+    }
+    if (!isAllowedGithubRepo(githubRepo)) {
+      return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
     }
     if (!Number.isFinite(runId) || runId <= 0) {
       return errorResponse("Invalid runId", req, 400);

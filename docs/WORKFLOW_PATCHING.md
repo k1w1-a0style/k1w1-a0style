@@ -1,5 +1,7 @@
 # Arbeitsablauf: Patch-Zip → Checks → Commit
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 Dieser Ablauf ist die "Standard-Route" für jeden Patch.
 
 ## 1) Patch anwenden
@@ -47,4 +49,4 @@ git status
 - `docs/patches/PATCHLOG_ROOT.md` und die neue `docs/patches/patch_<ID>.md` synchron halten.
 
 ## Neuen Chat starten
-Wenn der Chat zu groß wird: den Inhalt aus `docs/HANDOFF_NEXT_CHAT.md` in den ersten Prompt vom neuen Chat kopieren.
+Wenn der Chat zu groß wird: die Vorlage aus `docs/HANDOFF_NEXT_CHAT.md` aktualisieren und in den ersten Prompt vom neuen Chat kopieren.

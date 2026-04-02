@@ -13,6 +13,7 @@ import {
 } from "../../../lib/appInfoScopedBackup";
 
 import { TEMPLATE_INFO } from "../types";
+import { getImportExportErrorMessage, isImportExportAborted } from "./importExportErrorHelpers";
 
 export const exportAPIConfig = async (config: unknown) => {
   try {
@@ -42,8 +43,8 @@ export const exportAPIConfig = async (config: unknown) => {
     });
 
     return { success: true, fileName };
-  } catch (error: any) {
-    throw new Error(error?.message || "Export fehlgeschlagen");
+  } catch (error: unknown) {
+    throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
   }
 };
 
@@ -69,11 +70,11 @@ export const importAPIConfig = async () => {
       config: importData.config,
       exportDate: importData.exportDate,
     };
-  } catch (error: any) {
-    if (error.message.includes("abgebrochen")) {
+  } catch (error: unknown) {
+    if (isImportExportAborted(error)) {
       throw error;
     }
-    throw new Error(error?.message || "Import fehlgeschlagen");
+    throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
   }
 };
 
@@ -121,8 +122,8 @@ export const exportEncryptedScopedBackup = async (input: {
     });
 
     return { success: true, fileName, backup };
-  } catch (error: any) {
-    throw new Error(error?.message || "Export fehlgeschlagen");
+  } catch (error: unknown) {
+    throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
   }
 };
 
@@ -151,11 +152,11 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
       scope: encrypted.scope,
       encrypted,
     };
-  } catch (error: any) {
-    if (error.message.includes("abgebrochen")) {
+  } catch (error: unknown) {
+    if (isImportExportAborted(error)) {
       throw error;
     }
-    throw new Error(error?.message || "Import fehlgeschlagen");
+    throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
   }
 };
 

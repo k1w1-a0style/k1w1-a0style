@@ -4,9 +4,8 @@
 import { githubLimiter } from "./rateLimit";
 import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
-import { logger } from "../../lib/logger";
 import { fetchGitHub } from "./utils";
-
+import { readBooleanField, readGitHubMessage, readJsonArraySafe, readJsonRecordSafe, readNestedSha, readNumberField, readStringField } from "./githubResponseHelpers";
 
 export interface GitHubBranch {
   name: string;
@@ -38,17 +37,17 @@ export const createBranch = async (
     },
   );
 
-  const refJson: any = await refResp.json().catch(() => ({}));
+  const refJson = await readJsonRecordSafe(refResp);
   if (!refResp.ok) {
     if (refResp.status === 401) throw new Error("GitHub Token ungültig.");
     if (refResp.status === 403)
       throw new Error("Keine Berechtigung. Token benötigt Repo-Write Rechte.");
     throw new Error(
-      refJson.message || `Base-Branch nicht gefunden: ${fromBranch}`,
+      readGitHubMessage(refJson) || `Base-Branch nicht gefunden: ${fromBranch}`,
     );
   }
 
-  const sha = refJson?.object?.sha;
+  const sha = readNestedSha(refJson, "object");
   if (!sha) throw new Error("Konnte SHA vom Base-Branch nicht ermitteln.");
 
   await githubLimiter.checkLimit();
@@ -65,13 +64,13 @@ export const createBranch = async (
     },
   );
 
-  const createJson: any = await createResp.json().catch(() => ({}));
+  const createJson = await readJsonRecordSafe(createResp);
   if (!createResp.ok) {
     if (createResp.status === 401) throw new Error("GitHub Token ungültig.");
     if (createResp.status === 403)
       throw new Error("Keine Berechtigung. Token benötigt Repo-Write Rechte.");
     throw new Error(
-      createJson.message ||
+      readGitHubMessage(createJson) ||
         `Branch erstellen fehlgeschlagen (${createResp.status})`,
     );
   }
@@ -142,7 +141,7 @@ export const renameBranch = async (
     },
   );
 
-  const json: any = await resp.json().catch(() => ({}));
+  const json = await readJsonRecordSafe(resp);
   if (!resp.ok) {
     if (resp.status === 401) throw new Error("GitHub Token ungültig.");
     if (resp.status === 403)
@@ -152,11 +151,11 @@ export const renameBranch = async (
     if (resp.status === 404)
       throw new Error("Branch oder Repo nicht gefunden.");
     throw new Error(
-      json.message || `Branch umbenennen fehlgeschlagen (${resp.status})`,
+      readGitHubMessage(json) || `Branch umbenennen fehlgeschlagen (${resp.status})`,
     );
   }
 
-  return { name: json.name || to };
+  return { name: readStringField(json, "name") || to };
 };
 
 export const getBranches = async (
@@ -185,7 +184,19 @@ export const getBranches = async (
     throw new Error(`Branches Fehler (${status}): ${text}`);
   }
 
-  return (await resp.json()) as GitHubBranch[];
+  const branchRecords = await readJsonArraySafe(resp);
+  return branchRecords
+    .map((record): GitHubBranch | null => {
+      const name = readStringField(record, "name");
+      const sha = readNestedSha(record, "commit");
+      if (!name || !sha) return null;
+      return {
+        name,
+        commit: { sha },
+        protected: readBooleanField(record, "protected"),
+      };
+    })
+    .filter((branch): branch is GitHubBranch => branch !== null);
 };
 
 export const getDefaultBranch = async (
@@ -209,8 +220,8 @@ export const getDefaultBranch = async (
     throw new Error(`Repo-Info Fehler (${resp.status})`);
   }
 
-  const json = await resp.json();
-  const defaultBranch = typeof json?.default_branch === "string" ? json.default_branch.trim() : "";
+  const json = await readJsonRecordSafe(resp);
+  const defaultBranch = readStringField(json, "default_branch");
   if (!defaultBranch) throw new Error("Repository default_branch is missing.");
   return defaultBranch;
 };
@@ -238,15 +249,15 @@ export const getBranchHeadSha = async (
     },
   );
 
-  const json: any = await resp.json().catch(() => ({}));
+  const json = await readJsonRecordSafe(resp);
   if (!resp.ok) {
     if (resp.status === 401) throw new Error("GitHub Token ungültig.");
     if (resp.status === 403) throw new Error("Keine Berechtigung.");
     if (resp.status === 404) throw new Error("Branch oder Repo nicht gefunden.");
-    throw new Error(json.message || `Branch-HEAD Fehler (${resp.status})`);
+    throw new Error(readGitHubMessage(json) || `Branch-HEAD Fehler (${resp.status})`);
   }
 
-  const sha = String(json?.object?.sha || "").trim();
+  const sha = readNestedSha(json, "object");
   if (!sha) throw new Error("Konnte Branch-HEAD-SHA nicht ermitteln.");
   return sha;
 };

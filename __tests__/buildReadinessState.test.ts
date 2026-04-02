@@ -54,6 +54,32 @@ describe("readBuildReadinessState", () => {
     expect(result.ciLiteReason).toMatch(/SHA-Mismatch/);
   });
 
+  it("does not inherit a green legacy diagnostic flag for another selection", async () => {
+    const now = Date.now();
+    const storageMap: Record<string, string> = {
+      diagnostic_last_ok: "true",
+      ci_lite_lint_ok: "true",
+      ci_lite_typecheck_ok: "true",
+      ci_lite_last_repo: "owner/repo",
+      ci_lite_last_branch: "main",
+      ci_lite_last_run_at: String(now),
+      ci_lite_last_sha: "a".repeat(40),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
+    expect(result.diagnosticReason).toMatch(/noch nicht sicher bestaetigt/i);
+  });
+
   it("keeps stale CI-Lite as an uncertain state instead of hard missing", async () => {
     const staleRunAt = Date.now() - 7 * 60 * 60 * 1000;
     const storageMap: Record<string, string> = {

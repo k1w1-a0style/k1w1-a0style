@@ -6,6 +6,7 @@ import {
   summarizeBatchLimits,
   summarizeBatchRisk,
 } from "../diagnostics/fixSafety";
+import { makePreflightPatch } from "../../__tests__/helpers/preflightTestHelpers";
 
 describe("diagnostics/fixSafety", () => {
   test("patchFingerprint is stable across ordering of paths", () => {
@@ -21,36 +22,39 @@ describe("diagnostics/fixSafety", () => {
       jsonMerge: [],
     };
 
-    expect(patchFingerprint(p1 as any)).toBe(patchFingerprint(p2 as any));
+    expect(patchFingerprint(makePreflightPatch(p1))).toBe(patchFingerprint(makePreflightPatch(p2)));
   });
 
   test("analyzePatchRisk flags deletes", () => {
-    const risk = analyzePatchRisk({ delete: ["foo.ts"] } as any);
+    const risk = analyzePatchRisk(makePreflightPatch({ delete: ["foo.ts"] }));
     expect(risk.deletesCount).toBe(1);
     expect(risk.reasons.join(" ")).toMatch(/deletes/i);
   });
 
   test("analyzePatchRisk flags high-impact paths", () => {
-    const risk = analyzePatchRisk({ upsert: [{ path: ".github/workflows/x.yml", content: "y" }] } as any);
+    const risk = analyzePatchRisk(makePreflightPatch({ upsert: [{ path: ".github/workflows/x.yml", content: "y" }] }));
     expect(risk.riskyPaths).toContain(".github/workflows/x.yml");
     expect(risk.reasons.join(" ")).toMatch(/high-impact/i);
   });
 
   test("summarizeBatchRisk aggregates risky paths", () => {
     const sum = summarizeBatchRisk([
-      { title: "A", patch: { upsert: [{ path: ".github/workflows/a.yml", content: "x" }] } as any },
-      { title: "B", patch: { delete: ["android/app/build.gradle"] } as any },
+      { title: "A", patch: makePreflightPatch({ upsert: [{ path: ".github/workflows/a.yml", content: "x" }] }) },
+      { title: "B", patch: makePreflightPatch({ delete: ["android/app/build.gradle"] }) },
     ]);
     expect(sum.hasRisk).toBe(true);
     expect(sum.riskyPaths.some((p) => p.includes(".github/workflows/"))).toBe(true);
     expect(sum.riskyPaths).toContain("android/app/build.gradle");
   });
 
+
+
+
   test("checkPatchLimits soft-warns for large patches", () => {
     const big = {
       upsert: [{ path: "src/big.txt", content: "x".repeat(DEFAULT_PATCH_LIMITS.softMaxChars + 10) }],
     };
-    const chk = checkPatchLimits(big as any, DEFAULT_PATCH_LIMITS);
+    const chk = checkPatchLimits(makePreflightPatch(big), DEFAULT_PATCH_LIMITS);
     expect(chk.softWarn).toBe(true);
     expect(chk.hardFail).toBe(false);
     expect(chk.reasons.join(" ")).toMatch(/large patch/i);
@@ -60,7 +64,7 @@ describe("diagnostics/fixSafety", () => {
     const huge = {
       upsert: [{ path: "src/huge.txt", content: "x".repeat(DEFAULT_PATCH_LIMITS.hardMaxChars + 10) }],
     };
-    const chk = checkPatchLimits(huge as any, DEFAULT_PATCH_LIMITS);
+    const chk = checkPatchLimits(makePreflightPatch(huge), DEFAULT_PATCH_LIMITS);
     expect(chk.hardFail).toBe(true);
     expect(chk.reasons.join(" ")).toMatch(/patch size/i);
   });
@@ -74,8 +78,8 @@ describe("diagnostics/fixSafety", () => {
     };
     const sum = summarizeBatchLimits(
       [
-        { title: "soft", patch: soft as any },
-        { title: "hard", patch: hard as any },
+        { title: "soft", patch: makePreflightPatch(soft) },
+        { title: "hard", patch: makePreflightPatch(hard) },
       ],
       DEFAULT_PATCH_LIMITS,
     );

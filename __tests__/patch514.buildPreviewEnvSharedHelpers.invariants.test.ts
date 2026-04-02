@@ -92,9 +92,10 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   it("keeps build/preview guard contracts on the existing paths", () => {
     expect(read(checkIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(triggerIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(savePreviewIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(savePreviewIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-        expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
+    expect(read(savePreviewIndex)).toContain('requireVerifiedJwt(req, "save_preview")');
+    expect(read(savePreviewIndex)).not.toContain("requireScopedEdgeAuth(req, {");
+    expect(read(savePreviewIndex)).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
+    expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
   });
 
   it("reads shared build/preview env helpers from process.env without Deno and keeps K1W1 alias precedence", () => {

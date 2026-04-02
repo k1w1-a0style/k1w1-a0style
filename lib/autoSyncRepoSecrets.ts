@@ -8,7 +8,6 @@ import {
   getExpoToken,
   getWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
-  getLegacyEdgeAdminKey,
   getSigningAdminKey,
   syncRepoSecrets,
 } from "../infra/github/githubService";
@@ -30,7 +29,6 @@ export const autoSyncRepoSecrets = async (
     easProjectId,
     workflowAdminKey,
     androidKeystoreExportAdminKey,
-    legacyEdgeAdminKey,
     signingAdminKey,
   ] = await Promise.all([
     getExpoToken(),
@@ -38,7 +36,6 @@ export const autoSyncRepoSecrets = async (
     AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
     getWorkflowAdminKey(),
     getAndroidKeystoreExportAdminKey(),
-    getLegacyEdgeAdminKey(),
     getSigningAdminKey(),
   ]);
 
@@ -53,7 +50,6 @@ export const autoSyncRepoSecrets = async (
   if (!androidKeystoreExportAdminKey) {
     skipped.push("K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY (optional, empty)");
   }
-  if (!legacyEdgeAdminKey) skipped.push("K1W1_EDGE_ADMIN_KEY (legacy optional, empty)");
   if (!signingAdminKey) skipped.push("SIGNING_ADMIN_KEY (legacy optional, empty)");
 
   // If nothing to sync, return early
@@ -63,7 +59,6 @@ export const autoSyncRepoSecrets = async (
     !easProjectId &&
     !workflowAdminKey &&
     !androidKeystoreExportAdminKey &&
-    !legacyEdgeAdminKey &&
     !signingAdminKey
   ) {
     return { updated, skipped };
@@ -75,7 +70,6 @@ export const autoSyncRepoSecrets = async (
     easProjectId: easProjectId || undefined,
     workflowAdminKey: workflowAdminKey || undefined,
     androidKeystoreExportAdminKey: androidKeystoreExportAdminKey || undefined,
-    edgeAdminKey: legacyEdgeAdminKey || undefined,
     signingAdminKey: signingAdminKey || undefined,
   });
 

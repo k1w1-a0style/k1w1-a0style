@@ -2,6 +2,8 @@ import { act, renderHook } from "@testing-library/react-native";
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
 import * as validators from "../lib/validators";
 import { runOrchestrator } from "../lib/orchestrator";
+import type { AIConfig } from "../contexts/AIContext/models";
+import type { OrchestratorResult } from "../lib/orchestrator";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 jest.mock("../lib/orchestrator", () => ({
@@ -9,15 +11,39 @@ jest.mock("../lib/orchestrator", () => ({
 }));
 const mockedRunOrchestrator = runOrchestrator as jest.MockedFunction<typeof runOrchestrator>;
 beforeAll(() => {
-  global.requestAnimationFrame = ((cb: any) => {
-    cb(0);
+  const immediateRequestAnimationFrame: typeof global.requestAnimationFrame = (callback) => {
+    callback(0);
     return 0;
-  }) as any;
+  };
+  global.requestAnimationFrame = immediateRequestAnimationFrame;
 });
 type FlowOptions = {
   messages?: ChatMessage[];
   projectFiles?: ProjectFile[];
 };
+
+const makeConfig = (): AIConfig => ({
+  version: 1,
+  selectedChatProvider: "openai",
+  selectedChatMode: "gpt-5.4-mini",
+  selectedAgentProvider: "openai",
+  selectedAgentMode: "gpt-5.4-mini",
+  qualityMode: "speed",
+  agentEnabled: false,
+  apiKeys: {
+    groq: [],
+    gemini: [],
+    openai: [],
+    anthropic: [],
+    huggingface: [],
+  },
+});
+
+const makeOrchestratorResult = (overrides: Partial<OrchestratorResult> = {}): OrchestratorResult => ({
+  ok: true,
+  provider: "openai",
+  ...overrides,
+});
 const createFlow = (options: FlowOptions = {}) => {
   const addChatMessage = jest.fn();
   const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
@@ -29,14 +55,7 @@ const createFlow = (options: FlowOptions = {}) => {
   const setShowConfirmModal = jest.fn();
   const hook = renderHook(() =>
     useChatAIFlow({
-      config: {
-        selectedChatProvider: "openai",
-        selectedChatMode: "gpt-5.4-mini",
-        selectedAgentProvider: "openai",
-        selectedAgentMode: "gpt-5.4-mini",
-        qualityMode: "speed",
-        agentEnabled: false,
-      } as any,
+      config: makeConfig(),
       messages: options.messages ?? [],
       projectFiles:
         options.projectFiles ?? [{ path: "App.tsx", content: "export default function App() { return null; }" }],
@@ -63,18 +82,14 @@ describe("useChatAIFlow input validation", () => {
     jest.useFakeTimers();
     mockedRunOrchestrator.mockReset();
     mockedRunOrchestrator
-      .mockResolvedValueOnce({
-        ok: true,
-        text: JSON.stringify([
-          { path: "components/Button.tsx", content: "export const Button = () => null;" },
-        ]),
-        provider: "openai",
-      } as any)
-      .mockResolvedValueOnce({
-        ok: true,
-        text: "Kurz erklärt",
-        provider: "openai",
-      } as any);
+      .mockResolvedValueOnce(
+        makeOrchestratorResult({
+          text: JSON.stringify([
+            { path: "components/Button.tsx", content: "export const Button = () => null;" },
+          ]),
+        }),
+      )
+      .mockResolvedValueOnce(makeOrchestratorResult({ text: "Kurz erklärt" }));
   });
   afterEach(() => {
     jest.runOnlyPendingTimers();
@@ -166,16 +181,16 @@ describe("useChatAIFlow input validation", () => {
   });
   it("surfaces runtime fallback notes as visible system chat messages", async () => {
     mockedRunOrchestrator.mockReset();
-    mockedRunOrchestrator.mockResolvedValueOnce({
-      ok: true,
-      text: JSON.stringify([
-        { path: "components/Button.tsx", content: "export const Button = () => null;" },
-      ]),
-      provider: "openai",
-      model: "gpt-4o",
-      runtimeNote: "ℹ️ Runtime-Fallback aktiv: gemini/gemini-2.5-flash -> openai/gpt-4o",
-      fallbackUsed: true,
-    } as any);
+    mockedRunOrchestrator.mockResolvedValueOnce(
+      makeOrchestratorResult({
+        text: JSON.stringify([
+          { path: "components/Button.tsx", content: "export const Button = () => null;" },
+        ]),
+        model: "gpt-4o",
+        runtimeNote: "ℹ️ Runtime-Fallback aktiv: gemini/gemini-2.5-flash -> openai/gpt-4o",
+        fallbackUsed: true,
+      }),
+    );
 
     const { result, addChatMessage } = createFlow();
 

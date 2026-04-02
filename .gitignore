@@ -10,3 +10,5 @@ supabase/.temp/
 *.zip
 k1w1-patch-*/
 k1w1-patch-*.patch
+
+*.zip

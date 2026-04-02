@@ -17,6 +17,7 @@ export function LogsAnalysisSection({
   status,
   shouldLoadLogs,
   githubRepoForLogs,
+  logsWaitingReason,
   logsLoading,
   logsError,
   logs,
@@ -28,6 +29,7 @@ export function LogsAnalysisSection({
   status: BuildStatus;
   shouldLoadLogs: boolean;
   githubRepoForLogs: string | null;
+  logsWaitingReason: string | null;
   logsLoading: boolean;
   logsError: string | null;
   logs: { timestamp?: string; level: string; message: string }[];
@@ -76,6 +78,12 @@ export function LogsAnalysisSection({
       {!shouldLoadLogs && status === "idle" && (
         <Text style={styles.emptyText}>
           ℹ️ Logs werden geladen sobald ein Build gestartet wird.
+        </Text>
+      )}
+
+      {!!logsWaitingReason && (
+        <Text style={styles.emptyText}>
+          ℹ️ {logsWaitingReason}
         </Text>
       )}
 

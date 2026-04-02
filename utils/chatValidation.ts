@@ -1,5 +1,5 @@
 // utils/chatValidation.ts
-// Extracted from chatUtils.ts: path/file validation utilities.
+// Path/file validation utilities.
 
 import { jsonrepair } from 'jsonrepair';
 
@@ -122,10 +122,10 @@ export const getMinLinesForFile = (normalizedPath: string): number => {
   return 1;
 };
 
-// ✅ Step 4A: validateFilePath bleibt exportiert (kompatibel), Policy ist aber in lib/validators
+// validateFilePath delegiert an die kanonische Policy in lib/validators.
 export const validateFilePath = (path: string): { valid: boolean; errors: string[]; normalized: string } => {
   // Single source of truth: policy lives in lib/validators.validateFilePath
-  // This wrapper exists only for backwards compatibility (other modules import from utils/chatUtils).
+  // Keep a small delegating wrapper so legacy-normalized callers stay on the same validation policy.
   const base = libValidateFilePath(path);
   const normalized = base.normalized ?? normalizePath(path);
 

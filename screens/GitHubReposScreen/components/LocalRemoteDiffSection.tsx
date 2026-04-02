@@ -7,6 +7,7 @@ import { styles } from "../styles";
 import { splitFullName } from "../utils/repos";
 import { getRepoFileText, listRepoBlobPaths } from "../../../infra/github/githubService";
 import { MANAGED_WORKFLOWS, normalizeRepoPath } from "../../../infra/github/utils";
+import { getErrorMessage } from "../hooks/githubReposScreenErrorHelpers";
 
 type LocalFile = { path: string; content: string };
 
@@ -308,8 +309,8 @@ export function LocalRemoteDiffSection(props: {
         const remote = await getRepoFileText({ owner: parsed.owner, repo: parsed.repo, path, ref: branch });
         const same = remote === String(f.content ?? "");
         results.push({ path, status: same ? "same" : "modified" });
-      } catch (e: any) {
-        const msg = String(e?.message || "");
+      } catch (e: unknown) {
+        const msg = getErrorMessage(e, "");
         if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
           results.push({ path, status: "localOnly" });
         } else {
@@ -338,7 +339,8 @@ export function LocalRemoteDiffSection(props: {
           setNote((prev) => (prev ? prev : `Remote-only ist auf ${MAX_REMOTE_ONLY} Einträge begrenzt (Übersicht + Rate-Limit Schutz).`));
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      void e;
       // ignore; remote-only may be unavailable on some tokens or rate-limits
     }
 

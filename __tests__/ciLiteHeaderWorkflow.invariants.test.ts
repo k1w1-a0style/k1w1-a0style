@@ -1,9 +1,5 @@
-import fs from "fs";
-import path from "path";
-
-function read(rel: string): string {
-  return fs.readFileSync(path.join(process.cwd(), rel), "utf8");
-}
+import { asAnySnippet } from "./helpers/invariantSnippetHelpers";
+import { readRepoText as read } from "./helpers/repoSourceHelpers";
 
 describe("CI Lite Header workflow invariants", () => {
   it("guards dispatch against double-tap while a dispatch is in-flight", () => {
@@ -58,7 +54,7 @@ describe("CI Lite Header workflow invariants", () => {
     const workflowType = read("shared/types/workflowRun.ts");
 
     expect(src).toContain("workflowRun?.head_sha");
-    expect(src).not.toContain("(workflowRun as any)?.head_sha");
+    expect(src).not.toContain(`(${asAnySnippet("workflowRun")})?.head_sha`);
     expect(workflowType).toContain("head_sha?: string;");
   });
 

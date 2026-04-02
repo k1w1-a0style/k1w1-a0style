@@ -1,4 +1,15 @@
-import { buildUserInputWithAttachmentNotice } from "../screens/ChatScreen/hooks/chatScreenTypes";
+import {
+  buildUserInputWithAttachmentNotice,
+  type AttachmentNoticeAsset,
+} from "../screens/ChatScreen/hooks/chatScreenTypes";
+
+function makeAttachment(overrides: Partial<AttachmentNoticeAsset> = {}): AttachmentNoticeAsset {
+  return {
+    name: "attachment.txt",
+    size: 1024,
+    ...overrides,
+  };
+}
 
 describe("buildUserInputWithAttachmentNotice", () => {
   it("returns trimmed text when no attachment is selected", () => {
@@ -6,12 +17,10 @@ describe("buildUserInputWithAttachmentNotice", () => {
   });
 
   it("appends honest metadata-only notice for selected file", () => {
-    const text = buildUserInputWithAttachmentNotice("Bitte analysieren", {
-      name: "report.pdf",
-      size: 2048,
-      uri: "file:///tmp/report.pdf",
-      mimeType: "application/pdf",
-    } as any);
+    const text = buildUserInputWithAttachmentNotice(
+      "Bitte analysieren",
+      makeAttachment({ name: "report.pdf", size: 2048 }),
+    );
 
     expect(text).toContain("Bitte analysieren");
     expect(text).toContain("report.pdf");
@@ -20,12 +29,10 @@ describe("buildUserInputWithAttachmentNotice", () => {
   });
 
   it("adds stronger warning for larger files", () => {
-    const text = buildUserInputWithAttachmentNotice("", {
-      name: "big.zip",
-      size: 200 * 1024,
-      uri: "file:///tmp/big.zip",
-      mimeType: "application/zip",
-    } as any);
+    const text = buildUserInputWithAttachmentNotice(
+      "",
+      makeAttachment({ name: "big.zip", size: 200 * 1024 }),
+    );
 
     expect(text).toContain("big.zip");
     expect(text).toContain("nicht der vollständige Dateiinhalt");

@@ -38,6 +38,23 @@ export type ExpoConfigParseResult = {
   error?: string;
 };
 
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : null;
+}
+
+function readStringField(record: JsonRecord | null, key: string): string | undefined {
+  const value = record?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function readNestedRecord(record: JsonRecord | null, key: string): JsonRecord | null {
+  return asRecord(record?.[key]);
+}
+
 export function readText(file: ProjectFile | undefined): string {
   return String(file?.content ?? '');
 }
@@ -88,15 +105,17 @@ export function parseExpoConfig(files: ProjectFile[]): ExpoConfigParseResult {
   // Priority: app.json (common & easy) -> app.config.ts -> app.config.js
   const appJson = files.find(f => f.path === 'app.json');
   if (appJson) {
-    const parsed = safeJsonParse<any>(readText(appJson));
+    const parsed = safeJsonParse<unknown>(readText(appJson));
     if (!parsed.ok) {
       return { config: null, source: 'app.json', error: parsed.error };
     }
-    const expo = parsed.value?.expo ?? parsed.value;
+    const root = asRecord(parsed.value);
+    const expo = readNestedRecord(root, 'expo') ?? root;
+    const android = readNestedRecord(expo, 'android');
     const config: ExpoConfigJson = {
-      name: expo?.name,
-      owner: expo?.owner,
-      android: { package: expo?.android?.package },
+      name: readStringField(expo, 'name'),
+      owner: readStringField(expo, 'owner'),
+      android: { package: readStringField(android, 'package') },
     };
     return { config, source: 'app.json' };
   }

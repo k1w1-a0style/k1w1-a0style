@@ -1,4 +1,4 @@
-import { isJsonTruncated } from '../utils/chatUtils';
+import { isJsonTruncated } from '../utils/chatJsonUtils';
 
 describe('isJsonTruncated', () => {
   test('detects unbalanced brackets', () => {

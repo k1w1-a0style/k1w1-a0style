@@ -1,5 +1,7 @@
 # 06 — Build Readiness Gate (verbindlich)
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 ## Ziel
 Ein Build darf nur starten, wenn alle profilabhängigen Voraussetzungen erfüllt sind.
 Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
@@ -12,7 +14,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 - Repo + Branch aus SoT (`projectData.linkedRepo`, `projectData.linkedBranch`) müssen gesetzt/valide sein.
 - GitHub + Expo Token vorhanden.
 - Signing-Status `CRED_KEY_EXISTS_DEV === "true"`.
-- Letzte Diagnostik `DIAGNOSTIC_LAST_OK === "true"`.
+- Letzte Diagnostik muss fuer **genau diese Repo/Branch-Selection** gruen sein (`diagnostic_last_ok::<repo>::<branch> === "true"` via `diagnosticLastOkKeyForSelection(...)`). Ein globaler Legacy-Key reicht nicht mehr.
 - Workflow-Dateien im Ziel-Repo vorhanden (`eas-build.yml`, `k1w1-triggered-build.yml`, `eas-link.yml`, `release-build.yml`) via AutoFix.
 - `eas.json` enthält `build.development` (APK, `withoutCredentials: true`).
 
@@ -37,7 +39,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 | Branch ausgewählt | Ja/Ja/Ja | `projectData.linkedBranch` | `branchName.trim().length > 0` | Ja | `Branch fehlt` | Nein | Branch explizit im Repo-Screen wählen |
 | Build-Profil gültig | Ja/Ja/Ja | `preferredBuildProfile` / Start-Parameter | `development|preview|production` | Ja | `Ungültiges Build-Profil` | Teilweise | UI-Picker korrigieren, Service normalisiert nur als Failsafe |
 | GitHub+Expo Token vorhanden | Ja/Ja/Ja | SecureStore (`tokenStore`) | `getGitHubToken` + `getExpoToken` beide nicht leer | Ja | `Tokens fehlen (GitHub + Expo)` | Nein | Verbindungen-Screen Token setzen |
-| Diagnostics grün | Ja/Ja/Ja | `DIAGNOSTIC_LAST_OK` | AsyncStorage key exakt `"true"` | Ja | `Diagnostik nicht grün` | Nein | Diagnostics ausführen |
+| Diagnostics grün | Ja/Ja/Ja | `diagnostic_last_ok::<repo>::<branch>` | Selection-scoped AsyncStorage key via `diagnosticLastOkKeyForSelection(...)` muss exakt `"true"` sein | Ja | `Diagnostik nicht grün` | Nein | Diagnostics fuer genau diese Repo/Branch-Selection ausführen |
 | Signing-Key vorhanden (profilbezogen) | Ja/Ja/Ja | `CRED_KEY_EXISTS_*` | `credKeyForProfile(profile)` muss `"true"` sein | Ja | `Signing Key fehlt` | Teilweise | Credentials Wizard: Status refresh/generate |
 | EAS Auth Secret in GitHub (`EXPO_TOKEN`) | Ja/Ja/Ja | Repo GitHub Secrets | Workflow Validate Inputs (`Missing GitHub Secret EXPO_TOKEN`) | Ja | `Missing GitHub Secret EXPO_TOKEN` | Ja | `autoSyncRepoSecrets` synct `EXPO_TOKEN` falls lokal vorhanden |
 | Supabase Secrets in GitHub (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) | Nein/Nein/Ja | Repo GitHub Secrets | `eas-build.yml` blockt production bei fehlenden Werten | Ja (nur prod) | `Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | Ja | `autoSyncRepoSecrets` (wenn lokal vorhanden), sonst manuell im Repo-Secret setzen |
@@ -54,7 +56,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 
 ### 3.1 UI-Gate (Button Disabled + Alert)
 - Build-Button ist disabled, wenn ein Blocker offen ist.
-- `buildBlockedReason` priorisiert harte Blocker: Repo, Branch, Tokens, Diagnostics, Signing.
+- `buildBlockedReason` priorisiert harte Blocker: Repo, Branch, Tokens, Diagnostics, CI-Lite, **Repo-Sync-Status**, Signing.
 - Bei Klick trotz Race wird `Alert("Nicht bereit", reason)` gezeigt und Start abgebrochen.
 
 ### 3.2 Service-Gate (Throw im Start-Service)
@@ -64,6 +66,8 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 
 ### 3.3 Warnung vs Blocker
 - **Blocker:** Repo ungültig, Branch leer, Profil ungültig, Token fehlt, Signing fehlt, Diagnostics fail/unknown, notwendige profilabhängige Secrets fehlen.
+- **Wichtig (Fix-Durchlauf 1, Scope-Truth):** Das Build-Gate liest fuer aktive Selections nur noch den **selection-scoped** Diagnose-Key. Der globale Legacy-Key `diagnostic_last_ok` ist kein green fallback mehr fuer andere Repos/Branches.
+- **Blocker:** Repo-Sync-Status `unknown` fuer aktive Repo/Branch-Selection mit vorhandenen Projektdateien. UI und Start-Service behandeln diesen Zustand jetzt gleich fail-closed.
 - **Warnung:** CI Lite rot/unknown, optionale Keys (`EAS_PROJECT_ID`, `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) fehlen, solange Build-Flow ohne diese lauffähig bleibt.
 - **Wichtig (lokale Readiness):** Workflow-/Build-/Artifact-Pfade prüfen den **lokalen Workflow Admin Key** getrennt; Keystore-bezogene Pfade prüfen den **lokalen Android Keystore Export Admin Key** getrennt. Ein vorhandener Legacy-Key allein darf kein false-green erzeugen.
 - **Wichtig (Keystore-Wizard Contract, Patch 597):** Keystore-Status/Generate-Calls im Wizard sind nur mit Kombi-Header gueltig: `Authorization: Bearer <Supabase Operator JWT>` + `x-k1w1-admin-key: <lokaler androidKeystoreExportAdminKey>`. Rollenvertrag serverseitig fail-closed: `service_role|build_admin`.
@@ -77,7 +81,7 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 - **Wichtig (Patch 611, finaler Operator-Preflight):** Normale eingeloggte Nutzer ohne extern provisionierten `build_admin`-Claim sind auf workflow-/build-/artifact-/keystore-Operatorpfaden bewusst fail-closed blockiert; das ist ein externer Betriebsvertrag und kein fehlender Repo-Codepfad.
 - **Wichtig (Patch 613, Dispatch-Semantik):** Normaler Workflow-Dispatch ist strikt mutation-free. `404`/fehlender Workflow fuehrt zu `missing_workflow` (klarer Fehlerzustand) und **nicht** zu stillen Repo-Writes/Bootstrap. Repo-Mutationen duerfen nur in expliziten Repair-/Provisioning-Flows stattfinden (z. B. `autoFixCIWorkflows`, RepoScreen Workflows/Core Files Push).
 - **Wichtig (Patch 614, Build-Filter-Truthfulness):** Im Build-Screen gilt fuer Workflow-Run-Filter jetzt strikt: aktiver Profilfilter + null Treffer => leere Liste (`[]`) und ehrlicher Empty State. Ein aktiver Filter darf nicht mehr still auf die unfiltrierte Gesamtliste zurueckfallen.
-- **Wichtig (Patch 615, Preview-Operatorgrenze):** Der normale Preview-Clientpfad (`preferredPreviewMode: "supabase"`) nutzt keinen stillen Legacy-Admin-Key mehr. Legacy-`save_preview` ist nur noch im expliziten Operator-/Maintenance-Modus erlaubt (`EXPO_PUBLIC_ENABLE_LEGACY_PREVIEW_OPERATOR_MODE=true`); ohne diesen Schalter bleibt der Standardpfad fail-closed und meldet den Blocker ehrlich.
+- **Wichtig (aktueller Repo-Stand):** Der normale Preview-Clientpfad (`preferredPreviewMode: "supabase"`) nutzt jetzt einen verifizierten Supabase-Login-JWT-Vertrag. `save_preview` ist im Standardpfad kein lokaler Legacy-Admin-Key- oder Operator-Flag-Pfad mehr.
 - **Wichtig (Patch 620, serverseitiger Role-Read-Drift):** Im Shared-Auth-Guard `requireJwtRole(...)` kommt der Rollenwert nach erfolgreicher JWT-Verifikation jetzt primaer aus dem verifizierten JWT-Claim (`role`, danach `app_metadata.role`) und nicht aus einem potentiell irrefuehrenden `auth/v1/user.role`-Rueckgabewert (`authenticated`). Dadurch werden korrekt provisionierte `build_admin`-JWTs fuer Operator-Routen wieder vertragsgemaess akzeptiert, waehrend andere Rollen fail-closed bleiben.
 - **Wichtig (Patch 622, verbleibender JWT-Decode-Drift):** Der finale Rollenvergleich bleibt nur dann korrekt, wenn der JWT-Payload robust dekodiert wird. `decodeJwtPayload(...)` dekodiert deshalb UTF-8-sicher (`TextDecoder`) statt den `atob`-String direkt zu parsen. So bleibt ein verifizierter `role=build_admin`-Claim auch dann stabil auslesbar, wenn andere Token-Claims Non-ASCII-Zeichen enthalten; `authenticated` bleibt weiterhin unzureichend.
 
@@ -109,11 +113,17 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 2. Lokale scoped Admin-Keys pruefen (Workflow + optional Keystore).
 3. Erst danach Operator-Flow testen (Dispatch/Build/Logs/Keystore).
 4. Bei Blockierung nicht am Repo mappen: Claim extern korrigieren und Test wiederholen.
+5. Fuer einen read-only Live-Vertragscheck gegen die Zielumgebung anschliessend `EDGE_BASE_URL=... EDGE_OPERATOR_JWT=... npm run edge:check:live` ausführen.
+6. Fuer neue Operatoren zuerst `docs/runbooks/OPERATOR_SETUP_CHECKLIST.md` abarbeiten und dann `npm run verify:release` ausführen.
 
 ### 3.4 Edge-/Infra-Contract (Patch 590)
 - `trigger-eas-build` akzeptiert serverseitig nur noch Requests mit explizitem nicht-leerem `branch` (nach `trim()`).
 - Fehlender/leer/Whitespace-Branch wird am Edge-Eingang mit 400 abgelehnt (fail-closed).
 - Tieferliegende branch-/ref-sensitive Infra-Helper sind jetzt ebenfalls fail-closed: kein stiller `"main"`-Fallback mehr in `infra/github/workflows.ts`, `infra/github/files.ts` und `infra/github/branchOps.ts`; fehlender expliziter Branch/Ref wird mit klarem Fehler abgebrochen.
+- **Ergaenzung (Fix-Durchlauf 1):** Das gilt jetzt auch fuer den produktiven Repo-Screen-Hook `hooks/useGitHubRepos.ts`: `loadDefaultBranch(...)` und `pullFromRepo(...)` arbeiten ohne stillen `"main"`-Fallback und brechen ehrlich ab, wenn GitHub keinen brauchbaren Default-Branch liefert oder kein Token vorhanden ist.
+
+- **Wichtig (Fix-Durchlauf 3, Build-Log-Kontext):** `Logs & Fehleranalyse` hängen bei aktiven/abgeschlossenen Builds mit `runId` jetzt am **aktuellen Build-Kontext** (`currentBuild.githubRepo`). Solange für einen aktiven Lauf noch keine `runId` vorliegt, zeigt die UI einen neutralen Pending-Hinweis statt still `latest` aus der aktuellen Selection zu laden.
+- **Wichtig (Nachbesserung DSF1):** Ein leeres Projekt ist jetzt schon im Build-Screen und im One-Click-Deploy ein sichtbarer harter Blocker. `useBuildPreconditions(...)` markiert fehlende Projektdateien explizit, und `useOneClickDeploy(...)` scheitert mit `Projekt ist leer – zuerst Dateien erzeugen oder importieren`, bevor der Build-Start-Service erst ganz am Ende denselben Zustand meldet.
 
 ## 4) Single Entry Point (Code-Verankerung)
 
@@ -184,6 +194,19 @@ if (isMountedRef.current) setHasSigningKey(val === "true");
 ```ts
 const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
 if (isMountedRef.current) setHasDiagOk(diagVal === "true");
+```
+
+### E5b — Leeres Projekt blockiert jetzt schon die sichtbare Readiness
+**Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`  
+**Symbol:** `refreshPreconditions`
+```ts
+const hasFiles = files.length > 0;
+const filesReason = hasFiles
+  ? null
+  : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
+
+setHasProjectFiles(hasFiles);
+setProjectFilesReason(filesReason);
 ```
 
 ### E6 — Signing-Status wird vom Wizard persistiert
@@ -358,7 +381,6 @@ Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build
 - Diagnostics → Fix Playbook: `docs/07-diagnostics-fix-playbook.md`
 - Test Coverage Matrix: `docs/08-test-coverage-matrix.md`
 - Smoke Plan: `docs/04-testing-smoke-plan.md`
-- Gap Tickets: `docs/09-gap-tickets.md`
 
 ## 8) Patch-613 Semantikfix: Dispatch ist mutation-free, Repair ist explizit
 
@@ -401,3 +423,8 @@ Damit wird der Buildflow „wasserdicht“ gegen Umgehungen außerhalb der Build
 - **Symptom:** Preview wirkt „kaputt“, lokal geht es aber.
   - **Ursache:** Supabase-/Preview-Secrets oder Preview-DB/Storage-Setup fehlen; lokaler Fallback ist nur Best-Effort.
   - **Schritt:** Preview-Secrets + `previews`-Objekte/TTL-Prereqs im Zielsystem nachziehen.
+
+
+## Scope-Härtung nach Deep-Scan
+- Build-Readiness fail-closed bei Refresh-Fehlern: veraltete grüne Vorbedingungen dürfen nicht sichtbar stehenbleiben.
+- Signing-Gate liest bei vorhandenem Projekt-/Repo-Scope nur noch project-scoped Credential-Metadaten. Legacy-Metadaten werden nur ohne Scope gelesen.

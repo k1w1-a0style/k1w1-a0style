@@ -1,5 +1,7 @@
 # 02 — Build Pipeline Contract
 
+Stand: **2026-04-02 (Docs Konsolidierung)**
+
 ## 1) E2E-Flow (verbindlich)
 
 1. **UI Layer** (`EnhancedBuildScreen`) startet `onStartBuild`.

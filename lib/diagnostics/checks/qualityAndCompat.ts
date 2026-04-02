@@ -7,6 +7,30 @@ import {
   normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : null;
+}
+
+function readObjectField(obj: JsonRecord | null, key: string): JsonRecord | null {
+  return asRecord(obj?.[key]);
+}
+
+function readStringDeps(pkg: JsonRecord | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const bucket of [readObjectField(pkg, "dependencies"), readObjectField(pkg, "devDependencies")]) {
+    if (!bucket) continue;
+    for (const [key, value] of Object.entries(bucket)) {
+      if (typeof value === "string") out[key] = value;
+    }
+  }
+  return out;
+}
+
 export const checkReactNativeCompatibility: PreflightCheck = {
   id: "rn-react-compat",
   title: "React / React Native Kompatibilität",
@@ -17,11 +41,8 @@ export const checkReactNativeCompatibility: PreflightCheck = {
       return ok({ id: this.id, title: this.title, severity: this.severity });
     }
 
-    const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
-    const deps = {
-      ...(pkg.dependencies ?? {}),
-      ...(pkg.devDependencies ?? {}),
-    } as Record<string, string>;
+    const pkg = asRecord(parseJson(getText(m, "package.json")));
+    const deps = readStringDeps(pkg);
     const react = deps.react;
     const rn = deps["react-native"];
 
@@ -60,7 +81,7 @@ export const checkQualityScriptsDeps: PreflightCheck = {
   severity: "normal",
   run(files) {
     const m = byPath(files);
-    const pkg = parseJson<any>(getText(m, "package.json"));
+    const pkg = asRecord(parseJson(getText(m, "package.json")));
     if (!pkg) {
       return ok({
         id: this.id,
@@ -70,11 +91,8 @@ export const checkQualityScriptsDeps: PreflightCheck = {
       });
     }
 
-    const scripts: Record<string, string> = pkg.scripts ?? {};
-    const deps = {
-      ...(pkg.dependencies ?? {}),
-      ...(pkg.devDependencies ?? {}),
-    };
+    const scripts = readStringDeps(readObjectField(pkg, "scripts"));
+    const deps = readStringDeps(pkg);
 
     const wantsTS = Object.values(scripts).some((s) =>
       /\btsc\b|typecheck/i.test(String(s)),

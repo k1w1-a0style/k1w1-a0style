@@ -2,8 +2,9 @@ import React from "react";
 import { act, render } from "@testing-library/react-native";
 
 import { useDiagnosticFixRunner } from "../screens/DiagnosticScreen/hooks/useDiagnosticFixRunner";
-import type { ProjectData } from "../shared/types/project";
 import type { PreflightCheckResult } from "../lib/diagnostics/preflightTypes";
+import { createMountedRef } from "./helpers/projectTestHelpers";
+import { makePreflightPatch, makePreflightResult, makeProjectRef } from "./helpers/preflightTestHelpers";
 
 jest.mock("../infra/github/githubService", () => ({
   createOrUpdateFile: jest.fn(async () => undefined),
@@ -27,13 +28,11 @@ function createHarness<T>(useHook: () => T) {
 }
 
 function baseProjectRef() {
-  return {
-    current: {
-      id: "p1",
-      name: "demo",
-      files: [{ path: "app.json", content: '{"expo":{"name":"demo"}}' }],
-    } as any as ProjectData,
-  };
+  return makeProjectRef({
+    id: "p1",
+    name: "demo",
+    files: [{ path: "app.json", content: '{"expo":{"name":"demo"}}' }],
+  });
 }
 
 function renderRunner(params?: {
@@ -51,8 +50,8 @@ function renderRunner(params?: {
 
   const getApi = createHarness(() =>
     useDiagnosticFixRunner({
-      projectRef: projectRef as any,
-      mountedRef: { current: true } as any,
+      projectRef,
+      mountedRef: createMountedRef(),
       linkedRepo: params?.linkedRepo ?? "owner/repo",
       linkedBranch: params?.linkedBranch ?? "main",
       updateProjectFiles,
@@ -81,12 +80,11 @@ describe("useDiagnosticFixRunner fix semantics", () => {
 
   test("does not classify empty patches as success", async () => {
     const { getApi, updateProjectFiles, toast } = renderRunner();
-    const result: PreflightCheckResult = {
+    const result: PreflightCheckResult = makePreflightResult({
       id: "empty",
       title: "Empty patch",
-      status: "fail",
-      fix: { patch: { upsert: [], delete: [], jsonMerge: [] } },
-    } as any;
+      fix: { patch: makePreflightPatch() },
+    });
 
     await act(async () => {
       await getApi().applyIssueFix(result);
@@ -103,17 +101,16 @@ describe("useDiagnosticFixRunner fix semantics", () => {
     });
     const deleteFile = jest.fn(async () => undefined);
     const { getApi, toast } = renderRunner({ updateProjectFiles, deleteFile });
-    const result: PreflightCheckResult = {
+    const result: PreflightCheckResult = makePreflightResult({
       id: "partial",
       title: "Partial patch",
-      status: "fail",
       fix: {
-        patch: {
+        patch: makePreflightPatch({
           delete: ["app.json"],
           upsert: [{ path: "app.json", content: '{"expo":{"name":"changed"}}' }],
-        },
+        }),
       },
-    } as any;
+    });
 
     await act(async () => {
       await getApi().applyIssueFix(result);
@@ -129,16 +126,15 @@ describe("useDiagnosticFixRunner fix semantics", () => {
       throw { localChangeApplied: true, partial: true };
     });
     const { getApi, toast } = renderRunner({ updateProjectFiles });
-    const result: PreflightCheckResult = {
+    const result: PreflightCheckResult = makePreflightResult({
       id: "unknown-error",
       title: "Unknown error patch",
-      status: "fail",
       fix: {
-        patch: {
+        patch: makePreflightPatch({
           upsert: [{ path: "app.json", content: '{"expo":{"name":"changed"}}' }],
-        },
+        }),
       },
-    } as any;
+    });
 
     await act(async () => {
       await getApi().applyIssueFix(result);
@@ -150,12 +146,11 @@ describe("useDiagnosticFixRunner fix semantics", () => {
 
   test("shows workflow-only fixes as started and recheck-needed, not locally fixed", async () => {
     const { getApi, updateProjectFiles, toast } = renderRunner();
-    const result: PreflightCheckResult = {
+    const result: PreflightCheckResult = makePreflightResult({
       id: "workflow",
       title: "Workflow only",
-      status: "fail",
       fix: { workflowDispatch: { workflowFileName: "eas-link.yml" } },
-    } as any;
+    });
 
     await act(async () => {
       await getApi().applyIssueFix(result);
@@ -168,23 +163,22 @@ describe("useDiagnosticFixRunner fix semantics", () => {
 
   test("keeps real local patch success semantics for applied fixes", async () => {
     const { getApi, updateProjectFiles, toast, projectRef } = renderRunner();
-    const result: PreflightCheckResult = {
+    const result: PreflightCheckResult = makePreflightResult({
       id: "local-success",
       title: "Local patch",
-      status: "fail",
       fix: {
-        patch: {
+        patch: makePreflightPatch({
           upsert: [{ path: "app.json", content: '{"expo":{"name":"patched"}}' }],
-        },
+        }),
       },
-    } as any;
+    });
 
     await act(async () => {
       await getApi().applyIssueFix(result);
     });
 
     expect(updateProjectFiles).toHaveBeenCalledTimes(1);
-    expect(projectRef.current.files[0]?.content).toContain("patched");
+    expect(projectRef.current?.files[0]?.content).toContain("patched");
     expect(toast).toHaveBeenCalledWith("Patch lokal angewendet.");
   });
 });

@@ -1,6 +1,6 @@
 # Supabase Deploy & Migrations Runbook
 
-Stand: 2026-03-10
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
 ## Ziel
 

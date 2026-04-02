@@ -54,7 +54,7 @@ export function existsAny(
   return null;
 }
 
-export function parseJson<T = any>(text: string): T | null {
+export function parseJson<T = unknown>(text: string): T | null {
   try {
     return JSON.parse(text) as T;
   } catch {

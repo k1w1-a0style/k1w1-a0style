@@ -6,6 +6,7 @@ import { theme } from "../../../theme";
 
 import type { FixStep } from "../types";
 import { ProgressBar } from "./ProgressBar";
+import type { DiagnosticScreenStyles } from "../styles";
 
 function toIoniconName(name: string): keyof typeof Ionicons.glyphMap {
   return (name in Ionicons.glyphMap ? name : "ellipse-outline") as keyof typeof Ionicons.glyphMap;
@@ -19,7 +20,7 @@ export function FixRunModal(props: {
   currentIndex: number;
   done: boolean;
   onClose: () => void;
-  styles: any;
+  styles: DiagnosticScreenStyles;
   maxLines: number;
 }) {
   const {

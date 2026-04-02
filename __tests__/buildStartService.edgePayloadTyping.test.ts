@@ -55,7 +55,7 @@ describe("buildStartService edge payload typing", () => {
     jest.clearAllMocks();
     const now = Date.now();
     mockGetItem.mockImplementation(async (key: string) => ({
-      diagnostic_last_ok: "true",
+      "diagnostic_last_ok::k1w1-a0style%2Fmusik-player::main": "true",
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_run_at: String(now),

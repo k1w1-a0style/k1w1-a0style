@@ -1,7 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
-import { validateCheckBuildRequest, parseJsonBody } from "../_shared/validation.ts";
+import { validateCheckBuildRequest, parseJsonBody, isParsedJsonBodyError } from "../_shared/validation.ts";
 import {
+  getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
   requireWorkflowOperatorJwtRole,
@@ -30,12 +31,6 @@ type BuildJobRow = {
   updated_at?: string | null;
 };
 
-function isParsedBodyError(
-  result: Awaited<ReturnType<typeof parseJsonBody>>,
-): result is { ok: false; error: string } {
-  return !result.ok;
-}
-
 function isValidationError(
   result: ReturnType<typeof validateCheckBuildRequest>,
 ): result is Extract<ReturnType<typeof validateCheckBuildRequest>, { ok: false }> {
@@ -60,7 +55,7 @@ Deno.serve(async (req) => {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "check-eas-build",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 30,
       windowMs: 60_000,
     });
@@ -70,7 +65,7 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);
-    if (isParsedBodyError(parsed)) return errorResponse(parsed.error, req, 400);
+    if (isParsedJsonBodyError(parsed)) return errorResponse(parsed.error, req, 400);
 
     const validation = validateCheckBuildRequest(parsed.body);
     if (isValidationError(validation)) {

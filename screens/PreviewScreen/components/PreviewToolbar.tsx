@@ -12,6 +12,7 @@ type PreviewToolbarProps = {
   hotDotAnim: Animated.Value;
   hasPreviewUrl: boolean;
   hasQrUrl: boolean;
+  canFullscreen: boolean;
   onToggleHotReload: () => void;
   onReload: () => void;
   onCopy: () => void;
@@ -28,6 +29,7 @@ export function PreviewToolbar({
   hotDotAnim,
   hasPreviewUrl,
   hasQrUrl,
+  canFullscreen,
   onToggleHotReload,
   onReload,
   onCopy,
@@ -77,7 +79,13 @@ export function PreviewToolbar({
             <Ionicons name="open-outline" size={16} color={theme.palette.primary} />
           </Pressable>
         )}
-        <Pressable style={s.toolBtn} onPress={onFullscreen} accessibilityLabel="Preview fullscreen öffnen">
+        <Pressable
+          style={[s.toolBtn, !canFullscreen && { opacity: 0.45 }]}
+          onPress={onFullscreen}
+          disabled={!canFullscreen}
+          accessibilityLabel="Preview fullscreen öffnen"
+          accessibilityState={{ disabled: !canFullscreen }}
+        >
           <Ionicons name="expand-outline" size={16} color={theme.palette.text.primary} />
         </Pressable>
       </View>

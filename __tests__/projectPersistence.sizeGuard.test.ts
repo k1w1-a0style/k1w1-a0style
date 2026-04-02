@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { resetMockAsyncStorage } from "./helpers/asyncStorageMockHelpers";
+import { makeProjectData, makeProjectFile } from "./helpers/projectTestHelpers";
+
 import {
   assertProjectStoragePayloadSafe,
   PROJECT_STORAGE_HARD_LIMIT_BYTES,
@@ -13,7 +16,7 @@ jest.mock("../lib/chatPrivacySettings", () => ({
 
 describe("project persistence size guard", () => {
   beforeEach(() => {
-    (AsyncStorage as any).__resetMockStorage?.();
+    resetMockAsyncStorage();
     jest.clearAllMocks();
   });
 
@@ -33,15 +36,31 @@ describe("project persistence size guard", () => {
 
   it("fails loudly and avoids AsyncStorage write when project payload is oversized", async () => {
     const oversizedContent = "x".repeat(PROJECT_STORAGE_HARD_LIMIT_BYTES + 3_000);
-    const oversizedProject: any = {
+    const oversizedProject = makeProjectData({
       name: "oversized",
-      files: [{ path: "big.txt", content: oversizedContent }],
+      files: [makeProjectFile("big.txt", oversizedContent)],
       chatHistory: [],
       createdAt: "2026-01-01T00:00:00.000Z",
       lastModified: "2026-01-01T00:00:00.000Z",
-    };
+    });
 
     await expect(saveProjectToStorage(oversizedProject)).rejects.toThrow(
+      "Projekt konnte nicht gespeichert werden",
+    );
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("fails loudly when encryption overhead pushes the persisted blob above the hard limit", async () => {
+    const almostTooLargeContent = "x".repeat(PROJECT_STORAGE_HARD_LIMIT_BYTES - 8_000);
+    const project = makeProjectData({
+      name: "encrypted-overhead",
+      files: [makeProjectFile("big.txt", almostTooLargeContent)],
+      chatHistory: [],
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    });
+
+    await expect(saveProjectToStorage(project)).rejects.toThrow(
       "Projekt konnte nicht gespeichert werden",
     );
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();

@@ -27,7 +27,7 @@ jest.mock("expo-notifications", () => ({
   },
 }));
 
-const mockExpoConstants: any = {
+const mockExpoConstants: MockExpoConstantsShape = {
   easConfig: { projectId: "eas-project-id" },
   expoConfig: {
     extra: { eas: { projectId: "expo-config-project-id" } },
@@ -43,6 +43,31 @@ jest.mock("expo-constants", () => ({
 
 import * as Notifications from "expo-notifications";
 import notificationService from "../notificationService";
+
+interface MockExpoConstantsShape {
+  easConfig: { projectId?: string };
+  expoConfig: {
+    extra?: { eas?: { projectId?: string } };
+    android?: { googleServicesFile?: string };
+  };
+  manifest2: {
+    extra?: { expoClient?: { extra?: { eas?: { projectId?: string } } } };
+  };
+}
+
+type NotificationServiceInternals = typeof notificationService & {
+  getConstantsSource: () => Record<string, unknown>;
+  resolveProjectId: () => string | null;
+};
+
+const notificationServiceInternals =
+  notificationService as unknown as NotificationServiceInternals;
+
+const mockedNotifications = Notifications as jest.Mocked<typeof Notifications>;
+
+function getNotificationChannelCalls(): Array<unknown[]> {
+  return mockedNotifications.setNotificationChannelAsync.mock.calls as Array<unknown[]>;
+}
 
 describe("NotificationService", () => {
   afterEach(() => {
@@ -62,7 +87,7 @@ describe("NotificationService", () => {
   describe("initialize", () => {
     it("resolveProjectId priorisiert easConfig.projectId", () => {
       jest
-        .spyOn(notificationService as any, "getConstantsSource")
+        .spyOn(notificationServiceInternals, "getConstantsSource")
         .mockReturnValue({
           easConfig: { projectId: "eas-project-id" },
           expoConfig: { extra: { eas: { projectId: "expo-fallback-id" } } },
@@ -71,12 +96,12 @@ describe("NotificationService", () => {
           },
         });
 
-      expect((notificationService as any).resolveProjectId()).toBe("eas-project-id");
+      expect((notificationServiceInternals).resolveProjectId()).toBe("eas-project-id");
     });
 
     it("resolveProjectId nutzt expoConfig.extra.eas.projectId als Fallback", () => {
       jest
-        .spyOn(notificationService as any, "getConstantsSource")
+        .spyOn(notificationServiceInternals, "getConstantsSource")
         .mockReturnValue({
           easConfig: {},
           expoConfig: { extra: { eas: { projectId: "expo-fallback-id" } } },
@@ -85,12 +110,12 @@ describe("NotificationService", () => {
           },
         });
 
-      expect((notificationService as any).resolveProjectId()).toBe("expo-fallback-id");
+      expect((notificationServiceInternals).resolveProjectId()).toBe("expo-fallback-id");
     });
 
     it("resolveProjectId nutzt manifest2 als letzten Fallback", () => {
       jest
-        .spyOn(notificationService as any, "getConstantsSource")
+        .spyOn(notificationServiceInternals, "getConstantsSource")
         .mockReturnValue({
           easConfig: {},
           expoConfig: { extra: { eas: {} } },
@@ -99,7 +124,7 @@ describe("NotificationService", () => {
           },
         });
 
-      expect((notificationService as any).resolveProjectId()).toBe("manifest-fallback-id");
+      expect((notificationServiceInternals).resolveProjectId()).toBe("manifest-fallback-id");
     });
 
     it("sollte erfolgreich initialisieren mit granted permissions", async () => {
@@ -117,7 +142,7 @@ describe("NotificationService", () => {
       // setNotificationChannelAsync wird nur auf Android aufgerufen
       // In Test-Umgebung kann Platform.OS undefined sein, daher optional prüfen
       if (
-        (Notifications.setNotificationChannelAsync as any).mock.calls.length > 0
+        getNotificationChannelCalls().length > 0
       ) {
         expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
           "build-updates",
@@ -131,11 +156,11 @@ describe("NotificationService", () => {
 
     it("sollte Push-Token Abruf überspringen wenn keine projectId auffindbar ist", async () => {
       jest
-        .spyOn(notificationService as any, "getConstantsSource")
+        .spyOn(notificationServiceInternals, "getConstantsSource")
         .mockReturnValue({
           expoConfig: { android: { googleServicesFile: "google-services.json" } },
         });
-      jest.spyOn(notificationService as any, "resolveProjectId").mockReturnValue(null);
+      jest.spyOn(notificationServiceInternals, "resolveProjectId").mockReturnValue(null);
       (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({
         status: "granted",
       });
@@ -210,7 +235,7 @@ describe("NotificationService", () => {
       delete process.env.JEST_WORKER_ID;
 
       jest
-        .spyOn(notificationService as any, "getConstantsSource")
+        .spyOn(notificationServiceInternals, "getConstantsSource")
         .mockReturnValue({ expoConfig: { android: {} } });
 
       (Notifications.getPermissionsAsync as jest.Mock).mockResolvedValue({

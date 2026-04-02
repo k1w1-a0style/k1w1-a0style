@@ -18,6 +18,17 @@ describe('AppStatusScreen validation helpers', () => {
     expect(parsed.config?.owner).toBe('me');
   });
 
+
+  test('parseExpoConfig tolerates non-object app.json payloads without crashing', () => {
+    const files: ProjectFile[] = [f('app.json', JSON.stringify(['not-an-object']))];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.config?.name).toBeUndefined();
+    expect(parsed.config?.android?.package).toBeUndefined();
+  });
+
   test('resolveEntryPoint accepts expo-router module entry if /app exists', () => {
     const files: ProjectFile[] = [f('app/_layout.tsx', 'export default function Layout() { return null; }')];
     const pkg = { main: 'expo-router/entry' };

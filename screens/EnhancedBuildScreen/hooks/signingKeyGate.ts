@@ -30,13 +30,15 @@ export type ReadSigningKeyGateStateParams = {
   };
 };
 
-async function readScopedWithLegacyFallback(params: {
+async function readScopedCredentialValue(params: {
   scopedKey: string;
   legacyKey: string;
+  allowLegacyFallback: boolean;
   storageGetItem: StorageReader;
 }): Promise<string | null> {
   const scopedVal = await params.storageGetItem(params.scopedKey).catch(() => null);
-  if (scopedVal !== null || params.scopedKey === params.legacyKey) return scopedVal;
+  if (scopedVal !== null) return scopedVal;
+  if (!params.allowLegacyFallback || params.scopedKey === params.legacyKey) return null;
   return params.storageGetItem(params.legacyKey).catch(() => null);
 }
 
@@ -81,6 +83,7 @@ export async function readSigningKeyGateState(
     projectId: params.projectData?.id,
     linkedRepo: params.repoFullName,
   });
+  const allowLegacyFallback = !projectScope;
 
   const scopedExistsKey = credKeyForProjectUiMode({
     mode: keyMode === "dev" ? "dev" : (keyMode as "preview" | "production"),
@@ -109,19 +112,22 @@ export async function readSigningKeyGateState(
   });
 
   const [existsRaw, stateRaw, detailRaw, edgeAdminKey] = await Promise.all([
-    readScopedWithLegacyFallback({
+    readScopedCredentialValue({
       scopedKey: scopedExistsKey,
       legacyKey: legacyExistsKey,
+      allowLegacyFallback,
       storageGetItem,
     }),
-    readScopedWithLegacyFallback({
+    readScopedCredentialValue({
       scopedKey: scopedStateKey,
       legacyKey: legacyStateKey,
+      allowLegacyFallback,
       storageGetItem,
     }),
-    readScopedWithLegacyFallback({
+    readScopedCredentialValue({
       scopedKey: scopedDetailKey,
       legacyKey: legacyDetailKey,
+      allowLegacyFallback,
       storageGetItem,
     }),
     readEdgeAdminKey().catch(() => null),

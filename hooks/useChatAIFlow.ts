@@ -968,6 +968,48 @@ export function useChatAIFlow({
     setStreamingMessage,
   ]);
 
+  const handleScreenBlurCleanup = useCallback(() => {
+    const hadActiveRequest =
+      inFlightRef.current || abortControllerRef.current !== null;
+    const hadQueuedAutoFix = queuedAutoFixRef.current.length > 0;
+
+    if (!hadActiveRequest && !hadQueuedAutoFix) return;
+
+    const preservedPendingState =
+      pendingPlanRef.current !== null || pendingChangeRef.current !== null;
+
+    cleanupStreamingTimer();
+    streamingRunIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    inFlightRef.current = false;
+    queuedAutoFixRef.current = [];
+
+    safe(() => setIsStreaming(false));
+    safe(() => setStreamingMessage(""));
+    safe(() => setIsAiLoading(false));
+
+    addChatMessage({
+      id: uuidv4(),
+      role: "system",
+      content: preservedPendingState
+        ? "ℹ️ Laufender KI-Vorgang wurde beim Verlassen des Chat-Screens abgebrochen. Vorliegende Plan-/Änderungsstände bleiben erhalten."
+        : "ℹ️ Laufender KI-Vorgang wurde beim Verlassen des Chat-Screens abgebrochen.",
+      timestamp: new Date().toISOString(),
+      meta: {
+        requestAbortedOnBlur: true,
+        preservedPendingState,
+      },
+    });
+  }, [
+    addChatMessage,
+    cleanupStreamingTimer,
+    safe,
+    setIsAiLoading,
+    setIsStreaming,
+    setStreamingMessage,
+  ]);
+
   return useMemo(
     () => ({
       pendingPlan,
@@ -978,9 +1020,11 @@ export function useChatAIFlow({
       applyChanges,
       rejectChanges,
       resetTransientState,
+      handleScreenBlurCleanup,
     }),
     [
       applyChanges,
+      handleScreenBlurCleanup,
       handleSendWithMeta,
       pendingChange,
       pendingPlan,

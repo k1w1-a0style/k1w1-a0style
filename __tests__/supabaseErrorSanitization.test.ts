@@ -3,6 +3,17 @@ import {
   sanitizeUnknownForTransport,
 } from "../supabase/functions/_shared/errorSanitization";
 
+function asRecord(value: unknown): Record<string, unknown> {
+  expect(value).not.toBeNull();
+  expect(typeof value).toBe("object");
+  return value as Record<string, unknown>;
+}
+
+function asArray(value: unknown): unknown[] {
+  expect(Array.isArray(value)).toBe(true);
+  return value as unknown[];
+}
+
 describe("supabase edge error sanitization", () => {
   test("sanitizeErrorText redacts bearer tokens", () => {
     const inText = "Authorization: Bearer abc.def.ghi";
@@ -26,7 +37,7 @@ describe("supabase edge error sanitization", () => {
         arr: ["ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 123, true],
       },
     };
-    const outObj = sanitizeUnknownForTransport(inObj) as any;
+    const outObj = asRecord(sanitizeUnknownForTransport(inObj));
     expect(JSON.stringify(outObj)).not.toContain("top.secret.value");
     expect(JSON.stringify(outObj)).toContain("[REDACTED_TOKEN]");
   });
@@ -41,12 +52,14 @@ describe("supabase edge error sanitization", () => {
         ok: "still-ok",
       },
     };
-    const outObj = sanitizeUnknownForTransport(inObj) as any;
+    const outObj = asRecord(sanitizeUnknownForTransport(inObj));
+    const nested = asRecord(outObj.nested);
+
     expect(outObj.token).toBe("[REDACTED_SECRET]");
     expect(outObj.authorization).toBe("[REDACTED_SECRET]");
-    expect(outObj.nested.apiKey).toBe("[REDACTED_SECRET]");
-    expect(outObj.nested.service_role_key).toBe("[REDACTED_SECRET]");
-    expect(outObj.nested.ok).toBe("still-ok");
+    expect(nested.apiKey).toBe("[REDACTED_SECRET]");
+    expect(nested.service_role_key).toBe("[REDACTED_SECRET]");
+    expect(nested.ok).toBe("still-ok");
   });
 
   test("sanitizeUnknownForTransport redacts sensitive keys inside nested arrays", () => {
@@ -62,13 +75,20 @@ describe("supabase edge error sanitization", () => {
         ],
       ],
     };
-    const outObj = sanitizeUnknownForTransport(inObj) as any;
+    const outObj = asRecord(sanitizeUnknownForTransport(inObj));
+    const events = asArray(outObj.events);
+    const first = asRecord(events[0]);
+    const second = asRecord(events[1]);
+    const nestedEvents = asArray(events[2]);
+    const nestedFirst = asRecord(nestedEvents[0]);
+    const nestedSecond = asRecord(nestedEvents[1]);
+    const nestedThird = asRecord(nestedEvents[2]);
 
     expect(outObj.ok).toBe(true);
-    expect(outObj.events[0].token).toBe("[REDACTED_SECRET]");
-    expect(outObj.events[1].authorization).toBe("[REDACTED_SECRET]");
-    expect(outObj.events[2][0].api_key).toBe("[REDACTED_SECRET]");
-    expect(outObj.events[2][1].serviceRoleKey).toBe("[REDACTED_SECRET]");
-    expect(outObj.events[2][2].password).toBe("[REDACTED_SECRET]");
+    expect(first.token).toBe("[REDACTED_SECRET]");
+    expect(second.authorization).toBe("[REDACTED_SECRET]");
+    expect(nestedFirst.api_key).toBe("[REDACTED_SECRET]");
+    expect(nestedSecond.serviceRoleKey).toBe("[REDACTED_SECRET]");
+    expect(nestedThird.password).toBe("[REDACTED_SECRET]");
   });
 });

@@ -1,7 +1,8 @@
+import type { DiagnosticScreenStyles } from "../styles";
 import React from "react";
 import { View } from "react-native";
 
-export function ProgressBar({ pct, styles }: { pct: number; styles: any }) {
+export function ProgressBar({ pct, styles }: { pct: number; styles: DiagnosticScreenStyles }) {
   const clamped = Math.max(0, Math.min(1, pct));
   return (
     <View style={styles.progressOuter}>

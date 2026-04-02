@@ -1,4 +1,6 @@
 import React from 'react';
+
+type ChildrenProps = React.PropsWithChildren<object>;
 import { render } from '@testing-library/react-native';
 
 // Mock native-stack so tests don't require the dependency to exist
@@ -6,8 +8,8 @@ jest.mock('@react-navigation/native-stack', () => {
   const React = require('react');
   return {
     createNativeStackNavigator: () => ({
-      Navigator: ({ children }: any) => React.createElement(React.Fragment, null, children),
-      Screen: ({ children }: any) => React.createElement(React.Fragment, null, children),
+      Navigator: ({ children }: ChildrenProps) => React.createElement(React.Fragment, null, children),
+      Screen: ({ children }: ChildrenProps) => React.createElement(React.Fragment, null, children),
     }),
   };
 });
@@ -16,7 +18,7 @@ jest.mock('@react-navigation/native', () => {
   const actual = jest.requireActual('@react-navigation/native');
   return {
     ...actual,
-    NavigationContainer: ({ children }: any) => children,
+    NavigationContainer: ({ children }: ChildrenProps) => children,
     useNavigation: () => ({ navigate: jest.fn(), goBack: jest.fn() }),
     useRoute: () => ({ params: {} }),
   };

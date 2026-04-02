@@ -1,19 +1,36 @@
-# Patch-Dokumente
+# Patch-Archiv
 
-Hier liegen alte Patch-Notizen/Manifeste, die beim Fixen/Portieren entstanden sind.
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
-**Wichtig:** Diese Dateien werden zur Laufzeit der App nicht gebraucht.
-Sie sind nur dafür da, dass man nachvollziehen kann, *welche* Änderungen mal geplant oder angewendet wurden.
+`docs/patches/` ist das **append-only Historienarchiv** des Repos.
 
-## Ordner
+## Was hier liegt
 
-- `manifests/` – verschiedene `PATCH_MANIFEST*.txt` Dateien (Historie)
-- `artifacts/` – alte ZIP-Artefakte
+- `PATCHLOG_ROOT.md` — laufende Patchhistorie
+- `patch_*.md` / `PATCH_*_NOTES.md` — einzelne Patchnotizen
+- `checklog/` — alte Checklog-Ergaenzungen
+- `manifests/` — historische Patch-Manifeste
 
-## Kann ich das löschen?
+## Was dieses Verzeichnis **nicht** ist
 
-Ja, wenn du sie nicht mehr brauchst. Sicher ist:
-- Du löschst nur Inhalte unter `docs/patches/`
-- Code, `supabase/`, `screens/`, `lib/` usw. bleiben unangetastet
+- keine aktive Produktdoku
+- keine aktuelle TODO-Liste
+- keine kanonische Review
+- kein Ersatz fuer Runbooks oder den Dokumentations-Index
 
-Wenn du unsicher bist: lass es drin oder pack es in einen separaten Branch/Tag.
+## Wann du es brauchst
+
+- wenn du nachvollziehen willst, **wann** ein bestimmter Fix oder Refactor passiert ist
+- wenn du alte Patches portieren, vergleichen oder auditieren willst
+
+## Wann du es nicht brauchst
+
+- fuer den normalen Einstieg ins Repo
+- fuer den aktuellen Produkt-/Betriebsstand
+- fuer aktive Restpunkte
+
+Dafuer gelten stattdessen:
+- `README.md`
+- `docs/INDEX.md`
+- `docs/reviews/Review.md`
+- `docs/TODO.md`

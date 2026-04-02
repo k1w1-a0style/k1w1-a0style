@@ -1,5 +1,5 @@
 import type { ChecklistItem } from "../templateChecklistTypes";
-import { ensureObj } from "../jsonUtils";
+import { ensureObj, getErrorMessage } from "../jsonUtils";
 
 type EasProfileDefaults = { android: { buildType: "apk" } };
 
@@ -16,14 +16,15 @@ export function patchEasJson(
   let changed = false;
 
   try {
-    const obj = JSON.parse(raw || "{}");
-    obj.cli = ensureObj(obj.cli);
-    if (obj.cli.appVersionSource !== "remote") {
-      obj.cli.appVersionSource = "remote";
+    const obj = ensureObj(JSON.parse(raw || "{}"));
+    const cli = ensureObj(obj.cli);
+    if (cli.appVersionSource !== "remote") {
+      cli.appVersionSource = "remote";
       changed = true;
     }
+    obj.cli = cli;
 
-    obj.build = ensureObj(obj.build);
+    const build = ensureObj(obj.build);
 
     // Required profiles: preview + production
     const needProfiles: ReadonlyArray<{ name: "preview" | "production"; defaults: EasProfileDefaults }> = [
@@ -32,8 +33,8 @@ export function patchEasJson(
     ];
 
     for (const p of needProfiles) {
-      if (!obj.build[p.name] || typeof obj.build[p.name] !== "object") {
-        obj.build[p.name] = p.defaults;
+      if (!build[p.name] || typeof build[p.name] !== "object") {
+        build[p.name] = p.defaults;
         changed = true;
         p0.push({
           severity: "P0",
@@ -43,10 +44,11 @@ export function patchEasJson(
         });
       }
     }
+    obj.build = build;
 
     const next = JSON.stringify(obj, null, 2);
     return { next, changed, parseOk: true, p0 };
-  } catch (e: any) {
+  } catch (error: unknown) {
     const fallback = {
       cli: { appVersionSource: "remote" },
       build: {
@@ -58,7 +60,7 @@ export function patchEasJson(
       next: JSON.stringify(fallback, null, 2),
       changed: true,
       parseOk: false,
-      parseError: e?.message ? String(e.message) : "parse failed",
+      parseError: getErrorMessage(error),
       p0,
     };
   }

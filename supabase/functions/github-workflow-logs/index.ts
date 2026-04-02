@@ -3,24 +3,19 @@
 
 import { handleCors } from "../_shared/cors.ts";
 import {
+  getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { parseJsonBody } from "../_shared/validation.ts";
-import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
-import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
+import { getGithubToken, githubFetch, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
+import { sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
-  jsonOk, jsonErr, asString, asNumber, parseGithubRepo, type Json,
-  redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, MAX_ZIP_BYTES,
+  jsonOk, jsonErr, asNumber, parseGithubRepo, type Json,
+  redactSecrets, fetchLogsZip, zipToText, MAX_CHARS,
 } from "./helpers.ts";
-
-function isParsedBodyError(
-  result: Awaited<ReturnType<typeof parseJsonBody>>,
-): result is { ok: false; error: string } {
-  return !result.ok;
-}
 
 type NotReadyPayload = { ok: false; reason: string; status?: string };
 
@@ -64,7 +59,7 @@ Deno.serve(async (req) => {
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-logs",
-      subject: req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown",
+      subject: getRequestRateLimitSubject(req),
       max: 60,
       windowMs: 60_000,
     });
@@ -74,7 +69,7 @@ Deno.serve(async (req) => {
     if (rl) return rl;
 
     const parsedBody = await parseJsonBody(req, 50_000);
-    if (isParsedBodyError(parsedBody)) {
+    if (isParsedJsonBodyError(parsedBody)) {
       const parseError = parsedBody.error;
       const status = parseError.includes("too large") ? 413 : 400;
       return jsonErr(req, "Validation failed", { error: parseError }, status);
@@ -87,6 +82,16 @@ Deno.serve(async (req) => {
         "Validation failed",
         { error: "githubRepo must be 'owner/repo' string" },
         400,
+      );
+    }
+
+    const normalizedGithubRepo = `${repoObj.owner}/${repoObj.repo}`;
+    if (!isAllowedGithubRepo(normalizedGithubRepo)) {
+      return jsonErr(
+        req,
+        "githubRepo not allowed",
+        { githubRepo: normalizedGithubRepo },
+        403,
       );
     }
 
@@ -154,7 +159,6 @@ Deno.serve(async (req) => {
       repoObj.owner,
       repoObj.repo,
       Math.trunc(runId),
-      token,
     );
     const parsed = zipToText(zipBytes);
 
@@ -167,7 +171,7 @@ Deno.serve(async (req) => {
 
     return jsonOk(req, {
       ok: true,
-      githubRepo: `${repoObj.owner}/${repoObj.repo}`,
+      githubRepo: normalizedGithubRepo,
       runId: Math.trunc(runId),
       run,
       fileCount: parsed.fileCount,

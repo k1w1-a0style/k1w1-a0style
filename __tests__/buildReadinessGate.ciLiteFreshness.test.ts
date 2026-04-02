@@ -1,14 +1,15 @@
-import type { ProjectData } from "../shared/types/project";
+import { makeProjectData } from "./helpers/projectTestHelpers";
 
 const mockGetItem = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockGetItem(...args),
+  getItem: mockGetItem,
 }));
 
 const mockGitHub = {
-  getLegacyEdgeAdminKey: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   pushFilesToRepo: jest.fn(),
+  getBranchHeadSha: jest.fn(),
 };
 const mockAutoFix = { autoFixCIWorkflows: jest.fn() };
 const mockInvoke = jest.fn();
@@ -31,22 +32,20 @@ const { startBuildJob } = require("../project/services/buildStartService");
 
 const FIXED_NOW = Date.parse("2026-03-30T00:00:00.000Z");
 
-function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
-  return {
-    id: "p1",
-    name: "test",
-    files: [{ path: "app.json", content: "{}", updatedAt: FIXED_NOW } as any],
+function makeProject(overrides = {}) {
+  return makeProjectData({
     linkedRepo: "k1w1-a0style/musik-player",
     linkedBranch: "main",
     ...overrides,
-  } as any;
+  });
 }
 
 describe("build readiness gate - ci lite freshness", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Date, "now").mockReturnValue(FIXED_NOW);
-    mockGitHub.getLegacyEdgeAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("adminkey");
+    mockGitHub.getBranchHeadSha.mockResolvedValue("0123456789abcdef0123456789abcdef01234567");
     mockGitHub.pushFilesToRepo.mockResolvedValue(undefined);
     mockAutoFix.autoFixCIWorkflows.mockResolvedValue(undefined);
     mockInvoke.mockResolvedValue({ data: { jobId: "11111111-1111-1111-1111-111111111111" }, error: null });
@@ -58,7 +57,7 @@ describe("build readiness gate - ci lite freshness", () => {
 
   it("blocks build start when last CI Lite repo does not match", async () => {
     mockGetItem.mockImplementation(async (key: string) => ({
-      diagnostic_last_ok: "true",
+      "diagnostic_last_ok::k1w1-a0style%2Fmusik-player::main": "true",
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_run_at: String(FIXED_NOW),
@@ -78,7 +77,7 @@ describe("build readiness gate - ci lite freshness", () => {
   it("blocks build start when last CI Lite run is stale", async () => {
     const stale = FIXED_NOW - 7 * 60 * 60 * 1000;
     mockGetItem.mockImplementation(async (key: string) => ({
-      diagnostic_last_ok: "true",
+      "diagnostic_last_ok::k1w1-a0style%2Fmusik-player::main": "true",
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_run_at: String(stale),

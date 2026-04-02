@@ -1,10 +1,14 @@
 import {
-  requireScopedEdgeAuth,
+  getRuntimeEnv,
+  requireVerifiedJwt,
   rateLimit,
 } from "../supabase/functions/_shared/auth";
 import { corsHeaders as savePreviewCorsHeaders } from "../supabase/functions/save_preview/helpers";
 
 const ORIGIN = "http://localhost:19000";
+
+type RuntimeGlobal = typeof globalThis & { Deno?: unknown };
+const runtimeGlobal = globalThis as RuntimeGlobal;
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -30,6 +34,22 @@ function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T 
   }
 }
 
+function withDenoRemoved<T>(run: () => T): T {
+  const hadDeno = Object.prototype.hasOwnProperty.call(runtimeGlobal, "Deno");
+  const previousDeno = runtimeGlobal.Deno;
+  delete runtimeGlobal.Deno;
+
+  try {
+    return run();
+  } finally {
+    if (hadDeno) {
+      runtimeGlobal.Deno = previousDeno;
+    } else {
+      delete runtimeGlobal.Deno;
+    }
+  }
+}
+
 describe("save_preview auth/error header consistency + auth runtime env fallback", () => {
   it("returns auth failure headers compatible with save_preview success/local-error headers", async () => {
     const req = new Request("http://localhost/save-preview", {
@@ -37,21 +57,13 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
       headers: { origin: ORIGIN },
     });
 
-    const authRes = withEnv(
-      {
-        K1W1_EDGE_ADMIN_KEY: undefined,
-        SIGNING_ADMIN_KEY: undefined,
-      },
-      () =>
-        requireScopedEdgeAuth(req, {
-          scope: "save_preview",
-          allowAdmin: true,
-          adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
-        }),
+    const authRes = await withEnv(
+      { ENVIRONMENT: "development" },
+      () => requireVerifiedJwt(req, "save_preview"),
     );
 
     expect(authRes).toBeTruthy();
-    const savePreviewHeaders = savePreviewCorsHeaders(ORIGIN);
+    const savePreviewHeaders = withEnv({ ENVIRONMENT: "development" }, () => savePreviewCorsHeaders(ORIGIN));
     expect(authRes?.headers.get("access-control-allow-origin")).toBe(
       savePreviewHeaders["Access-Control-Allow-Origin"],
     );
@@ -67,11 +79,11 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
     });
 
     const bucket = `save_preview_invariant_${Date.now()}`;
-    expect(rateLimit(req, bucket, 1, 10_000)).toBeNull();
-    const res = rateLimit(req, bucket, 1, 10_000);
+    expect(withEnv({ ENVIRONMENT: "development" }, () => rateLimit(req, bucket, 1, 10_000))).toBeNull();
+    const res = withEnv({ ENVIRONMENT: "development" }, () => rateLimit(req, bucket, 1, 10_000));
     expect(res).toBeTruthy();
 
-    const savePreviewHeaders = savePreviewCorsHeaders(ORIGIN);
+    const savePreviewHeaders = withEnv({ ENVIRONMENT: "development" }, () => savePreviewCorsHeaders(ORIGIN));
     expect(res?.headers.get("access-control-allow-origin")).toBe(
       savePreviewHeaders["Access-Control-Allow-Origin"],
     );
@@ -81,59 +93,27 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
   });
 
   it("auth guard reads Node process env even when Deno is not present", () => {
-    const oldDeno = (globalThis as any).Deno;
-    delete (globalThis as any).Deno;
-
-    try {
-      const req = new Request("http://localhost/save-preview", {
-        method: "POST",
-        headers: {
-          origin: ORIGIN,
-          "x-k1w1-admin-key": "node-env-secret",
-        },
-      });
-
+    withDenoRemoved(() => {
       const result = withEnv(
         {
-          K1W1_EDGE_ADMIN_KEY: "node-env-secret",
-          SIGNING_ADMIN_KEY: undefined,
+          EXPO_PUBLIC_SUPABASE_URL: "https://preview.example.com",
         },
-        () =>
-          requireScopedEdgeAuth(req, {
-            scope: "save_preview",
-            allowAdmin: true,
-              adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
-          }),
+        () => getRuntimeEnv("EXPO_PUBLIC_SUPABASE_URL"),
       );
 
-      expect(result).toBeNull();
-    } finally {
-      (globalThis as any).Deno = oldDeno;
-    }
+      expect(result).toBe("https://preview.example.com");
+    });
   });
-});
-  it("does not accept SIGNING_ADMIN_KEY as fallback for generic save_preview auth", () => {
+
+  it("fails closed without a bearer token for save_preview", async () => {
     const req = new Request("http://localhost/save-preview", {
       method: "POST",
-      headers: {
-        origin: ORIGIN,
-        "x-k1w1-admin-key": "signing-only-secret",
-      },
+      headers: { origin: ORIGIN },
     });
 
-    const result = withEnv(
-      {
-        K1W1_EDGE_ADMIN_KEY: undefined,
-        SIGNING_ADMIN_KEY: "signing-only-secret",
-      },
-      () =>
-        requireScopedEdgeAuth(req, {
-          scope: "save_preview",
-          allowAdmin: true,
-          adminSecretEnv: "K1W1_EDGE_ADMIN_KEY",
-        }),
-    );
+    const result = await withEnv({}, () => requireVerifiedJwt(req, "save_preview"));
 
-    expect(result?.status).toBe(500);
+    expect(result?.status).toBe(401);
     expect(result?.headers.get("content-type")).toContain("application/json");
   });
+});

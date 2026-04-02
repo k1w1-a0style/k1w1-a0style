@@ -36,6 +36,12 @@ import {
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
+  formatBatchFixResultDetail,
+  formatBatchFixSubtitle,
+  formatIssueFixResultDetail,
+  formatSingleFixResultDetail,
+} from "./fixRunnerDisplayHelpers";
+import {
   buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
@@ -599,12 +605,11 @@ export function useDiagnosticFixRunner(opts: {
             : patchApplied
               ? "patch_applied"
               : "workflow_dispatched",
-        detail:
-          dispatch && !patchApplied
-            ? "Workflow wurde gestartet; der tatsächliche Erfolg muss per Re-Check bestätigt werden."
-            : rerunAfterFix
-              ? "Fix-Lauf abgeschlossen; prüfe den neuen Diagnostics-Report."
-              : undefined,
+        detail: formatIssueFixResultDetail({
+          hasDispatch: !!dispatch,
+          patchApplied,
+          rerunAfterFix,
+        }),
         localChangeApplied: patchApplied,
         workflowTriggered: !!dispatch,
         stepIndex: steps.length,
@@ -689,7 +694,7 @@ export function useDiagnosticFixRunner(opts: {
 
       const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
       setFixModalTitle(label);
-      setFixModalSubtitle(`${deduped.length} Fixes${skipped ? ` (skipped ${skipped} dup)` : ""}`);
+      setFixModalSubtitle(formatBatchFixSubtitle(deduped.length, skipped));
       setFixSteps(steps);
       setFixStepIndex(0);
       setFixDone(false);
@@ -768,7 +773,7 @@ export function useDiagnosticFixRunner(opts: {
 
       finishWithResult({
         status: rerunAfterFix ? "pending_recheck" : "patch_applied",
-        detail: rerunAfterFix ? "Batch-Fix abgeschlossen; prüfe den neuen Diagnostics-Report." : undefined,
+        detail: formatBatchFixResultDetail(rerunAfterFix),
         localChangeApplied: appliedCount > 0,
         stepIndex: steps.length,
       });
@@ -976,7 +981,7 @@ export function useDiagnosticFixRunner(opts: {
 
         finishWithResult({
           status: rerunAfterFix ? "pending_recheck" : "patch_applied",
-          detail: rerunAfterFix ? "Patch angewendet; prüfe den neuen Diagnostics-Report." : undefined,
+          detail: formatSingleFixResultDetail(rerunAfterFix),
           localChangeApplied: patchApplied,
           stepIndex: steps.length,
         });

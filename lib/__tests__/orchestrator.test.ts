@@ -7,15 +7,10 @@ import {
   ORCHESTRATOR_REQUEST_TIMEOUT_MS,
 } from '../orchestrator';
 import { ensureSupabaseClient } from '../supabase';
-import { getLegacyEdgeAdminKey } from '../../infra/github/githubService';
 import { SUPABASE_EDGE_FUNCTIONS } from '../../shared/constants/supabase';
 
 jest.mock('../supabase', () => ({
   ensureSupabaseClient: jest.fn(),
-}));
-
-jest.mock('../../infra/github/githubService', () => ({
-  getLegacyEdgeAdminKey: jest.fn(),
 }));
 
 type InvokeOptions = {
@@ -25,7 +20,6 @@ type InvokeOptions = {
 };
 
 const mockEnsureSupabaseClient = ensureSupabaseClient as jest.MockedFunction<typeof ensureSupabaseClient>;
-const mockGetEdgeAdminKey = getLegacyEdgeAdminKey as jest.MockedFunction<typeof getLegacyEdgeAdminKey>;
 const invokeMock = jest.fn();
 const fetchSpy = jest.fn();
 const originalFetch = global.fetch;
@@ -53,8 +47,12 @@ beforeEach(() => {
     functions: {
       invoke: invokeMock,
     },
+    auth: {
+      getSession: jest.fn().mockResolvedValue({
+        data: { session: { access_token: 'supabase-operator-jwt-token' } },
+      }),
+    },
   } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
-  mockGetEdgeAdminKey.mockResolvedValue('edge-admin-key');
   invokeMock.mockResolvedValue({
     data: {
       ok: true,
@@ -105,7 +103,7 @@ describe('Orchestrator', () => {
             quality: 'speed',
             messages: testMessages,
           },
-          headers: { 'x-k1w1-admin-key': 'edge-admin-key' },
+          headers: { Authorization: 'Bearer supabase-operator-jwt-token' },
         }),
       );
       expect(fetchSpy).not.toHaveBeenCalledWith(
@@ -173,17 +171,24 @@ describe('Orchestrator', () => {
       expect(result.model).toBe('qwen3-32b');
       expect(result.runtimeNote).toContain('Runtime-Mapping aktiv');
     });
-
-    it('meldet fehlenden Edge-Admin-Key klar statt lokale Provider-Keys zu verlangen', async () => {
+    it('blockiert ohne Supabase Operator-JWT bevor der Edge-Proxy aufgerufen wird', async () => {
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];
-      mockGetEdgeAdminKey.mockResolvedValueOnce(null);
+      mockEnsureSupabaseClient.mockResolvedValueOnce({
+        functions: {
+          invoke: invokeMock,
+        },
+        auth: {
+          getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+        },
+      } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
 
       const result = await runOrchestrator('groq', 'llama-3.1-8b-instant', 'speed', testMessages);
 
       expect(result.ok).toBe(false);
-      expect(String(result.error || '')).toMatch(/Lokaler (Legacy )?Edge Admin Key/i);
+      expect(String(result.error || '')).toMatch(/Supabase-Login-JWT|build_admin/i);
       expect(invokeMock).not.toHaveBeenCalled();
     });
+
 
     it('behandelt Edge-Fehler stabil und verstaendlich', async () => {
       const testMessages: LlmMessage[] = [{ role: 'user', content: 'hi' }];

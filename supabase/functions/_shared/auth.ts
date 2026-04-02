@@ -109,6 +109,15 @@ export async function requirePrivilegedOperatorJwtRole(req: Request, scope: stri
   });
 }
 
+export const AI_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;
+
+export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {
+  return requireJwtRole(req, {
+    scope,
+    allowedRoles: [...AI_OPERATOR_ALLOWED_ROLES],
+  });
+}
+
 type VerifiedJwtUser = {
   id?: unknown;
   role?: unknown;
@@ -134,6 +143,26 @@ function getRoleFromVerifiedContext(user: VerifiedJwtUser | null, payload: JwtPa
   return readNonEmptyRole(user?.role);
 }
 
+
+const DEFAULT_EDGE_FETCH_TIMEOUT_MS = 8_000;
+
+async function fetchWithEdgeTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs = DEFAULT_EDGE_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 type VerifiedJwtLookupResult =
   | { ok: true; user: VerifiedJwtUser }
   | { ok: false; reason: "invalid_or_unverifiable" | "server_misconfigured" };
@@ -148,7 +177,7 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookup
 
   try {
     const authUrl = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`;
-    const res = await fetch(authUrl, {
+    const res = await fetchWithEdgeTimeout(authUrl, {
       method: "GET",
       headers: {
         apikey: serviceKey,
@@ -164,6 +193,38 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookup
   } catch {
     return { ok: false, reason: "invalid_or_unverifiable" };
   }
+}
+
+export async function requireVerifiedJwt(req: Request, scope: string): Promise<Response | null> {
+  const token = getBearerToken(req);
+  if (!token) {
+    return errorResponse(
+      "Unauthorized: missing bearer token.",
+      req,
+      401,
+      { scope, required: "Authorization: Bearer <jwt>" },
+    );
+  }
+
+  const verified = await verifyJwtViaSupabaseAuth(req);
+  if (!verified.ok) {
+    if ("reason" in verified && verified.reason === "server_misconfigured") {
+      return errorResponse(
+        "JWT verification is unavailable due to server auth misconfiguration.",
+        req,
+        500,
+        { scope },
+      );
+    }
+    return errorResponse(
+      "Unauthorized: missing or unverifiable JWT.",
+      req,
+      401,
+      { scope },
+    );
+  }
+
+  return null;
 }
 
 export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Promise<Response | null> {
@@ -206,6 +267,54 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
   }
 
   return null;
+}
+
+function normalizeClientIpCandidate(input: string | null | undefined): string | null {
+  if (typeof input !== "string") return null;
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const withoutPort = (() => {
+    if (trimmed.startsWith("[")) {
+      const end = trimmed.indexOf("]");
+      if (end > 1) return trimmed.slice(1, end);
+    }
+    const ipv4WithPort = trimmed.match(/^(\d{1,3}(?:\.\d{1,3}){3})(?::\d{1,5})$/);
+    if (ipv4WithPort) return ipv4WithPort[1];
+    return trimmed;
+  })();
+
+  const lower = withoutPort.toLowerCase();
+  if (lower === "unknown") return null;
+
+  const ipv4 = /^(\d{1,3})(?:\.(\d{1,3})){3}$/.test(withoutPort)
+    ? withoutPort.split(".").every((part) => Number(part) >= 0 && Number(part) <= 255)
+    : false;
+  if (ipv4) return withoutPort;
+
+  const ipv6 = /^[0-9a-f:]+$/i.test(withoutPort) && withoutPort.includes(":") && !withoutPort.includes(":::");
+  if (ipv6) return withoutPort;
+
+  return null;
+}
+
+export function getRequestClientIp(req: Request): string {
+  const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
+  if (cf) return cf;
+
+  const forwarded = req.headers.get("x-forwarded-for") ?? "";
+  const forwardedFirst = forwarded.split(",")[0]?.trim();
+  const normalizedForwarded = normalizeClientIpCandidate(forwardedFirst);
+  return normalizedForwarded ?? "unknown";
+}
+
+export function getRequestRateLimitSubject(req: Request): string {
+  const payload = getJwtPayload(req);
+  const subject = typeof payload?.sub === "string" ? payload.sub.trim() : "";
+  if (subject) {
+    return `sub:${subject.slice(0, 200)}`;
+  }
+  return `ip:${getRequestClientIp(req)}`;
 }
 
 export function getAdminKeyHeader(req: Request): string | null {
@@ -418,12 +527,16 @@ export function rateLimit(
   max = 10,
   windowMs = 10_000,
 ): Response | null {
-  const ip =
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-forwarded-for") ||
-    "unknown";
+  const ip = getRequestClientIp(req);
   const k = `${key}:${ip}`;
   const now = Date.now();
+  if (rl.size > 5_000) {
+    for (const [entryKey, entryValue] of rl) {
+      if (now - entryValue.t > windowMs * 2) {
+        rl.delete(entryKey);
+      }
+    }
+  }
   const v = rl.get(k);
   if (!v || now - v.t > windowMs) {
     rl.set(k, { t: now, c: 1 });
@@ -450,12 +563,11 @@ export async function requireDurableRateLimit(
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();
   if (!supabaseUrl || !serviceKey) {
-    return errorResponse(
-      "Rate-limit misconfiguration: missing durable store secrets.",
-      req,
-      500,
-      { scope: cfg.scope, missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"] },
-    );
+    console.warn("[durable-rate-limit] falling back to local limiter because durable store secrets are missing", {
+      scope: cfg.scope,
+      missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"],
+    });
+    return null;
   }
 
   const nowIso = new Date().toISOString();
@@ -463,7 +575,7 @@ export async function requireDurableRateLimit(
   const restBase = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/edge_rate_limit_events`;
 
   try {
-    const insertRes = await fetch(restBase, {
+    const insertRes = await fetchWithEdgeTimeout(restBase, {
       method: "POST",
       headers: {
         apikey: serviceKey,
@@ -479,11 +591,15 @@ export async function requireDurableRateLimit(
     });
 
     if (!insertRes.ok) {
-      return errorResponse("Durable rate-limit write failed.", req, 500, { scope: cfg.scope });
+      console.warn("[durable-rate-limit] falling back to local limiter because durable store write failed", {
+        scope: cfg.scope,
+        status: insertRes.status,
+      });
+      return null;
     }
 
     const countUrl = `${restBase}?scope=eq.${encodeURIComponent(cfg.scope)}&subject=eq.${encodeURIComponent(cfg.subject)}&created_at=gte.${encodeURIComponent(windowStartIso)}&select=id`;
-    const countRes = await fetch(countUrl, {
+    const countRes = await fetchWithEdgeTimeout(countUrl, {
       method: "GET",
       headers: {
         apikey: serviceKey,
@@ -494,7 +610,11 @@ export async function requireDurableRateLimit(
     });
 
     if (!countRes.ok) {
-      return errorResponse("Durable rate-limit read failed.", req, 500, { scope: cfg.scope });
+      console.warn("[durable-rate-limit] falling back to local limiter because durable store read failed", {
+        scope: cfg.scope,
+        status: countRes.status,
+      });
+      return null;
     }
 
     const countHeader = countRes.headers.get("content-range") || "";
@@ -510,7 +630,11 @@ export async function requireDurableRateLimit(
     }
 
     return null;
-  } catch {
-    return errorResponse("Durable rate-limit unavailable.", req, 500, { scope: cfg.scope });
+  } catch (error) {
+    console.warn("[durable-rate-limit] falling back to local limiter because durable store is unavailable", {
+      scope: cfg.scope,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
   }
 }

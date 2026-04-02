@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+echo "[verify:release] docs lint"
+node scripts/docsLint.js
+
+echo "[verify:release] docs contract check"
+node scripts/check_docs_contracts.js
+
+echo "[verify:release] patch/docs sync"
+bash scripts/check_patch_docs_sync.sh
+
+if [[ -f "node_modules/expo/tsconfig.base.json" ]]; then
+  echo "[verify:release] app typecheck"
+  npm run -s typecheck
+else
+  echo "[verify:release] skip app typecheck (node_modules/expo/tsconfig.base.json fehlt im aktuellen Workspace)"
+fi
+
+echo "[verify:release] strict typecheck"
+tsc -p tsconfig.strict.json --noEmit --noUnusedLocals --noUnusedParameters
+
+echo "[verify:release] edge typecheck"
+tsc -p supabase/functions/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters
+
+echo "[verify:release] workflow template drift"
+bash scripts/check_workflow_template_drift.sh
+
+echo "[verify:release] managed workflows"
+bash scripts/check_managed_workflows.sh
+
+echo "[verify:release] supabase deploy workflow"
+bash scripts/check_supabase_deploy_workflow.sh
+
+echo "[verify:release] EAS manual trigger controls"
+bash scripts/check_eas_manual_trigger_controls.sh
+
+echo "[verify:release] EAS production credentials"
+bash scripts/check_eas_production_credentials.sh
+
+echo "[verify:release] EAS strict lockfile policy"
+bash scripts/check_eas_strict_lockfile_policy.sh
+
+echo "[verify:release] workflow/edge contracts"
+bash scripts/check_workflow_edge_contracts.sh
+
+echo "[verify:release] edge rate-limit retention"
+bash scripts/check_edge_rate_limit_retention.sh
+
+echo "[verify:release] legacy disabled edges"
+bash scripts/check_legacy_disabled_edges.sh
+
+echo "[verify:release] k1w1 provider contracts"
+bash scripts/check_k1w1_handler_providers.sh
+
+echo "[verify:release] edge helper visibility"
+bash scripts/check_edge_helper_visibility.sh
+
+echo "[verify:release] supabase RLS hardening"
+bash scripts/check_supabase_rls_hardening.sh
+
+if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then
+  echo "[verify:release] live edge contracts"
+  bash scripts/check_edge_live_contracts.sh
+else
+  echo "[verify:release] skip live edge contracts (EDGE_BASE_URL / EDGE_OPERATOR_JWT not set)"
+fi
+
+echo "[verify:release] OK"

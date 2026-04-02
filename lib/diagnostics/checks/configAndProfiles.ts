@@ -7,6 +7,35 @@ import {
   normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
+
+type JsonRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): JsonRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as JsonRecord)
+    : null;
+}
+
+function readObjectField(obj: JsonRecord | null, key: string): JsonRecord | null {
+  return asRecord(obj?.[key]);
+}
+
+function readStringField(obj: JsonRecord | null, key: string): string | null {
+  const value = obj?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readStringDeps(pkg: JsonRecord | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const bucket of [readObjectField(pkg, "dependencies"), readObjectField(pkg, "devDependencies")]) {
+    if (!bucket) continue;
+    for (const [key, value] of Object.entries(bucket)) {
+      if (typeof value === "string") out[key] = value;
+    }
+  }
+  return out;
+}
+
 export const checkEasProfiles: PreflightCheck = {
   id: "eas-profiles",
   title: "EAS Profile Android (APK vs AAB)",
@@ -50,8 +79,8 @@ export const checkEasProfiles: PreflightCheck = {
       };
     }
 
-    const eas = parseJson<any>(getText(m, "eas.json"));
-    if (!eas || typeof eas !== "object") {
+    const eas = asRecord(parseJson(getText(m, "eas.json")));
+    if (!eas) {
       return {
         id: this.id,
         title: this.title,
@@ -62,7 +91,8 @@ export const checkEasProfiles: PreflightCheck = {
     }
 
     const profile = target.profile;
-    const p = eas?.build?.[profile];
+    const build = readObjectField(eas, "build");
+    const p = readObjectField(build, profile);
     if (!p) {
       return {
         id: this.id,
@@ -73,7 +103,8 @@ export const checkEasProfiles: PreflightCheck = {
       };
     }
 
-    const buildType = p?.android?.buildType;
+    const android = readObjectField(p, "android");
+    const buildType = readStringField(android, "buildType");
 
     // APK-only policy: for this app, ALL profiles must build installable APKs.
     // Make it explicit; missing buildType is allowed but should be fixed.
@@ -175,7 +206,7 @@ export const checkExpoConfig: PreflightCheck = {
     }
 
     const raw = getText(m, "app.json");
-    const cfg = parseJson<any>(raw);
+    const cfg = asRecord(parseJson(raw));
     if (!cfg) {
       return {
         id: this.id,
@@ -186,8 +217,8 @@ export const checkExpoConfig: PreflightCheck = {
       };
     }
 
-    const expo = cfg.expo;
-    if (!expo || typeof expo !== "object") {
+    const expo = readObjectField(cfg, "expo");
+    if (!expo) {
       return {
         id: this.id,
         title: this.title,
@@ -235,13 +266,10 @@ export const checkSdkConsistency: PreflightCheck = {
       });
     }
 
-    const pkg = parseJson<any>(getText(m, "package.json")) ?? {};
-    const deps = {
-      ...(pkg.dependencies ?? {}),
-      ...(pkg.devDependencies ?? {}),
-    };
-    const expo = deps.expo as string | undefined;
-    const rn = deps["react-native"] as string | undefined;
+    const pkg = asRecord(parseJson(getText(m, "package.json")));
+    const deps = readStringDeps(pkg);
+    const expo = deps.expo;
+    const rn = deps["react-native"];
 
     if (!expo) {
       return {

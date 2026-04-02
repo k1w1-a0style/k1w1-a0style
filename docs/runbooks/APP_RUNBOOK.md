@@ -1,10 +1,15 @@
 # App Runbook (QA / Operator)
 
-Stand: 2026-03-02
+Stand: **2026-04-02 (Docs Konsolidierung)**
 
 Ziel: In <30 Minuten reproduzierbar von „frisches Setup“ zu „Build gestartet“ inkl. klarer Failure- und Re-Run-Entscheidungen.
 
 ## A) Quick Start (5 Minuten)
+
+## A.1) Operator-Setup vor dem ersten Live-Test
+- Fuer externes `build_admin`-Provisioning zuerst `docs/runbooks/OPERATOR_SETUP_CHECKLIST.md` abarbeiten.
+- Erst danach `npm run verify:release` oder `EDGE_BASE_URL=... EDGE_OPERATOR_JWT=... npm run verify:release` gegen die Zielumgebung laufen lassen.
+
 1. **Repo/Branch setzen**
    - Screen: `GitHub Repos`
    - Aktionen: Repo auswählen, Branch auswählen.
@@ -68,6 +73,14 @@ Ziel: In <30 Minuten reproduzierbar von „frisches Setup“ zu „Build gestart
 - `repo.easProjectId` + `repo.workflow.easLink` in Diagnose prüfen.
 - In `GitHub Repos` EAS Link erneut triggern.
 - Wenn weiter fail: Workflow-Run-Log prüfen und manuell korrigieren.
+
+
+### 5) Live-Contract-Check (staging/prod, read-only)
+- Vor echten Operator-Tests einmal `npm run edge:check:live` gegen die Zielumgebung ausführen.
+- Erwartung:
+  - `k1w1-handler` -> `400 invalid_request_payload` bei absichtlich kaputtem JSON.
+  - `preview_page` -> `404 Preview not found` bei bewusst ungültigem `secret`.
+- Liefert `k1w1-handler` stattdessen `401/403`, zuerst JWT / externes `build_admin`-Provisioning prüfen und **nicht** am Repo-Code herumflicken.
 
 ---
 

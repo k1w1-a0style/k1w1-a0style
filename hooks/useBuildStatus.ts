@@ -8,6 +8,7 @@
 // ✅ Besseres Status-Mapping (zentralisiert über buildStatusMapper)
 // ✅ Callbacks statt Alert (bessere Testbarkeit)
 // ✅ Kein Race Condition durch errorCount in Dependencies
+// ✅ Adaptives Polling mit Backoff statt starrem Intervall
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { AppState } from "react-native";
@@ -19,7 +20,11 @@ import {
 
 import { logger } from "../lib/logger";
 
-import { POLL_INTERVAL_MS, MAX_ERRORS, REQUEST_TIMEOUT_MS } from "./buildStatusTypes";
+import {
+  MAX_ERRORS,
+  REQUEST_TIMEOUT_MS,
+  getBuildStatusPollInterval,
+} from "./buildStatusTypes";
 import type { UseBuildStatusCallbacks } from "./buildStatusTypes";
 export type { UseBuildStatusCallbacks } from "./buildStatusTypes";
 
@@ -36,18 +41,25 @@ export function useBuildStatus(
   const [status, setStatus] = useState<BuildStatus>("idle");
   const [details, setDetails] = useState<BuildStatusDetails | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
-  // ✅ FIX: State für errorCount um reaktive Updates zu ermöglichen
   const [errorCount, setErrorCount] = useState(0);
 
-  // Use refs for values that shouldn't trigger re-renders
   const errorCountRef = useRef(0);
   const hasAlertedRef = useRef(false);
   const isMountedRef = useRef(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isRequestPendingRef = useRef(false);
   const latestDetailsRef = useRef<BuildStatusDetails | null>(null);
   const statusRef = useRef<BuildStatus>("idle");
   const callbacksRef = useRef<UseBuildStatusCallbacks | undefined>(callbacks);
+  const pollingStartedAtRef = useRef<number | null>(null);
+  const scheduleNextPollRef = useRef<((errorCountOverride?: number) => void) | null>(null);
+
+  const clearPollTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     callbacksRef.current = callbacks;
@@ -82,11 +94,14 @@ export function useBuildStatus(
     [buildFailureDetails],
   );
 
-  // Memoized poll function
   const poll = useCallback(async () => {
     if (!jobIdFromScreen) return;
     if (isRequestPendingRef.current) return;
     isRequestPendingRef.current = true;
+    clearPollTimer();
+
+    let shouldScheduleNext = false;
+    let nextErrorCount = errorCountRef.current;
 
     try {
       logger.debug(
@@ -99,36 +114,33 @@ export function useBuildStatus(
 
       if (!isMountedRef.current) return;
 
-      // ✅ Fehlerfall
       if (!result.ok) {
         logger.debug("[useBuildStatus] ❌ Error Response:", result.raw);
         const errorMsg = result.error;
         errorCountRef.current += 1;
+        nextErrorCount = errorCountRef.current;
         setErrorCount(errorCountRef.current);
         setLastError(errorMsg);
 
-        // Callback für jeden Fehler
         callbacksRef.current?.onError?.(errorMsg, errorCountRef.current);
 
         if (errorCountRef.current >= MAX_ERRORS) {
           statusRef.current = "error";
           setStatus("error");
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
+          clearPollTimer();
           if (!hasAlertedRef.current) {
             hasAlertedRef.current = true;
-            // Callback statt Alert
             callbacksRef.current?.onMaxErrors?.(errorMsg, MAX_ERRORS);
             notifyFailure("error");
           }
+        } else {
+          shouldScheduleNext = true;
         }
         return;
       }
 
-      // ✅ Erfolg: Fehler-Counter zurücksetzen
       errorCountRef.current = 0;
+      nextErrorCount = 0;
       setErrorCount(0);
       setLastError(null);
 
@@ -137,67 +149,85 @@ export function useBuildStatus(
       setStatus(mapped);
 
       const newDetails: BuildStatusDetails = result.details;
-
       setDetails(newDetails);
       latestDetailsRef.current = newDetails;
 
       logger.debug("[useBuildStatus] ✅ Status:", mapped);
 
-      // ✅ Polling bei finalen Status stoppen
       if (isFinalStatus(mapped)) {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-          logger.debug("[useBuildStatus] ⏸ Polling gestoppt (finaler Status)");
-        }
+        clearPollTimer();
+        logger.debug("[useBuildStatus] ⏸ Polling gestoppt (finaler Status)");
 
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
-
-          // Callbacks statt Alerts
           if (mapped === "success") {
             callbacksRef.current?.onSuccess?.(newDetails);
           } else {
             callbacksRef.current?.onFailed?.(newDetails);
           }
         }
+        return;
       }
+
+      shouldScheduleNext = true;
     } catch (e: unknown) {
       if (!isMountedRef.current) return;
 
       const errorMsg = getErrorMessage(e);
       logger.debug("[useBuildStatus] ⚠️ Poll Error:", errorMsg);
       errorCountRef.current += 1;
+      nextErrorCount = errorCountRef.current;
       setErrorCount(errorCountRef.current);
       setLastError(errorMsg);
 
-      // Callback für jeden Fehler
       callbacksRef.current?.onError?.(errorMsg, errorCountRef.current);
 
       if (errorCountRef.current >= MAX_ERRORS) {
         statusRef.current = "error";
         setStatus("error");
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
+        clearPollTimer();
 
         if (!hasAlertedRef.current) {
           hasAlertedRef.current = true;
-          // Callback statt Alert
           callbacksRef.current?.onMaxErrors?.(errorMsg, MAX_ERRORS);
           notifyFailure("error");
         }
+      } else {
+        shouldScheduleNext = true;
       }
     } finally {
       isRequestPendingRef.current = false;
+      if (shouldScheduleNext && isMountedRef.current && !isFinalStatus(statusRef.current)) {
+        scheduleNextPollRef.current?.(nextErrorCount);
+      }
     }
-  }, [jobIdFromScreen, notifyFailure]);
+  }, [clearPollTimer, jobIdFromScreen, notifyFailure]);
+
+  const scheduleNextPoll = useCallback((errorCountOverride?: number) => {
+    if (!jobIdFromScreen || !isMountedRef.current || isFinalStatus(statusRef.current)) return;
+
+    const startedAt = pollingStartedAtRef.current ?? Date.now();
+    const delay = getBuildStatusPollInterval({
+      errorCount: errorCountOverride ?? errorCountRef.current,
+      elapsedMs: Date.now() - startedAt,
+    });
+
+    clearPollTimer();
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      poll().catch(() => undefined);
+    }, delay);
+  }, [clearPollTimer, jobIdFromScreen, poll]);
+
+  useEffect(() => {
+    scheduleNextPollRef.current = scheduleNextPoll;
+  }, [scheduleNextPoll]);
 
   useEffect(() => {
     isMountedRef.current = true;
 
     if (!jobIdFromScreen) {
+      clearPollTimer();
       statusRef.current = "idle";
       setStatus("idle");
       setDetails(null);
@@ -207,57 +237,37 @@ export function useBuildStatus(
       setErrorCount(0);
       hasAlertedRef.current = false;
       isRequestPendingRef.current = false;
+      pollingStartedAtRef.current = null;
       return;
     }
 
-    // Reset error tracking for new job
     errorCountRef.current = 0;
     setErrorCount(0);
     hasAlertedRef.current = false;
     isRequestPendingRef.current = false;
     latestDetailsRef.current = null;
+    pollingStartedAtRef.current = Date.now();
 
-    // ✅ Sofort einmal pollen, dann Intervall
-    poll();
+    poll().catch(() => undefined);
 
-    // Start interval polling
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    intervalRef.current = setInterval(() => {
-      poll();
-    }, POLL_INTERVAL_MS);
-
-    // Pause/Resume on AppState (Android background reliability)
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
+        clearPollTimer();
         return;
       }
 
-      // Resume if still relevant and not final
-      if (jobIdFromScreen && !intervalRef.current && !isFinalStatus(statusRef.current)) {
-        poll();
-        intervalRef.current = setInterval(() => {
-          poll();
-        }, POLL_INTERVAL_MS);
+      if (jobIdFromScreen && !timerRef.current && !isFinalStatus(statusRef.current)) {
+        poll().catch(() => undefined);
       }
     });
 
     return () => {
       isMountedRef.current = false;
       sub.remove();
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-        logger.debug("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
-      }
+      clearPollTimer();
+      logger.debug("[useBuildStatus] 🛑 Hook unmounted, Polling gestoppt");
     };
-  }, [jobIdFromScreen, poll]);
+  }, [clearPollTimer, jobIdFromScreen, poll]);
 
   return {
     status,

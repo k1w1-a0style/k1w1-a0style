@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -32,7 +34,7 @@ describe("pipeline diagnostics P0 autofix actions", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easProjectId");
+    const check = findCheckById(res.checks, "repo.easProjectId");
 
     expect(check?.status).toBe("fail");
     expect(check?.fix?.workflowDispatch?.workflowFileName).toBe("eas-link.yml");
@@ -51,7 +53,7 @@ describe("pipeline diagnostics P0 autofix actions", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easJson");
+    const check = findCheckById(res.checks, "repo.easJson");
 
     expect(check?.status).toBe("fail");
     expect(check?.fix?.patch?.upsert?.[0]?.path).toBe("eas.json");
@@ -76,7 +78,7 @@ describe("pipeline diagnostics P0 autofix actions", () => {
     });
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
-    const check = res.checks.find((c: any) => c.id === "repo.easProfile.preview");
+    const check = findCheckById(res.checks, "repo.easProfile.preview");
 
     expect(check?.status).toBe("fail");
     expect(check?.fix?.patch?.jsonMerge?.[0]?.path).toBe("eas.json");

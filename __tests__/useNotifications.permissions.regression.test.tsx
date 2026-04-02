@@ -7,8 +7,8 @@ const mockGetPushToken = jest.fn();
 jest.mock("../lib/notificationService", () => ({
   __esModule: true,
   default: {
-    initialize: (...args: any[]) => mockInitialize(...args),
-    getPushToken: (...args: any[]) => mockGetPushToken(...args),
+    initialize: mockInitialize,
+    getPushToken: mockGetPushToken,
     sendLocalNotification: jest.fn(),
     notifyBuildSuccess: jest.fn(),
     notifyBuildFailure: jest.fn(),

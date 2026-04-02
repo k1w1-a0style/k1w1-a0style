@@ -13,6 +13,7 @@ import { formatDiagnosticUpload, uploadDiagnosticToSupabase } from "../../../lib
 import { sanitizeDiagnosticUpload, safeTruncateText } from "../../../lib/diagnostics/sanitize";
 
 import type { ProjectData } from "../../../shared/types/project";
+import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 const DEVICE_ID_KEY = "k1w1_device_id";
 const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;
@@ -170,14 +171,14 @@ export function useDiagnosticUpload(opts: {
       }
 
       Alert.alert("■ Upload OK", `ID: ${id.id}`);
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (mountedRef.current) {
         const until = Date.now() + UPLOAD_RETRY_DELAY_MS;
         setUploadCooldownUntil(until);
         setCooldownNow(Date.now());
         AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(() => {});
       }
-      Alert.alert("Upload fehlgeschlagen", e?.message || "Unbekannter Fehler");
+      Alert.alert("Upload fehlgeschlagen", getDiagnosticUiErrorMessage(e));
     } finally {
       uploadBusyRef.current = false;
       if (mountedRef.current) setUploadBusy(false);
@@ -214,8 +215,8 @@ export function useDiagnosticUpload(opts: {
       const json = JSON.stringify(payload, null, 2);
       await Clipboard.setStringAsync(safeTruncateText(json, 80_000));
       Alert.alert("✓ Kopiert", "Report wurde in die Zwischenablage kopiert.");
-    } catch (e: any) {
-      Alert.alert("Kopieren fehlgeschlagen", e?.message || "Unbekannter Fehler");
+    } catch (e: unknown) {
+      Alert.alert("Kopieren fehlgeschlagen", getDiagnosticUiErrorMessage(e));
     }
   }, [getOrCreateDeviceId, getOrCreateUploadClientRequestId, projectRef, results, target]);
 

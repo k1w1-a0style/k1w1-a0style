@@ -32,27 +32,11 @@ jest.mock(
   { virtual: true },
 );
 
-jest.mock("../screens/GitHubReposScreen/components/FilterSection", () => {
-  const React = require("react");
-  const { Text, TouchableOpacity } = require("react-native");
-  return {
-    FilterSection: ({ recentRepos, onSelectRecentRepo }: any) => {
-      // minimal stub: render 1 recent pill if provided
-      if (!recentRepos?.length) return null;
-      return (
-        <TouchableOpacity testID="recent-pill" onPress={() => onSelectRecentRepo(recentRepos[0])}>
-          <Text>{recentRepos[0]}</Text>
-        </TouchableOpacity>
-      );
-    },
-  };
-});
-
 jest.mock("../components/RepoListItem", () => {
   const React = require("react");
   const { Text, TouchableOpacity } = require("react-native");
   return {
-    RepoListItem: ({ repo, onPress }: any) => (
+    RepoListItem: ({ repo, onPress }: RepoListItemProps) => (
       <TouchableOpacity testID={`repo-${repo.full_name}`} onPress={() => onPress(repo)}>
         <Text>{repo.full_name}</Text>
       </TouchableOpacity>
@@ -63,11 +47,25 @@ jest.mock("../components/RepoListItem", () => {
 // NOTE: Jest forbids referencing out-of-scope vars inside jest.mock() factories
 // unless the identifier is prefixed with "mock". Keep this name.
 const mockUseGitHubReposScreen = jest.fn();
+
+type RepoListTestItem = {
+  id: number;
+  name: string;
+  full_name: string;
+  description: string;
+  updated_at: string;
+};
+
+type RepoListItemProps = {
+  repo: RepoListTestItem;
+  onPress: (repo: RepoListTestItem) => void;
+};
+
 jest.mock("../screens/GitHubReposScreen/hooks/useGitHubReposScreen", () => ({
   useGitHubReposScreen: () => mockUseGitHubReposScreen(),
 }));
 
-const baseVM = (overrides: any = {}) => ({
+const baseVM = (overrides: Record<string, unknown> = {}) => ({
   token: "ghp_test",
   tokenLoading: false,
   tokenError: "",

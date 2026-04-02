@@ -307,14 +307,16 @@ export function usePreviewScreen() {
     }
   }, [qrImageUrl]);
 
+  const canOpenFullscreen = Boolean(previewSource);
+
   const handleFullscreen = useCallback(() => {
-    if (!lastPreview) return;
+    if (!previewSource) return;
     navigation.navigate('PreviewFullscreen', {
-      url: lastPreview.url ?? undefined,
-      html: lastPreview.html ?? undefined,
+      url: previewSource.type === 'url' ? previewSource.uri : undefined,
+      html: previewSource.type === 'html' ? previewSource.html : undefined,
       title: projectData?.name || 'Preview',
     });
-  }, [navigation, lastPreview, projectData?.name]);
+  }, [navigation, previewSource, projectData?.name]);
 
   return {
     projectData,
@@ -325,6 +327,7 @@ export function usePreviewScreen() {
     previewKind,
     previewUrl,
     previewExpiryText,
+    canOpenFullscreen,
     previewChannelLabel,
     transientLocalPreviewNotice,
     displayState,

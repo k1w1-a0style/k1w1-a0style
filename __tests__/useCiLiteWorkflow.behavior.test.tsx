@@ -20,8 +20,8 @@ jest.mock("uuid", () => ({
 }));
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
-  getItem: (...args: any[]) => mockStorageGetItem(...args),
-  multiSet: (...args: any[]) => mockStorageMultiSet(...args),
+  getItem: (...args: unknown[]) => mockStorageGetItem(...(args as [string])),
+  multiSet: (...args: unknown[]) => mockStorageMultiSet(...(args as [Array<[string, string]>])),
 }));
 
 jest.mock("../contexts/ProjectContext", () => ({
@@ -103,7 +103,8 @@ describe("useCiLiteWorkflow behavior", () => {
     mockStorageMultiSet.mockResolvedValue(undefined);
     mockStorageGetItem.mockImplementation(async (key: string) => buildPersistedStorageMap()[key] ?? null);
 
-    mockUseGitHubActionsLogs.mockImplementation((options: any) => {
+    type LogsHookOptions = { runId?: number | null };
+    mockUseGitHubActionsLogs.mockImplementation((options: LogsHookOptions | null | undefined) => {
       if (!options?.runId) {
         return {
           logs: [],
@@ -1140,7 +1141,7 @@ describe("useCiLiteWorkflow behavior", () => {
 
   it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {
     mockStorageGetItem.mockResolvedValue(null);
-    mockUseGitHubActionsLogs.mockImplementation((options: any) => {
+    mockUseGitHubActionsLogs.mockImplementation((options: LogsHookOptions | null | undefined) => {
       if (!options?.runId) {
         return {
           logs: [],

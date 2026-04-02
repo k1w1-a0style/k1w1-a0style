@@ -1,3 +1,5 @@
+import { findCheckById } from "./helpers/diagnosticTestHelpers";
+
 const mockSvc = {
   getLegacyEdgeAdminKey: jest.fn(),
   getExpoToken: jest.fn(),
@@ -44,7 +46,7 @@ describe("runBuildPipelineDiagnostics - missing EXPO_TOKEN repo secret", () => {
       branch: "main",
     });
 
-    const check = res.checks.find((c: any) => c.id === "repo.secret.expoToken");
+    const check = findCheckById(res.checks, "repo.secret.expoToken");
     expect(check).toBeTruthy();
     expect(check.status).toBe("fail");
     expect(`${check.title} ${check.fixHint ?? ""}`).toMatch(/EXPO_TOKEN/);
