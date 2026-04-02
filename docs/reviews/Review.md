@@ -4,13 +4,15 @@ Stand: **2026-04-02 (Docs Konsolidierung)**
 
 ## Aktueller Gesamtstatus
 
+> Voll-Gate-Update 2026-04-02: `npm run lint:ci` und der komplette `npm run test:silent` liefen im aktuellen Stand lokal gruen.
+
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
 ### Ergebnis
 
 - **Keine offenen Repo-Muss-Punkte** im aktuell geprueften Stand
 - harte Befunde aus den Deep-Scans wurden im Repo-Stand geschlossen
-- verbleibende Restunsicherheit betrifft primaer Checks, die in dieser Umgebung nicht voll ausfuehrbar sind (`npm run lint:ci`, kompletter Jest-Lauf, echte Live-/Staging-Pruefung)
+- der Voll-Gate inkl. `npm run lint:ci` und kompletter `npm run test:silent` lief im aktuellen Stand lokal gruen; offen bleibt nur die bewusst externe Live-/Staging-Verifikation
 
 ## Was heute aktiv gilt
 
@@ -30,19 +32,24 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ## Kanonische Verifikation
 
-Im Repo vorhanden und beim Re-Scan erfolgreich gelaufen bzw. statisch geprueft:
+Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 
-- `node scripts/docsLint.js`
-- `node scripts/check_docs_contracts.js`
+- `npm run typecheck`
+- `npm run lint:ci`
 - `npm run typecheck:edge`
-- `tsc -p tsconfig.strict.json --noEmit`
+- `npm run test:silent`
+- `npm run docs:lint`
+- `npm run docs:check:contracts`
+- `bash scripts/check_workflow_edge_contracts.sh`
+- `bash scripts/check_edge_helper_visibility.sh`
+- `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
+- `bash scripts/check_patch_docs_sync.sh`
+- `bash scripts/check_legacy_disabled_edges.sh`
 
 ## Spaetere sinnvolle Folgearbeit
 
 Nur bei echtem Bedarf oder in echter Paket-/Staging-Umgebung:
 
-1. kompletter `npm run test:silent`
-2. `npm run lint:ci`
-3. read-only Live-Edge-Checks gegen Staging
-4. spaetere Produktarbeit wie Wizard, Streaming oder groessere Refactors als **bewusste Features**, nicht als Cleanup-Pflicht
+1. read-only Live-Edge-Checks gegen Staging
+2. spaetere Produktarbeit wie Wizard, Streaming oder groessere Refactors als **bewusste Features**, nicht als Cleanup-Pflicht
