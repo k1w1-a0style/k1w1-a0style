@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -93,6 +93,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
 }) => {
   const modalScale = useRef(new Animated.Value(0.92)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
+  const [showPolicyExplain, setShowPolicyExplain] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -114,6 +115,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
     } else {
       modalScale.setValue(0.92);
       modalOpacity.setValue(0);
+      setShowPolicyExplain(false);
     }
   }, [visible, modalOpacity, modalScale]);
 
@@ -329,6 +331,31 @@ const ConfirmChangesModal: React.FC<Props> = ({
                     <Text style={styles.modalHintText}>
                       Diese Änderung enthält geschützte/guarded Pfade. Bitte nur bewusst bestätigen, wenn du die Auswirkungen kennst.
                     </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowPolicyExplain((prev) => !prev)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Warum Guard-Regeln?"
+                      activeOpacity={0.85}
+                      style={styles.modalPolicyExplainToggle}
+                    >
+                      <Text style={styles.modalPolicyExplainToggleText}>
+                        {showPolicyExplain
+                          ? "Policy-Details ausblenden"
+                          : "Warum Guard-Regeln? (kurz erklärt)"}
+                      </Text>
+                    </TouchableOpacity>
+                    {showPolicyExplain ? (
+                      <View style={styles.modalPolicyExplainCard}>
+                        <Text style={styles.modalHintText}>
+                          Guard-Regeln verhindern unbewusste Änderungen an sensiblen Bereichen
+                          (z. B. baseline/read-only, kritisch/manual-only, Ownership-Block).
+                        </Text>
+                        <Text style={styles.modalHintText}>
+                          Typische Fälle: Secrets/Schlüsseldateien, Baseline-Templates,
+                          Deploy-/Infra-Workflow-Dateien und fremd verwaltete Owner-Pfade.
+                        </Text>
+                      </View>
+                    ) : null}
                     {guardWarnings.slice(0, 5).map((entry) => (
                       <Text key={`guard-${entry}`} style={styles.modalHintText}>• {entry}</Text>
                     ))}

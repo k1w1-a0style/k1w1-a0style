@@ -34,7 +34,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - ✅ Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten) (Patch 713)
 
 ### P2 (Governance/Robustheit, vertagt)
-- Policy-Explain-Drawer (Warum Guards + Beispiele)
+- ✅ Policy-Explain-Drawer (Warum Guards + Beispiele) (Patch 714)
 - Lokale Audit-Telemetrie für Guard-Blocker-Häufigkeit
 
 ## Wofuer diese Datei bleibt

@@ -106,7 +106,7 @@ describe("ConfirmChangesModal review UX", () => {
       ],
     });
 
-    const { getAllByText, getByText, queryByText } = render(
+    const { getAllByText, getByLabelText, getByText, queryByText } = render(
       <ConfirmChangesModal
         visible
         pendingChange={pendingChange}
@@ -124,6 +124,10 @@ describe("ConfirmChangesModal review UX", () => {
     expect(getByText("Safe Follow-up Optionen")).toBeTruthy();
     expect(getByText(/A\) Ich kann nur die unkritischen Dateien direkt anwenden/)).toBeTruthy();
     expect(getByText(/B\) Ich kann zuerst eine sichere Minimal-Variante ohne guarded Pfade erzeugen/)).toBeTruthy();
+    expect(getByText("Warum Guard-Regeln? (kurz erklärt)")).toBeTruthy();
+    fireEvent.press(getByLabelText("Warum Guard-Regeln?"));
+    expect(getByText(/Guard-Regeln verhindern unbewusste Änderungen an sensiblen Bereichen/)).toBeTruthy();
+    expect(getByText(/Typische Fälle: Secrets\/Schlüsseldateien/)).toBeTruthy();
     expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
   });
 
