@@ -91,11 +91,12 @@ describe("startBuildJob (integration)", () => {
     const repo = "k1w1-a0style/musik-player";
     const branch = "main";
     const syncKey = repoSyncKey(repo, branch);
-    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
     const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
     mockGetItem.mockImplementation(async (key: string) => {
+      if (key.startsWith("diagnostic_last_ok::")) {
+        return "true";
+      }
       switch (key) {
-        case diagKey:
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";

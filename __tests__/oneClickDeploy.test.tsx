@@ -10,13 +10,20 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { BuildProfile } from "../screens/EnhancedBuildScreen/types";
 import type { DeployStep, DeployStepId } from "../screens/EnhancedBuildScreen/hooks/useOneClickDeploy";
 
+const mockAsyncStorageGetItem = jest.fn();
+const mockAsyncStorageSetItem = jest.fn();
+const mockAsyncStorageRemoveItem = jest.fn();
+
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
   default: {
-    getItem: jest.fn(),
-    setItem: jest.fn(),
-    removeItem: jest.fn(),
+    getItem: mockAsyncStorageGetItem,
+    setItem: mockAsyncStorageSetItem,
+    removeItem: mockAsyncStorageRemoveItem,
   },
+  getItem: mockAsyncStorageGetItem,
+  setItem: mockAsyncStorageSetItem,
+  removeItem: mockAsyncStorageRemoveItem,
 }));
 
 const mockAsyncStorage = AsyncStorage as jest.Mocked<typeof AsyncStorage>;
