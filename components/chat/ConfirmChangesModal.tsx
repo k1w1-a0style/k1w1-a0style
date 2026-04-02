@@ -32,6 +32,10 @@ type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
   | { key: string; path: string; status: "skipped" };
 
+function getReviewPathChip(status: ReviewCard["status"]): "wird geändert" | "manuell nötig" {
+  return status === "skipped" ? "manuell nötig" : "wird geändert";
+}
+
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
   if (pendingChange.finalFileSource === "validator") {
@@ -233,6 +237,20 @@ const ConfirmChangesModal: React.FC<Props> = ({
                               ? "Geänderte Datei"
                               : "Übersprungen"}
                         </Text>
+                      </View>
+                      <View style={styles.modalPathChipRow}>
+                        <View
+                          style={[
+                            styles.modalPathChip,
+                            card.status === "skipped"
+                              ? styles.modalPathChipManual
+                              : styles.modalPathChipChange,
+                          ]}
+                        >
+                          <Text style={styles.modalPathChipText}>
+                            {getReviewPathChip(card.status)}
+                          </Text>
+                        </View>
                       </View>
 
                       {card.status === "skipped" ? (

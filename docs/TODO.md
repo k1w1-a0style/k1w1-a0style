@@ -30,7 +30,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - ✅ Einmalige Planner-Info: "Diese Teile kann ich im Chat nicht direkt schreiben" (Patch 710)
 
 ### P1 (starke UX-Verbesserung, vertagt)
-- Path-Chips in der Planung ("wird geändert" vs. "manuell nötig")
+- ✅ Path-Chips in der Planung ("wird geändert" vs. "manuell nötig") (Patch 712)
 - Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten)
 
 ### P2 (Governance/Robustheit, vertagt)

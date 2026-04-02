@@ -41,7 +41,7 @@ function buildPendingChange(overrides: Partial<PendingChange> = {}): PendingChan
 describe("ConfirmChangesModal review UX", () => {
   it("shows a compact preview for new files", () => {
     const pendingChange = buildPendingChange();
-    const { getByText } = render(
+    const { getAllByText, getByText } = render(
       <ConfirmChangesModal
         visible
         pendingChange={pendingChange}
@@ -51,6 +51,7 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(getByText("Neue Datei")).toBeTruthy();
+    expect(getAllByText("wird geändert").length).toBeGreaterThan(0);
     expect(getByText("Neue Datei · kompakte Inhaltsvorschau")).toBeTruthy();
     expect(getByText(/export const NewBadge/)).toBeTruthy();
   });
@@ -115,6 +116,7 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(getAllByText("Übersprungen").length).toBeGreaterThan(0);
+    expect(getAllByText("manuell nötig").length).toBeGreaterThan(0);
     expect(getAllByText("package.json").length).toBeGreaterThan(0);
     expect(getAllByText(/kritischer\/manual-only Pfad/).length).toBeGreaterThan(0);
     expect(getByText("Guard-Hinweis (manuell prüfen)")).toBeTruthy();
