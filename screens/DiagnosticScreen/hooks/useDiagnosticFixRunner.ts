@@ -722,9 +722,6 @@ export function useDiagnosticFixRunner(opts: {
       });
 
       let cursor = 0;
-      const mark = (idx: number, patch: Partial<FixStep>) => {
-        setFixSteps((prev) => setStepStatusAtIndex(prev, idx, patch));
-      };
 
       let appliedCount = 0;
       for (const { r, patch } of deduped) {
@@ -750,14 +747,13 @@ export function useDiagnosticFixRunner(opts: {
         cursor++;
 
         if (shouldSyncPatch(patch)) {
-          setFixStepIndex(cursor);
-          mark(cursor, { status: "running" });
+          markFixStepRunning(cursor);
           try {
             await syncPatchToGitHub(r.title, patch);
-            mark(cursor, { status: "done" });
+            markFixStepDone(cursor);
           } catch (error: unknown) {
             const message = getErrorMessage(error, "Sync fehlgeschlagen");
-            mark(cursor, buildFailedStepPatch(error, "Sync fehlgeschlagen"));
+            markFixStepFailed(cursor, error, "Sync fehlgeschlagen");
             finishWithResult({
               status: "failed",
               detail: message,
@@ -772,14 +768,13 @@ export function useDiagnosticFixRunner(opts: {
       }
 
       if (rerunAfterFix) {
-        setFixStepIndex(cursor);
-        mark(cursor, { status: "running" });
+        markFixStepRunning(cursor);
         try {
           await runDiagnostics({ resetSelection: false, resetHistory: false });
-          mark(cursor, { status: "done" });
+          markFixStepDone(cursor);
         } catch (error: unknown) {
           const message = getErrorMessage(error, "Verify fehlgeschlagen");
-          mark(cursor, buildFailedStepPatch(error, "Verify fehlgeschlagen"));
+          markFixStepFailed(cursor, error, "Verify fehlgeschlagen");
           finishWithResult({
             status: "pending_recheck",
             detail: message,
