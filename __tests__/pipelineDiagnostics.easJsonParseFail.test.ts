@@ -11,7 +11,7 @@ const mockSvc = {
 
 jest.doMock(require.resolve("../infra/github/githubService"), () => mockSvc);
 jest.doMock(require.resolve("../lib/supabase"), () => ({ ensureSupabaseClient: jest.fn() }));
-const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics");
+const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics") as typeof import("../lib/diagnostics/buildPipelineDiagnostics");
 
 describe("runBuildPipelineDiagnostics - invalid eas.json", () => {
   it("emits repo.easJson.parse fail", async () => {

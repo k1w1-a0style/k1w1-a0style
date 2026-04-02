@@ -1,4 +1,11 @@
-declare function require(name: string): unknown;
+interface NodeRequire {
+  <T = any>(name: string): T;
+  resolve(name: string): string;
+  cache: Record<string, unknown>;
+  main?: unknown;
+}
+
+declare const require: NodeRequire;
 
 declare module "buffer" {
   type BufferEncoding =

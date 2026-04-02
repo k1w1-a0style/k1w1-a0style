@@ -52,7 +52,7 @@ jest.mock("../screens/DiagnosticScreen/hooks/useDiagnosticUpload", () => ({
 
 jest.mock("../screens/DiagnosticScreen/hooks/useDiagnosticSelection", () => ({
   useDiagnosticSelection: () => {
-    const React = require("react");
+    const React = require<typeof import("react")>("react");
     const [selected, setSelected] = React.useState<Record<string, boolean>>({});
     return {
       selected,

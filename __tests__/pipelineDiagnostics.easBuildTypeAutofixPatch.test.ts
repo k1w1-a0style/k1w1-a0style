@@ -11,7 +11,7 @@ const mockSvc = {
 
 jest.doMock(require.resolve("../infra/github/githubService"), () => mockSvc);
 jest.doMock(require.resolve("../lib/supabase"), () => ({ ensureSupabaseClient: jest.fn() }));
-const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics");
+const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics") as typeof import("../lib/diagnostics/buildPipelineDiagnostics");
 
 async function runWithBuildType(buildType: string | undefined) {
   const previewAndroid = buildType ? { buildType } : {};
@@ -42,14 +42,20 @@ describe("runBuildPipelineDiagnostics - preview buildType autofix", () => {
   it("warns when unset and offers patch to apk", async () => {
     const res = await runWithBuildType(undefined);
     const check = findCheckById(res.checks, "repo.easBuildType.preview");
+    const patch = check?.fix?.patch?.jsonMerge?.[0]?.patch as
+      | { build?: { preview?: { android?: { buildType?: string } } } }
+      | undefined;
     expect(check?.status).toBe("warn");
-    expect(check?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.preview?.android?.buildType).toBe("apk");
+    expect(patch?.build?.preview?.android?.buildType).toBe("apk");
   });
 
   it("fails when not apk and offers patch to apk", async () => {
     const res = await runWithBuildType("app-bundle");
     const check = findCheckById(res.checks, "repo.easBuildType.preview");
+    const patch = check?.fix?.patch?.jsonMerge?.[0]?.patch as
+      | { build?: { preview?: { android?: { buildType?: string } } } }
+      | undefined;
     expect(check?.status).toBe("fail");
-    expect(check?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.preview?.android?.buildType).toBe("apk");
+    expect(patch?.build?.preview?.android?.buildType).toBe("apk");
   });
 });

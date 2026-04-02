@@ -24,6 +24,8 @@ export type { RemoteDiagnosticsReport } from "./remoteDiagnostics";
 export type BuildPipelineDiagnosticsDeps = {
   getGitHubToken?: typeof getGitHubToken;
   getExpoToken?: typeof getExpoToken;
+  /** @deprecated legacy test-compat shim; workflowAdminKey replaced edgeAdminKey */
+  getLegacyEdgeAdminKey?: () => Promise<string | null>;
   getWorkflowAdminKey?: typeof getWorkflowAdminKey;
   getAndroidKeystoreExportAdminKey?: typeof getAndroidKeystoreExportAdminKey;
   fileExists?: typeof fileExists;
@@ -132,7 +134,9 @@ export function describeRepoSecretContract(params: {
   };
 }
 
-const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: Required<BuildPipelineDiagnosticsDeps> = {
+type DefaultBuildPipelineDiagnosticsDeps = Required<Omit<BuildPipelineDiagnosticsDeps, "getLegacyEdgeAdminKey">>;
+
+const DEFAULT_BUILD_PIPELINE_DIAGNOSTICS_DEPS: DefaultBuildPipelineDiagnosticsDeps = {
   getGitHubToken,
   getExpoToken,
   getWorkflowAdminKey,

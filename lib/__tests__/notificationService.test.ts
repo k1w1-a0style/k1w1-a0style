@@ -55,7 +55,7 @@ interface MockExpoConstantsShape {
   };
 }
 
-type NotificationServiceInternals = typeof notificationService & {
+type NotificationServiceInternals = {
   getConstantsSource: () => Record<string, unknown>;
   resolveProjectId: () => string | null;
 };

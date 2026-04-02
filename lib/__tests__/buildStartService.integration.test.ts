@@ -36,7 +36,7 @@ const mockAutoFix = {
 
 const mockInvoke = jest.fn();
 
-const mockSupabase = {
+const mockSupabase: any = {
   auth: {
     getSession: jest.fn(async () => ({
       data: { session: { access_token: "supabase-operator-jwt-token" } },

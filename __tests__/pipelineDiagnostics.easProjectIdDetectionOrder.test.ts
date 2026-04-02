@@ -13,7 +13,7 @@ jest.doMock(require.resolve("../infra/github/githubService"), () => mockSvc);
 jest.doMock(require.resolve("../lib/supabase"), () => ({ ensureSupabaseClient: jest.fn() }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics");
+const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics") as typeof import("../lib/diagnostics/buildPipelineDiagnostics");
 
 const UUID_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const UUID_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";

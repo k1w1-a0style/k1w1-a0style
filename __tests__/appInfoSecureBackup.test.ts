@@ -50,6 +50,7 @@ function makeSecretPayload() {
       expoToken: "expo_secret_token",
       workflowAdminKey: "workflow_admin_secret",
       androidKeystoreExportAdminKey: "keystore_export_admin_secret",
+      legacyEdgeAdminKey: null,
       signingAdminKey: "signing_admin_secret",
       signingMasterKey: "signing_master_secret",
     },
