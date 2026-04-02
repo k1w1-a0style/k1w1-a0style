@@ -574,9 +574,11 @@ export function useDiagnosticFixRunner(opts: {
       if (dispatch) {
         const parsed = parseOwnerRepo(linkedRepo);
         if (!parsed) {
+          const detail = "Workflow-Fix ist ohne verknüpftes Repo nicht anwendbar.";
+          markFixStepFailed(cursor, detail, detail);
           finishWithResult({
             status: "blocked",
-            detail: "Workflow-Fix ist ohne verknüpftes Repo nicht anwendbar.",
+            detail,
             localChangeApplied: patchApplied,
             stepIndex: cursor,
           });

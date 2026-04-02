@@ -27,4 +27,14 @@ describe("external supabase type contracts", () => {
       "maybeSingle(): Promise<SupabaseResponseLike<Record<string, unknown> | null>>;",
     );
   });
+  it("keeps minimal storage methods used in edge handlers", () => {
+    const src = read("supabase/functions/_shared/external-types.d.ts");
+
+    expect(src).toContain("from(bucket: string): SupabaseStorageBucketLike;");
+    expect(src).toContain("upload(");
+    expect(src).toContain("download(path: string): Promise<SupabaseResponseLike<Blob | null>>;");
+    expect(src).toContain("list(");
+    expect(src).toContain("createBucket(");
+  });
+
 });

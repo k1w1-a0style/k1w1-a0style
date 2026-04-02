@@ -7,21 +7,21 @@ import {
   gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
 
-type EasWithoutCredentialsPatchProfile = {
-  android: {
+type EasWithoutCredentialsPatchProfile = Readonly<{
+  android: Readonly<{
     withoutCredentials: true;
-  };
-};
+  }>;
+}>;
 
-type EasProfileConfig = {
-  android?: {
+type EasProfileConfig = Readonly<{
+  android?: Readonly<{
     withoutCredentials?: boolean;
-  };
-};
+  }>;
+}>;
 
-type EasJson = {
-  build?: Record<string, EasProfileConfig | undefined>;
-};
+type EasJson = Readonly<{
+  build?: Readonly<Record<string, EasProfileConfig | undefined>>;
+}>;
 
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
