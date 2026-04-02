@@ -52,7 +52,8 @@ describe("ConfirmChangesModal guard audit flow", () => {
     expect(recordGuardAuditEventMock).toHaveBeenCalledTimes(1);
 
     const reordered = makePendingChange([
-      "baseline file ist read-only",
+      "BASELINE file ist read-only",
+      "package.json bleibt geblockt: kritischer/manual-only Pfad",
       "package.json bleibt geblockt: kritischer/manual-only Pfad",
     ]);
     rerender(

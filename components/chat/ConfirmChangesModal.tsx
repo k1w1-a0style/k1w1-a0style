@@ -49,9 +49,10 @@ function getReviewPathChip(status: ReviewCard["status"]): "wird geändert" | "ma
 
 function createGuardAuditSignature(entries: string[]): string {
   if (!entries.length) return "";
-  return Array.from(new Set(entries.map((entry) => String(entry).trim())))
+  return Array.from(new Set(entries.map((entry) => String(entry).trim().toLowerCase())))
     .filter((entry) => entry.length > 0)
     .sort((a, b) => a.localeCompare(b))
+    .slice(0, 20)
     .join("||");
 }
 
