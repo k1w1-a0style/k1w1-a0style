@@ -456,7 +456,8 @@ export function useChatAIFlow({
                 content:
                   "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
                   planText +
-                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
+                  "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
+                  '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
                 timestamp: new Date().toISOString(),
                 meta: { planner: true },
               });

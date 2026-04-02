@@ -15,6 +15,32 @@ export const styles = StyleSheet.create({
     borderTopColor: theme.palette.border,
   },
 
+
+  guardBadgeRow: {
+    marginHorizontal: 12,
+    marginTop: 8,
+  },
+  guardBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  guardBadgeOk: {
+    borderColor: "rgba(0, 255, 0, 0.35)",
+    backgroundColor: "rgba(0, 255, 0, 0.10)",
+  },
+  guardBadgeWarn: {
+    borderColor: "rgba(255, 180, 0, 0.45)",
+    backgroundColor: "rgba(255, 180, 0, 0.14)",
+  },
+  guardBadgeText: {
+    color: theme.palette.text.primary,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
   planHint: {
     marginHorizontal: 12,
     marginTop: 8,

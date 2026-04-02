@@ -65,6 +65,12 @@ const ChatScreen: React.FC = () => {
   }, []);
 
   // ✅ FIX #6: Stable keyExtractor — always use id, fallback to timestamp+index
+  const guardWriteStatus = React.useMemo<"normal" | "guarded">(() => {
+    const errs = pendingChange?.errors ?? [];
+    const hasGuardHint = errs.some((entry) => /manual-only|kritisch|read-only|baseline|guarded|ownership block/i.test(String(entry)));
+    return hasGuardHint ? "guarded" : "normal";
+  }, [pendingChange?.errors]);
+
   const keyExtractor = useCallback(
     (item: ChatMessage, index: number) =>
       item.id || `${item.timestamp}-${index}`,
@@ -133,6 +139,7 @@ const ChatScreen: React.FC = () => {
           textInput={textInput}
           onChangeText={setTextInput}
           pendingPlan={pendingPlan}
+          guardWriteStatus={guardWriteStatus}
           selectedFileAsset={selectedFileAsset}
           onPickDocument={handlePickDocument}
           onClearSelectedFile={() => setSelectedFileAsset(null)}
