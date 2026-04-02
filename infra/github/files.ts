@@ -47,6 +47,18 @@ const readJsonSafe = async <T>(response: Response): Promise<T | null> => {
   }
 };
 
+const readJsonOrThrowWithTextFallback = async (
+  response: Response,
+  fallbackPrefix: string,
+): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    const text = await response.text();
+    throw new Error(`${fallbackPrefix} (${response.status}): ${text}`);
+  }
+};
+
 const resolveTargetBranch = async (owner: string, repo: string, branch?: string) => {
   let targetBranch = typeof branch === "string" ? branch.trim() : "";
 
@@ -187,15 +199,10 @@ export const createOrUpdateFile = async (
     },
   );
 
-  let json: unknown = null;
-  try {
-    json = await putResp.json();
-  } catch {
-    const text = await putResp.text();
-    throw new Error(
-      `create/update file failed (${putResp.status}): ${path} -> ${text}`,
-    );
-  }
+  const json = await readJsonOrThrowWithTextFallback(
+    putResp,
+    `create/update file failed: ${path}`,
+  );
 
   if (!putResp.ok) {
     const status = putResp.status;
