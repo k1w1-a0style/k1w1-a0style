@@ -32,4 +32,18 @@ describe("guardAuditTelemetry", () => {
     expect(snapshot.totalGuardEntries).toBe(0);
     expect(snapshot.markerCounts).toEqual({});
   });
+
+  it("ignores empty entries and caps oversized event payloads", async () => {
+    const noisyEntries = [
+      "",
+      "   ",
+      ...Array.from({ length: 60 }, (_, idx) => `manual-only-${idx}`),
+    ];
+    await recordGuardAuditEvent(noisyEntries);
+
+    const snapshot = await readGuardAuditSnapshot();
+    expect(snapshot.totalGuardEvents).toBe(1);
+    expect(snapshot.totalGuardEntries).toBe(50);
+    expect(snapshot.markerCounts["manual-only"]).toBe(50);
+  });
 });

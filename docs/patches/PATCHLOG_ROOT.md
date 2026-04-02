@@ -1,3 +1,4 @@
+- Patch 719: Guard-Telemetrie defensiv gehaertet — Event-Eintraege werden jetzt normalisiert (trim + non-empty) und pro Event auf max. 50 begrenzt; Regression sichert Ignore-Empty + Cap.
 - Patch 718: Guard-Audit-Signatur normalisiert — Dedupe im `ConfirmChangesModal` ist jetzt case-insensitive und capped (lowercase + unique + sort + max 20), damit Reorder/Case/duplizierte Hinweise keine Doppelzaehlung ausloesen.
 - Patch 717: Guard-Audit-Signatur stabilisiert — Dedupe im `ConfirmChangesModal` ist jetzt reihenfolge-unabhaengig (trim/unique/sort), sodass identische Guard-Hinweise in anderer Reihenfolge kein Doppel-Event erzeugen; Regression erweitert.
 - Patch 716: Guard-Audit-Dedupe nachgezogen — `ConfirmChangesModal` schreibt Guard-Telemetrie pro sichtbarer Session nur einmal je unveraenderter Signatur; Reopen startet sauber neu. Regression `__tests__/confirmChangesModal.guardAuditFlow.test.tsx` deckt Re-Render-/Reopen-Verhalten ab.

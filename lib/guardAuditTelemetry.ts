@@ -24,10 +24,18 @@ const MARKER_BUCKETS = [
   "ownership block",
   "guarded",
 ] as const;
+const MAX_ENTRIES_PER_EVENT = 50;
 
 function toMarkerBucket(entry: string): string {
-  const lower = entry.toLowerCase();
+  const lower = entry.trim().toLowerCase();
   return MARKER_BUCKETS.find((marker) => lower.includes(marker)) ?? "other";
+}
+
+function normalizeEventEntries(entries: string[]): string[] {
+  return entries
+    .map((entry) => String(entry).trim())
+    .filter((entry) => entry.length > 0)
+    .slice(0, MAX_ENTRIES_PER_EVENT);
 }
 
 function parseSnapshot(raw: string | null): GuardAuditSnapshot {
@@ -53,20 +61,21 @@ function parseSnapshot(raw: string | null): GuardAuditSnapshot {
 }
 
 export async function recordGuardAuditEvent(entries: string[]): Promise<void> {
-  if (!entries.length) return;
+  const normalizedEntries = normalizeEventEntries(entries);
+  if (!normalizedEntries.length) return;
 
   const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_GUARD_AUDIT);
   const snapshot = parseSnapshot(raw);
 
   const markerCounts = { ...snapshot.markerCounts };
-  for (const entry of entries) {
+  for (const entry of normalizedEntries) {
     const bucket = toMarkerBucket(String(entry));
     markerCounts[bucket] = (markerCounts[bucket] ?? 0) + 1;
   }
 
   const next: GuardAuditSnapshot = {
     totalGuardEvents: snapshot.totalGuardEvents + 1,
-    totalGuardEntries: snapshot.totalGuardEntries + entries.length,
+    totalGuardEntries: snapshot.totalGuardEntries + normalizedEntries.length,
     lastSeenAt: new Date().toISOString(),
     markerCounts,
   };
