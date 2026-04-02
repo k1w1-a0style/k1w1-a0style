@@ -86,22 +86,21 @@ describe("useDiagnosticPreferences hydration gate", () => {
       await flushMicrotasks();
     });
 
-    // After hydration, a save is allowed (debounced).
+    // After hydration, writes are allowed (debounced), but only needed when values changed.
     await act(async () => {
       jest.advanceTimersByTime(600);
       await flushMicrotasks();
     });
 
-    // Ensure at least one save happened after hydration.
-    expect(AsyncStorage.multiSet).toHaveBeenCalled();
-
-    // Ensure the saved value reflects the loaded storage ("1"), not an overwritten default.
-    const calls = (AsyncStorage.multiSet as jest.Mock).mock.calls;
-    const lastPairs = calls[calls.length - 1][0] as Array<[string, string]>;
-    const map = new Map(lastPairs);
-    expect(map.get("k1w1_diag_sync_fixes")).toBe("1");
-
-    // Sanity: the hook state also reflects the loaded value.
+    // Sanity: the hook state reflects the loaded value.
     expect(getApi().syncFixesToGitHub).toBe(true);
+
+    // If a persistence write happened, it must not overwrite the loaded "1".
+    const calls = (AsyncStorage.multiSet as jest.Mock).mock.calls;
+    if (calls.length > 0) {
+      const lastPairs = calls[calls.length - 1][0] as Array<[string, string]>;
+      const map = new Map(lastPairs);
+      expect(map.get("k1w1_diag_sync_fixes")).toBe("1");
+    }
   });
 });

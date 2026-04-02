@@ -21,5 +21,7 @@ export interface ChatMessage {
     localOnly?: boolean;
     metaCommand?: boolean;
     containsFilePreview?: boolean;
+    requestAbortedOnBlur?: boolean;
+    preservedPendingState?: boolean;
   };
 }

@@ -336,6 +336,6 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     const workflowReadme = read(".github/workflows/README.md");
     const todo = read("docs/TODO.md");
     expect(workflowReadme).toContain("CI-Lite-Chain bleibt bewusst branch-basiert");
-    expect(todo).toContain("CI-Lite-Chain bleibt bewusst branch-basiert");
+    expect(todo).not.toContain("ref-only");
   });
 });

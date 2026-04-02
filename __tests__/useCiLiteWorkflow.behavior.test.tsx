@@ -5,6 +5,8 @@ import { WORKFLOW_CI_LITE } from "../components/CiLiteHeaderButton/types";
 import { TimeoutError } from "../lib/network/fetchWithTimeout";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 
+type LogsHookOptions = { runId?: number | null };
+
 const mockUseProject = jest.fn();
 const mockUseGitHubActionsLogs = jest.fn();
 const mockGetRepoSyncState = jest.fn();
@@ -103,7 +105,6 @@ describe("useCiLiteWorkflow behavior", () => {
     mockStorageMultiSet.mockResolvedValue(undefined);
     mockStorageGetItem.mockImplementation(async (key: string) => buildPersistedStorageMap()[key] ?? null);
 
-    type LogsHookOptions = { runId?: number | null };
     mockUseGitHubActionsLogs.mockImplementation((options: LogsHookOptions | null | undefined) => {
       if (!options?.runId) {
         return {

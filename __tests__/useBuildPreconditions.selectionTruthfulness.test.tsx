@@ -39,7 +39,13 @@ describe("useBuildPreconditions selection truthfulness", () => {
     jest.clearAllMocks();
     getGitHubTokenMock.mockResolvedValue("ghp_test");
     getExpoTokenMock.mockResolvedValue("expo_test");
-    readSigningKeyGateStateMock.mockResolvedValue({ hasSigningKey: true, reason: null });
+    readSigningKeyGateStateMock.mockResolvedValue({
+      hasSigningKey: true,
+      reason: null,
+      localEdgeAdminKeyPresent: true,
+      credentialState: "verified",
+      credentialDetail: null,
+    });
     readBuildReadinessStateMock.mockResolvedValue({
       hasDiagOk: true,
       hasCiLiteOk: true,

@@ -11,17 +11,23 @@ import {
   WORKFLOW_RELEASE_BUILD,
 } from "../lib/diagnostics/workflowTemplates";
 
-const mockCreateOrUpdateFile = jest.fn(async () => undefined);
-const mockGetRepoFileText = jest.fn();
-const mockListRepoSecretNames = jest.fn(async () => []);
-
 jest.mock("../infra/github/githubService", () => ({
-  createOrUpdateFile: mockCreateOrUpdateFile,
-  getRepoFileText: mockGetRepoFileText,
-  listRepoSecretNames: mockListRepoSecretNames,
+  createOrUpdateFile: jest.fn(),
+  getRepoFileText: jest.fn(),
+  listRepoSecretNames: jest.fn(),
 }));
 
 import { autoFixCIWorkflows } from "../lib/diagnostics/ciAutoFix";
+
+const {
+  createOrUpdateFile: mockCreateOrUpdateFile,
+  getRepoFileText: mockGetRepoFileText,
+  listRepoSecretNames: mockListRepoSecretNames,
+} = jest.requireMock("../infra/github/githubService") as {
+  createOrUpdateFile: jest.Mock;
+  getRepoFileText: jest.Mock;
+  listRepoSecretNames: jest.Mock;
+};
 
 const GITIGNORE_MARKER = "# --- k1w1 apk-builder: ignore patch zips ---";
 const CURRENT_GITIGNORE = `${GITIGNORE_MARKER}\nk1w1-*.zip\n`;
@@ -41,7 +47,11 @@ const currentTemplateFor = (path: string): string => {
 };
 
 const installRepoFileTextMock = (overrides: Record<string, string | Error>) => {
-  mockGetRepoFileText.mockImplementation(async ({ path }: { path: string }) => {
+  mockGetRepoFileText.mockImplementation(async (...args: unknown[]) => {
+    const first = args[0] as { path?: string } | string | undefined;
+    const path = typeof first === "object" && first !== null
+      ? String(first.path ?? "")
+      : String(args[2] ?? "");
     const override = overrides[path];
     if (override instanceof Error) throw override;
     if (typeof override === "string") return override;
@@ -52,6 +62,8 @@ const installRepoFileTextMock = (overrides: Record<string, string | Error>) => {
 describe("ciAutoFix managed workflows", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockCreateOrUpdateFile.mockImplementation(async () => undefined);
+    mockListRepoSecretNames.mockImplementation(async () => []);
     installRepoFileTextMock({});
   });
 

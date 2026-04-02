@@ -11,7 +11,7 @@ const mockSvc = {
 jest.doMock(require.resolve("../infra/github/githubService"), () => mockSvc);
 jest.doMock(require.resolve("../lib/supabase"), () => ({ ensureSupabaseClient: jest.fn() }));
 
-const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics");
+const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics") as typeof import("../lib/diagnostics/buildPipelineDiagnostics");
 
 describe("pipeline diagnostics P0 autofix actions", () => {
   beforeEach(() => {
@@ -79,9 +79,12 @@ describe("pipeline diagnostics P0 autofix actions", () => {
 
     const res = await runBuildPipelineDiagnostics({ owner: "o", repo: "r", branch: "main" });
     const check = findCheckById(res.checks, "repo.easProfile.preview");
+    const patch = check?.fix?.patch?.jsonMerge?.[0]?.patch as
+      | { build?: { preview?: { android?: { buildType?: string } } } }
+      | undefined;
 
     expect(check?.status).toBe("fail");
     expect(check?.fix?.patch?.jsonMerge?.[0]?.path).toBe("eas.json");
-    expect(check?.fix?.patch?.jsonMerge?.[0]?.patch?.build?.preview?.android?.buildType).toBe("apk");
+    expect(patch?.build?.preview?.android?.buildType).toBe("apk");
   });
 });

@@ -4,7 +4,7 @@ import { Buffer } from "buffer";
 // React-Native/Hermes hat keinen globalen Node-Buffer
 type PolyfillGlobal = typeof globalThis & { Buffer?: typeof Buffer; __DEV__?: boolean };
 const runtimeGlobal = globalThis as PolyfillGlobal;
-runtimeGlobal.Buffer = Buffer;
+runtimeGlobal.Buffer = Buffer as PolyfillGlobal["Buffer"];
 
 // In production builds, avoid leaking secrets/noise via console output.
 // Keep warn/error intact for diagnostics.

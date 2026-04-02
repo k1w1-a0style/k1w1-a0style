@@ -59,4 +59,4 @@ for (const rel of removedDocs) {
   }
 }
 
-console.log("docs contracts OK");
+console.warn("docs contracts OK");

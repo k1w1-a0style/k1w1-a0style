@@ -13,7 +13,7 @@ jest.doMock(require.resolve("../infra/github/githubService"), () => mockSvc);
 jest.doMock(require.resolve("../lib/supabase"), () => ({ ensureSupabaseClient: jest.fn() }));
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics");
+const { runBuildPipelineDiagnostics } = require("../lib/diagnostics/buildPipelineDiagnostics") as typeof import("../lib/diagnostics/buildPipelineDiagnostics");
 
 describe("runBuildPipelineDiagnostics - missing EXPO_TOKEN repo secret", () => {
   beforeEach(() => {
@@ -48,6 +48,9 @@ describe("runBuildPipelineDiagnostics - missing EXPO_TOKEN repo secret", () => {
 
     const check = findCheckById(res.checks, "repo.secret.expoToken");
     expect(check).toBeTruthy();
+    if (!check) {
+      throw new Error("Expected repo.secret.expoToken check to exist");
+    }
     expect(check.status).toBe("fail");
     expect(`${check.title} ${check.fixHint ?? ""}`).toMatch(/EXPO_TOKEN/);
   });

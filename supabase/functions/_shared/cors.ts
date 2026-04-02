@@ -33,13 +33,6 @@ const ALLOWED_ORIGINS = [
   // Produktion
   DEFAULT_PRODUCTION_ORIGIN,
   "https://www.k1w1.app",
-  // Entwicklung - Expo Dev Server
-  "http://localhost:8081",
-  "http://localhost:19000",
-  "http://localhost:19001",
-  "http://localhost:19002",
-  // Expo Go App (spezielle Behandlung)
-  "exp://",
 ];
 
 /**

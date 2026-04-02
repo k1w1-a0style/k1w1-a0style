@@ -146,20 +146,25 @@ export default function EnhancedBuildScreen(): React.ReactElement {
 
         {/* Gate summary */}
         {s.buildBlockedAction ? (
+          (() => {
+            const blockedAction = s.buildBlockedAction;
+            return (
           <View style={st.blockedCard}>
             <View style={st.blockedHeader}>
               <Ionicons name="alert-circle" size={18} color={theme.palette.error} />
-              <Text style={st.blockedTitle}>{s.buildBlockedAction.title}</Text>
+              <Text style={st.blockedTitle}>{blockedAction.title}</Text>
             </View>
-            <Text style={st.blockedDetail}>{s.buildBlockedAction.detail}</Text>
+            <Text style={st.blockedDetail}>{blockedAction.detail}</Text>
             <Pressable
               style={st.blockedCta}
-              onPress={() => navigation.navigate(s.buildBlockedAction.screen, s.buildBlockedAction.params)}
+              onPress={() => navigation.navigate(blockedAction.screen, blockedAction.params)}
             >
               <Ionicons name="arrow-forward-circle-outline" size={16} color={theme.palette.error} />
-              <Text style={st.blockedCtaText}>{s.buildBlockedAction.ctaLabel}</Text>
+              <Text style={st.blockedCtaText}>{blockedAction.ctaLabel}</Text>
             </Pressable>
           </View>
+          );
+          })()
         ) : null}
 
         {/* One-Click Deploy */}

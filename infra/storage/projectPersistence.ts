@@ -98,7 +98,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     }
 
     if (migratedFromPlaintext) {
-      saveProjectToStorage(project).catch(() => undefined);
+      await saveProjectToStorage(project);
     }
     return project;
   } catch (error) {

@@ -12,17 +12,17 @@ import {
 
 describe("githubResponseHelpers", () => {
   test("readJsonRecordSafe returns an empty record for non-object JSON", async () => {
-    const response = { json: async () => ["bad"] } as Response;
+    const response = { json: async () => ["bad"] } as unknown as Response;
     await expect(readJsonRecordSafe(response)).resolves.toEqual({});
   });
 
   test("readJsonRecordSafe returns an empty record when json parsing fails", async () => {
-    const response = { json: async () => { throw new Error("boom"); } } as Response;
+    const response = { json: async () => { throw new Error("boom"); } } as unknown as Response;
     await expect(readJsonRecordSafe(response)).resolves.toEqual({});
   });
 
   test("readJsonArraySafe returns filtered objects for array payloads", async () => {
-    const response = { json: async () => [{ id: 1 }, null, "bad"] } as Response;
+    const response = { json: async () => [{ id: 1 }, null, "bad"] } as unknown as Response;
     await expect(readJsonArraySafe(response)).resolves.toEqual([{ id: 1 }]);
   });
 

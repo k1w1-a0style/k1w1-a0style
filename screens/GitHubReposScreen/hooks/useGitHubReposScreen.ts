@@ -84,6 +84,36 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
   checkedAt: null,
 };
 
+const isGitHubRepo = (value: unknown): value is GitHubRepo => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const repo = value as Record<string, unknown>;
+  return (
+    typeof repo.id === "number" &&
+    typeof repo.name === "string" &&
+    typeof repo.full_name === "string" &&
+    typeof repo.private === "boolean" &&
+    typeof repo.updated_at === "string"
+  );
+};
+
+type LegacyCreateRepoResponse = {
+  owner?: { login?: string };
+  name?: string;
+  full_name?: string;
+  default_branch?: string | null;
+};
+
+const readCreatedRepoFullName = (value: unknown): string | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as LegacyCreateRepoResponse;
+  const direct = typeof record.full_name === "string" ? record.full_name.trim() : "";
+  if (direct) return direct;
+
+  const ownerLogin = typeof record.owner?.login === "string" ? record.owner.login.trim() : "";
+  const repoName = typeof record.name === "string" ? record.name.trim() : "";
+  return ownerLogin && repoName ? `${ownerLogin}/${repoName}` : null;
+};
+
 export function useGitHubReposScreen() {
   const {
     activeRepo,
@@ -458,21 +488,36 @@ export function useGitHubReposScreen() {
 
     setIsCreating(true);
     try {
-      const repo = await createRepo(name, newRepoPrivate);
-      setLocalRepos((prev) => [repo, ...prev]);
-      setNewRepoName("");
-      setShowNewRepo(false);
-      addRecentRepo(repo.full_name);
-      const defaultBranch = String(repo.default_branch || "").trim() || null;
-      setLinkedRepo(repo.full_name, defaultBranch);
-      const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
-      Alert.alert(successNotice.title, successNotice.message);
+      const repoResponse = await createRepo(name, newRepoPrivate);
+      if (isGitHubRepo(repoResponse)) {
+        const repo = repoResponse;
+        setLocalRepos((prev) => [repo, ...prev]);
+        setNewRepoName("");
+        setShowNewRepo(false);
+        addRecentRepo(repo.full_name);
+        const defaultBranch = String(repo.default_branch || "").trim() || null;
+        setLinkedRepo(repo.full_name, defaultBranch);
+        const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
+        Alert.alert(successNotice.title, successNotice.message);
+      } else {
+        const repoFullName = readCreatedRepoFullName(repoResponse);
+        if (!repoFullName) {
+          throw new Error("GitHub API Antwort für neues Repository ist unvollständig.");
+        }
+        await loadRepos();
+        setNewRepoName("");
+        setShowNewRepo(false);
+        addRecentRepo(repoFullName);
+        setLinkedRepo(repoFullName, null);
+        const successNotice = getRepoSuccessNotice("repo_created", repoFullName);
+        Alert.alert(successNotice.title, successNotice.message);
+      }
     } catch (e: unknown) {
       Alert.alert("❌ Repo erstellen fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsCreating(false);
     }
-  }, [token, newRepoName, newRepoPrivate, addRecentRepo, setLinkedRepo]);
+  }, [token, newRepoName, newRepoPrivate, addRecentRepo, setLinkedRepo, loadRepos]);
 
   const handleRenameRepo = useCallback(async () => {
     if (!token || !activeRepo) return;

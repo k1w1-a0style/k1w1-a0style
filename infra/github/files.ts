@@ -67,7 +67,7 @@ const encodeGitBlobContentSha = (content: string): string => {
   return sha1Hex(Buffer.concat([header, body]));
 };
 
-const sha1Hex = (input: Buffer): string => {
+const sha1Hex = (input: Uint8Array): string => {
   const bytes = new Uint8Array(input);
   const bitLength = bytes.length * 8;
   const totalLength = (((bytes.length + 9 + 63) >> 6) << 6);

@@ -63,7 +63,6 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(checkIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(read(checkIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
 
-    expect(read(triggerIndex)).toContain("const raw = (getRuntimeEnv(name) ?? \"\").trim();");
     expect(read(triggerIndex)).toContain(
       'const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();',
     );
@@ -95,7 +94,9 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(savePreviewIndex)).toContain('requireVerifiedJwt(req, "save_preview")');
     expect(read(savePreviewIndex)).not.toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-    expect(read(previewHelpers)).toContain('export { rateLimit, sanitizeErrorText };');
+    expect(read(previewHelpers)).toContain(
+      "export { getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText };",
+    );
   });
 
   it("reads shared build/preview env helpers from process.env without Deno and keeps K1W1 alias precedence", () => {

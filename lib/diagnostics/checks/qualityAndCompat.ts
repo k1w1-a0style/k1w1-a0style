@@ -31,6 +31,14 @@ function readStringDeps(pkg: JsonRecord | null): Record<string, string> {
   return out;
 }
 
+function readStringMap(value: unknown): Record<string, string> {
+  const record = asRecord(value);
+  if (!record) return {};
+  return Object.fromEntries(
+    Object.entries(record).filter(([, dep]) => typeof dep === "string") as Array<[string, string]>,
+  );
+}
+
 export const checkReactNativeCompatibility: PreflightCheck = {
   id: "rn-react-compat",
   title: "React / React Native Kompatibilität",
@@ -91,7 +99,7 @@ export const checkQualityScriptsDeps: PreflightCheck = {
       });
     }
 
-    const scripts = readStringDeps(readObjectField(pkg, "scripts"));
+    const scripts = readStringMap(readObjectField(pkg, "scripts"));
     const deps = readStringDeps(pkg);
 
     const wantsTS = Object.values(scripts).some((s) =>
@@ -137,4 +145,3 @@ export const checkQualityScriptsDeps: PreflightCheck = {
 
 // --- GitHub Actions Workflow Security: Service Role Key Leak Detection ---
 // NOTE: No YAML parser here by design (lightweight). This check is conservative.
-

@@ -26,7 +26,7 @@ describe("patch510 keystore shared secret helper invariants", () => {
   it("re-exports the shared secret helpers for keystore generate/export/status paths", () => {
     expect(read(generateHelpers)).toContain("requireScopedEdgeAuth");
     expect(read(generateHelpers)).toContain("requirePrivilegedOperatorJwtRole");
-    expect(read(generateHelpers)).toContain('export { requireDurableRateLimit } from "../_shared/auth.ts";');
+    expect(read(generateHelpers)).toContain("requireDurableRateLimit,");
     expect(read(exportHelpers)).toContain("getSigningMasterKey");
     expect(read(exportHelpers)).toContain("getSupabaseUrl");
     expect(read(statusHelpers)).toContain("requireScopedEdgeAuth");
