@@ -228,8 +228,8 @@ export function useOneClickDeploy(
       }
 
       // === Step 5: Repo-Sync wird im Build-Start entschieden ===
-      const files = projectData?.files;
-      if (Array.isArray(files) && files.length > 0) {
+      const projectFiles = projectData?.files;
+      if (Array.isArray(projectFiles) && projectFiles.length > 0) {
         updateStep("push_files", "skip", "Repo-Sync erfolgt im Build-Start (SHA-sicher)");
       } else {
         updateStep("push_files", "skip", "Keine Dateien zum Synchronisieren");

@@ -408,6 +408,9 @@ export function useDiagnosticScreen(opts: {
 
   const lastSelectionScopeRef = useRef<string | null>(null);
   const didInitSelectionScopeRef = useRef(false);
+  const [issueSheetVisible, setIssueSheetVisible] = useState(false);
+  const [activeIssue, setActiveIssue] = useState<PreflightCheckResult | null>(null);
+
   useEffect(() => {
     const repoScope = String(linkedRepo ?? "").trim().toLowerCase();
     const branchScope = String(linkedBranch ?? "").trim();
@@ -461,9 +464,6 @@ export function useDiagnosticScreen(opts: {
 
   const issueList = visibleResults;
   const busy = running || applyBusy;
-
-  const [issueSheetVisible, setIssueSheetVisible] = useState(false);
-  const [activeIssue, setActiveIssue] = useState<PreflightCheckResult | null>(null);
 
   const openIssue = useCallback((r: PreflightCheckResult) => {
     setActiveIssue(r);

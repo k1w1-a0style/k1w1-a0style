@@ -163,7 +163,7 @@ const readWorkflowRuns = (record: JsonRecord): WorkflowRun[] =>
         ? (status as WorkflowRun["status"])
         : null;
       const conclusion = readOptionalString(entry, "conclusion");
-      const normalizedConclusion = conclusion === null || ["success", "failure", "cancelled", "skipped"].includes(conclusion)
+      const normalizedConclusion = (conclusion == null || ["success", "failure", "cancelled", "skipped"].includes(conclusion))
         ? ((conclusion ?? null) as WorkflowRun["conclusion"])
         : null;
       if (!normalizedStatus) return null;

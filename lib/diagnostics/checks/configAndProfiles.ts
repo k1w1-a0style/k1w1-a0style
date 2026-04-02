@@ -232,7 +232,8 @@ export const checkExpoConfig: PreflightCheck = {
     if (!expo.name) issues.push("expo.name fehlt");
     if (!expo.slug) issues.push("expo.slug fehlt");
     if (!expo.version) issues.push("expo.version fehlt");
-    if (expo.android && !expo.android.package)
+    const android = readObjectField(expo, "android");
+    if (android && !readStringField(android, "package"))
       issues.push("expo.android.package fehlt");
 
     if (issues.length) {
@@ -309,4 +310,3 @@ export const checkSdkConsistency: PreflightCheck = {
     return ok({ id: this.id, title: this.title, severity: this.severity });
   },
 };
-

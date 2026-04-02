@@ -84,6 +84,18 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
   checkedAt: null,
 };
 
+const isGitHubRepo = (value: unknown): value is GitHubRepo => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const repo = value as Record<string, unknown>;
+  return (
+    typeof repo.id === "number" &&
+    typeof repo.name === "string" &&
+    typeof repo.full_name === "string" &&
+    typeof repo.private === "boolean" &&
+    typeof repo.updated_at === "string"
+  );
+};
+
 export function useGitHubReposScreen() {
   const {
     activeRepo,
@@ -458,7 +470,11 @@ export function useGitHubReposScreen() {
 
     setIsCreating(true);
     try {
-      const repo = await createRepo(name, newRepoPrivate);
+      const repoResponse = await createRepo(name, newRepoPrivate);
+      if (!isGitHubRepo(repoResponse)) {
+        throw new Error("GitHub API Antwort für neues Repository ist unvollständig.");
+      }
+      const repo = repoResponse;
       setLocalRepos((prev) => [repo, ...prev]);
       setNewRepoName("");
       setShowNewRepo(false);
