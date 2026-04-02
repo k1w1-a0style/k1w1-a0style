@@ -26,7 +26,7 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
 ### P0 (direkt sinnvoll, aber vertagt)
 - Guard-Badge im Chat-Kopf/Composer (Kurzstatus: "Normal write" vs. "Guarded path enthalten")
-- Pre-Apply Guard-Hinweis im Confirm-Modal inkl. Grund (`kritisch/manual-only`, `baseline/read-only`)
+- ✅ Pre-Apply Guard-Hinweis im Confirm-Modal inkl. Grund (`kritisch/manual-only`, `baseline/read-only`) (Patch 709)
 - Einmalige Planner-Info: "Diese Teile kann ich im Chat nicht direkt schreiben"
 
 ### P1 (starke UX-Verbesserung, vertagt)

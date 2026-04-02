@@ -31,6 +31,24 @@ type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
   | { key: string; path: string; status: "skipped" };
 
+const GUARD_REASON_MARKERS = [
+  "manual-only",
+  "kritisch",
+  "read-only",
+  "baseline",
+  "template/baseline",
+  "ownership block",
+  "guarded",
+];
+
+function extractGuardWarnings(errors: string[] | undefined): string[] {
+  if (!errors?.length) return [];
+  return errors.filter((entry) => {
+    const lower = String(entry).toLowerCase();
+    return GUARD_REASON_MARKERS.some((marker) => lower.includes(marker));
+  });
+}
+
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
   if (pendingChange.finalFileSource === "validator") {
@@ -139,6 +157,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
   const sourceTone = getSourceTone(pendingChange);
   const validatorReviewLabel = getValidatorReviewLabel(pendingChange);
   const summary = pendingChange?.summary ?? "";
+  const guardWarnings = useMemo(() => extractGuardWarnings(pendingChange?.errors), [pendingChange?.errors]);
 
   return (
     <Modal
@@ -286,6 +305,18 @@ const ConfirmChangesModal: React.FC<Props> = ({
                     <Text style={styles.modalSectionTitle}>Geblockt / Hinweise</Text>
                     {pendingChange.errors.map((entry) => (
                       <Text key={entry} style={styles.modalHintText}>• {entry}</Text>
+                    ))}
+                  </View>
+                ) : null}
+
+                {guardWarnings.length ? (
+                  <View style={styles.modalSummaryCard}>
+                    <Text style={styles.modalSectionTitle}>Guard-Hinweis (manuell prüfen)</Text>
+                    <Text style={styles.modalHintText}>
+                      Diese Änderung enthält geschützte/guarded Pfade. Bitte nur bewusst bestätigen, wenn du die Auswirkungen kennst.
+                    </Text>
+                    {guardWarnings.slice(0, 5).map((entry) => (
+                      <Text key={`guard-${entry}`} style={styles.modalHintText}>• {entry}</Text>
                     ))}
                   </View>
                 ) : null}

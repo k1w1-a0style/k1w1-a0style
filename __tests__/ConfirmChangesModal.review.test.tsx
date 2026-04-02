@@ -116,8 +116,27 @@ describe("ConfirmChangesModal review UX", () => {
 
     expect(getAllByText("Übersprungen").length).toBeGreaterThan(0);
     expect(getAllByText("package.json").length).toBeGreaterThan(0);
-    expect(getByText(/kritischer\/manual-only Pfad/)).toBeTruthy();
+    expect(getAllByText(/kritischer\/manual-only Pfad/).length).toBeGreaterThan(0);
+    expect(getByText("Guard-Hinweis (manuell prüfen)")).toBeTruthy();
+    expect(getByText(/geschützte\/guarded Pfade/)).toBeTruthy();
     expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
+  });
+
+  it("hides guard section when only non-guard hints exist", () => {
+    const pendingChange = buildPendingChange({
+      errors: ["styles/theme.ts wurde bewusst nicht angefasst"],
+    });
+
+    const { queryByText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+      />,
+    );
+
+    expect(queryByText("Guard-Hinweis (manuell prüfen)")).toBeNull();
   });
 
   it("keeps the existing accept/reject flow intact", () => {
