@@ -20,6 +20,7 @@ import { buildChangePreviews } from "../lib/changePreview";
 import { validateChatInput } from "../lib/validators";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
 import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
+import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
 import {
   classifyChatIntent,
   buildChangeDigest,
@@ -445,6 +446,12 @@ export function useChatAIFlow({
       }
 
       const sanitizedRequestContent = preparedInput.sanitized;
+      const normalizedIntentReply = sanitizedRequestContent.trim().toLowerCase();
+      if (normalizedIntentReply === "planen") {
+        void recordChatQualityMetric("intent_confirmation_planen");
+      } else if (normalizedIntentReply === "direkt build") {
+        void recordChatQualityMetric("intent_confirmation_build");
+      }
 
       inFlightRef.current = true;
       safe(() => setIsAiLoading(true));
@@ -469,6 +476,7 @@ export function useChatAIFlow({
           const shouldPlanner = intentDecision.intent !== "builder";
 
           if (intentDecision.requiresConfirmation) {
+            void recordChatQualityMetric("intent_confirmation_prompt");
             addChatMessage({
               id: uuidv4(),
               role: "assistant",

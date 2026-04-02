@@ -42,6 +42,7 @@ export const STORAGE_KEYS = {
   CHAT_PERSIST_HISTORY: "k1w1_chat_persist_history",
   CHAT_RETENTION_LIMIT: "k1w1_chat_retention_limit",
   CHAT_GUARD_AUDIT: "k1w1_chat_guard_audit_v1",
+  CHAT_QUALITY_METRICS: "k1w1_chat_quality_metrics_v1",
 
   // Build history
   BUILD_HISTORY: "k1w1_build_history",
