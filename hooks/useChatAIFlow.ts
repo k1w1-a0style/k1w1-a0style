@@ -142,6 +142,20 @@ export const buildPreflightSummaryIntro = (): string =>
   "📦 **Pre-Flight (voraussichtlich):**\n" +
   "Ich zeige gleich strukturiert, welche Dateien neu/aktualisiert werden und welche Pfade manuell bleiben.";
 
+export const extractContextBudgetNotice = (
+  llmMessages: Array<{ role: string; content: string }>,
+): string => {
+  for (const message of llmMessages) {
+    if (message.role !== "system") continue;
+    const content = String(message.content ?? "");
+    const match = content.match(/\[intern\]\s*(Kontext gekürzt \([^)]+\)\.)/i);
+    if (match?.[1]) {
+      return `🏷️ **Kontext gekürzt:** ${match[1]}`;
+    }
+  }
+  return "";
+};
+
 export function useChatAIFlow({
   config,
   messages,
@@ -163,6 +177,7 @@ export function useChatAIFlow({
   );
 
   const isAtBottomRef = useRef(true);
+  const lastContextBudgetNoticeRef = useRef("");
 
   const inFlightRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -383,6 +398,24 @@ export function useChatAIFlow({
     [addChatMessage],
   );
 
+  const announceContextBudgetNote = useCallback(
+    (llmMessages: Array<{ role: string; content: string }>) => {
+      const note = extractContextBudgetNotice(llmMessages);
+      if (!note) return;
+      if (note === lastContextBudgetNoticeRef.current) return;
+      lastContextBudgetNoticeRef.current = note;
+
+      addChatMessage({
+        id: uuidv4(),
+        role: "system",
+        content: note,
+        timestamp: new Date().toISOString(),
+        meta: { runtimeNote: true, contextBudgetNote: true },
+      });
+    },
+    [addChatMessage],
+  );
+
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
@@ -435,6 +468,7 @@ export function useChatAIFlow({
               currentProjectFiles,
               config.selectedChatProvider,
             );
+            announceContextBudgetNote(plannerMsgs);
 
             const planRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
@@ -488,6 +522,7 @@ export function useChatAIFlow({
           currentProjectFiles,
           config.selectedChatProvider,
         );
+        announceContextBudgetNote(llmMessages);
 
         let ai: OrchestratorResult | null = null;
         for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1) {

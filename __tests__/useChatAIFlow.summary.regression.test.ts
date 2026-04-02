@@ -1,4 +1,8 @@
-import { buildPathBulletList, buildPreflightSummaryIntro } from "../hooks/useChatAIFlow";
+import {
+  buildPathBulletList,
+  buildPreflightSummaryIntro,
+  extractContextBudgetNotice,
+} from "../hooks/useChatAIFlow";
 
 describe("useChatAIFlow summary regression", () => {
   it("renders file paths inside bullet points", () => {
@@ -29,5 +33,27 @@ describe("useChatAIFlow summary regression", () => {
     expect(intro).toContain("Pre-Flight (voraussichtlich)");
     expect(intro).toContain("neu/aktualisiert");
     expect(intro).toContain("manuell bleiben");
+  });
+
+  it("extracts context budget note from internal prompt marker", () => {
+    const note = extractContextBudgetNotice([
+      { role: "system", content: "foo" },
+      {
+        role: "system",
+        content:
+          "Kontext – aktueller Projektzustand:\n\n[intern] Kontext gekürzt (ältere History: -2, Snapshot-Dateien: -1).\n\n...",
+      },
+    ]);
+    expect(note).toContain("🏷️ **Kontext gekürzt:**");
+    expect(note).toContain("ältere History: -2");
+    expect(note).toContain("Snapshot-Dateien: -1");
+  });
+
+  it("returns empty when no internal context marker exists", () => {
+    const note = extractContextBudgetNotice([
+      { role: "assistant", content: "Kein Marker" },
+      { role: "system", content: "Kontext – aktueller Projektzustand" },
+    ]);
+    expect(note).toBe("");
   });
 });

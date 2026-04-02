@@ -14,6 +14,7 @@ export interface ChatMessage {
     error?: boolean;
     keyRotation?: boolean;
     runtimeNote?: boolean;
+    contextBudgetNote?: boolean;
     fallbackUsed?: boolean;
     stateDrift?: boolean;
     validatorWarning?: boolean;
