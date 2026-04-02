@@ -198,6 +198,25 @@ export function useDiagnosticFixRunner(opts: {
     [],
   );
 
+  const runFixStep = useCallback(
+    async (params: {
+      index: number;
+      run: () => Promise<void>;
+      failMessage: string;
+    }): Promise<unknown | null> => {
+      markFixStepRunning(params.index);
+      try {
+        await params.run();
+        markFixStepDone(params.index);
+        return null;
+      } catch (error: unknown) {
+        markFixStepFailed(params.index, error, params.failMessage);
+        return error;
+      }
+    },
+    [markFixStepDone, markFixStepFailed, markFixStepRunning],
+  );
+
   const openPreview = useCallback(async (label: string, patch: PreflightPatch) => {
     if (!projectRef.current) return;
     const entries = buildFixPreviewEntries(projectRef.current.files, patch);
@@ -926,17 +945,19 @@ export function useDiagnosticFixRunner(opts: {
 
         openFixModal({ title: "Fix", subtitle: r.title, steps });
 
-        markFixStepRunning(0);
         let patchApplied = false;
-        try {
-          await applyPatch(r.title, patch);
-          patchApplied = true;
-          markFixStepDone(0);
-        } catch (error: unknown) {
-          markFixStepFailed(0, error, "Fehler");
+        const patchStepError = await runFixStep({
+          index: 0,
+          run: async () => {
+            await applyPatch(r.title, patch);
+            patchApplied = true;
+          },
+          failMessage: "Fehler",
+        });
+        if (patchStepError) {
           finishWithResult(
             buildApplyFailureResult({
-              error,
+              error: patchStepError,
               fallback: "Fehler",
               stepIndex: 0,
             }),
@@ -946,13 +967,15 @@ export function useDiagnosticFixRunner(opts: {
 
         let stepCursor = 1;
         if (doSync) {
-          markFixStepRunning(stepCursor);
-          try {
-            await syncPatchToGitHub(r.title, patch);
-            markFixStepDone(stepCursor);
-          } catch (error: unknown) {
-            const message = getErrorMessage(error, "Sync fehlgeschlagen");
-            markFixStepFailed(stepCursor, error, "Sync fehlgeschlagen");
+          const syncError = await runFixStep({
+            index: stepCursor,
+            run: async () => {
+              await syncPatchToGitHub(r.title, patch);
+            },
+            failMessage: "Sync fehlgeschlagen",
+          });
+          if (syncError) {
+            const message = getErrorMessage(syncError, "Sync fehlgeschlagen");
             finishWithResult({
               status: "failed",
               detail: message,
@@ -966,13 +989,15 @@ export function useDiagnosticFixRunner(opts: {
         }
 
         if (rerunAfterFix) {
-          markFixStepRunning(stepCursor);
-          try {
-            await runDiagnostics({ resetSelection: false, resetHistory: false });
-            markFixStepDone(stepCursor);
-          } catch (error: unknown) {
-            const message = getErrorMessage(error, "Verify fehlgeschlagen");
-            markFixStepFailed(stepCursor, error, "Verify fehlgeschlagen");
+          const verifyError = await runFixStep({
+            index: stepCursor,
+            run: async () => {
+              await runDiagnostics({ resetSelection: false, resetHistory: false });
+            },
+            failMessage: "Verify fehlgeschlagen",
+          });
+          if (verifyError) {
+            const message = getErrorMessage(verifyError, "Verify fehlgeschlagen");
             finishWithResult({
               status: "pending_recheck",
               detail: message,
