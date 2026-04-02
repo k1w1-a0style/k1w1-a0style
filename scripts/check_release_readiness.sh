@@ -62,6 +62,9 @@ bash scripts/check_edge_helper_visibility.sh
 echo "[verify:release] supabase RLS hardening"
 bash scripts/check_supabase_rls_hardening.sh
 
+echo "[verify:release] live edge env readiness"
+bash scripts/check_edge_live_env_readiness.sh
+
 if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then
   echo "[verify:release] live edge contracts"
   bash scripts/check_edge_live_contracts.sh

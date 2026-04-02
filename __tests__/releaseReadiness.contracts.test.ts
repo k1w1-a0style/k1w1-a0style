@@ -18,6 +18,7 @@ describe("release readiness contract", () => {
     expect(script).toContain("bash scripts/check_legacy_disabled_edges.sh");
     expect(script).toContain("bash scripts/check_edge_helper_visibility.sh");
     expect(script).toContain("bash scripts/check_supabase_rls_hardening.sh");
+    expect(script).toContain("bash scripts/check_edge_live_env_readiness.sh");
   });
 
   it("keeps live-edge checks explicitly optional (env-gated)", () => {
@@ -26,5 +27,8 @@ describe("release readiness contract", () => {
     expect(script).toContain('if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then');
     expect(script).toContain("bash scripts/check_edge_live_contracts.sh");
     expect(script).toContain("skip live edge contracts");
+
+    const readinessScript = read("scripts/check_edge_live_env_readiness.sh");
+    expect(readinessScript).toContain("Live-edge env readiness: SKIP");
   });
 });
