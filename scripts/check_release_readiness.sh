@@ -68,6 +68,7 @@ bash scripts/check_edge_live_env_readiness.sh
 if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then
   echo "[verify:release] live edge contracts"
   bash scripts/check_edge_live_contracts.sh
+  echo "[verify:release] reminder: verify_jwt live flags for save_preview + k1w1-handler require explicit operator audit (behavior checks alone are not sufficient)"
 else
   echo "[verify:release] skip live edge contracts (EDGE_BASE_URL / EDGE_OPERATOR_JWT not set)"
 fi

@@ -19,4 +19,13 @@ describe("normalizeStoredSupabaseRaw", () => {
   it("returns empty when neither raw nor url can be normalized", () => {
     expect(normalizeStoredSupabaseRaw("not a supabase target", "")).toBe("");
   });
+
+  it("drops legacy secret composite formats so url:::key never persists", () => {
+    expect(
+      normalizeStoredSupabaseRaw(
+        "https://xfgnzpcljsuqqdjlxgul.supabase.co:::eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+        "",
+      ),
+    ).toBe("");
+  });
 });

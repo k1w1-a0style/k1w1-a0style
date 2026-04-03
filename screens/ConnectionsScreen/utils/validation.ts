@@ -148,6 +148,11 @@ export const deriveSupabaseUrl = (raw: string): { projectId: string; url: string
 
 export const normalizeStoredSupabaseRaw = (raw: string, derivedUrl?: string): string => {
   const trimmedRaw = (raw || "").trim();
+  const legacySecretComposite = /^https?:\/\/[^:\s]+\.supabase\.co:::.+$/i;
+  if (legacySecretComposite.test(trimmedRaw)) {
+    return "";
+  }
+
   const rawDerived = deriveSupabaseUrl(trimmedRaw);
   if (rawDerived.projectId) {
     return trimmedRaw.startsWith("http://") || trimmedRaw.startsWith("https://")
