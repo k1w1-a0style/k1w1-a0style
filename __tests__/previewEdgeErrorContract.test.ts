@@ -87,6 +87,22 @@ describe("preview edge error contract", () => {
     ).toBe("preview_env_missing");
   });
 
+  it("keeps preview save/page secret transport on fragment + header handoff (no query secret default)", () => {
+    const savePreviewSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/save_preview/index.ts"),
+      "utf8",
+    );
+    const previewPageSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
+      "utf8",
+    );
+
+    expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
+    expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
+    expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
+    expect(previewPageSource).toContain("renderFragmentBootstrapPage");
+  });
+
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {
     expect(classifyPreviewPageUnexpectedError(new Error("render failed"))).toBe("preview_runtime_error");
 
