@@ -33,3 +33,18 @@ it("labels the generated preview as a non-primary local fallback", () => {
   expect(html).toContain("nicht server-verifiziert");
   expect(html).toContain("Dev-Fallback bereit");
 });
+
+it("disables eval/cdn runtime when local unsafe fallback is not explicitly allowed", () => {
+  const html = buildSandpackHtml({
+    title: "Preview",
+    files: {
+      "/App.tsx": "export default function App() { return <div>Hello</div>; }",
+    },
+    allowUnsafeLocalEval: false,
+  });
+
+  expect(html).toContain("Lokaler HTML-/Eval-Fallback deaktiviert");
+  expect(html).not.toContain("unsafe-eval");
+  expect(html).not.toContain("@babel/standalone");
+  expect(html).not.toContain("new Function(");
+});

@@ -9,6 +9,8 @@ export interface SandpackOptions {
   title: string;
   files: Record<string, string>;
   dependencies?: Record<string, string>;
+  /** Explicit opt-in: local unsafe eval/CDN fallback is only allowed in dev/test contexts. */
+  allowUnsafeLocalEval?: boolean;
   /** Sandpack Client Version (unused, kept for compatibility) */
   sandpackVersion?: string;
   /** Zeige Datei-Explorer in der Preview */
