@@ -480,6 +480,8 @@ if (container) {
             title: projectData.name || "Preview",
             files,
             dependencies,
+            allowUnsafeLocalEval:
+              (typeof __DEV__ !== "undefined" && __DEV__) || process.env.NODE_ENV === "test",
           });
         } catch (e) {
           logger.error("[usePreview] buildSandpackHtml failed", { err: e });

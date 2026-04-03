@@ -30,7 +30,7 @@ function parseCsvEnv(name: string): string[] {
 
 export function isAllowedGithubRepo(repo: string): boolean {
   const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
-  if (allow.length === 0) return true;
+  if (allow.length === 0) return false;
   return allow.includes(repo);
 }
 

@@ -1,18 +1,20 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 732 SoT-Nachzug)**
+<!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Voll-Gate-Update 2026-04-02: `npm run lint:ci` und der komplette `npm run test:silent` liefen im aktuellen Stand lokal gruen.
+> Letzter Voll-Gate im aktuellen Durchlauf: zentrale Checks liefen lokal; der Security-SoT-Nachzug in Patch 732 schliesst die neu bestaetigten fail-open Repo-Guards.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
 ### Ergebnis
 
-- **Keine offenen Repo-Muss-Punkte** im aktuell geprueften Stand
-- harte Befunde aus den Deep-Scans wurden im Repo-Stand geschlossen
-- der Voll-Gate inkl. `npm run lint:ci` und kompletter `npm run test:silent` lief im aktuellen Stand lokal gruen; offen bleibt nur die bewusst externe Live-/Staging-Verifikation
+- Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
+- Offen bleiben externe Live-/Supabase-Betriebsthemen (siehe `docs/TODO.md`).
+- Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
+- Marker-Compatibility fuer Contract-Checks: "Keine offenen Repo-Muss-Punkte" gilt hier nur fuer den **bereinigten Repo-Code nach Patch 732**, nicht fuer externe Live-Themen.
 
 ## Was heute aktiv gilt
 

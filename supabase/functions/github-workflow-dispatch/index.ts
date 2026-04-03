@@ -57,7 +57,7 @@ function isAllowedRef(ref: string): boolean {
   if (/^[0-9a-f]{40}$/i.test(r)) return false;
 
   const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
-  if (!regexStr) return true; // rollout mode
+  if (!regexStr) return false;
   try {
     const re = new RegExp(regexStr);
     return re.test(r);
