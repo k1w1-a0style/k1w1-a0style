@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-03 (Patch 732 SoT-Nachzug)**
+Stand: **2026-04-03 (Patch 734 Supabase-Repo-SQL-Hardening)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -12,7 +12,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 ### Ergebnis
 
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
-- Offen bleiben externe Live-/Supabase-Betriebsthemen (siehe `docs/TODO.md`).
+- Offen bleiben externe Live-/Supabase-Betriebsthemen (siehe `docs/TODO.md`), aber die bestaetigten Repo-SQL-Nachzuege fuer `build_jobs`/`cleanup_old_previews(integer)`/`signing_audit_log` sind jetzt als idempotente Migration vorbereitet.
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
 - Marker-Compatibility fuer Contract-Checks: "Keine offenen Repo-Muss-Punkte" gilt hier nur fuer den **bereinigten Repo-Code nach Patch 732**, nicht fuer externe Live-Themen.
 
