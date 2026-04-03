@@ -457,7 +457,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 concurrency:
   group: k1w1-ci-lite-autofix-\${{ inputs.ref }}
