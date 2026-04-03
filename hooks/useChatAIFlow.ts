@@ -20,7 +20,13 @@ import { buildChangePreviews } from "../lib/changePreview";
 import { validateChatInput } from "../lib/validators";
 import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
 import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
-import { looksLikeExplicitFileTask, looksLikeAdviceRequest, looksAmbiguousBuilderRequest, buildChangeDigest, buildExplainMessages } from "../utils/chatHeuristics";
+import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
+import {
+  classifyChatIntent,
+  buildChangeDigest,
+  buildExplainMessages,
+  looksLikeScoutModeRequest,
+} from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
@@ -138,6 +144,34 @@ export const buildPathBulletList = (
   return preview;
 };
 
+export const buildPreflightSummaryIntro = (): string =>
+  "📦 **Pre-Flight (voraussichtlich):**\n" +
+  "Ich zeige gleich strukturiert, welche Dateien neu/aktualisiert werden und welche Pfade manuell bleiben.";
+
+export const buildGuardPolicyPreHint = (): string =>
+  "🛡️ **Guard-Policy vor Vorschlag:**\n" +
+  "🟢 `allowed` = kann ich direkt als Patch vorschlagen\n" +
+  "🔴 `guarded` = kritische/manual-only Pfade, bleiben manuell";
+
+export const isDirectBuildCommand = (input: string): boolean => {
+  const lower = String(input ?? "").trim().toLowerCase();
+  return lower === "direkt build" || lower === "build" || lower === "jetzt builden";
+};
+
+export const extractContextBudgetNotice = (
+  llmMessages: Array<{ role: string; content: string }>,
+): string => {
+  for (const message of llmMessages) {
+    if (message.role !== "system") continue;
+    const content = String(message.content ?? "");
+    const match = content.match(/\[intern\]\s*(Kontext gekürzt \([^)]+\)\.)/i);
+    if (match?.[1]) {
+      return `🏷️ **Kontext gekürzt:** ${match[1]}`;
+    }
+  }
+  return "";
+};
+
 export function useChatAIFlow({
   config,
   messages,
@@ -159,6 +193,7 @@ export function useChatAIFlow({
   );
 
   const isAtBottomRef = useRef(true);
+  const lastContextBudgetNoticeRef = useRef("");
 
   const inFlightRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -379,6 +414,24 @@ export function useChatAIFlow({
     [addChatMessage],
   );
 
+  const announceContextBudgetNote = useCallback(
+    (llmMessages: Array<{ role: string; content: string }>) => {
+      const note = extractContextBudgetNotice(llmMessages);
+      if (!note) return;
+      if (note === lastContextBudgetNoticeRef.current) return;
+      lastContextBudgetNoticeRef.current = note;
+
+      addChatMessage({
+        id: uuidv4(),
+        role: "system",
+        content: note,
+        timestamp: new Date().toISOString(),
+        meta: { runtimeNote: true, contextBudgetNote: true },
+      });
+    },
+    [addChatMessage],
+  );
+
   const processAIRequest = useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
       if (inFlightRef.current) return false;
@@ -399,6 +452,12 @@ export function useChatAIFlow({
       }
 
       const sanitizedRequestContent = preparedInput.sanitized;
+      const normalizedIntentReply = sanitizedRequestContent.trim().toLowerCase();
+      if (normalizedIntentReply === "planen") {
+        void recordChatQualityMetric("intent_confirmation_planen");
+      } else if (isDirectBuildCommand(normalizedIntentReply)) {
+        void recordChatQualityMetric("intent_confirmation_build");
+      }
 
       inFlightRef.current = true;
       safe(() => setIsAiLoading(true));
@@ -418,11 +477,25 @@ export function useChatAIFlow({
 
         // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const advice = looksLikeAdviceRequest(sanitizedRequestContent);
-          const explicitFileTask = looksLikeExplicitFileTask(sanitizedRequestContent);
-          const shouldPlanner =
-            advice ||
-            (!forceBuilder && !explicitFileTask && looksAmbiguousBuilderRequest(sanitizedRequestContent));
+          const scoutOnly = looksLikeScoutModeRequest(sanitizedRequestContent);
+          const intentDecision = classifyChatIntent(sanitizedRequestContent);
+          const advice = intentDecision.intent === "advice";
+          const shouldPlanner = scoutOnly || intentDecision.intent !== "builder";
+
+          if (intentDecision.requiresConfirmation) {
+            void recordChatQualityMetric("intent_confirmation_prompt");
+            addChatMessage({
+              id: uuidv4(),
+              role: "assistant",
+              content:
+                "🤔 **Kurze Intent-Bestätigung:** Soll ich zuerst planen/fragen oder direkt einen Build-Vorschlag erzeugen?\n\n" +
+                `Aktuelle Einschätzung: \`${intentDecision.intent}\` (Confidence ${Math.round(intentDecision.confidence * 100)}%, Grund: ${intentDecision.reason}).\n\n` +
+                "Antwortoptionen: `planen` oder `direkt build`.",
+              timestamp: new Date().toISOString(),
+              meta: { planner: true },
+            });
+            return true;
+          }
 
           if (shouldPlanner) {
             const plannerMsgs = buildPlannerMessages(
@@ -431,6 +504,7 @@ export function useChatAIFlow({
               currentProjectFiles,
               config.selectedChatProvider,
             );
+            announceContextBudgetNote(plannerMsgs);
 
             const planRes = await runOrchestratorWithHardTimeout(
               config.selectedChatProvider,
@@ -455,8 +529,11 @@ export function useChatAIFlow({
                 role: "assistant",
                 content:
                   "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
+                  buildGuardPolicyPreHint() +
+                  "\n\n" +
                   planText +
-                  '\n\n➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
+                  "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
+                  '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
                 timestamp: new Date().toISOString(),
                 meta: { planner: true },
               });
@@ -464,7 +541,7 @@ export function useChatAIFlow({
               const nextPlan: PendingPlan = {
                 originalRequest: sanitizedRequestContent,
                 planText,
-                mode: advice ? "advice" : "build",
+                mode: scoutOnly ? "scout" : advice ? "advice" : "build",
               };
               // Keep ref/state in sync immediately to avoid planner→builder races
               // when the follow-up user message lands before the next render commit.
@@ -483,6 +560,7 @@ export function useChatAIFlow({
           currentProjectFiles,
           config.selectedChatProvider,
         );
+        announceContextBudgetNote(llmMessages);
 
         let ai: OrchestratorResult | null = null;
         for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1) {
@@ -649,6 +727,7 @@ export function useChatAIFlow({
 
         const summaryText =
           `${prefix}\n\n` +
+          `${buildPreflightSummaryIntro()}\n\n` +
           `🧠 **Quelle der finalen Dateiliste:** ${sourceSummary}\n\n` +
           (explainText
             ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`
@@ -903,12 +982,25 @@ export function useChatAIFlow({
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
         const lower = sanitizedUserContent.trim().toLowerCase();
+        const wantsDirectBuild = isDirectBuildCommand(lower);
         const wantsProceed =
           lower === "weiter" ||
           lower === "mach weiter" ||
           lower === "ok" ||
           lower === "ja" ||
           lower === "go";
+
+        if (currentPlan.mode === "scout" && !wantsDirectBuild) {
+          addChatMessage({
+            id: uuidv4(),
+            role: "assistant",
+            content:
+              "🧭 **Scout-Modus aktiv:** Ich bleibe bei Analyse/Plan ohne Builder-Phase.\n\n" +
+              'Wenn du trotzdem direkt umsetzen willst, antworte mit **„direkt build"**.',
+            timestamp: new Date().toISOString(),
+          });
+          return true;
+        }
 
         if (currentPlan.mode === "advice" && !wantsProceed) {
           addChatMessage({

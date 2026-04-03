@@ -16,10 +16,13 @@ import { theme } from "../../theme";
 import { styles } from "../../styles/chatComposerStyles";
 import type { PendingPlan } from "../../hooks/useChatAIFlow";
 
+type GuardWriteStatus = "normal" | "guarded";
+
 type Props = {
   textInput: string;
   onChangeText: (t: string) => void;
   pendingPlan: PendingPlan | null;
+  guardWriteStatus?: GuardWriteStatus;
   selectedFileAsset: { name: string } | null;
   onPickDocument: () => void;
   onClearSelectedFile: () => void;
@@ -34,6 +37,7 @@ const ChatComposer: React.FC<Props> = ({
   textInput,
   onChangeText,
   pendingPlan,
+  guardWriteStatus = "normal",
   selectedFileAsset,
   onPickDocument,
   onClearSelectedFile,
@@ -78,6 +82,24 @@ const ChatComposer: React.FC<Props> = ({
         }
       }}
     >
+      <View style={styles.guardBadgeRow}>
+        <View
+          style={[
+            styles.guardBadge,
+            guardWriteStatus === "guarded" ? styles.guardBadgeWarn : styles.guardBadgeOk,
+          ]}
+          accessibilityLabel={
+            guardWriteStatus === "guarded"
+              ? "Schreibstatus: Guarded path enthalten"
+              : "Schreibstatus: Normal write"
+          }
+        >
+          <Text style={styles.guardBadgeText}>
+            {guardWriteStatus === "guarded" ? "Guarded path enthalten" : "Normal write"}
+          </Text>
+        </View>
+      </View>
+
       {pendingPlan && (
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>

@@ -41,7 +41,7 @@ function buildPendingChange(overrides: Partial<PendingChange> = {}): PendingChan
 describe("ConfirmChangesModal review UX", () => {
   it("shows a compact preview for new files", () => {
     const pendingChange = buildPendingChange();
-    const { getByText } = render(
+    const { getAllByText, getByText } = render(
       <ConfirmChangesModal
         visible
         pendingChange={pendingChange}
@@ -51,6 +51,7 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(getByText("Neue Datei")).toBeTruthy();
+    expect(getAllByText("wird geändert").length).toBeGreaterThan(0);
     expect(getByText("Neue Datei · kompakte Inhaltsvorschau")).toBeTruthy();
     expect(getByText(/export const NewBadge/)).toBeTruthy();
   });
@@ -105,7 +106,7 @@ describe("ConfirmChangesModal review UX", () => {
       ],
     });
 
-    const { getAllByText, getByText, queryByText } = render(
+    const { getAllByText, getByLabelText, getByText, queryByText } = render(
       <ConfirmChangesModal
         visible
         pendingChange={pendingChange}
@@ -115,9 +116,37 @@ describe("ConfirmChangesModal review UX", () => {
     );
 
     expect(getAllByText("Übersprungen").length).toBeGreaterThan(0);
+    expect(getAllByText("manuell nötig").length).toBeGreaterThan(0);
     expect(getAllByText("package.json").length).toBeGreaterThan(0);
-    expect(getByText(/kritischer\/manual-only Pfad/)).toBeTruthy();
+    expect(getAllByText(/kritischer\/manual-only Pfad/).length).toBeGreaterThan(0);
+    expect(getByText("Guard-Hinweis (manuell prüfen)")).toBeTruthy();
+    expect(getByText(/geschützte\/guarded Pfade/)).toBeTruthy();
+    expect(getByText("Safe Follow-up Optionen")).toBeTruthy();
+    expect(getByText(/A\) Ich kann nur die unkritischen Dateien direkt anwenden/)).toBeTruthy();
+    expect(getByText(/B\) Ich kann zuerst eine sichere Minimal-Variante ohne guarded Pfade erzeugen/)).toBeTruthy();
+    expect(getByText("Warum Guard-Regeln? (kurz erklärt)")).toBeTruthy();
+    fireEvent.press(getByLabelText("Warum Guard-Regeln?"));
+    expect(getByText(/Guard-Regeln verhindern unbewusste Änderungen an sensiblen Bereichen/)).toBeTruthy();
+    expect(getByText(/Typische Fälle: Secrets\/Schlüsseldateien/)).toBeTruthy();
     expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
+  });
+
+  it("hides guard section when only non-guard hints exist", () => {
+    const pendingChange = buildPendingChange({
+      errors: ["styles/theme.ts wurde bewusst nicht angefasst"],
+    });
+
+    const { queryByText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+      />,
+    );
+
+    expect(queryByText("Guard-Hinweis (manuell prüfen)")).toBeNull();
+    expect(queryByText("Safe Follow-up Optionen")).toBeNull();
   });
 
   it("keeps the existing accept/reject flow intact", () => {

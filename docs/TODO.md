@@ -20,11 +20,61 @@ Im aktuell geprueften Repo-Stand gibt es **keine offenen Repo-Muss-Punkte**, die
 
 Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 
+## Neu aufgenommen: Produktverbesserungen (User-Vorschlaege 2026-04-02)
+
+- [x] Command-Intent robuster machen (Intent-Classifier mit Confidence + kurze Bestätigungsfrage bei Grenzfällen statt reiner Regex-/Keyword-Heuristik). (Patch 726)
+- [x] Planer-Rückfragen strukturiert als Form-/Slot-Antworten ausgeben (statt reinem Freitext). (Patch 724)
+- [x] Sichtbares UI-Badge für Kontextkürzung aus `aiContextBudget` (z. B. „Kontext gekürzt: N Dateien/History“). (Patch 723)
+- [x] Strukturierte Pre-Flight-Zusammenfassung „Was wird gleich geändert?“ vor Builder-Start ausgeben. (Patch 722)
+- [x] Persistenz-Scope für Projektgedächtnis in Settings explizit labeln (kein globales Cross-Projekt-Gedächtnis). (Patch 721)
+- [x] Guard-Policy bereits **vor** Vorschlägen als allowed/guarded Path-Chips in Chat anzeigen. (Patch 725)
+- [x] Lokale/anonymisierte Qualitätsmetriken für Rückfragen erfassen (Rückfragequote, Missverständnisse, Abbruchquote). (Patch 727)
+- [x] Expliziten „Großprojekt-Modus“ (Scout/Audit-only ohne automatische Builder-Phase) einführen. (Patch 728)
+
+### Rest für nächste PR-Branches (aktiv)
+- Aktuell keine offenen aktiven Produkt-Restpunkte in dieser Liste.
+
+## Geparkt (spaeter): Chat-Guard-UX/Policy-Sichtbarkeit
+
+> Stand 2026-04-02: bewusst geparkt, nicht Teil des aktuellen Fix-Durchlaufs.
+
+### P0 (direkt sinnvoll, aber vertagt)
+- ✅ Guard-Badge im Chat-Kopf/Composer (Kurzstatus: "Normal write" vs. "Guarded path enthalten") (Patch 710)
+- ✅ Pre-Apply Guard-Hinweis im Confirm-Modal inkl. Grund (`kritisch/manual-only`, `baseline/read-only`) (Patch 709)
+- ✅ Einmalige Planner-Info: "Diese Teile kann ich im Chat nicht direkt schreiben" (Patch 710)
+
+### P1 (starke UX-Verbesserung, vertagt)
+- ✅ Path-Chips in der Planung ("wird geändert" vs. "manuell nötig") (Patch 712)
+- ✅ Structured Follow-up bei Guarded-Pfaden (safe Alternativen A/B anbieten) (Patch 713)
+
+### P2 (Governance/Robustheit, vertagt)
+- ✅ Policy-Explain-Drawer (Warum Guards + Beispiele) (Patch 714)
+- ✅ Lokale Audit-Telemetrie für Guard-Blocker-Häufigkeit (Patch 715)
+
 ## Wofuer diese Datei bleibt
 
 - als kleine, ehrliche Restpunkt-SoT
 - als schneller Check, ob gerade wirklich etwas offen ist
 - als bewusste Gegenmassnahme gegen Drift durch grosse historische Sammellisten
+
+## Was sind "Durchlaeufe"?
+
+- Ein Durchlauf ist **kein reiner Testlauf**.
+- Typisch bedeutet ein Durchlauf: kleines Ziel auswaehlen -> minimal umsetzen -> Typecheck/Lint/Tests gruen -> Doku/SoT synchronisieren.
+- Tests sind also nur ein Teil davon (Absicherung), nicht das gesamte Ergebnis.
+
+## Empfohlene naechste 10 Durchlaeufe
+
+1. Scout-Mode Runtime-E2E im Hook-Test absichern (nicht nur Invariant-Strings).
+2. Intent-Classifier Grenzfaelle erweitern (de/eng Mischprompts, sehr kurze Inputs).
+3. Guard-Policy-Hinweise im Planner-Reply i18n-/copy-konsistent zusammenziehen.
+4. Chat-Quality-Metriken um einfache "abgebrochen"/"missverstanden"-Counter erweitern (lokal).
+5. Kleine Settings-Ansicht fuer lokale Chat-Metrik-Snapshot (read-only, anonymisiert).
+6. ConfirmChangesModal: Guard-Explain Accessibility (Screenreader-Reihenfolge/Labels) haerten.
+7. PatchEngine: zusaetzliche Property-lite Cases fuer Pfadnormalisierung (Windows edge cases).
+8. Release-Readiness Script-Checks als kompakte Aggregat-Ausgabe vereinheitlichen.
+9. Docs-Fokuslauf: README/TODO/INDEX/Review auf Begriffsdrift "Scout/Audit-only" angleichen.
+10. Optionaler "Operator Quickstart" im Runbook fuer haeufige Erstfehler (kurzer Troubleshooting-Pfad).
 
 ## Verbindliche Begleitquellen
 

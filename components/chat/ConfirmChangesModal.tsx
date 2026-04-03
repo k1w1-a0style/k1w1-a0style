@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -15,6 +15,8 @@ import type { PendingChange } from "../../hooks/chatAIFlowTypes";
 import { theme } from "../../theme";
 import { styles } from "../../styles/chatScreenStyles";
 import type { ChangePreview } from "../../lib/changePreview";
+import { extractGuardHints } from "../../lib/guardHints";
+import { recordGuardAuditEvent } from "../../lib/guardAuditTelemetry";
 
 type Props = {
   visible: boolean;
@@ -26,10 +28,33 @@ type Props = {
 /** Max characters for the summary display. Prevents UI lag from oversized LLM output. */
 const SUMMARY_MAX_CHARS = 6_000;
 const MAX_PREVIEW_ITEMS = 6;
+const GUARDED_FOLLOW_UP_OPTIONS = [
+  {
+    key: "A",
+    text: "A) Ich kann nur die unkritischen Dateien direkt anwenden und die guarded Pfade als manuelle TODO-Liste ausgeben.",
+  },
+  {
+    key: "B",
+    text: "B) Ich kann zuerst eine sichere Minimal-Variante ohne guarded Pfade erzeugen, danach entscheidest du pro Pfad einzeln.",
+  },
+] as const;
 
 type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
   | { key: string; path: string; status: "skipped" };
+
+function getReviewPathChip(status: ReviewCard["status"]): "wird geändert" | "manuell nötig" {
+  return status === "skipped" ? "manuell nötig" : "wird geändert";
+}
+
+function createGuardAuditSignature(entries: string[]): string {
+  if (!entries.length) return "";
+  return Array.from(new Set(entries.map((entry) => String(entry).trim().toLowerCase())))
+    .filter((entry) => entry.length > 0)
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 20)
+    .join("||");
+}
 
 function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
@@ -78,6 +103,8 @@ const ConfirmChangesModal: React.FC<Props> = ({
 }) => {
   const modalScale = useRef(new Animated.Value(0.92)).current;
   const modalOpacity = useRef(new Animated.Value(0)).current;
+  const lastGuardAuditSignatureRef = useRef<string | null>(null);
+  const [showPolicyExplain, setShowPolicyExplain] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -99,6 +126,8 @@ const ConfirmChangesModal: React.FC<Props> = ({
     } else {
       modalScale.setValue(0.92);
       modalOpacity.setValue(0);
+      setShowPolicyExplain(false);
+      lastGuardAuditSignatureRef.current = null;
     }
   }, [visible, modalOpacity, modalScale]);
 
@@ -139,6 +168,18 @@ const ConfirmChangesModal: React.FC<Props> = ({
   const sourceTone = getSourceTone(pendingChange);
   const validatorReviewLabel = getValidatorReviewLabel(pendingChange);
   const summary = pendingChange?.summary ?? "";
+  const guardWarnings = useMemo(
+    () => extractGuardHints(pendingChange?.errors),
+    [pendingChange?.errors],
+  );
+
+  useEffect(() => {
+    if (!visible || guardWarnings.length === 0) return;
+    const signature = createGuardAuditSignature(guardWarnings);
+    if (lastGuardAuditSignatureRef.current === signature) return;
+    lastGuardAuditSignatureRef.current = signature;
+    void recordGuardAuditEvent(guardWarnings).catch(() => {});
+  }, [guardWarnings, visible]);
 
   return (
     <Modal
@@ -229,6 +270,20 @@ const ConfirmChangesModal: React.FC<Props> = ({
                               : "Übersprungen"}
                         </Text>
                       </View>
+                      <View style={styles.modalPathChipRow}>
+                        <View
+                          style={[
+                            styles.modalPathChip,
+                            card.status === "skipped"
+                              ? styles.modalPathChipManual
+                              : styles.modalPathChipChange,
+                          ]}
+                        >
+                          <Text style={styles.modalPathChipText}>
+                            {getReviewPathChip(card.status)}
+                          </Text>
+                        </View>
+                      </View>
 
                       {card.status === "skipped" ? (
                         <Text style={styles.modalHintText}>
@@ -286,6 +341,47 @@ const ConfirmChangesModal: React.FC<Props> = ({
                     <Text style={styles.modalSectionTitle}>Geblockt / Hinweise</Text>
                     {pendingChange.errors.map((entry) => (
                       <Text key={entry} style={styles.modalHintText}>• {entry}</Text>
+                    ))}
+                  </View>
+                ) : null}
+
+                {guardWarnings.length ? (
+                  <View style={styles.modalSummaryCard}>
+                    <Text style={styles.modalSectionTitle}>Guard-Hinweis (manuell prüfen)</Text>
+                    <Text style={styles.modalHintText}>
+                      Diese Änderung enthält geschützte/guarded Pfade. Bitte nur bewusst bestätigen, wenn du die Auswirkungen kennst.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowPolicyExplain((prev) => !prev)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Warum Guard-Regeln?"
+                      activeOpacity={0.85}
+                      style={styles.modalPolicyExplainToggle}
+                    >
+                      <Text style={styles.modalPolicyExplainToggleText}>
+                        {showPolicyExplain
+                          ? "Policy-Details ausblenden"
+                          : "Warum Guard-Regeln? (kurz erklärt)"}
+                      </Text>
+                    </TouchableOpacity>
+                    {showPolicyExplain ? (
+                      <View style={styles.modalPolicyExplainCard}>
+                        <Text style={styles.modalHintText}>
+                          Guard-Regeln verhindern unbewusste Änderungen an sensiblen Bereichen
+                          (z. B. baseline/read-only, kritisch/manual-only, Ownership-Block).
+                        </Text>
+                        <Text style={styles.modalHintText}>
+                          Typische Fälle: Secrets/Schlüsseldateien, Baseline-Templates,
+                          Deploy-/Infra-Workflow-Dateien und fremd verwaltete Owner-Pfade.
+                        </Text>
+                      </View>
+                    ) : null}
+                    {guardWarnings.slice(0, 5).map((entry) => (
+                      <Text key={`guard-${entry}`} style={styles.modalHintText}>• {entry}</Text>
+                    ))}
+                    <Text style={styles.modalDiffLabel}>Safe Follow-up Optionen</Text>
+                    {GUARDED_FOLLOW_UP_OPTIONS.map((option) => (
+                      <Text key={option.key} style={styles.modalHintText}>• {option.text}</Text>
                     ))}
                   </View>
                 ) : null}

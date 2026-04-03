@@ -175,6 +175,55 @@ export const styles = StyleSheet.create({
   modalDiffKindSkipped: {
     color: "#F5C451",
   },
+  modalPathChipRow: {
+    flexDirection: "row",
+    marginBottom: 10,
+  },
+  modalPathChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  modalPathChipChange: {
+    borderColor: "rgba(0,255,0,0.35)",
+    backgroundColor: "rgba(0,255,0,0.11)",
+  },
+  modalPathChipManual: {
+    borderColor: "rgba(245,196,81,0.45)",
+    backgroundColor: "rgba(245,196,81,0.16)",
+  },
+  modalPathChipText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.palette.text.primary,
+    letterSpacing: 0.2,
+  },
+  modalPolicyExplainToggle: {
+    marginTop: 8,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0,255,0,0.24)",
+    backgroundColor: "rgba(0,255,0,0.08)",
+  },
+  modalPolicyExplainToggleText: {
+    color: theme.palette.text.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  modalPolicyExplainCard: {
+    borderWidth: 1,
+    borderColor: "rgba(125,211,252,0.35)",
+    backgroundColor: "rgba(125,211,252,0.10)",
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+    marginBottom: 8,
+  },
   modalDiffLabel: {
     fontSize: 12,
     fontWeight: "700",
