@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-03 (Patch 737 CI-Lite-Autofix Permission Scope)**
+Stand: **2026-04-03 (Patch 738 Edge-Caller-Audit k1w1-handler/save_preview)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -19,6 +19,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
 - Workflow-Hygiene klein und fail-safe nachgezogen: `k1w1-ci-lite-autofix` nutzt kein unnoetiges `actions: write` mehr; Writeback-/Dispatch-Pfad bleibt ueber `contents: write` unveraendert funktionsfaehig.
 - Marker-Compatibility fuer Contract-Checks: "Keine offenen Repo-Muss-Punkte" gilt hier nur fuer den **bereinigten Repo-Code nach Patch 732**, nicht fuer externe Live-Themen.
+- Neuer gezielter Caller-Audit (`docs/reviews/edge_function_caller_audit_2026-04-03.md`): `save_preview` ist im vorliegenden Live-Befund bereits JWT-aligned, waehrend `k1w1-handler` als externer Live-Driftpunkt (`verify_jwt=false` + Admin-Key-Caller) vor einem Deploy explizite Caller-Migration/Runbook-Klaerung braucht.
 
 ## Was heute aktiv gilt
 

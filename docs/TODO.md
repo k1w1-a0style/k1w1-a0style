@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 737, CI-Lite-Autofix Permission Scope)**
+Stand: **2026-04-03 (Patch 738, Edge-Caller-Audit k1w1-handler/save_preview)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -25,8 +25,8 @@ Stand: **2026-04-03 (Patch 737, CI-Lite-Autofix Permission Scope)**
 
 Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; die untenstehenden Live-Punkte bleiben trotzdem offen bis externer Abschluss).
 
-1. `save_preview` live: `verify_jwt = false` (soll `true` sein)
-2. `k1w1-handler` live: `verify_jwt = false` (soll `true` sein)
+1. `save_preview` live: `verify_jwt = true` bereits bestaetigt (kein akuter Live-Flag-Restpunkt mehr)
+2. `k1w1-handler` live: `verify_jwt = false` (kritischer Drift zum Repo-Contract `verify_jwt = true`)
 3. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
 4. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
 5. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
