@@ -29,8 +29,8 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 3. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
 4. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
 5. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
-6. `diagnostics_reports`: Policy-Widerspruch / fachliche Zielintention vor Blind-Fix klaeren
-7. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig nur low-risk Nachzug)
+6. `diagnostics_reports`: Policy-Widerspruch ist analysiert (Decision-Note 2026-04-03), Produktentscheidung A/B offen
+7. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig low-risk Nachzug via Migration `20260403010000_search_path_followup.sql` erfolgt)
 8. Leaked Password Protection nicht aktiv
 9. Duplicate Indexes (Hygiene, spaeter)
 
