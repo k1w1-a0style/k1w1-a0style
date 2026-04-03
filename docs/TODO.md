@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 738, Edge-Caller-Audit k1w1-handler/save_preview)**
+Stand: **2026-04-03 (Patch 739, SoT-Abschluss Live-Auth k1w1-handler)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -19,14 +19,17 @@ Stand: **2026-04-03 (Patch 738, Edge-Caller-Audit k1w1-handler/save_preview)**
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 - [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
 
-## 2) Offen: externe Live-/Supabase-Punkte (jetzt nur dokumentiert, nicht in diesem Repo-Durchlauf umsetzbar)
+## 2) Externer Live-Status: Abschluss + offene Restpunkte (nur dokumentiert, keine Live-Mutation in diesem Lauf)
 
 ### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
 
 Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; die untenstehenden Live-Punkte bleiben trotzdem offen bis externer Abschluss).
 
-1. `save_preview` live: `verify_jwt = true` bereits bestaetigt (kein akuter Live-Flag-Restpunkt mehr)
-2. `k1w1-handler` live: `verify_jwt = false` (kritischer Drift zum Repo-Contract `verify_jwt = true`)
+1. `k1w1-handler` live auth-seitig bestaetigt (externer Read-only Check):
+   - mit gueltigem Bearer-JWT wird Auth passiert und der Request scheitert erst fachlich mit `400 invalid_request_payload`
+   - ohne Token liefert die Route `401 Unauthorized`
+   - Ergebnis: JWT-/Rollenpfad live wirksam, fail-closed Verhalten bestaetigt
+2. `save_preview` bleibt live/repo-konsistent (`verify_jwt = true` bereits bestaetigt; kein akuter Live-Flag-Restpunkt)
 3. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
 4. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
 5. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
@@ -38,7 +41,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. Legacy-Preview-Links mit `?secret=...` weiterhin operativ beobachten/rotieren (neue Links nutzen jetzt Fragment-Handoff)
-2. verify_jwt-Flag-Drift frueher sichtbar machen (derzeit nur verhaltensbasierte Live-Checks; expliziter Live-Flag-Audit bleibt manueller Operator-Schritt)
+2. verify_jwt-Flag-Drift frueher sichtbar machen (auch nach bestandenem Verhaltenscheck bleibt ein expliziter Flag-Audit sinnvoller Operator-Schritt)
 3. Stille `.catch(() => {})` reduzieren
 4. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
 5. `console.log` in Produktivpfaden weiter abbauen

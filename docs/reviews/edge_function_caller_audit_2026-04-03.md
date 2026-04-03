@@ -81,3 +81,14 @@ Begruendung:
 - Inventar der **externen** (nicht im Repo sichtbaren) `k1w1-handler`-Caller.
 - Verfuegbarkeit/Provisioning eines passenden Operator-JWT-Contracts (`build_admin|service_role`) fuer diese Caller.
 - Betriebsentscheidung fuer Migrationsstrategie (big-bang vs. dual-run/compat-phase via separater Route/Version).
+
+## Externer Live-Check-Nachtrag (2026-04-03, read-only bestaetigt)
+
+Fuer `k1w1-handler` wurde nach diesem Repo-Trace zusaetzlich ein externer Live-Check bestaetigt:
+- mit gueltigem Bearer-JWT: Auth wird passiert, Fehler erst fachlich als `400 invalid_request_payload`
+- ohne Token: `401 Unauthorized`
+
+Bewertung:
+- JWT-/Rollenpfad ist live wirksam
+- fail-closed Verhalten ist live bestaetigt
+- verbleibende Restthemen liegen nicht mehr im kritischen Auth-Migrationspunkt dieser Route, sondern in den getrennt gefuehrten offenen Live-/Produktpunkten (`diagnostics_reports`, optionale Hygiene)
