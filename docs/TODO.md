@@ -21,6 +21,10 @@ Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunk
 
 ## 2) Externer Live-Status: ehrliche Restpunktbewertung (read-only dokumentiert)
 
+### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
+
+Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; kein offener privilegierter Testzustand aus dem bereinigten Test-User).
+
 ### Kritisch offen
 
 - Keine aktuell erkennbaren **technisch kritischen** High-Priority-Restpunkte im dokumentierten Supabase-/Live-Scope.
