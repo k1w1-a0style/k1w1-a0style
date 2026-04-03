@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

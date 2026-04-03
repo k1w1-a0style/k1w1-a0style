@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 740, SoT-Konsolidierung Live-Abschluss k1w1-handler)**
+Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -30,13 +30,14 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
    - ohne Token liefert die Route `401 Unauthorized`
    - Ergebnis: JWT-/Rollenpfad live wirksam, fail-closed Verhalten bestaetigt
 2. `save_preview` bleibt live/repo-konsistent (`verify_jwt = true` bereits bestaetigt; kein akuter Live-Flag-Restpunkt)
-3. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
-4. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
-5. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
-6. `diagnostics_reports`: Policy-Widerspruch ist analysiert (Decision-Note 2026-04-03), Produktentscheidung A/B offen
-7. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig low-risk Nachzug via Migration `20260403010000_search_path_followup.sql` erfolgt)
-8. Leaked Password Protection nicht aktiv
-9. Duplicate Indexes (Hygiene, spaeter)
+3. Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde extern bereinigt (kein privilegierter Testzustand mehr offen).
+4. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
+5. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
+6. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
+7. `diagnostics_reports`: Policy-Widerspruch ist analysiert (Decision-Note 2026-04-03), Produktentscheidung A/B offen
+8. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig low-risk Nachzug via Migration `20260403010000_search_path_followup.sql` erfolgt)
+9. Leaked Password Protection nicht aktiv
+10. Duplicate Indexes (Hygiene, spaeter)
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 

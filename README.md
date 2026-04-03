@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-03 (Patch 740, SoT-Konsolidierung Live-Abschluss k1w1-handler)**
+Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)**
 
-Zuletzt abgeschlossen: **Patch 740**
+Zuletzt abgeschlossen: **Patch 741**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
