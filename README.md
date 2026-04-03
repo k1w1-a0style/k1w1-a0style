@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)**
+Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
 
-Zuletzt abgeschlossen: **Patch 741**
+Zuletzt abgeschlossen: **Patch 742**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

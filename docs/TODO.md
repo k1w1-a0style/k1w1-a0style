@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)**
+Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -19,25 +19,21 @@ Stand: **2026-04-03 (Patch 741, MD-Check + Test-User-Cleanup-Status nachgezogen)
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 - [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
 
-## 2) Externer Live-Status: Abschluss + offene Restpunkte (nur dokumentiert, keine Live-Mutation in diesem Lauf)
+## 2) Externer Live-Status: ehrliche Restpunktbewertung (read-only dokumentiert)
 
-### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
+### Kritisch offen
 
-Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; der kritische Auth-Restpunkt `k1w1-handler` ist jetzt ebenfalls extern bestaetigt geschlossen).
+- Keine aktuell erkennbaren **technisch kritischen** High-Priority-Restpunkte im dokumentierten Supabase-/Live-Scope.
 
-1. `k1w1-handler` live auth-seitig bestaetigt (externer Read-only Check):
-   - mit gueltigem Bearer-JWT wird Auth passiert und der Request scheitert erst fachlich mit `400 invalid_request_payload`
-   - ohne Token liefert die Route `401 Unauthorized`
-   - Ergebnis: JWT-/Rollenpfad live wirksam, fail-closed Verhalten bestaetigt
-2. `save_preview` bleibt live/repo-konsistent (`verify_jwt = true` bereits bestaetigt; kein akuter Live-Flag-Restpunkt)
-3. Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde extern bereinigt (kein privilegierter Testzustand mehr offen).
-4. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
-5. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
-6. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
-7. `diagnostics_reports`: Policy-Widerspruch ist analysiert (Decision-Note 2026-04-03), Produktentscheidung A/B offen
-8. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig low-risk Nachzug via Migration `20260403010000_search_path_followup.sql` erfolgt)
-9. Leaked Password Protection nicht aktiv
-10. Duplicate Indexes (Hygiene, spaeter)
+### Bewusst offen / Produktentscheidung
+
+- `diagnostics_reports`: bleibt bewusst offene Produktentscheidung (A/B), kein Blindumbau.
+
+### Niedrige Prioritaet / Hygiene
+
+- Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde operativ bereinigt; daraus bleibt kein privilegierter Testzustand offen.
+- Optionale spaetere Hygiene: Trigger-/Hook-Funktionen ohne `search_path` punktuell live querpruefen.
+- Optionale Plattformhygiene: Leaked Password Protection + Duplicate Indexes separat behandeln.
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
