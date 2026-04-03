@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 739, SoT-Abschluss Live-Auth k1w1-handler)**
+Stand: **2026-04-03 (Patch 740, SoT-Konsolidierung Live-Abschluss k1w1-handler)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -23,7 +23,7 @@ Stand: **2026-04-03 (Patch 739, SoT-Abschluss Live-Auth k1w1-handler)**
 
 ### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
 
-Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; die untenstehenden Live-Punkte bleiben trotzdem offen bis externer Abschluss).
+Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (historischer Marker; der kritische Auth-Restpunkt `k1w1-handler` ist jetzt ebenfalls extern bestaetigt geschlossen).
 
 1. `k1w1-handler` live auth-seitig bestaetigt (externer Read-only Check):
    - mit gueltigem Bearer-JWT wird Auth passiert und der Request scheitert erst fachlich mit `400 invalid_request_payload`
