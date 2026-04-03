@@ -150,7 +150,9 @@ Deno.serve(async (req) => {
 
     if (error) throw error;
 
-    const previewUrl = `${previewSupabaseUrl}/functions/v1/preview_page?secret=${encodeURIComponent(secret)}`;
+    const previewUrl =
+      `${previewSupabaseUrl}/functions/v1/preview_page?transport=fragment` +
+      `#secret=${encodeURIComponent(secret)}`;
 
     return json(
       {

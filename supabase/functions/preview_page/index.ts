@@ -119,12 +119,15 @@ function withToggleUrl(params: {
   baseUrl: URL;
   showRawLogs: boolean;
   showRuntimeErrors: boolean;
+  secretHash?: string;
 }): string {
-  const { baseUrl, showRawLogs, showRuntimeErrors } = params;
+  const { baseUrl, showRawLogs, showRuntimeErrors, secretHash } = params;
   const url = new URL(baseUrl.toString());
   url.searchParams.set("logs", showRawLogs ? "1" : "0");
   url.searchParams.set("runtime_errors", showRuntimeErrors ? "1" : "0");
-  return url.toString();
+  const next = url.toString();
+  if (!secretHash) return next;
+  return `${next}#secret=${encodeURIComponent(secretHash)}`;
 }
 
 function renderPage(params: {
@@ -337,6 +340,71 @@ function renderPage(params: {
 </html>`;
 }
 
+function renderFragmentBootstrapPage(params: { nonce: string }): string {
+  const { nonce } = params;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preview</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0a0a0a; color: #c8c8c8; font-family: system-ui, -apple-system, sans-serif; }
+  .box { text-align: center; padding: 20px; }
+  .spinner { width: 36px; height: 36px; margin: 0 auto 12px; border: 3px solid #222; border-top-color: #00ff88; border-radius: 50%; animation: spin .8s linear infinite; }
+  .err { color: #ff6b6b; margin-top: 10px; font-family: ui-monospace, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; word-break: break-word; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner"></div>
+    <div>Loading preview…</div>
+    <div id="err" class="err" role="alert" aria-live="polite"></div>
+  </div>
+  <script type="module" nonce="${nonce}">
+    const errEl = document.getElementById("err");
+    const writeError = (msg) => {
+      if (!errEl) return;
+      errEl.textContent = String(msg || "Preview token missing.");
+    };
+
+    const current = new URL(window.location.href);
+    const hash = current.hash.startsWith("#") ? current.hash.slice(1) : "";
+    const hashParams = new URLSearchParams(hash);
+    const secret = (hashParams.get("secret") || "").trim();
+
+    if (!secret) {
+      writeError("Preview token missing.");
+    } else {
+      current.hash = "";
+      try {
+        window.history.replaceState(null, "", current.pathname + current.search);
+      } catch {
+        // no-op: history updates can fail in restrictive contexts
+      }
+
+      fetch(current.toString(), {
+        method: "GET",
+        headers: {
+          "x-k1w1-preview-secret": secret,
+        },
+      })
+        .then((res) => res.text())
+        .then((page) => {
+          document.open();
+          document.write(page);
+          document.close();
+        })
+        .catch(() => {
+          writeError("Preview could not be loaded.");
+        });
+    }
+  </script>
+</body>
+</html>`;
+}
+
 Deno.serve(async (req) => {
   const durableRl = await requireDurableRateLimit(req, {
     scope: "preview_page",
@@ -354,12 +422,18 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const secret = url.searchParams.get("secret") ?? "";
+    const querySecret = url.searchParams.get("secret") ?? "";
+    const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? "";
+    const secret = querySecret || headerSecret;
     const showRawLogs = parseToggleParam(url.searchParams.get("logs"));
     const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"));
+    const transport = (url.searchParams.get("transport") ?? "").trim().toLowerCase();
     const nonce = randomNonce();
 
     if (!secret) {
+      if (transport === "fragment") {
+        return html(renderFragmentBootstrapPage({ nonce }), nonce, 200);
+      }
       return html(
         `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing ?secret=...</pre>`,
         nonce,
@@ -423,11 +497,13 @@ Deno.serve(async (req) => {
       baseUrl: url,
       showRawLogs: !showRawLogs,
       showRuntimeErrors,
+      secretHash: !querySecret && headerSecret ? secret : undefined,
     });
     const runtimeErrorsToggleUrl = withToggleUrl({
       baseUrl: url,
       showRawLogs,
       showRuntimeErrors: !showRuntimeErrors,
+      secretHash: !querySecret && headerSecret ? secret : undefined,
     });
 
     const page = renderPage({

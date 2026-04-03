@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 734, Supabase-Repo-SQL-Hardening)**
+Stand: **2026-04-03 (Patch 736, Preview-Secret Fragment-Handoff)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -36,7 +36,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
-1. `preview_page` Secret in Query-URL haerten
+1. Legacy-Preview-Links mit `?secret=...` weiterhin operativ beobachten/rotieren (neue Links nutzen jetzt Fragment-Handoff)
 2. verify_jwt-Flag-Drift frueher sichtbar machen (derzeit nur verhaltensbasierte Live-Checks; expliziter Live-Flag-Audit bleibt manueller Operator-Schritt)
 3. Stille `.catch(() => {})` reduzieren
 4. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
