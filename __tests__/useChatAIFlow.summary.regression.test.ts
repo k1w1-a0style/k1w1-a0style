@@ -2,6 +2,7 @@ import {
   buildGuardPolicyPreHint,
   buildPathBulletList,
   buildPreflightSummaryIntro,
+  isDirectBuildCommand,
   extractContextBudgetNotice,
 } from "../hooks/useChatAIFlow";
 
@@ -64,5 +65,12 @@ describe("useChatAIFlow summary regression", () => {
       { role: "system", content: "Kontext – aktueller Projektzustand" },
     ]);
     expect(note).toBe("");
+  });
+
+  it("detects direct-build command variants for scout handoff", () => {
+    expect(isDirectBuildCommand("direkt build")).toBe(true);
+    expect(isDirectBuildCommand("BUILD")).toBe(true);
+    expect(isDirectBuildCommand("jetzt builden")).toBe(true);
+    expect(isDirectBuildCommand("weiter")).toBe(false);
   });
 });

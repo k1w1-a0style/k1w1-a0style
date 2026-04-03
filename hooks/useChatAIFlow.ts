@@ -153,6 +153,11 @@ export const buildGuardPolicyPreHint = (): string =>
   "🟢 `allowed` = kann ich direkt als Patch vorschlagen\n" +
   "🔴 `guarded` = kritische/manual-only Pfade, bleiben manuell";
 
+export const isDirectBuildCommand = (input: string): boolean => {
+  const lower = String(input ?? "").trim().toLowerCase();
+  return lower === "direkt build" || lower === "build" || lower === "jetzt builden";
+};
+
 export const extractContextBudgetNotice = (
   llmMessages: Array<{ role: string; content: string }>,
 ): string => {
@@ -450,7 +455,7 @@ export function useChatAIFlow({
       const normalizedIntentReply = sanitizedRequestContent.trim().toLowerCase();
       if (normalizedIntentReply === "planen") {
         void recordChatQualityMetric("intent_confirmation_planen");
-      } else if (normalizedIntentReply === "direkt build") {
+      } else if (isDirectBuildCommand(normalizedIntentReply)) {
         void recordChatQualityMetric("intent_confirmation_build");
       }
 
@@ -977,10 +982,7 @@ export function useChatAIFlow({
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
         const lower = sanitizedUserContent.trim().toLowerCase();
-        const wantsDirectBuild =
-          lower === "direkt build" ||
-          lower === "build" ||
-          lower === "jetzt builden";
+        const wantsDirectBuild = isDirectBuildCommand(lower);
         const wantsProceed =
           lower === "weiter" ||
           lower === "mach weiter" ||
