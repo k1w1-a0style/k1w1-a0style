@@ -10,4 +10,10 @@ describe("useChatAIFlow pending plan guard invariants", () => {
     expect(src).toContain('lower === "weiter"');
     expect(src).toContain('lower === "mach weiter"');
   });
+
+  it("keeps scout-mode guard coupled to explicit direct-build confirmation", () => {
+    expect(src).toContain('if (currentPlan.mode === "scout" && !wantsDirectBuild)');
+    expect(src).toContain('lower === "direkt build"');
+    expect(src).toContain("Scout-Modus aktiv");
+  });
 });
