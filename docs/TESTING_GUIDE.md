@@ -1,6 +1,7 @@
 # Testing Guide
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 733, Template-/Guard-Nachzug)**
+<!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
 
@@ -45,6 +46,13 @@ Oder als kompletter Verify-Pfad:
 ```bash
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run verify:release
 ```
+
+### Wichtige Grenze der Live-Contract-Checks (verify_jwt-Drift)
+
+- `npm run edge:check:live` prueft aktuell nur API-Verhalten (z. B. Error-Codes/Antwortstruktur).
+- Damit wird **nicht automatisch** ausgeschlossen, dass ein Route-Flag live im Supabase-Dashboard auf `verify_jwt=false` gedriftet ist.
+- Fuer sensible Routen (`save_preview`, `k1w1-handler`) muss der Live-Release-Check deshalb zusaetzlich einen expliziten `verify_jwt`-Abgleich gegen die aktive Supabase-Konfiguration enthalten (manueller Operator-Schritt, bis ein stabiler API-Check dafuer vorliegt).
+- Mindestanforderung im Runbook: vor Release aktiv bestaetigen, dass live fuer `save_preview` und `k1w1-handler` weiterhin `verify_jwt=true` gesetzt ist.
 
 ## Zweck
 

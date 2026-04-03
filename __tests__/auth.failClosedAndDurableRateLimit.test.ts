@@ -189,6 +189,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("durable store offline"));
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = await withEnv(
       {
@@ -204,6 +205,13 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     );
 
     expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("falling back to local limiter"),
+      expect.objectContaining({
+        fallback_mode: "local_in_memory_best_effort",
+        cluster_safe: false,
+      }),
+    );
   });
 
 

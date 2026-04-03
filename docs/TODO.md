@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 732, Security-/SoT-Nachzug)**
+Stand: **2026-04-03 (Patch 733, Template-/Guard-Nachzug)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -12,7 +12,10 @@ Stand: **2026-04-03 (Patch 732, Security-/SoT-Nachzug)**
   - `supabase/functions/trigger-eas-build/index.ts`
   - `supabase/functions/github-workflow-dispatch/index.ts`
 - [x] `actions/upload-artifact` Pins auf konsistenten Full-SHA vereinheitlicht (`ea165f8d65b6e75b540449e92b4886f43607fa02`) in Workflows + Templates.
+- [x] Drift in eingebetteten Template-Workflow-Kopien geschlossen (`templates/expo-sdk54-base.json`, `templates/expo-sdk54-full.json` jetzt wieder baseline-aligned zu `.github/workflows/eas-build.yml` und `.github/workflows/release-build.yml`).
 - [x] Lokalen HTML-/Eval-/Babel-/CDN-Fallback in `lib/sandpackBuilder.ts` fuer Production-/Release-Kontext hart deaktiviert (Guard + expliziter Disabled-HTML-Pfad), Dev/Test bleibt explizit nutzbar.
+- [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
+- [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 
 ## 2) Offen: externe Live-/Supabase-Punkte (jetzt nur dokumentiert, nicht in diesem Repo-Durchlauf umsetzbar)
 
@@ -33,13 +36,12 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. `preview_page` Secret in Query-URL haerten
-2. `SUPABASE_RAW`-Persistenz explizit absichern
-3. Durable rate-limit fallback klarer dokumentieren + gezielt testen
-4. Stille `.catch(() => {})` reduzieren
-5. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
-6. `console.log` in Produktivpfaden weiter abbauen
-7. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen
-8. Workflow-Hygiene-Nachzug nur mit engem Scope:
+2. verify_jwt-Flag-Drift frueher sichtbar machen (derzeit nur verhaltensbasierte Live-Checks; expliziter Live-Flag-Audit bleibt manueller Operator-Schritt)
+3. Stille `.catch(() => {})` reduzieren
+4. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
+5. `console.log` in Produktivpfaden weiter abbauen
+6. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen
+7. Workflow-Hygiene-Nachzug nur mit engem Scope:
    - `npm install`-Fallback in produktnahen Pfaden weiter reduzieren, ohne dev-Bootstrap kaputtzumachen
    - Repo-Writebacks/persisted Credentials nur dort behalten, wo Push wirklich benoetigt wird
 

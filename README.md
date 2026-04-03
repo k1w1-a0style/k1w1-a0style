@@ -4,8 +4,8 @@
 
 Stand: **2026-04-02 (Docs Konsolidierung)**
 
-Der aktuelle Deep-Scan-/Cleanup-Stand bestaetigt:
-- **keine offenen Repo-Muss-Punkte** im aktuell geprueften Code-/Doku-Stand
+Der aktuelle Stand bestaetigt:
+- verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
 - aktive Legacy-/Compat-Flaechen wurden stark reduziert
 - die kanonischen Repo-Checks sind vorhanden und dokumentiert
 

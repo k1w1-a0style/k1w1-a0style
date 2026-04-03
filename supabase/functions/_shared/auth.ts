@@ -560,12 +560,18 @@ export async function requireDurableRateLimit(
   req: Request,
   cfg: DurableRateLimitConfig,
 ): Promise<Response | null> {
+  const localFallbackRisk = {
+    fallback_mode: "local_in_memory_best_effort",
+    cluster_safe: false,
+  } as const;
+
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();
   if (!supabaseUrl || !serviceKey) {
     console.warn("[durable-rate-limit] falling back to local limiter because durable store secrets are missing", {
       scope: cfg.scope,
       missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"],
+      ...localFallbackRisk,
     });
     return null;
   }
@@ -594,6 +600,7 @@ export async function requireDurableRateLimit(
       console.warn("[durable-rate-limit] falling back to local limiter because durable store write failed", {
         scope: cfg.scope,
         status: insertRes.status,
+        ...localFallbackRisk,
       });
       return null;
     }
@@ -613,6 +620,7 @@ export async function requireDurableRateLimit(
       console.warn("[durable-rate-limit] falling back to local limiter because durable store read failed", {
         scope: cfg.scope,
         status: countRes.status,
+        ...localFallbackRisk,
       });
       return null;
     }
@@ -634,6 +642,7 @@ export async function requireDurableRateLimit(
     console.warn("[durable-rate-limit] falling back to local limiter because durable store is unavailable", {
       scope: cfg.scope,
       error: error instanceof Error ? error.message : String(error),
+      ...localFallbackRisk,
     });
     return null;
   }
