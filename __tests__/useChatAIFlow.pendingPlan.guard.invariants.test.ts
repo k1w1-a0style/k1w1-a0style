@@ -16,4 +16,9 @@ describe("useChatAIFlow pending plan guard invariants", () => {
     expect(src).toContain('lower === "direkt build"');
     expect(src).toContain("Scout-Modus aktiv");
   });
+
+  it("uses the same direct-build helper for scout handoff and metrics", () => {
+    expect(src).toContain("isDirectBuildCommand(normalizedIntentReply)");
+    expect(src).toContain("isDirectBuildCommand(lower)");
+  });
 });

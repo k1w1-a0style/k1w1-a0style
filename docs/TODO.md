@@ -57,6 +57,25 @@ Das sind reale Aufgaben, aber **keine offenen Repo-Code-/Doku-Defekte**.
 - als schneller Check, ob gerade wirklich etwas offen ist
 - als bewusste Gegenmassnahme gegen Drift durch grosse historische Sammellisten
 
+## Was sind "Durchlaeufe"?
+
+- Ein Durchlauf ist **kein reiner Testlauf**.
+- Typisch bedeutet ein Durchlauf: kleines Ziel auswaehlen -> minimal umsetzen -> Typecheck/Lint/Tests gruen -> Doku/SoT synchronisieren.
+- Tests sind also nur ein Teil davon (Absicherung), nicht das gesamte Ergebnis.
+
+## Empfohlene naechste 10 Durchlaeufe
+
+1. Scout-Mode Runtime-E2E im Hook-Test absichern (nicht nur Invariant-Strings).
+2. Intent-Classifier Grenzfaelle erweitern (de/eng Mischprompts, sehr kurze Inputs).
+3. Guard-Policy-Hinweise im Planner-Reply i18n-/copy-konsistent zusammenziehen.
+4. Chat-Quality-Metriken um einfache "abgebrochen"/"missverstanden"-Counter erweitern (lokal).
+5. Kleine Settings-Ansicht fuer lokale Chat-Metrik-Snapshot (read-only, anonymisiert).
+6. ConfirmChangesModal: Guard-Explain Accessibility (Screenreader-Reihenfolge/Labels) haerten.
+7. PatchEngine: zusaetzliche Property-lite Cases fuer Pfadnormalisierung (Windows edge cases).
+8. Release-Readiness Script-Checks als kompakte Aggregat-Ausgabe vereinheitlichen.
+9. Docs-Fokuslauf: README/TODO/INDEX/Review auf Begriffsdrift "Scout/Audit-only" angleichen.
+10. Optionaler "Operator Quickstart" im Runbook fuer haeufige Erstfehler (kurzer Troubleshooting-Pfad).
+
 ## Verbindliche Begleitquellen
 
 - `docs/reviews/Review.md`
