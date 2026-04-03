@@ -2,7 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 740, SoT-Konsolidierung Live-Abschluss k1w1-handler)**
+
+Zuletzt abgeschlossen: **Patch 740**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

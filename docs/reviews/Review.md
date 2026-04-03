@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-03 (Patch 738 Edge-Caller-Audit k1w1-handler/save_preview)**
+Stand: **2026-04-03 (Patch 740 SoT-Konsolidierung Live-Abschluss k1w1-handler)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -18,8 +18,10 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403010000_search_path_followup.sql`).
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
 - Workflow-Hygiene klein und fail-safe nachgezogen: `k1w1-ci-lite-autofix` nutzt kein unnoetiges `actions: write` mehr; Writeback-/Dispatch-Pfad bleibt ueber `contents: write` unveraendert funktionsfaehig.
-- Marker-Compatibility fuer Contract-Checks: "Keine offenen Repo-Muss-Punkte" gilt hier nur fuer den **bereinigten Repo-Code nach Patch 732**, nicht fuer externe Live-Themen.
-- Neuer gezielter Caller-Audit (`docs/reviews/edge_function_caller_audit_2026-04-03.md`): `save_preview` ist im vorliegenden Live-Befund bereits JWT-aligned, waehrend `k1w1-handler` als externer Live-Driftpunkt (`verify_jwt=false` + Admin-Key-Caller) vor einem Deploy explizite Caller-Migration/Runbook-Klaerung braucht.
+- Marker-Compatibility fuer Contract-Checks: **Keine offenen Repo-Muss-Punkte** gilt fuer den bereinigten Repo-Code; offene Themen sind externe Live-/Produktentscheidungen.
+- Der externe Live-Check fuer `k1w1-handler` ist jetzt auth-seitig bestaetigt: mit gueltigem Bearer-JWT laeuft die Route bis `400 invalid_request_payload`, ohne Token liefert sie `401 Unauthorized`; damit ist fail-closed fuer den JWT-/Rollenpfad live nachgewiesen.
+- `save_preview` bleibt laut Live-Befund JWT-aligned und repo-konsistent; hier ist kein neuer kritischer Auth-Restpunkt offen.
+- `diagnostics_reports` bleibt bewusst als offene Produktentscheidung gefuehrt (kein Blindumbau in diesem Lauf).
 
 ## Was heute aktiv gilt
 

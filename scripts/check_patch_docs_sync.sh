@@ -31,13 +31,12 @@ require_exists() {
 }
 
 patch_id="$({
-  grep -Eo 'Zuletzt abgeschlossen: \*\*Patch [A-Za-z0-9._-]+\*\*' README.md \
-    | sed -E 's/^Zuletzt abgeschlossen: \*\*Patch ([A-Za-z0-9._-]+)\*\*$/\1/' \
-    | head -n1 || true;
+  grep -Eom1 'Zuletzt abgeschlossen: \*\*Patch [A-Za-z0-9._-]+\*\*' README.md \
+    | sed -E 's/^Zuletzt abgeschlossen: \*\*Patch ([A-Za-z0-9._-]+)\*\*$/\1/' || true;
 })"
 
 stand_line="$({
-  grep -Eo 'Stand: \*\*[^*]+\*\*' README.md | head -n1 || true;
+  grep -Eom1 'Stand: \*\*[^*]+\*\*' README.md || true;
 })"
 
 if [ -n "${patch_id:-}" ]; then
@@ -48,8 +47,8 @@ if [ -n "${patch_id:-}" ]; then
   require_regex docs/patches/PATCHLOG_ROOT.md "- Patch ${patch_id}:"
   require_fixed "$patch_file" "# Patch ${patch_id}"
 
-  checklog_top="$(grep -Eo 'Patch [A-Za-z0-9._-]+:' PROJECT_CHECKLOG.md | head -n1 | sed -E 's/^Patch ([A-Za-z0-9._-]+):$/\1/')"
-  patchlog_top="$(grep -Eo -- '- Patch [A-Za-z0-9._-]+:' docs/patches/PATCHLOG_ROOT.md | head -n1 | sed -E 's/^- Patch ([A-Za-z0-9._-]+):$/\1/')"
+  checklog_top="$(grep -Eom1 'Patch [A-Za-z0-9._-]+:' PROJECT_CHECKLOG.md | sed -E 's/^Patch ([A-Za-z0-9._-]+):$/\1/')"
+  patchlog_top="$(grep -Eom1 -- '- Patch [A-Za-z0-9._-]+:' docs/patches/PATCHLOG_ROOT.md | sed -E 's/^- Patch ([A-Za-z0-9._-]+):$/\1/')"
 
   [ "$checklog_top" = "$patch_id" ] || {
     echo "PROJECT_CHECKLOG.md top patch (${checklog_top:-<none>}) does not match README patch ${patch_id}" >&2
