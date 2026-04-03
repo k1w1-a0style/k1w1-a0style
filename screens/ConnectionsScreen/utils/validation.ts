@@ -148,9 +148,15 @@ export const deriveSupabaseUrl = (raw: string): { projectId: string; url: string
 
 export const normalizeStoredSupabaseRaw = (raw: string, derivedUrl?: string): string => {
   const trimmedRaw = (raw || "").trim();
-  const legacySecretComposite = /^https?:\/\/[^:\s]+\.supabase\.co:::.+$/i;
-  if (legacySecretComposite.test(trimmedRaw)) {
-    return "";
+  const legacyCompositeSplit = trimmedRaw.split(":::");
+  if (legacyCompositeSplit.length > 1) {
+    const legacyTarget = (legacyCompositeSplit[0] || "").trim();
+    const legacyDerived = deriveSupabaseUrl(legacyTarget);
+    if (legacyDerived.projectId) {
+      return legacyTarget.startsWith("http://") || legacyTarget.startsWith("https://")
+        ? legacyDerived.url
+        : legacyDerived.projectId;
+    }
   }
 
   const rawDerived = deriveSupabaseUrl(trimmedRaw);
