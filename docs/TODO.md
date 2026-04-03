@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 733, Template-/Guard-Nachzug)**
+Stand: **2026-04-03 (Patch 734, Supabase-Repo-SQL-Hardening)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -16,6 +16,7 @@ Stand: **2026-04-03 (Patch 733, Template-/Guard-Nachzug)**
 - [x] Lokalen HTML-/Eval-/Babel-/CDN-Fallback in `lib/sandpackBuilder.ts` fuer Production-/Release-Kontext hart deaktiviert (Guard + expliziter Disabled-HTML-Pfad), Dev/Test bleibt explizit nutzbar.
 - [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
+- [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
 
 ## 2) Offen: externe Live-/Supabase-Punkte (jetzt nur dokumentiert, nicht in diesem Repo-Durchlauf umsetzbar)
 
@@ -25,11 +26,11 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 1. `save_preview` live: `verify_jwt = false` (soll `true` sein)
 2. `k1w1-handler` live: `verify_jwt = false` (soll `true` sein)
-3. `build_jobs`: gefaehrliche RLS-Policy mit effektivem public-Zugriff
-4. `cleanup_old_previews(integer)`: `SECURITY DEFINER` + `PUBLIC EXECUTE`
-5. `signing_audit_log`: keine explizite deny-policy
-6. `diagnostics_reports`: Policy-Widerspruch / anon-Lesbarkeit klaeren
-7. Trigger-/Hook-Funktionen ohne `search_path`
+3. `build_jobs`: Live-RLS auf Repo-SoT ausstehend (Repo-Migration vorhanden, Live-Apply extern)
+4. `cleanup_old_previews(integer)`: Legacy-Live-Haertung extern ausstehend (Repo-Migration vorbereitet)
+5. `signing_audit_log`: explizite deny-policy live ausstehend (Repo-Migration vorbereitet)
+6. `diagnostics_reports`: Policy-Widerspruch / fachliche Zielintention vor Blind-Fix klaeren
+7. Trigger-/Hook-Funktionen ohne `search_path` live final pruefen (Repo-seitig nur low-risk Nachzug)
 8. Leaked Password Protection nicht aktiv
 9. Duplicate Indexes (Hygiene, spaeter)
 
