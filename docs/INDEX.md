@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

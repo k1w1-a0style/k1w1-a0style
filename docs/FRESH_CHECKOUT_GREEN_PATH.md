@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
