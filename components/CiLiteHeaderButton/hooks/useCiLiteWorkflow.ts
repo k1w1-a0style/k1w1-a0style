@@ -35,7 +35,6 @@ import {
   buildArtifactFetchContextKey,
   resolveCiLiteArtifactRequest,
   resolveCiLiteLookupFailureMessage,
-  mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
   resolveCiLitePendingRunMessage,
@@ -46,6 +45,7 @@ import {
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
+import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -76,12 +76,18 @@ export function useCiLiteWorkflow() {
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
-  const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
-
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
-  const lookupGenerationRef = useRef(0);
   const artifactAttemptedContextRef = useRef<string | null>(null);
+
+  const {
+    lookupDiagnosisRef,
+    stopPolling,
+    isLookupGenerationActive,
+    scheduleLookupPoll,
+    startRunLookup,
+    stopRunLookup,
+    updateLookupDiagnosis,
+    lookupDiagnosis: lookupDiagnosisState,
+  } = useCiLiteRunLookupState();
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -92,60 +98,6 @@ export function useCiLiteWorkflow() {
     () => (projectData?.linkedBranch?.trim() || "").trim(),
     [projectData?.linkedBranch],
   );
-
-  // ---- Polling helpers ----
-  const stopPolling = useCallback(() => {
-    lookupGenerationRef.current += 1;
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
-
-  const isLookupGenerationActive = useCallback((generation: number): boolean => {
-    return lookupGenerationRef.current === generation;
-  }, []);
-
-  const scheduleLookupPoll = useCallback((params: {
-    generation: number;
-    attempt: number;
-    poll: () => Promise<boolean>;
-  }) => {
-    if (!isLookupGenerationActive(params.generation)) return;
-    const delaysMs = [1200, 1800, 2600, 3500, 4500];
-    const delay = delaysMs[Math.min(params.attempt, delaysMs.length - 1)];
-    pollTimerRef.current = setTimeout(() => {
-      void (async () => {
-        if (!isLookupGenerationActive(params.generation)) return;
-        const finished = await params.poll();
-        if (!finished && isLookupGenerationActive(params.generation)) {
-          scheduleLookupPoll({ generation: params.generation, attempt: params.attempt + 1, poll: params.poll });
-        }
-      })();
-    }, delay);
-  }, [isLookupGenerationActive]);
-
-  const startRunLookup = useCallback(() => {
-    stopPolling();
-    const generation = lookupGenerationRef.current;
-    lookupDiagnosisRef.current = null;
-    setLookupDiagnosis(null);
-    setLocatingRun(true);
-    return generation;
-  }, [stopPolling]);
-
-  const stopRunLookup = useCallback(() => {
-    setLocatingRun(false);
-    stopPolling();
-  }, [stopPolling]);
-
-  const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
-    const merged = mergeWorkflowRunLookupDiagnosis(lookupDiagnosisRef.current, diagnosis);
-    lookupDiagnosisRef.current = merged;
-    setLookupDiagnosis(merged);
-  }, []);
-
-  useEffect(() => () => stopPolling(), [stopPolling]);
 
   const findMatchingRun = useCallback(
     async (opts: {
@@ -521,12 +473,12 @@ export function useCiLiteWorkflow() {
     if (chainSkipReason) {
       setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
       setChainWaiting(false);
-      stopRunLookup();
+      stopRunLookup(setLocatingRun);
       return;
     }
 
     setChainWaiting(true);
-    const lookupGeneration = startRunLookup();
+    const lookupGeneration = startRunLookup(setLocatingRun);
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
@@ -538,7 +490,7 @@ export function useCiLiteWorkflow() {
       if (!userJwt) {
         setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
         setChainWaiting(false);
-        stopRunLookup();
+        stopRunLookup(setLocatingRun);
         return;
       }
 
@@ -562,19 +514,19 @@ export function useCiLiteWorkflow() {
             setRunId(Number(lookup.candidate.id));
             setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
             setChainWaiting(false);
-            stopRunLookup();
+            stopRunLookup(setLocatingRun);
             return true;
           }
         } catch (e: unknown) {
           setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
           setChainWaiting(false);
-          stopRunLookup();
+          stopRunLookup(setLocatingRun);
           return true;
         }
         if (Date.now() - start > 75_000) {
           setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
           setChainWaiting(false);
-          stopRunLookup();
+          stopRunLookup(setLocatingRun);
           return true;
         }
         return false;
@@ -667,7 +619,7 @@ export function useCiLiteWorkflow() {
       setWorkflowId(workflowFile);
       setChainWaiting(false);
       updateLookupDiagnosis(null);
-      stopRunLookup();
+      stopRunLookup(setLocatingRun);
 
       const newJobId = uuidv4();
       setJobId(newJobId);
@@ -769,30 +721,30 @@ export function useCiLiteWorkflow() {
             if (lookup.candidate?.id) {
               setRunId(Number(lookup.candidate.id));
               setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
-              stopRunLookup();
+              stopRunLookup(setLocatingRun);
               return true;
             }
           } catch (e: unknown) {
             setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
-            stopRunLookup();
+            stopRunLookup(setLocatingRun);
             return true;
           }
           if (Date.now() - start > 60_000) {
             setLocalError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
-            stopRunLookup();
+            stopRunLookup(setLocatingRun);
             return true;
           }
           return false;
         };
 
-        const lookupGeneration = startRunLookup();
+        const lookupGeneration = startRunLookup(setLocatingRun);
         const lookupFinished = await poll();
         if (!lookupFinished) {
           scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
       } catch (e: unknown) {
         setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
-        stopRunLookup();
+        stopRunLookup(setLocatingRun);
       } finally {
         setDispatching(false);
       }
@@ -832,7 +784,7 @@ export function useCiLiteWorkflow() {
     showError, artifactNotice, logsLoading,
     runMeta,
     hydratedFromPersistence: Boolean(hydratedDisplaySnapshot),
-    lookupDiagnosis,
+    lookupDiagnosis: lookupDiagnosisState,
     stopPolling,
   };
 }

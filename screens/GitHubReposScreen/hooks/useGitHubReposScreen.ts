@@ -8,13 +8,7 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import {
-  createRepo,
   pushFilesToRepoAdvanced,
-  deleteRepo as deleteGitHubRepo,
-  renameRepo as renameGitHubRepo,
-  createBranch,
-  deleteBranch,
-  renameBranch,
   compareLocalFilesWithRepo,
   createOrUpdateFile,
   getRepoFileText,
@@ -23,7 +17,7 @@ import {
 import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
-import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
+import { combineRepos, splitFullName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
@@ -42,15 +36,11 @@ import {
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
-import {
-  loadCoreTemplateFiles,
-  getCoreFileContent,
-  CORE_TEMPLATE_FILES,
-} from "./templateFiles";
-import type { TemplateFile, RepoFilterType } from "./templateFiles";
+import { getCoreFileContent, CORE_TEMPLATE_FILES } from "./templateFiles";
+import type { RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
-import { getEasLinkWriteNotice, getRepoSuccessNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
-import { getDeleteBranchConfirmDialog, getDeleteRepoConfirmDialog } from "./githubReposScreenDialogHelpers";
+import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
+import { useGitHubRepoCrud } from "./useGitHubRepoCrud";
 import {
   buildRepoBranchContextKey,
   getEasLinkNeutralMessage,
@@ -82,36 +72,6 @@ const EMPTY_SYNC_STATUS: SyncStatus = {
   skipped: 0,
   error: 0,
   checkedAt: null,
-};
-
-const isGitHubRepo = (value: unknown): value is GitHubRepo => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const repo = value as Record<string, unknown>;
-  return (
-    typeof repo.id === "number" &&
-    typeof repo.name === "string" &&
-    typeof repo.full_name === "string" &&
-    typeof repo.private === "boolean" &&
-    typeof repo.updated_at === "string"
-  );
-};
-
-type LegacyCreateRepoResponse = {
-  owner?: { login?: string };
-  name?: string;
-  full_name?: string;
-  default_branch?: string | null;
-};
-
-const readCreatedRepoFullName = (value: unknown): string | null => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const record = value as LegacyCreateRepoResponse;
-  const direct = typeof record.full_name === "string" ? record.full_name.trim() : "";
-  if (direct) return direct;
-
-  const ownerLogin = typeof record.owner?.login === "string" ? record.owner.login.trim() : "";
-  const repoName = typeof record.name === "string" ? record.name.trim() : "";
-  return ownerLogin && repoName ? `${ownerLogin}/${repoName}` : null;
 };
 
 export function useGitHubReposScreen() {
@@ -166,14 +126,9 @@ export function useGitHubReposScreen() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<RepoFilterType>("all");
 
-  const [localRepos, setLocalRepos] = useState<GitHubRepo[]>([]);
   const [newRepoName, setNewRepoName] = useState("");
   const [newRepoPrivate, setNewRepoPrivate] = useState(true);
   const [renameName, setRenameName] = useState("");
-
-  const [isCreating, setIsCreating] = useState(false);
-  const [isRenaming, setIsRenaming] = useState(false);
-  const [isDeletingRepo, setIsDeletingRepo] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [pullProgress, setPullProgress] = useState("");
@@ -199,25 +154,6 @@ export function useGitHubReposScreen() {
     [activeRepo, activeBranch],
   );
   const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
-
-  // Manage Modal (used for branch operations)
-  type ManageModalConfig = {
-    title: string;
-    placeholder: string;
-    initialValue?: string;
-    confirmText?: string;
-    action: (value: string) => Promise<void>;
-  };
-  const [manageModal, setManageModal] = useState<ManageModalConfig | null>(null);
-  const [manageValue, setManageValue] = useState("");
-  const [manageBusy, setManageBusy] = useState(false);
-
-  const openManageModal = useCallback((cfg: ManageModalConfig) => {
-    setManageModal(cfg);
-    setManageValue(cfg.initialValue ?? "");
-  }, []);
-
-  const closeManageModal = useCallback(() => setManageModal(null), []);
 
   const {
     repos,
@@ -412,17 +348,6 @@ export function useGitHubReposScreen() {
   }
 }, [addRecentRepo, setLinkedRepo, loadDefaultBranch]);
 
-  const confirmManageModal = useCallback(async () => {
-    if (!manageModal || manageBusy) return;
-
-    setManageBusy(true);
-    try {
-      await manageModal.action(manageValue);
-    } finally {
-      setManageBusy(false);
-    }
-  }, [manageModal, manageBusy, manageValue]);
-
   const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_BRANCHES_BY_REPO).catch(
@@ -451,6 +376,40 @@ export function useGitHubReposScreen() {
     [activeRepo, setLinkedRepo, rememberRecentBranch],
   );
 
+  const {
+    localRepos,
+    isCreating,
+    isRenaming,
+    isDeletingRepo,
+    handleCreateRepo,
+    handleRenameRepo,
+    handleDeleteRepo,
+    handleCreateBranch,
+    handleRenameBranch,
+    handleDeleteBranch,
+    manageModal,
+    manageValue,
+    manageBusy,
+    setManageValue,
+    closeManageModal,
+    confirmManageModal,
+  } = useGitHubRepoCrud({
+    token,
+    activeRepo,
+    activeBranch,
+    renameName,
+    newRepoName,
+    newRepoPrivate,
+    addRecentRepo,
+    setLinkedRepo,
+    loadRepos,
+    loadDefaultBranch,
+    setShowRenameRepo,
+    setShowNewRepo,
+    setRenameName,
+    setNewRepoName,
+  });
+
   const withCoreFiles = useCallback((files: ProjectFile[]): ProjectFile[] => {
     // Ensure core workflow files exist and are valid. Only applies for core templates.
     const mapped = (files ?? []).map((f) => ({
@@ -476,116 +435,6 @@ export function useGitHubReposScreen() {
 
     return Array.from(fileMap.entries()).map(([path, content]) => ({ path, content }));
   }, [effectiveTemplateId]);
-
-  const handleCreateRepo = useCallback(async () => {
-    if (!token) return;
-    const name = newRepoName.trim();
-    const validation = isValidRepoName(name);
-    if (!validation.valid) {
-      Alert.alert("❌ Ungültiger Name", validation.error ?? "");
-      return;
-    }
-
-    setIsCreating(true);
-    try {
-      const repoResponse = await createRepo(name, newRepoPrivate);
-      if (isGitHubRepo(repoResponse)) {
-        const repo = repoResponse;
-        setLocalRepos((prev) => [repo, ...prev]);
-        setNewRepoName("");
-        setShowNewRepo(false);
-        addRecentRepo(repo.full_name);
-        const defaultBranch = String(repo.default_branch || "").trim() || null;
-        setLinkedRepo(repo.full_name, defaultBranch);
-        const successNotice = getRepoSuccessNotice("repo_created", repo.full_name);
-        Alert.alert(successNotice.title, successNotice.message);
-      } else {
-        const repoFullName = readCreatedRepoFullName(repoResponse);
-        if (!repoFullName) {
-          throw new Error("GitHub API Antwort für neues Repository ist unvollständig.");
-        }
-        await loadRepos();
-        setNewRepoName("");
-        setShowNewRepo(false);
-        addRecentRepo(repoFullName);
-        setLinkedRepo(repoFullName, null);
-        const successNotice = getRepoSuccessNotice("repo_created", repoFullName);
-        Alert.alert(successNotice.title, successNotice.message);
-      }
-    } catch (e: unknown) {
-      Alert.alert("❌ Repo erstellen fehlgeschlagen", getErrorMessage(e, ""));
-    } finally {
-      setIsCreating(false);
-    }
-  }, [token, newRepoName, newRepoPrivate, addRecentRepo, setLinkedRepo, loadRepos]);
-
-  const handleRenameRepo = useCallback(async () => {
-    if (!token || !activeRepo) return;
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const newName = renameName.trim();
-    const validation = isValidRepoName(newName);
-    if (!validation.valid) {
-      Alert.alert("❌ Ungültiger Name", validation.error ?? "");
-      return;
-    }
-
-    setIsRenaming(true);
-    try {
-      const res = await renameGitHubRepo(parsed.owner, parsed.repo, newName);
-      const newFullName = res.full_name ?? `${parsed.owner}/${newName}`;
-      setLinkedRepo(newFullName, activeBranch ?? null);
-      addRecentRepo(newFullName);
-      setShowRenameRepo(false);
-      setRenameName("");
-      const successNotice = getRepoSuccessNotice("repo_renamed", newFullName);
-      Alert.alert(successNotice.title, successNotice.message);
-      await loadRepos();
-    } catch (e: unknown) {
-      Alert.alert("❌ Umbenennen fehlgeschlagen", getErrorMessage(e, ""));
-    } finally {
-      setIsRenaming(false);
-    }
-  }, [token, activeRepo, renameName, setLinkedRepo, activeBranch, addRecentRepo, loadRepos]);
-
-  const handleDeleteRepo = useCallback(async (repo: GitHubRepo) => {
-    if (!token) return;
-    const full = repo.full_name;
-    const parsed = splitFullName(full);
-    if (!parsed) return;
-
-    const dialogText = getDeleteRepoConfirmDialog(full);
-
-    Alert.alert(
-      dialogText.title,
-      dialogText.message,
-      [
-        { text: "Abbrechen", style: "cancel" },
-        {
-          text: dialogText.confirmText,
-          style: "destructive",
-          onPress: async () => {
-            setIsDeletingRepo(true);
-            try {
-              await deleteGitHubRepo(parsed.owner, parsed.repo);
-              setLocalRepos((prev) => prev.filter((r) => r.full_name !== full));
-              if (activeRepo === full) {
-                setLinkedRepo(null, null);
-              }
-              await loadRepos();
-              const successNotice = getRepoSuccessNotice("repo_deleted", full);
-              Alert.alert(successNotice.title, successNotice.message);
-            } catch (e: unknown) {
-              Alert.alert("❌ Löschen fehlgeschlagen", getErrorMessage(e, ""));
-            } finally {
-              setIsDeletingRepo(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [token, activeRepo, setLinkedRepo, loadRepos]);
 
   const handlePull = useCallback(async () => {
     // Pull now opens a preview modal (conflicts + strategy) to avoid silent overwrites.
@@ -950,70 +799,6 @@ export function useGitHubReposScreen() {
       setIsSyncingSecrets(false);
     }
   }, [activeRepo]);
-
-  // Branch ops in Manage modal
-  const handleCreateBranch = useCallback(() => {
-    if (!activeRepo) return;
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-    openManageModal({
-      title: "Neuen Branch erstellen",
-      placeholder: "branch-name",
-      confirmText: "Erstellen",
-      action: async (value: string) => {
-        const name = value.trim();
-        if (!name) throw new Error("Branch Name fehlt.");
-        const base = activeBranch ?? (await loadDefaultBranch(parsed.owner, parsed.repo));
-        await createBranch(parsed.owner, parsed.repo, name, base);
-        const res = { name };
-        setLinkedRepo(activeRepo, res.name);
-        closeManageModal();
-      },
-    });
-  }, [activeRepo, activeBranch, loadDefaultBranch, openManageModal, closeManageModal, setLinkedRepo]);
-
-  const handleRenameBranch = useCallback(() => {
-    if (!activeRepo || !activeBranch) return;
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-    openManageModal({
-      title: "Branch umbenennen",
-      placeholder: "neuer-branch-name",
-      initialValue: activeBranch,
-      confirmText: "Umbenennen",
-      action: async (newName: string) => {
-        const name = newName.trim();
-        if (!name) throw new Error("Branch Name fehlt.");
-        const res = await renameBranch(parsed.owner, parsed.repo, activeBranch, name);
-        setLinkedRepo(activeRepo, res.name);
-        closeManageModal();
-      },
-    });
-  }, [activeRepo, activeBranch, openManageModal, closeManageModal, setLinkedRepo]);
-
-  const handleDeleteBranch = useCallback(() => {
-    if (!activeRepo || !activeBranch) return;
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-    const dialogText = getDeleteBranchConfirmDialog(activeBranch);
-    Alert.alert(dialogText.title, dialogText.message, [
-      { text: "Abbrechen", style: "cancel" },
-      {
-        text: dialogText.confirmText,
-        style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteBranch(parsed.owner, parsed.repo, activeBranch);
-              setLinkedRepo(activeRepo, null);
-              const successNotice = getRepoSuccessNotice("branch_deleted", activeBranch);
-              Alert.alert(successNotice.title, successNotice.message);
-          } catch (e: unknown) {
-            Alert.alert("❌ Fehler", getErrorMessage(e, ""));
-          }
-        },
-      },
-    ]);
-  }, [activeRepo, activeBranch, setLinkedRepo]);
 
   const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
 
