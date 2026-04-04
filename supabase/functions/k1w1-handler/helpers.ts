@@ -427,7 +427,7 @@ export function classifyK1w1HandlerError(
 
 export async function callGroq(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GROQ_API_KEY");
   if (!apiKey) {
     throw new Error("GROQ_API_KEY not set in Edge env");
@@ -488,12 +488,12 @@ export async function callGroq(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model: resolvedSelection.visibleModel, runtimeNote: resolvedSelection.runtimeNote };
+  return { content, model: resolvedSelection.visibleModel, runtimeNote: resolvedSelection.runtimeNote };
 }
 
 export async function callGemini(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GEMINI_API_KEY");
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY not set in Edge env");
@@ -543,7 +543,7 @@ export async function callGemini(
   const contentRecord = asRecord(candidateRecord?.content);
   const text = readGeminiTextParts(contentRecord?.parts);
 
-  return { content: text, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content: text, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 
@@ -555,7 +555,7 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 
 export async function callOpenAI(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
@@ -595,12 +595,12 @@ export async function callOpenAI(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callAnthropic(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY");
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
@@ -653,12 +653,12 @@ export async function callAnthropic(
   const json = await res.json();
   const content = readAnthropicTextParts(json?.content);
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callHuggingFace(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY");
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
@@ -701,5 +701,5 @@ export async function callHuggingFace(
     ? String(json?.[0]?.generated_text || "")
     : String(json?.generated_text || "");
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
