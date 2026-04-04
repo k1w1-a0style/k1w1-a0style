@@ -17,7 +17,7 @@ Ziel: Eine kurze, abhakbare Ausfuehrungsliste fuer externe Operator-Schritte, da
 
 - [ ] Supabase `Authentication -> Users` oeffnen.
 - [ ] Zieluser auswaehlen.
-- [ ] Rolle setzen (entweder in `user_metadata.role` oder `app_metadata.role`) auf `build_admin`.
+- [ ] Rolle projektkonsistent in App-Metadata setzen: `raw_app_meta_data`/`app_metadata.role = build_admin` (nicht primaer ueber `user_metadata`).
 - [ ] User neu anmelden, damit ein frischer JWT mit Claim gezogen wird.
 
 ## 2) Secrets/Keys gegenpruefen (Dashboard + lokal)
