@@ -11,9 +11,19 @@ import {
   type SecureBackupPayloadV1,
   type SecureBackupScope,
 } from "../../../lib/appInfoScopedBackup";
+import { logger } from "../../../lib/logger";
 
 import { TEMPLATE_INFO } from "../types";
 import { getImportExportErrorMessage, isImportExportAborted } from "./importExportErrorHelpers";
+
+async function cleanupTemporaryFile(fileUri: string, context: string): Promise<void> {
+  await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch((error: unknown) => {
+    logger.warn(`[importExportHelpers] Temp-Datei konnte nicht entfernt werden (${context})`, {
+      fileUri,
+      error,
+    });
+  });
+}
 
 export const exportAPIConfig = async (config: unknown) => {
   let filePath: string | null = null;
@@ -47,7 +57,7 @@ export const exportAPIConfig = async (config: unknown) => {
     throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
   } finally {
     if (filePath) {
-      await FileSystem.deleteAsync(filePath, { idempotent: true }).catch(() => undefined);
+      await cleanupTemporaryFile(filePath, "exportAPIConfig");
     }
   }
 };
@@ -83,7 +93,7 @@ export const importAPIConfig = async () => {
     throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
   } finally {
     if (importedFileUri) {
-      await FileSystem.deleteAsync(importedFileUri, { idempotent: true }).catch(() => undefined);
+      await cleanupTemporaryFile(importedFileUri, "importAPIConfig");
     }
   }
 };
@@ -137,7 +147,7 @@ export const exportEncryptedScopedBackup = async (input: {
     throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
   } finally {
     if (filePath) {
-      await FileSystem.deleteAsync(filePath, { idempotent: true }).catch(() => undefined);
+      await cleanupTemporaryFile(filePath, "exportEncryptedScopedBackup");
     }
   }
 };
@@ -176,7 +186,7 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
     throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
   } finally {
     if (importedFileUri) {
-      await FileSystem.deleteAsync(importedFileUri, { idempotent: true }).catch(() => undefined);
+      await cleanupTemporaryFile(importedFileUri, "importEncryptedScopedBackup");
     }
   }
 };

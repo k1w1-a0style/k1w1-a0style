@@ -48,6 +48,7 @@ import {
   importAPIConfig,
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
+import { logger } from "../../../lib/logger";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -83,6 +84,20 @@ function toProjectFiles(value: unknown): ProjectFileLike[] {
     (entry): entry is ProjectFileLike =>
       isRecord(entry) && typeof entry.path === "string" && typeof entry.content === "string",
   );
+}
+
+async function removeLegacyClientServiceRoleKeys(): Promise<void> {
+  const keys = legacyClientServiceRoleStorageKeys();
+  const results = await Promise.allSettled(keys.map((key) => AsyncStorage.removeItem(key)));
+  const failedKeys = results
+    .map((result, index) => (result.status === "rejected" ? keys[index] : null))
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (failedKeys.length > 0) {
+    logger.warn("[useAppInfoScreen] Legacy Service-Role-Keys konnten nicht vollstaendig bereinigt werden.", {
+      failedKeys,
+    });
+  }
 }
 
 export function useAppInfoScreen() {
@@ -232,9 +247,7 @@ export function useAppInfoScreen() {
       getSigningMasterKey().catch(() => null),
     ]);
 
-    await Promise.all(
-      legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),
-    );
+    await removeLegacyClientServiceRoleKeys();
 
     const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
@@ -283,9 +296,7 @@ export function useAppInfoScreen() {
       ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId));
 
-      await Promise.all(
-        legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),
-      );
+      await removeLegacyClientServiceRoleKeys();
       await Promise.all(ops);
 
       const t = payload.tokens;
