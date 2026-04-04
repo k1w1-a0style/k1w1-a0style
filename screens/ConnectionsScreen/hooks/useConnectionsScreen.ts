@@ -50,7 +50,6 @@ import {
   type VerificationContractState,
 } from "../../../lib/status/verificationContract";
 import {
-  buildRepoOkLine,
   deriveSupabaseRefFromUrl,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
@@ -60,9 +59,15 @@ import {
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
-  resolvePersistedEasState,
   type ExpoProjectResponse,
 } from "./useConnectionsScreenHelpers";
+import {
+  easClearedPersistence,
+  expoClearedPersistence,
+  githubClearedPersistence,
+  resolveHydrationLightsState,
+  supabaseClearedPersistence,
+} from "./useConnectionsScreenState";
 
 export function useConnectionsScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -311,25 +316,34 @@ export function useConnectionsScreen() {
       setSupabaseAnonKey(anon || "");
       setEasProjectId(eas || "");
 
-      // Restore persistent lights
-      if (ghOk === "true") setGithubOk(true);
-      if (ghUserStored) setGithubUser(ghUserStored);
-      if (ghScopesStored) setGithubScopes(ghScopesStored);
-      if (sbOk === "true") setSupabaseOk(true);
-      if (sbRefStored) setSupabaseRef(sbRefStored);
-      if (exOk === "true") setExpoOk(true);
-      if (exUserStored) setExpoUser(exUserStored);
-      if (easOkStored === "true") setEasOk(true);
-      const restoredEasState = resolvePersistedEasState({
-        state: easStateStored,
+      const restored = resolveHydrationLightsState({
+        ghOk,
+        ghUserStored,
+        ghScopesStored,
+        sbOk,
+        sbRefStored,
+        exOk,
+        exUserStored,
+        easOkStored,
+        easStateStored,
+        easLastVerifiedStored,
+        repoOkStored,
+        repoSlug,
+        repoBranch,
         easProjectId: eas || "",
-        lastVerifiedAt: easLastVerifiedStored,
       });
-      if (restoredEasState) setEasState(restoredEasState);
-      if (easLastVerifiedStored) setEasLastVerifiedAt(easLastVerifiedStored);
-      if (repoOkStored === "true") setRepoOk(true);
-      const repoLineStored = buildRepoOkLine(repoSlug, repoBranch);
-      if (repoSlug) setRepoOkLine(repoLineStored);
+      setGithubOk(restored.githubOk);
+      setGithubUser(restored.githubUser);
+      setGithubScopes(restored.githubScopes);
+      setSupabaseOk(restored.supabaseOk);
+      setSupabaseRef(restored.supabaseRef);
+      setExpoOk(restored.expoOk);
+      setExpoUser(restored.expoUser);
+      setEasOk(restored.easOk);
+      if (restored.easState) setEasState(restored.easState);
+      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      setRepoOk(restored.repoOk);
+      setRepoOkLine(restored.repoOkLine);
 
       // Hydration finished (prevents initial token empty state from clearing saved OK lights).
       setHydrated(true);
@@ -395,19 +409,9 @@ export function useConnectionsScreen() {
         setEasOk(false);
         setEasState("missing");
         setEasLastVerifiedAt(null);
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_GITHUB_OK, "false"],
-          [STORAGE_KEYS.CONN_REPO_OK, "false"],
-          [STORAGE_KEYS.CONN_EAS_OK, "false"],
-          [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
-        ]);
-        await removeConnLights([
-          STORAGE_KEYS.CONN_GITHUB_USER,
-          STORAGE_KEYS.CONN_GITHUB_SCOPES,
-          STORAGE_KEYS.CONN_REPO_SLUG,
-          STORAGE_KEYS.CONN_REPO_BRANCH,
-          STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT,
-        ]);
+        const persisted = githubClearedPersistence();
+        await persistConnLights(persisted.writes);
+        await removeConnLights(persisted.removes);
       }
 
       if (ex) {
@@ -416,8 +420,9 @@ export function useConnectionsScreen() {
         await deleteExpoToken();
         setExpoOk(false);
         setExpoUser("");
-        await persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]);
-        await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
+        const persisted = expoClearedPersistence();
+        await persistConnLights(persisted.writes);
+        await removeConnLights(persisted.removes);
       }
 
       if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
@@ -444,18 +449,17 @@ export function useConnectionsScreen() {
         setEasOk(false);
         setEasState("missing");
         setEasLastVerifiedAt(null);
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_EAS_OK, "false"],
-          [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
-        ]);
-        await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
+        const persisted = easClearedPersistence();
+        await persistConnLights(persisted.writes);
+        await removeConnLights(persisted.removes);
       }
 
       if (!sbUrl || !sbAnon) {
         setSupabaseOk(false);
         setSupabaseRef("");
-        await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
-        await removeConnLights([STORAGE_KEYS.CONN_SUPABASE_REF]);
+        const persisted = supabaseClearedPersistence();
+        await persistConnLights(persisted.writes);
+        await removeConnLights(persisted.removes);
       }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");

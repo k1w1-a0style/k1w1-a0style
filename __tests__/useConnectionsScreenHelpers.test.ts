@@ -13,6 +13,14 @@ import {
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
+import {
+  easClearedPersistence,
+  expoClearedPersistence,
+  githubClearedPersistence,
+  resolveHydrationLightsState,
+  supabaseClearedPersistence,
+} from "../screens/ConnectionsScreen/hooks/useConnectionsScreenState";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 
 describe("useConnectionsScreenHelpers", () => {
   it("accepts only persisted EAS contract states", () => {
@@ -247,5 +255,75 @@ describe("useConnectionsScreenHelpers", () => {
     await removeEntriesWithFallback(storage, ["k1", "k2"]);
     expect(storage.multiRemove).toHaveBeenCalledTimes(1);
     expect(storage.removeItem).toHaveBeenCalledTimes(2);
+  });
+
+  it("restores hydration lights deterministically from persisted connection keys", () => {
+    expect(
+      resolveHydrationLightsState({
+        ghOk: "true",
+        ghUserStored: "octocat",
+        ghScopesStored: "repo,workflow",
+        sbOk: "true",
+        sbRefStored: "abc123",
+        exOk: "true",
+        exUserStored: "expo-user",
+        easOkStored: "true",
+        easStateStored: null,
+        easLastVerifiedStored: "2026-04-03T00:00:00.000Z",
+        repoOkStored: "true",
+        repoSlug: "owner/repo",
+        repoBranch: "main",
+        easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      }),
+    ).toEqual({
+      githubOk: true,
+      githubUser: "octocat",
+      githubScopes: "repo,workflow",
+      supabaseOk: true,
+      supabaseRef: "abc123",
+      expoOk: true,
+      expoUser: "expo-user",
+      easOk: true,
+      easState: "verified",
+      easLastVerifiedAt: "2026-04-03T00:00:00.000Z",
+      repoOk: true,
+      repoOkLine: "owner/repo (main)",
+    });
+  });
+
+  it("keeps reset persistence payloads stable for save/delete side effects", () => {
+    expect(githubClearedPersistence()).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "false"],
+        [STORAGE_KEYS.CONN_REPO_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [
+        STORAGE_KEYS.CONN_GITHUB_USER,
+        STORAGE_KEYS.CONN_GITHUB_SCOPES,
+        STORAGE_KEYS.CONN_REPO_SLUG,
+        STORAGE_KEYS.CONN_REPO_BRANCH,
+        STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT,
+      ],
+    });
+
+    expect(expoClearedPersistence()).toEqual({
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    });
+
+    expect(easClearedPersistence()).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
+
+    expect(supabaseClearedPersistence()).toEqual({
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
   });
 });
