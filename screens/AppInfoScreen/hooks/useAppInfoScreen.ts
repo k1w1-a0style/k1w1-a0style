@@ -5,9 +5,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useAI, type AIConfig, type AllAIProviders } from "../../../contexts/AIContext";
+import { useAI, type AIConfig } from "../../../contexts/AIContext";
 import {
-  mergeApiConfigImportPreservingLocalKeys,
   sanitizeAiConfigFromBackup,
   safeFormatBackupDate,
 } from "../../../lib/appInfoBackup";
@@ -61,6 +60,7 @@ import {
   createCollectedSecretBackupPayload,
   readAppliedSecretTokens,
 } from "./appInfoSecretFlowHelpers";
+import { applyImportedApiConfig } from "./appInfoApiConfigHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -346,14 +346,8 @@ export function useAppInfoScreen() {
           onPress: async () => {
             try {
               const result = await importAPIConfig();
-              const nextConfig = mergeApiConfigImportPreservingLocalKeys(result.config, config);
+              const { nextConfig, totalKeysImported } = applyImportedApiConfig(result.config, config);
               setConfig(nextConfig);
-
-              const providers: AllAIProviders[] = ["groq", "gemini", "openai", "anthropic", "huggingface"];
-              const totalKeysImported = providers.reduce(
-                (sum, provider) => sum + (nextConfig.apiKeys?.[provider]?.length || 0),
-                0,
-              );
 
               const exportDate = safeFormatBackupDate(result.exportDate);
               Alert.alert(
