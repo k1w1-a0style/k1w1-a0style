@@ -28,7 +28,6 @@ import {
   buildSingleFixSteps,
 } from "./fixRunnerHelpers";
 import {
-  buildApplyFailureResult,
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
@@ -38,6 +37,8 @@ import {
   formatSingleFixResultDetail,
 } from "./fixRunnerDisplayHelpers";
 import {
+  runApplyStep,
+  runDispatchStep,
   runSyncStep,
   runVerifyStep,
 } from "./fixRunnerExecutionHelpers";
@@ -150,8 +151,6 @@ export function useDiagnosticFixRunner(opts: {
     finishWithResult,
     closeFixModal,
     openFixModal,
-    markFixStepRunning,
-    markFixStepDone,
     markFixStepFailed,
     runFixStep,
   } = useFixStepProgress(toast);
@@ -488,27 +487,19 @@ export function useDiagnosticFixRunner(opts: {
       let cursor = 0;
 
       let patchApplied = false;
-      if (patchForApply) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: async () => {
-            await applyPatch(r.title, patchForApply);
-            patchApplied = true;
-          },
-          failMessage: "Fehler",
-        });
-        if (stepError) {
-          finishWithResult(
-            buildApplyFailureResult({
-              error: stepError,
-              fallback: "Patch konnte nicht angewendet werden.",
-              stepIndex: cursor,
-            }),
-          );
-          return;
-        }
-        cursor++;
-      }
+      const patchStep = await runApplyStep({
+        enabled: !!patchForApply,
+        stepIndex: cursor,
+        runFixStep,
+        apply: async () => {
+          await applyPatch(r.title, patchForApply as PreflightPatch);
+        },
+        finishWithResult,
+        failMessage: "Patch konnte nicht angewendet werden.",
+      });
+      if (!patchStep.ok) return;
+      patchApplied = patchStep.applied;
+      cursor = patchStep.nextIndex;
 
       if (dispatch) {
         const dispatchTarget = resolveWorkflowDispatchTarget({
@@ -528,9 +519,11 @@ export function useDiagnosticFixRunner(opts: {
           return;
         }
 
-        const stepError = await runFixStep({
-          index: cursor,
-          run: async () => {
+        const dispatchStep = await runDispatchStep({
+          enabled: true,
+          stepIndex: cursor,
+          runFixStep,
+          dispatch: async () => {
             await dispatchWorkflowFix({
               owner: dispatchTarget.owner,
               repo: dispatchTarget.repo,
@@ -540,20 +533,11 @@ export function useDiagnosticFixRunner(opts: {
               fallbackPatch: dispatch.fallbackPatch,
             });
           },
-          failMessage: "Workflow dispatch fehlgeschlagen",
+          finishWithResult,
+          localChangeApplied: patchApplied,
         });
-        if (stepError) {
-          finishWithResult({
-            status: "failed",
-            detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            workflowTriggered: false,
-            partial: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
+        if (!dispatchStep.ok) return;
+        cursor = dispatchStep.nextIndex;
       }
 
       const syncStep = await runSyncStep({
@@ -683,25 +667,19 @@ export function useDiagnosticFixRunner(opts: {
 
       let appliedCount = 0;
       for (const { result, patch } of deduped) {
-        markFixStepRunning(cursor);
-        try {
-          await applyPatch(result.title, patch);
-          markFixStepDone(cursor);
-          appliedCount++;
-        } catch (error: unknown) {
-          markFixStepFailed(cursor, error, "Apply fehlgeschlagen");
-          finishWithResult(
-            buildApplyFailureResult({
-              error,
-              fallback: "Apply fehlgeschlagen",
-              stepIndex: cursor,
-              localChangeApplied: appliedCount > 0 || undefined,
-              partial: appliedCount > 0 || undefined,
-            }),
-          );
-          return;
-        }
-        cursor++;
+        const applyStep = await runApplyStep({
+          enabled: true,
+          stepIndex: cursor,
+          runFixStep,
+          apply: async () => {
+            await applyPatch(result.title, patch);
+          },
+          finishWithResult,
+          localChangeAppliedOnFailure: appliedCount > 0 || undefined,
+        });
+        if (!applyStep.ok) return;
+        if (applyStep.applied) appliedCount++;
+        cursor = applyStep.nextIndex;
 
         const syncStep = await runSyncStep({
           enabled: shouldSyncPatch(patch),
@@ -861,27 +839,20 @@ export function useDiagnosticFixRunner(opts: {
 
         openFixModal({ title: "Fix", subtitle: r.title, steps });
 
-        let patchApplied = false;
-        const patchStepError = await runFixStep({
-          index: 0,
-          run: async () => {
+        const patchStep = await runApplyStep({
+          enabled: true,
+          stepIndex: 0,
+          runFixStep,
+          apply: async () => {
             await applyPatch(r.title, patch);
-            patchApplied = true;
           },
+          finishWithResult,
           failMessage: "Fehler",
         });
-        if (patchStepError) {
-          finishWithResult(
-            buildApplyFailureResult({
-              error: patchStepError,
-              fallback: "Fehler",
-              stepIndex: 0,
-            }),
-          );
-          return;
-        }
+        if (!patchStep.ok) return;
+        const patchApplied = patchStep.applied;
 
-        let stepCursor = 1;
+        let stepCursor = patchStep.nextIndex;
         const syncStep = await runSyncStep({
           enabled: doSync,
           stepIndex: stepCursor,
