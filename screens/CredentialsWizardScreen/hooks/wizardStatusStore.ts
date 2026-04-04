@@ -43,7 +43,7 @@ export function mergePersistedStatusByMode(
 }
 
 export function getEmptyStatusByMode(): Record<UiModeId, StatusResult | null> {
-  return EMPTY_STATUS_BY_MODE;
+  return { ...EMPTY_STATUS_BY_MODE };
 }
 
 async function readWithLegacyFallback(scopedKey: string, legacyKey: string): Promise<string | null> {

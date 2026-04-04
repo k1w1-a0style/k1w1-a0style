@@ -1,9 +1,5 @@
-import { Alert } from "react-native";
-
 import {
-  MISSING_OPERATOR_JWT_MESSAGE,
-  MISSING_OPERATOR_JWT_TITLE,
-  requireUserJwtOrAlert,
+  readCurrentUserJwt,
 } from "../screens/CredentialsWizardScreen/hooks/wizardEdgeAuth";
 import { ensureSupabaseClient } from "../lib/supabase";
 
@@ -12,14 +8,8 @@ jest.mock("../lib/supabase", () => ({
 }));
 
 describe("credentials wizard edge auth helper", () => {
-  const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
-
   afterEach(() => {
     jest.clearAllMocks();
-  });
-
-  afterAll(() => {
-    alertSpy.mockRestore();
   });
 
   it("returns JWT when a session token exists", async () => {
@@ -30,23 +20,32 @@ describe("credentials wizard edge auth helper", () => {
     });
     const onError = jest.fn();
 
-    const jwt = await requireUserJwtOrAlert({ onError });
+    const jwt = await readCurrentUserJwt({ onError });
 
     expect(jwt).toBe("user-jwt");
     expect(onError).not.toHaveBeenCalled();
-    expect(alertSpy).not.toHaveBeenCalled();
   });
 
-  it("alerts with explicit operator provisioning contract when JWT is missing", async () => {
+  it("returns null when JWT is missing", async () => {
     (ensureSupabaseClient as jest.Mock).mockResolvedValue({
       auth: {
         getSession: async () => ({ data: { session: null } }),
       },
     });
 
-    const jwt = await requireUserJwtOrAlert({ onError: jest.fn() });
+    const jwt = await readCurrentUserJwt({ onError: jest.fn() });
 
     expect(jwt).toBeNull();
-    expect(alertSpy).toHaveBeenCalledWith(MISSING_OPERATOR_JWT_TITLE, MISSING_OPERATOR_JWT_MESSAGE);
+  });
+
+  it("returns null and reports errors via callback", async () => {
+    const boom = new Error("session failed");
+    (ensureSupabaseClient as jest.Mock).mockRejectedValue(boom);
+    const onError = jest.fn();
+
+    const jwt = await readCurrentUserJwt({ onError });
+
+    expect(jwt).toBeNull();
+    expect(onError).toHaveBeenCalledWith(boom);
   });
 });

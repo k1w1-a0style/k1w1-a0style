@@ -42,7 +42,7 @@ import {
   mergePersistedStatusByMode,
   persistWizardStatusByMode,
 } from "./wizardStatusStore";
-import { requireUserJwtOrAlert as requireUserJwtOrAlertCore } from "./wizardEdgeAuth";
+import { readCurrentUserJwt } from "./wizardEdgeAuth";
 import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import {
   formatWizardBusyLabel,
@@ -54,6 +54,10 @@ import {
 } from "../statusContract";
 
 export { mergePersistedStatusByMode };
+
+const MISSING_OPERATOR_JWT_TITLE = "Supabase Login fehlt";
+const MISSING_OPERATOR_JWT_MESSAGE =
+  "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key. build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
 
 export function useCredentialsWizardScreen() {
   const project = useProject();
@@ -193,11 +197,12 @@ export function useCredentialsWizardScreen() {
   }, [supabaseUrl, adminKey, repoFullName]);
 
   const requireUserJwtOrAlert = useCallback(
-    // Contract note kept local on purpose for invariant scanners:
-    // build_admin / service_role fuer Server-Caller remain required,
-    // build_admin wird ausserhalb dieses Repos per Supabase-User-Claim vergeben,
-    // Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim bleiben fail-closed blockiert.
-    async (): Promise<string | null> => requireUserJwtOrAlertCore({ onError: safeSetLastError }),
+    async (): Promise<string | null> => {
+      const jwt = await readCurrentUserJwt({ onError: safeSetLastError });
+      if (jwt) return jwt;
+      Alert.alert(MISSING_OPERATOR_JWT_TITLE, MISSING_OPERATOR_JWT_MESSAGE);
+      return null;
+    },
     [safeSetLastError],
   );
 
