@@ -401,6 +401,55 @@ export function useAppInfoScreen() {
     setSecureBackupRequest(null);
   }, [secureBackupBusy]);
 
+  const runSecureBackupExport = useCallback(
+    async (passphrase: string, scope: SecureBackupScope) => {
+      const secretPayload = await collectSecretBackupPayload();
+      const payload: SecureBackupPayloadV1 =
+        scope === "secrets"
+          ? secretPayload
+          : createConfigAndSecretsBackupPayload({
+              aiConfig: config as AIConfig,
+              secrets: secretPayload,
+            });
+
+      const result = await exportEncryptedScopedBackup({
+        scope,
+        passphrase,
+        payload,
+      });
+
+      Alert.alert(
+        "✅ Export erfolgreich",
+        getSecureBackupExportSuccessMessage({
+          scope,
+          fileName: result.fileName,
+        }),
+      );
+    },
+    [collectSecretBackupPayload, config],
+  );
+
+  const runSecureBackupImport = useCallback(
+    async (passphrase: string) => {
+      const result = await importEncryptedScopedBackup(passphrase);
+      const imported = result.data;
+      const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
+
+      await applySecretBackupPayload(secretPayload);
+      if (imported.kind === "config-secret-snapshot") {
+        setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
+      }
+
+      const exportDate = safeFormatBackupDate(result.exportDate);
+      const scopeText = getSecureBackupImportScopeText(imported);
+      Alert.alert(
+        "✅ Import erfolgreich",
+        `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
+      );
+    },
+    [applySecretBackupPayload, setConfig, config],
+  );
+
   const handleSubmitSecureBackupPassphrase = useCallback(
     async (passphrase: string) => {
       if (!secureBackupRequest || secureBackupBusy) return;
@@ -408,44 +457,9 @@ export function useAppInfoScreen() {
       setSecureBackupBusy(true);
       try {
         if (secureBackupRequest.mode === "export") {
-          const secretPayload = await collectSecretBackupPayload();
-          const payload: SecureBackupPayloadV1 =
-            secureBackupRequest.scope === "secrets"
-              ? secretPayload
-              : createConfigAndSecretsBackupPayload({
-                  aiConfig: config as AIConfig,
-                  secrets: secretPayload,
-                });
-
-          const result = await exportEncryptedScopedBackup({
-            scope: secureBackupRequest.scope,
-            passphrase,
-            payload,
-          });
-
-          Alert.alert(
-            "✅ Export erfolgreich",
-            getSecureBackupExportSuccessMessage({
-              scope: secureBackupRequest.scope,
-              fileName: result.fileName,
-            }),
-          );
+          await runSecureBackupExport(passphrase, secureBackupRequest.scope);
         } else {
-          const result = await importEncryptedScopedBackup(passphrase);
-          const imported = result.data;
-          const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
-
-          await applySecretBackupPayload(secretPayload);
-          if (imported.kind === "config-secret-snapshot") {
-            setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
-          }
-
-          const exportDate = safeFormatBackupDate(result.exportDate);
-          const scopeText = getSecureBackupImportScopeText(imported);
-          Alert.alert(
-            "✅ Import erfolgreich",
-            `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
-          );
+          await runSecureBackupImport(passphrase);
         }
 
         setSecureBackupRequest(null);
@@ -457,7 +471,7 @@ export function useAppInfoScreen() {
         setSecureBackupBusy(false);
       }
     },
-    [secureBackupRequest, secureBackupBusy, collectSecretBackupPayload, config, applySecretBackupPayload, setConfig],
+    [secureBackupRequest, secureBackupBusy, runSecureBackupExport, runSecureBackupImport],
   );
 
   const fileCount = useMemo(() => projectFiles.length, [projectFiles]);
