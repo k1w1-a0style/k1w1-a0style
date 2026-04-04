@@ -13,7 +13,6 @@ import {
 } from "../../../lib/appInfoBackup";
 import {
   createConfigAndSecretsBackupPayload,
-  createSecretBackupPayload,
   type SecretBackupPayloadV1,
   type SecureBackupScope,
   type SecureBackupPayloadV1,
@@ -58,6 +57,10 @@ import {
   getPackageNameFromProjectFiles,
   toProjectFiles,
 } from "./useAppInfoScreen.helpers";
+import {
+  createCollectedSecretBackupPayload,
+  readAppliedSecretTokens,
+} from "./appInfoSecretFlowHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -241,7 +244,7 @@ export function useAppInfoScreen() {
 
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
 
-    return createSecretBackupPayload({
+    return createCollectedSecretBackupPayload({
       connections: {
         supabaseRaw: normalizedSupabaseRaw,
         supabaseUrl: supabaseUrl ?? "",
@@ -253,11 +256,9 @@ export function useAppInfoScreen() {
         expoToken,
         workflowAdminKey,
         androidKeystoreExportAdminKey,
-        legacyEdgeAdminKey: workflowAdminKey,
         signingAdminKey,
         signingMasterKey,
       },
-      ciSecrets: {},
       github: {
         linkedRepo: activeRepo,
         linkedBranch: activeBranch,
@@ -280,23 +281,14 @@ export function useAppInfoScreen() {
       await removeLegacyClientServiceRoleKeys();
       await Promise.all(ops);
 
-      const t = payload.tokens;
-      const cs = payload.ciSecrets;
-      const githubToken = t.githubToken?.trim() || cs.GITHUB_TOKEN?.trim() || "";
-      const expoToken = t.expoToken?.trim() || cs.EXPO_TOKEN?.trim() || "";
-      const workflowAdminKey =
-        t.workflowAdminKey?.trim() ||
-        cs.K1W1_EDGE_WORKFLOW_ADMIN_KEY?.trim() ||
-        "";
-      const androidKeystoreExportAdminKey =
-        t.androidKeystoreExportAdminKey?.trim() ||
-        cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
-        "";
-      const signingAdminKey =
-        t.signingAdminKey?.trim() ||
-        cs.SIGNING_ADMIN_KEY?.trim() ||
-        "";
-      const signingMaster = t.signingMasterKey?.trim() || cs.SIGNING_MASTER_KEY?.trim() || "";
+      const {
+        githubToken,
+        expoToken,
+        workflowAdminKey,
+        androidKeystoreExportAdminKey,
+        signingAdminKey,
+        signingMaster,
+      } = readAppliedSecretTokens(payload);
 
       if (githubToken) await saveGitHubToken(githubToken);
       else await deleteGitHubToken();
