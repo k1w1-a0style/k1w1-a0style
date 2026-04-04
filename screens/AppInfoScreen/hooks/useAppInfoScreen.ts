@@ -338,6 +338,24 @@ export function useAppInfoScreen() {
     }
   }, [config]);
 
+  const runApiConfigImport = useCallback(async () => {
+    try {
+      const result = await importAPIConfig();
+      const { nextConfig, totalKeysImported } = applyImportedApiConfig(result.config, config);
+      setConfig(nextConfig);
+
+      const exportDate = safeFormatBackupDate(result.exportDate);
+      Alert.alert(
+        "✅ Import erfolgreich",
+        `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
+      );
+    } catch (error: unknown) {
+      if (!isAbortLikeError(error)) {
+        Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
+      }
+    }
+  }, [config, setConfig]);
+
   const handleImportAPIConfig = useCallback(async () => {
     Alert.alert(
       "⚠️ API-/KI-Konfiguration importieren",
@@ -347,27 +365,13 @@ export function useAppInfoScreen() {
         {
           text: "Importieren",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const result = await importAPIConfig();
-              const { nextConfig, totalKeysImported } = applyImportedApiConfig(result.config, config);
-              setConfig(nextConfig);
-
-              const exportDate = safeFormatBackupDate(result.exportDate);
-              Alert.alert(
-                "✅ Import erfolgreich",
-                `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
-              );
-            } catch (error: unknown) {
-              if (!isAbortLikeError(error)) {
-                Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
-              }
-            }
+          onPress: () => {
+            void runApiConfigImport();
           },
         },
       ],
     );
-  }, [config, setConfig]);
+  }, [runApiConfigImport]);
 
   const openSecureBackupFlow = useCallback((request: SecureBackupRequest) => {
     setSecureBackupRequest(request);
