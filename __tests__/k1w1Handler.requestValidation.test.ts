@@ -27,6 +27,14 @@ describe('k1w1-handler request validation', () => {
         messages: [{ role: 'user', content: 'Hi' }],
       })
     ).toThrow('Unsupported provider');
+
+    expect(() =>
+      parseRequestBody({
+        provider: '   ',
+        quality: 'speed',
+        messages: [{ role: 'user', content: 'Hi' }],
+      })
+    ).toThrow('provider must be a non-empty string');
   });
 
   it('fails closed for malformed messages', () => {

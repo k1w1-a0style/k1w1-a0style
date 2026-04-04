@@ -92,7 +92,10 @@ export function parseRequestBody(body: unknown): HandlerRequestBody {
   }
 
   const provider = record.provider.trim().toLowerCase();
-  if (!provider || !SUPPORTED_PROVIDERS.has(provider as HandlerRequestBody["provider"])) {
+  if (!provider) {
+    failInvalidRequest("provider must be a non-empty string");
+  }
+  if (!SUPPORTED_PROVIDERS.has(provider as HandlerRequestBody["provider"])) {
     throw new Error(`Unsupported provider: ${provider || "unknown"}`);
   }
 
