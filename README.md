@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
+Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
 
-Zuletzt abgeschlossen: **Patch 742**
+Zuletzt abgeschlossen: **Patch 743**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

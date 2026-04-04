@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
+Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

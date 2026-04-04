@@ -85,20 +85,6 @@ function toProjectFiles(value: unknown): ProjectFileLike[] {
   );
 }
 
-function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
-  return {
-    GITHUB_TOKEN: payload.tokens.githubToken ?? "",
-    EXPO_TOKEN: payload.tokens.expoToken ?? "",
-    SUPABASE_URL: payload.connections.supabaseUrl,
-    SUPABASE_ANON_KEY: payload.connections.supabaseAnonKey,
-    EAS_PROJECT_ID: payload.connections.easProjectId,
-    K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
-    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
-    SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
-    SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
-  };
-}
-
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
   const projectFiles = useMemo(() => toProjectFiles(projectData?.files), [projectData?.files]);
@@ -283,10 +269,7 @@ export function useAppInfoScreen() {
       },
     });
 
-    return {
-      ...payload,
-      ciSecrets: buildSecretCiSecrets(payload),
-    } as SecretBackupPayloadV1;
+    return payload;
   }, [activeRepo, activeBranch, recentRepos]);
 
   const applySecretBackupPayload = useCallback(
@@ -391,7 +374,7 @@ export function useAppInfoScreen() {
               const exportDate = safeFormatBackupDate(result.exportDate);
               Alert.alert(
                 "✅ Import erfolgreich",
-                `${totalKeysImported} API-Keys wurden geladen. Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
+                `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
               );
             } catch (error: unknown) {
               if (!isAbortLikeError(error)) {

@@ -8,7 +8,11 @@ import {
   validateEncryptedScopedBackupJson,
 } from "../lib/appInfoScopedBackup";
 import type { AIConfig } from "../contexts/AIContext";
-import { sanitizeAiConfigFromBackup, validateApiBackupJson } from "../lib/appInfoBackup";
+import {
+  createApiBackupExportPayload,
+  sanitizeAiConfigFromBackup,
+  validateApiBackupJson,
+} from "../lib/appInfoBackup";
 
 const baseConfig: AIConfig = {
   version: 1,
@@ -305,5 +309,19 @@ describe("app info secure backup contract", () => {
 
     const sanitized = sanitizeAiConfigFromBackup(validated.config, baseConfig);
     expect(sanitized.apiKeys.openai).toEqual(["sk-live-openai"]);
+  });
+
+  test("api config export payload strips api keys from the exported config", () => {
+    const payload = createApiBackupExportPayload({
+      config: baseConfig,
+      exportDate: "2026-03-20T12:00:00.000Z",
+      appVersion: "1.0.0",
+    });
+
+    const parsed = validateApiBackupJson(payload);
+    const imported = sanitizeAiConfigFromBackup(parsed.config, baseConfig);
+    expect(imported.apiKeys.openai).toEqual([]);
+    expect(imported.selectedChatProvider).toBe(baseConfig.selectedChatProvider);
+    expect(imported.selectedAgentProvider).toBe(baseConfig.selectedAgentProvider);
   });
 });
