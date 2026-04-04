@@ -139,4 +139,56 @@ describe("useDiagnosticFixRunner integration flows", () => {
 
     expect(updateProjectFiles).toHaveBeenCalledTimes(1);
   });
+
+  test("applySelected limit prompt cancel does not apply", async () => {
+    jest.spyOn(Alert, "alert").mockImplementation((title, _message, buttons) => {
+      if (title === "Zu viele Fixes") {
+        buttons?.[0]?.onPress?.();
+      }
+    });
+
+    const many = Array.from({ length: 51 }, (_, i) =>
+      makePreflightResult({
+        id: `s-${i}`,
+        status: "fail",
+        fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: `{\"expo\":{\"name\":\"sel-${i}\"}}` }] }) },
+      }),
+    );
+    const selected = Object.fromEntries(many.map((r) => [r.id, true]));
+    const { getApi, updateProjectFiles } = renderRunner({
+      sortedResults: many,
+      selected,
+    });
+
+    await act(async () => {
+      await getApi().applySelected();
+    });
+
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+  });
+
+  test("applySelected limit prompt confirm applies selected fixes", async () => {
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.[1]?.onPress?.();
+    });
+
+    const many = Array.from({ length: 51 }, (_, i) =>
+      makePreflightResult({
+        id: `c-${i}`,
+        status: "fail",
+        fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: `{\"expo\":{\"name\":\"confirm-${i}\"}}` }] }) },
+      }),
+    );
+    const selected = Object.fromEntries(many.map((r) => [r.id, true]));
+    const { getApi, updateProjectFiles } = renderRunner({
+      sortedResults: many,
+      selected,
+    });
+
+    await act(async () => {
+      await getApi().applySelected();
+    });
+
+    expect(updateProjectFiles).toHaveBeenCalled();
+  });
 });
