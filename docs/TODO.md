@@ -45,7 +45,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. Legacy-Preview-Links mit `?secret=...` weiterhin operativ beobachten/rotieren (neue Links nutzen jetzt Fragment-Handoff)
-2. verify_jwt-Flag-Drift frueher sichtbar machen (auch nach bestandenem Verhaltenscheck bleibt ein expliziter Flag-Audit sinnvoller Operator-Schritt)
+2. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
 3. Stille `.catch(() => {})` reduzieren
 4. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
 5. `console.log` in Produktivpfaden weiter abbauen
