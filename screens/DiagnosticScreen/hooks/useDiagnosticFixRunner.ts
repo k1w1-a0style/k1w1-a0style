@@ -38,6 +38,10 @@ import {
   formatSingleFixResultDetail,
 } from "./fixRunnerDisplayHelpers";
 import {
+  runSyncStep,
+  runVerifyStep,
+} from "./fixRunnerExecutionHelpers";
+import {
   dedupePatchCandidates,
   pickAutoFixCandidates,
   pickSelectedFixCandidates,
@@ -552,43 +556,28 @@ export function useDiagnosticFixRunner(opts: {
         cursor++;
       }
 
-      if (doSync && patchForApply) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: () => syncPatchToGitHub(r.title, patchForApply),
-          failMessage: "Sync fehlgeschlagen",
-        });
-        if (stepError) {
-          finishWithResult({
-            status: "failed",
-            detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            partial: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
-      }
+      const syncStep = await runSyncStep({
+        enabled: !!(doSync && patchForApply),
+        stepIndex: cursor,
+        runFixStep,
+        sync: () => syncPatchToGitHub(r.title, patchForApply as PreflightPatch),
+        finishWithResult,
+        localChangeApplied: patchApplied,
+      });
+      if (!syncStep.ok) return;
+      cursor = syncStep.nextIndex;
 
-      if (rerunAfterFix) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
-          failMessage: "Verify fehlgeschlagen",
-        });
-        if (stepError) {
-          finishWithResult({
-            status: "pending_recheck",
-            detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            workflowTriggered: !!dispatch,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
-      }
+      const verifyStep = await runVerifyStep({
+        enabled: rerunAfterFix,
+        stepIndex: cursor,
+        runFixStep,
+        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+        finishWithResult,
+        localChangeApplied: patchApplied,
+        workflowTriggered: !!dispatch,
+      });
+      if (!verifyStep.ok) return;
+      cursor = verifyStep.nextIndex;
 
       finishWithResult({
         status:
@@ -714,45 +703,27 @@ export function useDiagnosticFixRunner(opts: {
         }
         cursor++;
 
-        if (shouldSyncPatch(patch)) {
-          markFixStepRunning(cursor);
-          try {
-            await syncPatchToGitHub(result.title, patch);
-            markFixStepDone(cursor);
-          } catch (error: unknown) {
-            const message = getErrorMessage(error, "Sync fehlgeschlagen");
-            markFixStepFailed(cursor, error, "Sync fehlgeschlagen");
-            finishWithResult({
-              status: "failed",
-              detail: message,
-              localChangeApplied: appliedCount > 0,
-              partial: appliedCount > 0,
-              stepIndex: cursor,
-            });
-            return;
-          }
-          cursor++;
-        }
+        const syncStep = await runSyncStep({
+          enabled: shouldSyncPatch(patch),
+          stepIndex: cursor,
+          runFixStep,
+          sync: () => syncPatchToGitHub(result.title, patch),
+          finishWithResult,
+          localChangeApplied: appliedCount > 0,
+        });
+        if (!syncStep.ok) return;
+        cursor = syncStep.nextIndex;
       }
 
-      if (rerunAfterFix) {
-        markFixStepRunning(cursor);
-        try {
-          await runDiagnostics({ resetSelection: false, resetHistory: false });
-          markFixStepDone(cursor);
-        } catch (error: unknown) {
-          const message = getErrorMessage(error, "Verify fehlgeschlagen");
-          markFixStepFailed(cursor, error, "Verify fehlgeschlagen");
-          finishWithResult({
-            status: "pending_recheck",
-            detail: message,
-            localChangeApplied: appliedCount > 0,
-            partial: false,
-            stepIndex: cursor,
-          });
-          return;
-        }
-      }
+      const verifyStep = await runVerifyStep({
+        enabled: rerunAfterFix,
+        stepIndex: cursor,
+        runFixStep,
+        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+        finishWithResult,
+        localChangeApplied: appliedCount > 0,
+      });
+      if (!verifyStep.ok) return;
 
       finishWithResult({
         status: rerunAfterFix ? "pending_recheck" : "patch_applied",
@@ -911,47 +882,26 @@ export function useDiagnosticFixRunner(opts: {
         }
 
         let stepCursor = 1;
-        if (doSync) {
-          const syncError = await runFixStep({
-            index: stepCursor,
-            run: async () => {
-              await syncPatchToGitHub(r.title, patch);
-            },
-            failMessage: "Sync fehlgeschlagen",
-          });
-          if (syncError) {
-            const message = getErrorMessage(syncError, "Sync fehlgeschlagen");
-            finishWithResult({
-              status: "failed",
-              detail: message,
-              localChangeApplied: patchApplied,
-              partial: patchApplied,
-              stepIndex: stepCursor,
-            });
-            return;
-          }
-          stepCursor++;
-        }
+        const syncStep = await runSyncStep({
+          enabled: doSync,
+          stepIndex: stepCursor,
+          runFixStep,
+          sync: () => syncPatchToGitHub(r.title, patch),
+          finishWithResult,
+          localChangeApplied: patchApplied,
+        });
+        if (!syncStep.ok) return;
+        stepCursor = syncStep.nextIndex;
 
-        if (rerunAfterFix) {
-          const verifyError = await runFixStep({
-            index: stepCursor,
-            run: async () => {
-              await runDiagnostics({ resetSelection: false, resetHistory: false });
-            },
-            failMessage: "Verify fehlgeschlagen",
-          });
-          if (verifyError) {
-            const message = getErrorMessage(verifyError, "Verify fehlgeschlagen");
-            finishWithResult({
-              status: "pending_recheck",
-              detail: message,
-              localChangeApplied: patchApplied,
-              stepIndex: stepCursor,
-            });
-            return;
-          }
-        }
+        const verifyStep = await runVerifyStep({
+          enabled: rerunAfterFix,
+          stepIndex: stepCursor,
+          runFixStep,
+          verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+          finishWithResult,
+          localChangeApplied: patchApplied,
+        });
+        if (!verifyStep.ok) return;
 
         finishWithResult({
           status: rerunAfterFix ? "pending_recheck" : "patch_applied",
