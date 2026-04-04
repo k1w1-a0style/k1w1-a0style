@@ -2,7 +2,7 @@
 
 Stand: **2026-04-02 (Patch 708)**
 
-Ziel: Eine kurze, abhakbare Ausfuehrungsliste fuer externe Operator-Schritte, damit der letzte offene Betriebsblock reproduzierbar abgeschlossen werden kann.
+Ziel: Eine kurze, abhakbare Ausfuehrungsliste fuer externe Operator-Schritte, damit Live-/Staging-Verifikation reproduzierbar bleibt.
 
 > Scope: **externes Setup + Live-/Staging-Verifikation**. Kein Repo-Codefix.
 
@@ -58,6 +58,7 @@ npm run edge:check:live
 - [ ] `verify:release` insgesamt `OK`.
 - [ ] Live-Checks laufen nicht mehr im SKIP-Pfad (ENV gesetzt).
 - [ ] Read-only Vertragsantworten entsprechen Runbook-Erwartung.
+- [ ] `verify_jwt` fuer `save_preview` und `k1w1-handler` im Zielprojekt aktiv bestaetigt (`true`).
 
 ## 6) Troubleshooting (schnell)
 
@@ -71,4 +72,3 @@ npm run edge:check:live
 - [ ] Datum + Operator + Zielumgebung dokumentiert.
 - [ ] Ergebnis (`gruen` / `blockiert`) kurz notiert.
 - [ ] Bei Blockern: Fehlercode + betroffene Route + naechster Schritt notiert.
-
