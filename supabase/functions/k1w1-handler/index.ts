@@ -91,7 +91,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       model: result.model,
       content: result.content,
       ...(result.runtimeNote ? { runtime_note: result.runtimeNote } : {}),
-      raw: result.raw,
     };
 
     return new Response(JSON.stringify(responsePayload), {
@@ -102,7 +101,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     });
   } catch (err: unknown) {
-    const rawMessage = err instanceof Error ? err.message : String(err ?? "");
     const rawStack = err instanceof Error ? err.stack : undefined;
     const errorPayload = classifyK1w1HandlerError(err, {
       provider: requestProvider,
@@ -116,9 +114,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         provider: errorPayload.provider,
         model: errorPayload.model,
         status: errorPayload.status,
-        message: rawMessage || "Unknown error",
       }),
-      rawStack,
+      errorPayload.code === "unknown_internal_error" ? rawStack : undefined,
     );
 
     return new Response(JSON.stringify(errorPayload), {

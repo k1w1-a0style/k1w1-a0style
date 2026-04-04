@@ -20,7 +20,7 @@ export interface ChatMessage {
 }
 
 export interface HandlerRequestBody {
-  provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface" | string;
+  provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface";
   messages: ChatMessage[];
   mode?: string;
   model?: string;
@@ -46,6 +46,24 @@ function asRecord(input: unknown): Record<string, unknown> | null {
   return input as Record<string, unknown>;
 }
 
+const SUPPORTED_PROVIDERS = new Set<HandlerRequestBody["provider"]>([
+  "groq",
+  "gemini",
+  "openai",
+  "anthropic",
+  "huggingface",
+]);
+
+const SUPPORTED_MESSAGE_ROLES = new Set<Role>(["system", "user", "assistant"]);
+const MAX_MESSAGES = 64;
+const MAX_MESSAGE_CONTENT_LENGTH = 20_000;
+const MAX_MODEL_LENGTH = 120;
+const MAX_MODE_LENGTH = 40;
+
+function failInvalidRequest(reason: string): never {
+  throw new Error(`Invalid request body: ${reason}`);
+}
+
 function resolveProviderModelForRuntime(
   provider: "groq" | "gemini" | "openai" | "anthropic" | "huggingface",
   selectedModel: string,
@@ -66,30 +84,71 @@ function resolveProviderModelForRuntime(
 export function parseRequestBody(body: unknown): HandlerRequestBody {
   const record = asRecord(body);
   if (!record) {
-    throw new Error("Invalid request body");
-  }
-  if (typeof record.provider !== "string" || !record.provider.trim()) {
-    throw new Error("Missing provider");
-  }
-  if (!Array.isArray(record.messages)) {
-    throw new Error("Missing messages");
+    failInvalidRequest("body must be an object");
   }
 
-  const provider = record.provider;
-  const quality = (
-    record.quality === "quality" ||
-    record.quality === "speed" ||
-    record.quality === "balanced" ||
-    record.quality === "review"
-      ? record.quality
-      : "speed"
-  ) as "speed" | "balanced" | "quality" | "review";
+  if (typeof record.provider !== "string") {
+    failInvalidRequest("provider must be a string");
+  }
+
+  const provider = record.provider.trim().toLowerCase();
+  if (!provider) {
+    failInvalidRequest("provider must be a non-empty string");
+  }
+  if (!SUPPORTED_PROVIDERS.has(provider as HandlerRequestBody["provider"])) {
+    throw new Error(`Unsupported provider: ${provider || "unknown"}`);
+  }
+
+  if (!Array.isArray(record.messages)) {
+    failInvalidRequest("messages must be an array");
+  }
+  if (record.messages.length === 0 || record.messages.length > MAX_MESSAGES) {
+    failInvalidRequest(`messages must contain between 1 and ${MAX_MESSAGES} items`);
+  }
+
+  const messages = record.messages.map((entry, index) => {
+    const message = asRecord(entry);
+    if (!message) {
+      failInvalidRequest(`messages[${index}] must be an object`);
+    }
+    const role = typeof message.role === "string" ? message.role.trim().toLowerCase() : "";
+    if (!SUPPORTED_MESSAGE_ROLES.has(role as Role)) {
+      failInvalidRequest(`messages[${index}].role is invalid`);
+    }
+    const content = typeof message.content === "string" ? message.content.trim() : "";
+    if (!content) {
+      failInvalidRequest(`messages[${index}].content must be a non-empty string`);
+    }
+    if (content.length > MAX_MESSAGE_CONTENT_LENGTH) {
+      failInvalidRequest(`messages[${index}].content exceeds ${MAX_MESSAGE_CONTENT_LENGTH} characters`);
+    }
+    return { role: role as Role, content };
+  });
+
+  const qualityRaw = typeof record.quality === "string" ? record.quality.trim() : "speed";
+  if (!qualityRaw || !["speed", "balanced", "quality", "review"].includes(qualityRaw)) {
+    failInvalidRequest("quality must be one of speed|balanced|quality|review");
+  }
+  const quality = qualityRaw as HandlerRequestBody["quality"];
+
+  const mode = typeof record.mode === "string" ? record.mode.trim() : "builder";
+  if (!mode || mode.length > MAX_MODE_LENGTH) {
+    failInvalidRequest(`mode must be a non-empty string up to ${MAX_MODE_LENGTH} characters`);
+  }
+
+  const modelRaw = typeof record.model === "string" ? record.model.trim() : "";
+  if (typeof record.model !== "undefined" && !modelRaw) {
+    failInvalidRequest("model must be a non-empty string when provided");
+  }
+  if (modelRaw.length > MAX_MODEL_LENGTH) {
+    failInvalidRequest(`model exceeds ${MAX_MODEL_LENGTH} characters`);
+  }
 
   return {
-    provider,
-    messages: record.messages as ChatMessage[],
-    mode: typeof record.mode === "string" ? record.mode : "builder",
-    model: typeof record.model === "string" ? record.model : undefined,
+    provider: provider as HandlerRequestBody["provider"],
+    messages,
+    mode,
+    model: modelRaw || undefined,
     quality,
   };
 }
@@ -371,7 +430,7 @@ export function classifyK1w1HandlerError(
 
 export async function callGroq(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GROQ_API_KEY");
   if (!apiKey) {
     throw new Error("GROQ_API_KEY not set in Edge env");
@@ -432,12 +491,12 @@ export async function callGroq(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model: resolvedSelection.visibleModel, runtimeNote: resolvedSelection.runtimeNote };
+  return { content, model: resolvedSelection.visibleModel, runtimeNote: resolvedSelection.runtimeNote };
 }
 
 export async function callGemini(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("GEMINI_API_KEY");
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY not set in Edge env");
@@ -487,7 +546,7 @@ export async function callGemini(
   const contentRecord = asRecord(candidateRecord?.content);
   const text = readGeminiTextParts(contentRecord?.parts);
 
-  return { content: text, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content: text, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 
@@ -499,7 +558,7 @@ function toPlainPrompt(messages: ChatMessage[]): string {
 
 export async function callOpenAI(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("OPENAI_API_KEY");
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not set in Edge env");
@@ -539,12 +598,12 @@ export async function callOpenAI(
     json?.choices?.[0]?.delta?.content ??
     "";
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callAnthropic(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("ANTHROPIC_API_KEY");
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY not set in Edge env");
@@ -597,12 +656,12 @@ export async function callAnthropic(
   const json = await res.json();
   const content = readAnthropicTextParts(json?.content);
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
 
 export async function callHuggingFace(
   body: HandlerRequestBody,
-): Promise<{ content: string; raw: unknown; model: string; runtimeNote?: string }> {
+): Promise<{ content: string; model: string; runtimeNote?: string }> {
   const apiKey = getRuntimeEnv("HUGGINGFACE_API_KEY");
   if (!apiKey) {
     throw new Error("HUGGINGFACE_API_KEY not set in Edge env");
@@ -645,5 +704,5 @@ export async function callHuggingFace(
     ? String(json?.[0]?.generated_text || "")
     : String(json?.generated_text || "");
 
-  return { content, raw: json, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
+  return { content, model: resolvedModel.visibleModel, runtimeNote: resolvedModel.runtimeNote };
 }
