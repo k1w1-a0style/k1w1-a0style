@@ -58,6 +58,8 @@ import {
 } from "./useAppInfoScreen.helpers";
 import {
   createCollectedSecretBackupPayload,
+  hydrateGitHubSelectionFromBackup,
+  persistAppliedSecretTokens,
   readAppliedSecretTokens,
 } from "./appInfoSecretFlowHelpers";
 import { applyImportedApiConfig } from "./appInfoApiConfigHelpers";
@@ -274,59 +276,52 @@ export function useAppInfoScreen() {
     });
   }, [activeRepo, activeBranch, recentRepos]);
 
+  const persistImportedConnectionSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
+    const c = payload.connections;
+    const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
+
+    await removeLegacyClientServiceRoleKeys();
+    await Promise.all([
+      AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw),
+      AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl),
+      saveSupabaseAnonKey(c.supabaseAnonKey),
+      AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId),
+    ]);
+  }, []);
+
+  const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
+    const tokens = readAppliedSecretTokens(payload);
+    await persistAppliedSecretTokens(tokens, {
+      saveGitHubToken,
+      deleteGitHubToken,
+      saveExpoToken,
+      deleteExpoToken,
+      saveWorkflowAdminKey,
+      deleteWorkflowAdminKey,
+      saveAndroidKeystoreExportAdminKey,
+      deleteAndroidKeystoreExportAdminKey,
+      saveSigningAdminKey,
+      deleteSigningAdminKey,
+      saveSigningMasterKey,
+      deleteSigningMasterKey,
+    });
+  }, []);
+
+  const hydrateImportedGitHubSelection = useCallback(async (payload: SecretBackupPayloadV1) => {
+    await hydrateGitHubSelectionFromBackup(payload.github, {
+      clearRecentRepos,
+      addRecentRepo,
+      setLinkedRepo,
+    });
+  }, [addRecentRepo, clearRecentRepos, setLinkedRepo]);
+
   const applySecretBackupPayload = useCallback(
     async (payload: SecretBackupPayloadV1) => {
-      const c = payload.connections;
-      const ops: Promise<unknown>[] = [];
-
-      const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
-      ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw));
-      ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl));
-      ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
-      ops.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId));
-
-      await removeLegacyClientServiceRoleKeys();
-      await Promise.all(ops);
-
-      const {
-        githubToken,
-        expoToken,
-        workflowAdminKey,
-        androidKeystoreExportAdminKey,
-        signingAdminKey,
-        signingMaster,
-      } = readAppliedSecretTokens(payload);
-
-      if (githubToken) await saveGitHubToken(githubToken);
-      else await deleteGitHubToken();
-
-      if (expoToken) await saveExpoToken(expoToken);
-      else await deleteExpoToken();
-
-      if (workflowAdminKey) await saveWorkflowAdminKey(workflowAdminKey);
-      else await deleteWorkflowAdminKey();
-
-      if (androidKeystoreExportAdminKey) await saveAndroidKeystoreExportAdminKey(androidKeystoreExportAdminKey);
-      else await deleteAndroidKeystoreExportAdminKey();
-
-      if (signingAdminKey) await saveSigningAdminKey(signingAdminKey);
-      else await deleteSigningAdminKey();
-
-      if (signingMaster) await saveSigningMasterKey(signingMaster);
-      else await deleteSigningMasterKey();
-
-      await clearRecentRepos();
-      for (const repo of [...payload.github.recentRepos].reverse()) {
-        try {
-          addRecentRepo(repo);
-        } catch {
-          // ignore duplicates / no-op
-        }
-      }
-
-      setLinkedRepo(payload.github.linkedRepo, payload.github.linkedBranch);
+      await persistImportedConnectionSecrets(payload);
+      await persistImportedTokenSecrets(payload);
+      await hydrateImportedGitHubSelection(payload);
     },
-    [addRecentRepo, clearRecentRepos, setLinkedRepo],
+    [hydrateImportedGitHubSelection, persistImportedConnectionSecrets, persistImportedTokenSecrets],
   );
 
   const handleExportAPIConfig = useCallback(async () => {

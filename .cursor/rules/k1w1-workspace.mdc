@@ -15,15 +15,13 @@ Du arbeitest im Repository **k1w1-a0style** (Expo / React-Native / TypeScript, J
 
 ## Tests & Stabilität
 - Tests sind Spezifikation: `__tests__/` und `lib/__tests__/` ernst nehmen.
-- Nach Änderungen gedanklich checken: “Was bricht das?” (Imports, Exports, Async/Sync, Mocks, Keys).
+- Zwischenrunden nur scope-relevante Tests + notwendige Checks.
+- Wenn ein Themenblock abgeschlossen wird: volle relevante Abschluss-Checks im selben Durchlauf.
 
 ## Logs & Stil
 - Logs/Fehlertexte überwiegend **Deutsch + Emojis** (z.B. "❌ Fehler beim Laden …").
 - Kurz, pragmatisch, keine Romane.
 
 ## Output/Workflow (Cursor)
-- Wenn du Dateien direkt editierst: **liste danach kurz**:
-  - Welche Dateien geändert
-  - Warum
-  - Was der Effekt ist
-- Wenn du nur vorschlägst (ohne Edit): zeig die wichtigsten Snippets/Zeilen – kein endloser Dump.
+- Bei Edits immer vollstaendiges Reporting gemaess `AGENTS.md` (nicht auf Kurzliste reduzieren).
+- Bei Vorschlaegen ohne Edit: wichtigste Snippets/Zeilen kurz und fokussiert zeigen.

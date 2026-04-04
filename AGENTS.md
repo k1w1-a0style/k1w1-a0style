@@ -51,7 +51,7 @@ Pflichtpunkte im Abschlussbericht jeder Runde:
 
 1. **Arbeite in kleinen Commits**: erst minimale Änderung → Tests → dann nächste.
 2. **Keine Überraschungen**: keine Dependencies updaten, keine Format-Wipes ohne Grund.
-3. **Immer checken**: Typecheck + Lint + Tests müssen grün sein.
+3. **Checks gestuft fahren**: Zwischenrunden nur scope-gerechte Checks; in der finalen Blockrunde die volle relevante Check-Abdeckung gruen abschliessen.
 4. **Security & Secrets**: niemals Tokens/Keys loggen oder in Dateien schreiben.
 5. **Erkläre kurz**: Was geändert, warum, wie testen.
 
@@ -59,12 +59,21 @@ Pflichtpunkte im Abschlussbericht jeder Runde:
 
 1. Code lesen & Kontext verstehen (`docs/PROJECT_CONTEXT.md`, `docs/SYSTEM_README.md`).
 2. Änderung umsetzen.
-3. Lokale Checks laufen lassen:
+3. Checks gestuft laufen lassen:
 
+Zwischenrunde (mindestens):
+```bash
+npm run typecheck
+npm run lint:ci
+# plus gezielte betroffene Tests
+```
+
+Finale Runde eines Themenblocks (kein weiterer Durchlauf noetig):
 ```bash
 npm run typecheck
 npm run lint:ci
 npm run test:silent
+# plus relevante Abschluss-Checks fuer den Block
 ```
 
 ## Patch-Artifact Workflow (kanonisch)
@@ -92,7 +101,7 @@ git commit -m "Patch <PATCHNUM>: <kurzer Titel>"
 git push origin codex
 ```
 
-Vor Auslieferung eines Patch-Artefakts:
+Vor Auslieferung eines Patch-Artefakts (entspricht finaler Blockrunde):
 - `git apply --check` muss lokal erfolgreich sein
 - `npm run typecheck`
 - `npm run lint:ci`

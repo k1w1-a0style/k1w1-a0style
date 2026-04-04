@@ -29,7 +29,6 @@ alwaysApply: false
   - Bestehende Tests dürfen nicht sterben
 
 ## Output in Cursor
-- Wenn du editierst: am Ende **kurz**:
-  - ✅ Was geändert (Dateiliste)
-  - ✅ Warum (1–3 Bulletpoints)
-  - ✅ Welche Tests relevant sind / was ich laufen lassen soll
+- Abschlussbericht immer vollstaendig gemaess `AGENTS.md` (kein Kurzformat), auch bei Folge-/Weiter-Runden.
+- Zwischenrunden: nur scope-gerechte Checks berichten.
+- Finale Blockrunde: volle relevante Abschluss-Checks berichten.
