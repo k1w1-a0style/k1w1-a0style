@@ -223,9 +223,11 @@ export type StorageLike = {
   removeItem: (key: string) => Promise<unknown>;
 };
 
+export type PersistableEntry = [string, string];
+
 export const persistEntriesWithFallback = async (
   storage: StorageLike,
-  entries: Array<[string, string]>,
+  entries: PersistableEntry[],
 ): Promise<void> => {
   if (!entries.length) return;
   await storage.multiSet(entries).catch(async () => {

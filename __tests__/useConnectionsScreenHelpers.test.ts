@@ -13,6 +13,15 @@ import {
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
+import {
+  easClearedPersistence,
+  expoClearedPersistence,
+  githubClearedPersistence,
+  loadHydrationSnapshot,
+  resolveHydrationLightsState,
+  supabaseClearedPersistence,
+} from "../screens/ConnectionsScreen/hooks/useConnectionsScreenState";
+import { STORAGE_KEYS } from "../lib/storageKeys";
 
 describe("useConnectionsScreenHelpers", () => {
   it("accepts only persisted EAS contract states", () => {
@@ -247,5 +256,118 @@ describe("useConnectionsScreenHelpers", () => {
     await removeEntriesWithFallback(storage, ["k1", "k2"]);
     expect(storage.multiRemove).toHaveBeenCalledTimes(1);
     expect(storage.removeItem).toHaveBeenCalledTimes(2);
+  });
+
+  it("restores hydration lights deterministically from persisted connection keys", () => {
+    expect(
+      resolveHydrationLightsState({
+        ghOk: "true",
+        ghUserStored: "octocat",
+        ghScopesStored: "repo,workflow",
+        sbOk: "true",
+        sbRefStored: "abc123",
+        exOk: "true",
+        exUserStored: "expo-user",
+        easOkStored: "true",
+        easStateStored: null,
+        easLastVerifiedStored: "2026-04-03T00:00:00.000Z",
+        repoOkStored: "true",
+        repoSlug: "owner/repo",
+        repoBranch: "main",
+        easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      }),
+    ).toEqual({
+      githubOk: true,
+      githubUser: "octocat",
+      githubScopes: "repo,workflow",
+      supabaseOk: true,
+      supabaseRef: "abc123",
+      expoOk: true,
+      expoUser: "expo-user",
+      easOk: true,
+      easState: "verified",
+      easLastVerifiedAt: "2026-04-03T00:00:00.000Z",
+      repoOk: true,
+      repoOkLine: "owner/repo (main)",
+    });
+  });
+
+  it("keeps reset persistence payloads stable for save/delete side effects", () => {
+    expect(githubClearedPersistence()).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "false"],
+        [STORAGE_KEYS.CONN_REPO_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [
+        STORAGE_KEYS.CONN_GITHUB_USER,
+        STORAGE_KEYS.CONN_GITHUB_SCOPES,
+        STORAGE_KEYS.CONN_REPO_SLUG,
+        STORAGE_KEYS.CONN_REPO_BRANCH,
+        STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT,
+      ],
+    });
+
+    expect(expoClearedPersistence()).toEqual({
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    });
+
+    expect(easClearedPersistence()).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
+
+    expect(supabaseClearedPersistence()).toEqual({
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
+  });
+
+  it("loads hydration snapshot fail-safe across token, storage and light keys", async () => {
+    const values = new Map<string, string | null>([
+      [STORAGE_KEYS.SUPABASE_RAW, "https://abc.supabase.co:::legacy"],
+      [STORAGE_KEYS.SUPABASE_URL, "https://abc.supabase.co"],
+      [STORAGE_KEYS.EAS_PROJECT_ID, "550e8400-e29b-41d4-a716-446655440000"],
+      [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+      [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
+      [STORAGE_KEYS.CONN_GITHUB_SCOPES, "repo"],
+      [STORAGE_KEYS.CONN_SUPABASE_OK, "true"],
+      [STORAGE_KEYS.CONN_SUPABASE_REF, "abc"],
+      [STORAGE_KEYS.CONN_EXPO_OK, "true"],
+      [STORAGE_KEYS.CONN_EXPO_USER, "expo-user"],
+      [STORAGE_KEYS.CONN_EAS_OK, "true"],
+      [STORAGE_KEYS.CONN_EAS_STATE, "verified"],
+      [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, "2026-04-03T00:00:00.000Z"],
+      [STORAGE_KEYS.CONN_REPO_OK, "true"],
+      [STORAGE_KEYS.CONN_REPO_SLUG, "owner/repo"],
+      [STORAGE_KEYS.CONN_REPO_BRANCH, "main"],
+    ]);
+    const storage = {
+      getItem: jest.fn(async (key: string) => values.get(key) ?? null),
+    };
+
+    const snapshot = await loadHydrationSnapshot(storage, {
+      getGitHubToken: async () => "gh-token",
+      getExpoToken: async () => "expo-token",
+      getWorkflowAdminKey: async () => "workflow-admin",
+      getAndroidKeystoreExportAdminKey: async () => "keystore-admin",
+      getSupabaseAnonKey: async () => "anon-key",
+    });
+
+    expect(snapshot.githubToken).toBe("gh-token");
+    expect(snapshot.expoToken).toBe("expo-token");
+    expect(snapshot.workflowAdminKey).toBe("workflow-admin");
+    expect(snapshot.androidKeystoreExportAdminKey).toBe("keystore-admin");
+    expect(snapshot.supabaseRaw).toBe("https://abc.supabase.co:::legacy");
+    expect(snapshot.supabaseUrl).toBe("https://abc.supabase.co");
+    expect(snapshot.supabaseAnonKey).toBe("anon-key");
+    expect(snapshot.easProjectId).toBe("550e8400-e29b-41d4-a716-446655440000");
+    expect(snapshot.lights.repoSlug).toBe("owner/repo");
+    expect(snapshot.lights.repoBranch).toBe("main");
   });
 });
