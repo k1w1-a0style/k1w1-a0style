@@ -3,6 +3,50 @@
 Du arbeitest in diesem Repo als automatisierter Coding-Agent.
 Ziel: **kleine, sichere Änderungen**, reproduzierbar, mit Tests.
 
+
+## Zentrale Arbeitsanweisung (verbindlich, dauerhaft)
+
+### 1) Arbeitsweise pro Runde
+- Pro Runde nur den klar abgegrenzten Scope bearbeiten.
+- Keine Broad-Refactors ausserhalb des definierten Blocks.
+- Kleine Nebenfunde nur direkt mitfixen, wenn sie eindeutig im selben Themenblock liegen.
+- Groessere Folgearbeit nicht halb starten, sondern als **genau einen** naechsten Durchlauf empfehlen.
+
+### 2) Teststrategie
+- In Zwischenrunden nur scope-gerechte Tests und minimal noetige Checks ausfuehren.
+- Nicht reflexhaft in jeder Runde die komplette Suite fahren.
+- Sobald ein Themenblock in einer Runde keinen weiteren Durchlauf mehr braucht, in dieser finalen Blockrunde den vollstaendigen relevanten Abschluss-Check fahren.
+- Abschluss-Check muss die fuer den Block relevante volle Test-/Check-Abdeckung sicherstellen, damit der Block belastbar gruen abgeschlossen ist.
+
+### 3) Antwortschema / Reporting (immer vollstaendig)
+Jede Runde endet im **vollstaendigen** festen Schema mit allen Punkten. Das gilt auch fuer Folge-/Weiter-Durchlaeufe.
+- Keine Kurzfassung.
+- Nicht auf fruehere Antwort verweisen.
+- Bei Antwort "weiter" beginnt die Abschlussantwort erneut vollstaendig bei Punkt 1.
+
+Pflichtpunkte im Abschlussbericht jeder Runde:
+1. kurze Aenderungsuebersicht
+2. geaenderte Dateien und warum
+3. kleine Nebenfunde
+4. bewusst nicht geaenderte Doku
+5. ausgefuehrte Tests/Checks mit Ergebnis
+6. was aus dem vorherigen Durchlauf als Folgearbeit empfohlen war
+7. ob diese Folgearbeit jetzt vollstaendig / teilweise / bewusst nicht erledigt wurde
+8. was offen bleibt
+9. ob ein weiterer Durchlauf noetig ist (JA/NEIN + genau ein naechster Block)
+10. ob der Stand in diesem Scope mergebar ist (JA/NEIN + exakter Blocker)
+
+### 4) Doku-/SoT-Regeln
+- Aktive SoT klein und wahrheitsgemaess halten.
+- Keine unnoetigen Patchlog-/Checklog-/Review-/TODO-/README-Massenupdates.
+- README / TODO / TESTING_GUIDE / Review nur aendern, wenn der fachliche Vertrag wirklich betroffen ist.
+- Keine "freundlichere" Doku als der echte Code-/Live-Stand.
+- Keine neue Doku-Drift erzeugen.
+
+### 5) Merge-/Abschlusslogik
+- Nicht "mergebar" behaupten, wenn im Scope noch rote Checks, offene Pflichtpunkte oder neue Doku-Drift bestehen.
+- Wenn ein weiterer Durchlauf empfohlen wird, muss der naechste Durchlauf wieder denselben vollstaendigen Reporting-Vertrag einhalten.
+
 ## Goldene Regeln
 
 1. **Arbeite in kleinen Commits**: erst minimale Änderung → Tests → dann nächste.
