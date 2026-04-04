@@ -51,6 +51,13 @@ import {
 } from "./fixRunnerOrchestrationHelpers";
 import { useFixStepProgress } from "./useFixStepProgress";
 import {
+  buildAutoFixStartMessage,
+  buildBatchRiskPromptMessage,
+  buildSelectedFixLimitMessage,
+  buildSmartFixLimitMessage,
+  confirmWithAlert,
+} from "./fixRunnerPromptHelpers";
+import {
   buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
@@ -618,24 +625,14 @@ export function useDiagnosticFixRunner(opts: {
 
       const riskSummary = summarizeBatchRisk(batch);
       if (riskSummary.hasRisk || limitSummary.hasSoft) {
-        const softNote = limitSummary.hasSoft
-          ? `\n\nGroße Fixes (Bestätigung nötig):\n${limitSummary.softLines.join("\n")}`
-          : "";
-        const proceed = await new Promise<boolean>((resolve) => {
-          const header = riskSummary.hasRisk
-            ? "Einige Fixes betreffen CI/Build/Infra Dateien."
-            : "Einige Fixes sind sehr groß/komplex.";
-          const pathsBlock = riskSummary.hasRisk
-            ? `\n\nBetroffene Pfade:\n- ${riskSummary.shortPaths.join("\n- ")}${riskSummary.more}`
-            : "";
-          Alert.alert(
-            "Risky batch fix",
-            `${header}${pathsBlock}${softNote}\n\nWillst du wirklich fortfahren?`,
-            [
-              { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-              { text: "Weiter", onPress: () => resolve(true) },
-            ],
-          );
+        const proceed = await confirmWithAlert({
+          title: "Risky batch fix",
+          message: buildBatchRiskPromptMessage({
+            hasRisk: riskSummary.hasRisk,
+            shortPaths: riskSummary.shortPaths,
+            more: riskSummary.more,
+            softLines: limitSummary.hasSoft ? limitSummary.softLines : [],
+          }),
         });
         if (!proceed) return;
       }
@@ -728,15 +725,10 @@ export function useDiagnosticFixRunner(opts: {
     const slice = recommended.slice(0, AUTOFIX_MAX);
 
     if (total > AUTOFIX_MAX) {
-      const proceed = await new Promise<boolean>((resolve) => {
-        Alert.alert(
-          "Smart Fix Limit",
-          `Es werden nur ${AUTOFIX_MAX}/${total} empfohlenen Fixes angewendet. Filtere oder führe erneut aus, um weitere anzuwenden.`,
-          [
-            { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-            { text: `Apply ${AUTOFIX_MAX}`, onPress: () => resolve(true) },
-          ],
-        );
+      const proceed = await confirmWithAlert({
+        title: "Smart Fix Limit",
+        message: buildSmartFixLimitMessage({ max: AUTOFIX_MAX, total }),
+        confirmText: `Apply ${AUTOFIX_MAX}`,
       });
       if (!proceed) return;
     }
@@ -757,15 +749,13 @@ export function useDiagnosticFixRunner(opts: {
     }
 
     if (chosenAll.length > AUTOFIX_MAX) {
-      const proceed = await new Promise<boolean>((resolve) => {
-        Alert.alert(
-          "Zu viele Fixes",
-          `Es sind ${chosenAll.length} Fixes ausgewählt, aber maximal ${AUTOFIX_MAX} können auf einmal angewendet werden.\n\nTipp: Nutze Filter (z.B. fail-only), oder führe AutoFix mehrfach aus.`,
-          [
-            { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-            { text: `Weiter (${AUTOFIX_MAX}/${chosenAll.length})`, onPress: () => resolve(true) },
-          ],
-        );
+      const proceed = await confirmWithAlert({
+        title: "Zu viele Fixes",
+        message: buildSelectedFixLimitMessage({
+          max: AUTOFIX_MAX,
+          selectedCount: chosenAll.length,
+        }),
+        confirmText: `Weiter (${AUTOFIX_MAX}/${chosenAll.length})`,
       });
       if (!proceed) return;
     }
@@ -797,7 +787,11 @@ export function useDiagnosticFixRunner(opts: {
 
     Alert.alert(
       "AutoFix starten?",
-      `Es werden ${slice.length} Fix(es) automatisch angewendet.\nScope: ${autoFixScope}\nIncludes warnings: ${autoFixIncludeWarn ? "ja" : "nein"}\n\nTipp: Mit „Re-Run“ nach dem Fix wird automatisch gegengecheckt.`,
+      buildAutoFixStartMessage({
+        count: slice.length,
+        autoFixScope,
+        autoFixIncludeWarn,
+      }),
       [
         { text: "Abbrechen", style: "cancel" },
         {
