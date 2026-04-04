@@ -5,15 +5,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useAI, type AIConfig, type AllAIProviders } from "../../../contexts/AIContext";
+import { useAI, type AIConfig } from "../../../contexts/AIContext";
 import {
-  mergeApiConfigImportPreservingLocalKeys,
   sanitizeAiConfigFromBackup,
   safeFormatBackupDate,
 } from "../../../lib/appInfoBackup";
 import {
   createConfigAndSecretsBackupPayload,
-  createSecretBackupPayload,
   type SecretBackupPayloadV1,
   type SecureBackupScope,
   type SecureBackupPayloadV1,
@@ -50,15 +48,27 @@ import {
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
 import { logger } from "../../../lib/logger";
+import {
+  countMessages,
+  getApiKeysCount,
+  getAssetsStatusFromProjectFiles,
+  getIconPreviewFromProjectFiles,
+  getPackageNameFromProjectFiles,
+  toProjectFiles,
+} from "./useAppInfoScreen.helpers";
+import {
+  createCollectedSecretBackupPayload,
+  readAppliedSecretTokens,
+} from "./appInfoSecretFlowHelpers";
+import { applyImportedApiConfig } from "./appInfoApiConfigHelpers";
+import {
+  getSecureBackupExportSuccessMessage,
+  getSecureBackupImportScopeText,
+} from "./appInfoSecureBackupUiHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
-
-type ProjectFileLike = {
-  path: string;
-  content: string;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -79,14 +89,6 @@ function isAbortLikeError(error: unknown): boolean {
   return message.includes("abgebrochen");
 }
 
-function toProjectFiles(value: unknown): ProjectFileLike[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is ProjectFileLike =>
-      isRecord(entry) && typeof entry.path === "string" && typeof entry.content === "string",
-  );
-}
-
 async function removeLegacyClientServiceRoleKeys(): Promise<void> {
   const keys = legacyClientServiceRoleStorageKeys();
   const results = await Promise.allSettled(keys.map((key) => AsyncStorage.removeItem(key)));
@@ -101,6 +103,28 @@ async function removeLegacyClientServiceRoleKeys(): Promise<void> {
   }
 }
 
+function useAppMetadataState(projectName: string | undefined, projectFiles: ReturnType<typeof toProjectFiles>) {
+  const [appName, setAppName] = useState("");
+  const [packageName, setPackageNameState] = useState("");
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!projectFiles.length) return;
+    setAppName(projectName || "Meine App");
+    setPackageNameState(getPackageNameFromProjectFiles(projectFiles));
+  }, [projectName, projectFiles]);
+
+  useEffect(() => {
+    if (!projectFiles.length) {
+      setIconPreview(null);
+      return;
+    }
+    setIconPreview(getIconPreviewFromProjectFiles(projectFiles));
+  }, [projectFiles]);
+
+  return { appName, setAppName, packageName, setPackageNameState, iconPreview, setIconPreview };
+}
+
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
   const projectFiles = useMemo(() => toProjectFiles(projectData?.files), [projectData?.files]);
@@ -112,51 +136,16 @@ export function useAppInfoScreen() {
     addRecentRepo,
     clearRecentRepos,
   } = useGitHub();
-  const [appName, setAppName] = useState("");
-  const [packageName, setPackageNameState] = useState("");
-  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const {
+    appName,
+    setAppName,
+    packageName,
+    setPackageNameState,
+    iconPreview,
+    setIconPreview,
+  } = useAppMetadataState(projectData?.name, projectFiles);
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
-
-  useEffect(() => {
-    if (!projectFiles.length) return;
-
-    setAppName(projectData?.name || "Meine App");
-
-    const pkgJson = projectFiles.find((f) => f.path === "package.json");
-    if (pkgJson && typeof pkgJson.content === "string") {
-      try {
-        const parsed = JSON.parse(pkgJson.content);
-        setPackageNameState(parsed.name || "meine-app");
-      } catch {
-        setPackageNameState("meine-app");
-      }
-    }
-  }, [projectData?.name, projectFiles]);
-
-  useEffect(() => {
-    if (!projectFiles.length) {
-      setIconPreview(null);
-      return;
-    }
-
-    const iconFile = projectFiles.find((f) => f.path === "assets/icon.png");
-    if (!iconFile?.content) {
-      setIconPreview(null);
-      return;
-    }
-
-    let base64Data = iconFile.content;
-    if (base64Data.startsWith("data:image/")) {
-      base64Data = base64Data.split(",")[1];
-    }
-
-    if (base64Data && base64Data.length > 100 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-      setIconPreview(`data:image/png;base64,${base64Data}`);
-    } else {
-      setIconPreview(null);
-    }
-  }, [projectFiles, projectData?.lastModified]);
 
   const handleSaveAppName = useCallback(async () => {
     const trimmedName = appName.trim();
@@ -188,6 +177,20 @@ export function useAppInfoScreen() {
     }
   }, [packageName, setPackageName]);
 
+  const runApplyIconToAssets = useCallback(async (base64Content: string) => {
+    await updateProjectFiles([
+      { path: "assets/icon.png", content: base64Content },
+      { path: "assets/adaptive-icon.png", content: base64Content },
+      { path: "assets/splash.png", content: base64Content },
+      { path: "assets/favicon.png", content: base64Content },
+    ]);
+
+    Alert.alert(
+      "✅ Erfolg",
+      "Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!",
+    );
+  }, [updateProjectFiles]);
+
   const handleChooseIcon = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -214,22 +217,11 @@ export function useAppInfoScreen() {
         return;
       }
 
-      const base64Content = asset.base64;
-      await updateProjectFiles([
-        { path: "assets/icon.png", content: base64Content },
-        { path: "assets/adaptive-icon.png", content: base64Content },
-        { path: "assets/splash.png", content: base64Content },
-        { path: "assets/favicon.png", content: base64Content },
-      ]);
-
-      Alert.alert(
-        "✅ Erfolg",
-        "Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!",
-      );
+      await runApplyIconToAssets(asset.base64);
     } catch (error: unknown) {
       Alert.alert("Fehler", getErrorMessage(error, "Assets konnten nicht aktualisiert werden."));
     }
-  }, [updateProjectFiles]);
+  }, [runApplyIconToAssets]);
 
   const collectSecretBackupPayload = useCallback(async () => {
     const [
@@ -259,7 +251,7 @@ export function useAppInfoScreen() {
 
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
 
-    const payload = createSecretBackupPayload({
+    return createCollectedSecretBackupPayload({
       connections: {
         supabaseRaw: normalizedSupabaseRaw,
         supabaseUrl: supabaseUrl ?? "",
@@ -271,19 +263,15 @@ export function useAppInfoScreen() {
         expoToken,
         workflowAdminKey,
         androidKeystoreExportAdminKey,
-        legacyEdgeAdminKey: workflowAdminKey,
         signingAdminKey,
         signingMasterKey,
       },
-      ciSecrets: {},
       github: {
         linkedRepo: activeRepo,
         linkedBranch: activeBranch,
         recentRepos,
       },
     });
-
-    return payload;
   }, [activeRepo, activeBranch, recentRepos]);
 
   const applySecretBackupPayload = useCallback(
@@ -300,23 +288,14 @@ export function useAppInfoScreen() {
       await removeLegacyClientServiceRoleKeys();
       await Promise.all(ops);
 
-      const t = payload.tokens;
-      const cs = payload.ciSecrets;
-      const githubToken = t.githubToken?.trim() || cs.GITHUB_TOKEN?.trim() || "";
-      const expoToken = t.expoToken?.trim() || cs.EXPO_TOKEN?.trim() || "";
-      const workflowAdminKey =
-        t.workflowAdminKey?.trim() ||
-        cs.K1W1_EDGE_WORKFLOW_ADMIN_KEY?.trim() ||
-        "";
-      const androidKeystoreExportAdminKey =
-        t.androidKeystoreExportAdminKey?.trim() ||
-        cs.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY?.trim() ||
-        "";
-      const signingAdminKey =
-        t.signingAdminKey?.trim() ||
-        cs.SIGNING_ADMIN_KEY?.trim() ||
-        "";
-      const signingMaster = t.signingMasterKey?.trim() || cs.SIGNING_MASTER_KEY?.trim() || "";
+      const {
+        githubToken,
+        expoToken,
+        workflowAdminKey,
+        androidKeystoreExportAdminKey,
+        signingAdminKey,
+        signingMaster,
+      } = readAppliedSecretTokens(payload);
 
       if (githubToken) await saveGitHubToken(githubToken);
       else await deleteGitHubToken();
@@ -362,6 +341,24 @@ export function useAppInfoScreen() {
     }
   }, [config]);
 
+  const runApiConfigImport = useCallback(async () => {
+    try {
+      const result = await importAPIConfig();
+      const { nextConfig, totalKeysImported } = applyImportedApiConfig(result.config, config);
+      setConfig(nextConfig);
+
+      const exportDate = safeFormatBackupDate(result.exportDate);
+      Alert.alert(
+        "✅ Import erfolgreich",
+        `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
+      );
+    } catch (error: unknown) {
+      if (!isAbortLikeError(error)) {
+        Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
+      }
+    }
+  }, [config, setConfig]);
+
   const handleImportAPIConfig = useCallback(async () => {
     Alert.alert(
       "⚠️ API-/KI-Konfiguration importieren",
@@ -371,33 +368,13 @@ export function useAppInfoScreen() {
         {
           text: "Importieren",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const result = await importAPIConfig();
-              const nextConfig = mergeApiConfigImportPreservingLocalKeys(result.config, config);
-              setConfig(nextConfig);
-
-              const providers: AllAIProviders[] = ["groq", "gemini", "openai", "anthropic", "huggingface"];
-              const totalKeysImported = providers.reduce(
-                (sum, provider) => sum + (nextConfig.apiKeys?.[provider]?.length || 0),
-                0,
-              );
-
-              const exportDate = safeFormatBackupDate(result.exportDate);
-              Alert.alert(
-                "✅ Import erfolgreich",
-                `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
-              );
-            } catch (error: unknown) {
-              if (!isAbortLikeError(error)) {
-                Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
-              }
-            }
+          onPress: () => {
+            void runApiConfigImport();
           },
         },
       ],
     );
-  }, [config, setConfig]);
+  }, [runApiConfigImport]);
 
   const openSecureBackupFlow = useCallback((request: SecureBackupRequest) => {
     setSecureBackupRequest(request);
@@ -431,6 +408,55 @@ export function useAppInfoScreen() {
     setSecureBackupRequest(null);
   }, [secureBackupBusy]);
 
+  const runSecureBackupExport = useCallback(
+    async (passphrase: string, scope: SecureBackupScope) => {
+      const secretPayload = await collectSecretBackupPayload();
+      const payload: SecureBackupPayloadV1 =
+        scope === "secrets"
+          ? secretPayload
+          : createConfigAndSecretsBackupPayload({
+              aiConfig: config as AIConfig,
+              secrets: secretPayload,
+            });
+
+      const result = await exportEncryptedScopedBackup({
+        scope,
+        passphrase,
+        payload,
+      });
+
+      Alert.alert(
+        "✅ Export erfolgreich",
+        getSecureBackupExportSuccessMessage({
+          scope,
+          fileName: result.fileName,
+        }),
+      );
+    },
+    [collectSecretBackupPayload, config],
+  );
+
+  const runSecureBackupImport = useCallback(
+    async (passphrase: string) => {
+      const result = await importEncryptedScopedBackup(passphrase);
+      const imported = result.data;
+      const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
+
+      await applySecretBackupPayload(secretPayload);
+      if (imported.kind === "config-secret-snapshot") {
+        setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
+      }
+
+      const exportDate = safeFormatBackupDate(result.exportDate);
+      const scopeText = getSecureBackupImportScopeText(imported);
+      Alert.alert(
+        "✅ Import erfolgreich",
+        `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
+      );
+    },
+    [applySecretBackupPayload, setConfig, config],
+  );
+
   const handleSubmitSecureBackupPassphrase = useCallback(
     async (passphrase: string) => {
       if (!secureBackupRequest || secureBackupBusy) return;
@@ -438,45 +464,9 @@ export function useAppInfoScreen() {
       setSecureBackupBusy(true);
       try {
         if (secureBackupRequest.mode === "export") {
-          const secretPayload = await collectSecretBackupPayload();
-          const payload: SecureBackupPayloadV1 =
-            secureBackupRequest.scope === "secrets"
-              ? secretPayload
-              : createConfigAndSecretsBackupPayload({
-                  aiConfig: config as AIConfig,
-                  secrets: secretPayload,
-                });
-
-          const result = await exportEncryptedScopedBackup({
-            scope: secureBackupRequest.scope,
-            passphrase,
-            payload,
-          });
-
-          Alert.alert(
-            "✅ Export erfolgreich",
-            secureBackupRequest.scope === "secrets"
-              ? `Secrets-/Token-Backup wurde verschlüsselt als "${result.fileName}" exportiert. Keine Projektdateien oder Chats sind enthalten.`
-              : `Gesichertes Konfig-Backup wurde verschlüsselt als "${result.fileName}" exportiert. Enthalten sind nur AI-/KI-Konfiguration plus Secrets/Connections – keine Projektdateien.`,
-          );
+          await runSecureBackupExport(passphrase, secureBackupRequest.scope);
         } else {
-          const result = await importEncryptedScopedBackup(passphrase);
-          const imported = result.data;
-          const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
-
-          await applySecretBackupPayload(secretPayload);
-          if (imported.kind === "config-secret-snapshot") {
-            setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
-          }
-
-          const exportDate = safeFormatBackupDate(result.exportDate);
-          const scopeText = imported.kind === "config-secret-snapshot"
-            ? "AI-/KI-Konfiguration plus Secrets/Connections"
-            : "Secrets/Tokens/Connections";
-          Alert.alert(
-            "✅ Import erfolgreich",
-            `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
-          );
+          await runSecureBackupImport(passphrase);
         }
 
         setSecureBackupRequest(null);
@@ -488,38 +478,13 @@ export function useAppInfoScreen() {
         setSecureBackupBusy(false);
       }
     },
-    [secureBackupRequest, secureBackupBusy, collectSecretBackupPayload, config, applySecretBackupPayload, setConfig],
+    [secureBackupRequest, secureBackupBusy, runSecureBackupExport, runSecureBackupImport],
   );
 
   const fileCount = useMemo(() => projectFiles.length, [projectFiles]);
-  const messageCount = useMemo(
-    () => (Array.isArray(projectData?.chatHistory) ? projectData.chatHistory : projectData?.messages)?.length || 0,
-    [projectData?.chatHistory, projectData?.messages],
-  );
-
-  const apiKeysCount = useMemo(() => {
-    const counts: Record<string, number> = {};
-    Object.keys(config.apiKeys).forEach((provider) => {
-      counts[provider] = (config.apiKeys[provider as AllAIProviders] || []).length;
-    });
-    return counts;
-  }, [config.apiKeys]);
-
-  const assetsStatus = useMemo(() => {
-    if (!projectFiles.length) {
-      return { icon: false, adaptiveIcon: false, splash: false, favicon: false };
-    }
-
-    const hasAsset = (path: string) =>
-      projectFiles.some((file) => file.path === path && file.content.length > 100);
-
-    return {
-      icon: hasAsset("assets/icon.png"),
-      adaptiveIcon: hasAsset("assets/adaptive-icon.png"),
-      splash: hasAsset("assets/splash.png"),
-      favicon: hasAsset("assets/favicon.png"),
-    };
-  }, [projectFiles]);
+  const messageCount = useMemo(() => countMessages(projectData), [projectData]);
+  const apiKeysCount = useMemo(() => getApiKeysCount(config.apiKeys), [config.apiKeys]);
+  const assetsStatus = useMemo(() => getAssetsStatusFromProjectFiles(projectFiles), [projectFiles]);
 
   return {
     projectData,
