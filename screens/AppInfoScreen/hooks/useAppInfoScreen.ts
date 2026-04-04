@@ -61,6 +61,10 @@ import {
   readAppliedSecretTokens,
 } from "./appInfoSecretFlowHelpers";
 import { applyImportedApiConfig } from "./appInfoApiConfigHelpers";
+import {
+  getSecureBackupExportSuccessMessage,
+  getSecureBackupImportScopeText,
+} from "./appInfoSecureBackupUiHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -421,9 +425,10 @@ export function useAppInfoScreen() {
 
           Alert.alert(
             "✅ Export erfolgreich",
-            secureBackupRequest.scope === "secrets"
-              ? `Secrets-/Token-Backup wurde verschlüsselt als "${result.fileName}" exportiert. Keine Projektdateien oder Chats sind enthalten.`
-              : `Gesichertes Konfig-Backup wurde verschlüsselt als "${result.fileName}" exportiert. Enthalten sind nur AI-/KI-Konfiguration plus Secrets/Connections – keine Projektdateien.`,
+            getSecureBackupExportSuccessMessage({
+              scope: secureBackupRequest.scope,
+              fileName: result.fileName,
+            }),
           );
         } else {
           const result = await importEncryptedScopedBackup(passphrase);
@@ -436,9 +441,7 @@ export function useAppInfoScreen() {
           }
 
           const exportDate = safeFormatBackupDate(result.exportDate);
-          const scopeText = imported.kind === "config-secret-snapshot"
-            ? "AI-/KI-Konfiguration plus Secrets/Connections"
-            : "Secrets/Tokens/Connections";
+          const scopeText = getSecureBackupImportScopeText(imported);
           Alert.alert(
             "✅ Import erfolgreich",
             `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
