@@ -15,7 +15,6 @@ import {
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
-import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import {
@@ -50,6 +49,12 @@ import {
   resolveWorkflowDispatchTarget,
 } from "./fixRunnerOrchestrationHelpers";
 import { useFixStepProgress } from "./useFixStepProgress";
+import {
+  applyUndoHistoryEntry,
+  buildPatchApplyState,
+  collectNormalizedTouchedPaths,
+  countPatchOperations,
+} from "./fixRunnerMutationHelpers";
 import {
   buildBatchExecutionPlan,
   collectBatchSafetyPatches,
@@ -242,8 +247,7 @@ export function useDiagnosticFixRunner(opts: {
       if (mountedRef.current) setApplyBusy(true);
 
       const currentFiles = projectRef.current.files;
-      const operationCount =
-        (patch.upsert?.length ?? 0) + (patch.delete?.length ?? 0) + (patch.jsonMerge?.length ?? 0);
+      const operationCount = countPatchOperations(patch);
       if (operationCount === 0) {
         throw new DiagnosticFixApplyError({
           message: "Patch enthält keine anwendbaren Änderungen.",
@@ -253,22 +257,7 @@ export function useDiagnosticFixRunner(opts: {
 
       let deletedCount = 0;
       try {
-        const touchedPaths = Array.from(
-          new Set<string>([
-            ...(patch.upsert ?? []).map((u) => u.path),
-            ...(patch.delete ?? []).map((p) => p),
-            ...(patch.jsonMerge ?? []).map((j) => j.path),
-          ]),
-        );
-
-        const normalizedTouched = touchedPaths
-          .map((p) => {
-            const v = validateFilePath(p);
-            if (!v.valid || !v.normalized)
-              throw new Error(`Ungültiger Pfad im Patch: ${p} (${v.errors.join(", ") || "invalid"})`);
-            return v.normalized;
-          })
-          .sort();
+        const normalizedTouched = collectNormalizedTouchedPaths(patch);
 
         const ownershipViolations = findOwnershipViolations("diagnosisAutofix", normalizedTouched);
         if (ownershipViolations.length) {
@@ -280,57 +269,14 @@ export function useDiagnosticFixRunner(opts: {
           );
         }
 
-        const currentMap = new Map(currentFiles.map((f) => [f.path, f] as const));
-        const snapshot: ProjectFile[] = [];
-        const createdPaths: string[] = [];
-        for (const p of normalizedTouched) {
-          const prev = currentMap.get(p);
-          if (prev) snapshot.push(prev);
-          else createdPaths.push(p);
-        }
-
-        const nextMap = new Map(currentFiles.map((f) => [f.path, f.content] as const));
-
-        for (const u of patch.upsert ?? []) {
-          const pv = validateFilePath(u.path);
-          if (!pv.valid || !pv.normalized)
-            throw new Error(`Ungültiger Pfad im Patch: ${u.path} (${pv.errors.join(", ") || "invalid"})`);
-          const cv = validateFileContent(u.content ?? "");
-          if (!cv.valid) throw new Error(`Ungültiger File-Content für ${u.path}: ${cv.error ?? "unknown"}`);
-          nextMap.set(pv.normalized, u.content ?? "");
-        }
-
-        for (const p of patch.delete ?? []) {
-          const pv = validateFilePath(p);
-          if (!pv.valid || !pv.normalized)
-            throw new Error(`Ungültiger Pfad im Patch: ${p} (${pv.errors.join(", ") || "invalid"})`);
-          nextMap.delete(pv.normalized);
-        }
-
-        if (patch.jsonMerge?.length) {
-          const { applyJsonMergePatchSafe } = await import("../../../lib/diagnostics/smartPatch");
-          const merged = await applyJsonMergePatchSafe(
-            Array.from(nextMap.entries()).map(([path, content]) => ({ path, content })),
-            patch.jsonMerge,
-          );
-          nextMap.clear();
-          for (const f of merged) nextMap.set(f.path, f.content);
-        }
-
-        const nextFiles: ProjectFile[] = Array.from(nextMap.entries()).map(([path, content]) => ({
-          path,
-          content,
-        }));
-
-        // Delete files first. If any delete fails we must NOT silently continue,
-        // because updateProjectFiles is an UPSERT/merge — it won't remove files.
-        // A swallowed error here causes projectRef vs projectData divergence.
-        const deletePaths = (patch.delete ?? [])
-          .map((p) => {
-            const pv = validateFilePath(p);
-            return pv.valid && pv.normalized ? pv.normalized : null;
-          })
-          .filter(Boolean) as string[];
+        const { nextFiles, snapshot, createdPaths, deletePaths } = await buildPatchApplyState({
+          patch,
+          currentFiles,
+          applyJsonMerge: async (files, jsonMerge) => {
+            const { applyJsonMergePatchSafe } = await import("../../../lib/diagnostics/smartPatch");
+            return applyJsonMergePatchSafe(files, jsonMerge);
+          },
+        });
 
         for (const p of deletePaths) {
           await deleteFile(p);
@@ -424,8 +370,11 @@ export function useDiagnosticFixRunner(opts: {
     if (mountedRef.current) setApplyBusy(true);
 
     try {
-      for (const p of last.createdPaths ?? []) await deleteFile(p);
-      if (last.snapshot.length) await updateProjectFiles(last.snapshot);
+      await applyUndoHistoryEntry({
+        entry: last,
+        deleteFile,
+        updateProjectFiles,
+      });
       setHistory((prev) => prev.slice(1));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
@@ -453,8 +402,11 @@ export function useDiagnosticFixRunner(opts: {
           try {
             for (const entry of history) {
               try {
-                for (const p of entry.createdPaths ?? []) await deleteFile(p);
-                if (entry.snapshot.length) await updateProjectFiles(entry.snapshot);
+                await applyUndoHistoryEntry({
+                  entry,
+                  deleteFile,
+                  updateProjectFiles,
+                });
                 undone++;
               } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
