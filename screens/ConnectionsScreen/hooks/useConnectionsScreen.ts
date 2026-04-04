@@ -5,7 +5,6 @@ import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { githubApiUrl } from "../../../shared/constants/github";
 import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
@@ -41,16 +40,13 @@ import {
 } from "../utils/validation";
 
 import { debugLog } from "../../../lib/debugOverlay";
-import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
-import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
 import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
 import {
   classifyVerificationError,
   type VerificationContractState,
 } from "../../../lib/status/verificationContract";
 import {
-  deriveSupabaseRefFromUrl,
   persistEntriesWithFallback,
   removeEntriesWithFallback,
   resolveConnectionsStatusFlags,
@@ -59,8 +55,13 @@ import {
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
-  type ExpoProjectResponse,
 } from "./useConnectionsScreenHelpers";
+import {
+  runEasProjectCheck,
+  runExpoConnectionCheck,
+  runGitHubConnectionCheck,
+  runSupabaseConnectionCheck,
+} from "./useConnectionsScreenProviderChecks";
 import {
   easClearedPersistence,
   expoClearedPersistence,
@@ -217,30 +218,20 @@ export function useConnectionsScreen() {
 
         setIsTestingEas(true);
         try {
-          const id = easProjectId.trim();
-          const resp = await fetchWithTimeout(
-            `https://api.expo.dev/v2/projects/${encodeURIComponent(id)}`,
-            {
-              timeoutMs: 12_000,
-              timeoutMessage: "EAS-Projektprüfung hat das Zeitlimit erreicht. Bitte Expo-Verbindung erneut testen.",
-              headers: {
-                Authorization: `Bearer ${expoToken.trim()}`,
-                Accept: "application/json",
-              },
-            },
-          );
-
-          if (!resp.ok) {
+          const easCheck = await runEasProjectCheck(easProjectId, expoToken);
+          if (!easCheck.ok) {
             await saveConnEasStatus({
               ok: false,
-              state: classifyVerificationError({ statusCode: resp.status }),
+              state: classifyVerificationError({ statusCode: easCheck.status }),
             });
-            Alert.alert("EAS Test", `EAS Test failed (${resp.status})`);
+            Alert.alert("EAS Test", `EAS Test failed (${easCheck.status})`);
             return;
           }
 
-          const json = (await resp.json().catch(() => null)) as ExpoProjectResponse | null;
-          const verification = resolveEasProjectVerification(json, new Date().toISOString());
+          const verification = resolveEasProjectVerification(
+            easCheck.json,
+            new Date().toISOString(),
+          );
           await saveConnEasStatus({
             ok: verification.ok,
             state: verification.state,
@@ -480,26 +471,14 @@ export function useConnectionsScreen() {
     try {
       await withBusyGuard(async () => {
       debugLog("connections:github", "GET /user", {
-        url: githubApiUrl("/user"),
-      });
-      const resp = await fetchWithTimeout(githubApiUrl("/user"), {
-        timeoutMs: 12_000,
-        timeoutMessage: "GitHub-Test hat das Zeitlimit erreicht. Bitte erneut versuchen.",
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${gh}`,
-        },
+        url: "https://api.github.com/user",
       });
       debugLog("connections:github", "Response", {
-        status: resp.status,
-        ok: resp.ok,
-        scopes: resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "",
+        tokenConfigured: true,
       });
-      if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
-      const userData = await resp.json().catch(() => ({}));
-      const login = userData?.login || "";
-      const scopesHeader = resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "";
-      const scopes = String(scopesHeader || "").trim();
+      const result = await runGitHubConnectionCheck(gh);
+      const login = result.login;
+      const scopes = result.scopes;
       setGithubOk(true);
       setGithubUser(login);
       setGithubScopes(scopes);
@@ -539,30 +518,14 @@ Scopes: ${scopes}` : ""}`);
 
     try {
       await withBusyGuard(async () => {
-      const url = "https://api.expo.dev/graphql";
-      debugLog("connections:expo", "POST /graphql", { url });
-      const resp = await fetchWithTimeout(url, {
-        timeoutMs: 12_000,
-        timeoutMessage: "Expo-Test hat das Zeitlimit erreicht. Bitte erneut versuchen.",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${ex}`,
-        },
-        body: JSON.stringify({
-          query: "query Me { me { id username } }",
-        }),
-      });
-
-      const raw = await resp.text();
+      debugLog("connections:expo", "POST /graphql", { url: "https://api.expo.dev/graphql" });
+      const result = await runExpoConnectionCheck(ex);
       debugLog("connections:expo", "Response", {
-        status: resp.status,
-        ok: resp.ok,
-        body: redactSecrets(truncateWithMarker(raw, 1000)),
+        status: result.status,
+        ok: result.ok,
+        body: redactSecrets(truncateWithMarker(result.raw, 1000)),
       });
-
-      if (!resp.ok) throw new Error(`Expo Test failed (${resp.status})`);
-      const username = parseExpoGraphQLUsername(raw || "");
+      const username = result.username;
 
       setExpoOk(true);
       setExpoUser(username || "");
@@ -602,38 +565,19 @@ Scopes: ${scopes}` : ""}`);
 
     try {
       await withBusyGuard(async () => {
-      const resp = await fetchWithTimeout(`${url}/rest/v1/`, {
-        timeoutMs: 12_000,
-        timeoutMessage: "Supabase-REST-Ping hat das Zeitlimit erreicht. Bitte URL/Netzwerk prüfen.",
-        method: "GET",
-        headers: { apikey: anon, Authorization: `Bearer ${anon}` },
-      });
-      if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
-
-      const tableRes = await fetchWithTimeout(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
-        timeoutMs: 12_000,
-        timeoutMessage: "Supabase build_jobs-Prüfung hat das Zeitlimit erreicht. Bitte erneut versuchen.",
-        method: "GET",
-        headers: { apikey: anon, Authorization: `Bearer ${anon}` },
-      });
-
-      if (!tableRes.ok) {
-        if (tableRes.status === 401 || tableRes.status === 403) {
-          setSupabaseOk(true);
-          await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]]);
-          Alert.alert(
-            "Supabase OK",
-            "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
-          );
-          return;
-        }
-        throw new Error(`build_jobs Check fehlgeschlagen (${tableRes.status}).`);
-      }
-
-      Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
+      const result = await runSupabaseConnectionCheck(url, anon);
       setSupabaseOk(true);
+      if (result.kind === "rls_protected") {
+        await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]]);
+        Alert.alert(
+          "Supabase OK",
+          "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
+        );
+        return;
+      }
+      Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       const writes: Array<[string, string]> = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
-      const ref = deriveSupabaseRefFromUrl(url);
+      const ref = result.ref;
       if (ref) {
         setSupabaseRef(ref);
         writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
