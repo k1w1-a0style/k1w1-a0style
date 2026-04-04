@@ -23,6 +23,7 @@ describe("edge error exposure invariants", () => {
     expect(indexSrc).toContain('const errorPayload = classifyK1w1HandlerError(err, {');
     expect(indexSrc).not.toContain('JSON.stringify({ ok: false, error: parsedBody.error })');
     expect(indexSrc).not.toContain('error: err?.message || "Unknown error"');
+    expect(indexSrc).not.toContain('raw: result.raw');
     expect(indexSrc).toContain('} catch (err: unknown) {');
     expect(helpersSrc).toContain('export type K1w1HandlerErrorCode =');
     expect(helpersSrc).toContain('provider_env_missing');
