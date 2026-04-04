@@ -191,4 +191,24 @@ describe("useDiagnosticFixRunner integration flows", () => {
 
     expect(updateProjectFiles).toHaveBeenCalled();
   });
+
+  test("applySelected with empty selection shows hint and does not apply", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const result = makePreflightResult({
+      id: "none-selected",
+      status: "fail",
+      fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"z\"}}" }] }) },
+    });
+    const { getApi, updateProjectFiles } = renderRunner({
+      sortedResults: [result],
+      selected: {},
+    });
+
+    await act(async () => {
+      await getApi().applySelected();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith("Nichts ausgewählt", "Bitte wähle Fixes aus.");
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+  });
 });
