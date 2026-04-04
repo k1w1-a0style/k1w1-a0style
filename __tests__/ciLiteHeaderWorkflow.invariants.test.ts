@@ -4,9 +4,10 @@ import { readRepoText as read } from "./helpers/repoSourceHelpers";
 describe("CI Lite Header workflow invariants", () => {
   it("guards dispatch against double-tap while a dispatch is in-flight", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const runLookupStateSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteRunLookupState.ts");
 
     expect(src).toContain("if (dispatching) return;");
-    expect(src).toContain("const [locatingRun, setLocatingRun] = useState(false);");
+    expect(runLookupStateSrc).toContain("const [locatingRun, setLocatingRun] = useState(false);");
   });
 
   it("keeps busy/tracking/header-running active while run lookup is still in progress", () => {
@@ -23,15 +24,16 @@ describe("CI Lite Header workflow invariants", () => {
 
   it("resets run lookup state on found run, timeout, and fatal lookup error without reusing stale intervals", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const runLookupStateSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteRunLookupState.ts");
 
-    expect(src).toContain("const stopRunLookup = useCallback(() => {");
-    expect(src).toContain("setLocatingRun(false);");
+    expect(runLookupStateSrc).toContain("const stopRunLookup = useCallback(() => {");
+    expect(runLookupStateSrc).toContain("setLocatingRun(false);");
     expect(src).toContain("const lookupFinished = await poll();");
     expect(src).toContain("if (!lookupFinished) {");
-    expect(src).toContain("const scheduleLookupPoll = useCallback((params: {");
-    expect(src).toContain("lookupGenerationRef.current += 1;");
-    expect(src).toContain("if (!isLookupGenerationActive(params.generation)) return;");
-    expect(src).toContain("pollTimerRef.current = setTimeout(() => {");
+    expect(runLookupStateSrc).toContain("const scheduleLookupPoll = useCallback((params: {");
+    expect(runLookupStateSrc).toContain("lookupGenerationRef.current += 1;");
+    expect(runLookupStateSrc).toContain("if (!isLookupGenerationActive(params.generation)) return;");
+    expect(runLookupStateSrc).toContain("pollTimerRef.current = setTimeout(() => {");
   });
 
   it("keeps a run-context artifact attempt guard to avoid endless fetch loops on completed failures", () => {
