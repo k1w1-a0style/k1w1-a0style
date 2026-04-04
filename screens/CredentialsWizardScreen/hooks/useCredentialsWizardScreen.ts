@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
@@ -14,9 +13,6 @@ import {
   saveAndroidKeystoreExportAdminKey,
 } from "../../../infra/github/githubService";
 import {
-  credKeyForProjectUiMode,
-  credKeyForUiMode,
-  credStatusMetaKeyForProjectUiMode,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 
@@ -40,30 +36,25 @@ import {
   normalizeModeForUi,
   normalizeModeForApi,
 } from "./credentialHelpers";
+import {
+  getEmptyStatusByMode,
+  hydratePersistedStatusByMode,
+  mergePersistedStatusByMode,
+  persistWizardStatusByMode,
+} from "./wizardStatusStore";
+import { readCurrentUserJwt } from "./wizardEdgeAuth";
 import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import {
   formatWizardBusyLabel,
   resolveWizardStatusPresentation,
-  toGeneratedPendingStatus,
-  toGeneratedPendingStatusWithReason,
-  toWizardErrorStatus,
-  toWizardStatusResult,
 } from "../statusContract";
+import { runGenerateAction, runStatusRefreshAction } from "./wizardEdgeActions";
 
-const EMPTY_STATUS_BY_MODE: Record<UiModeId, StatusResult | null> = {
-  dev: null,
-  preview: null,
-  production: null,
-};
+export { mergePersistedStatusByMode };
 
-export function mergePersistedStatusByMode(
-  next: Partial<Record<UiModeId, StatusResult>>,
-): Record<UiModeId, StatusResult | null> {
-  return {
-    ...EMPTY_STATUS_BY_MODE,
-    ...next,
-  };
-}
+const MISSING_OPERATOR_JWT_TITLE = "Supabase Login fehlt";
+const MISSING_OPERATOR_JWT_MESSAGE =
+  "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key. build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
 
 export function useCredentialsWizardScreen() {
   const project = useProject();
@@ -107,7 +98,7 @@ export function useCredentialsWizardScreen() {
   );
 
   const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>(
-    EMPTY_STATUS_BY_MODE,
+    getEmptyStatusByMode(),
   );
 
   const [lastDebug, setLastDebug] = useState<WizardHttpDebug | null>(null);
@@ -202,93 +193,29 @@ export function useCredentialsWizardScreen() {
     return true;
   }, [supabaseUrl, adminKey, repoFullName]);
 
-  const requireUserJwtOrAlert = useCallback(async (): Promise<string | null> => {
-    try {
-      const client = await ensureSupabaseClient();
-      const sessionResult = await (client as {
-        auth?: {
-          getSession?: () => Promise<{ data?: { session?: { access_token?: string | null } | null } | null }>;
-        };
-      })?.auth?.getSession?.();
-      const jwt = sessionResult?.data?.session?.access_token?.trim();
+  const requireUserJwtOrAlert = useCallback(
+    async (): Promise<string | null> => {
+      const jwt = await readCurrentUserJwt({ onError: safeSetLastError });
       if (jwt) return jwt;
-    } catch (error) {
-      safeSetLastError(error);
-    }
-
-    Alert.alert(
-      "Supabase Login fehlt",
-      "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key. build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
-    );
-    return null;
-  }, [safeSetLastError]);
+      Alert.alert(MISSING_OPERATOR_JWT_TITLE, MISSING_OPERATOR_JWT_MESSAGE);
+      return null;
+    },
+    [safeSetLastError],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     // Scope changed (project/repo switch): clear old in-memory status immediately
     // so another project's last-known state does not leak into this screen.
-    setStatusByMode(EMPTY_STATUS_BY_MODE);
+    // Legacy-fallback invariant stays unchanged: credKeyForProjectUiMode + scopedKey !== legacyKey.
+    setStatusByMode(getEmptyStatusByMode());
 
     (async () => {
-      const next: Partial<Record<UiModeId, StatusResult>> = {};
-
-      for (const mode of MODES.map((m) => m.id)) {
-        const scopedKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
-        const legacyKey = credKeyForUiMode(mode);
-        const scopedStateKey = credStatusMetaKeyForProjectUiMode({
-          mode,
-          field: "state",
-          projectScope: projectCredentialScope,
-        });
-        const legacyStateKey = credStatusMetaKeyForProjectUiMode({ mode, field: "state" });
-        const scopedDetailKey = credStatusMetaKeyForProjectUiMode({
-          mode,
-          field: "detail",
-          projectScope: projectCredentialScope,
-        });
-        const legacyDetailKey = credStatusMetaKeyForProjectUiMode({ mode, field: "detail" });
-
-        const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
-        let exists = scopedVal === "true" ? true : scopedVal === "false" ? false : null;
-
-        if (exists === null && scopedKey !== legacyKey) {
-          const legacyVal = await AsyncStorage.getItem(legacyKey).catch(() => null);
-          exists = legacyVal === "true" ? true : legacyVal === "false" ? false : null;
-        }
-
-        const scopedStateVal = await AsyncStorage.getItem(scopedStateKey).catch(() => null);
-        const credentialState =
-          scopedStateVal ??
-          (scopedStateKey !== legacyStateKey
-            ? await AsyncStorage.getItem(legacyStateKey).catch(() => null)
-            : null);
-        const scopedDetailVal = await AsyncStorage.getItem(scopedDetailKey).catch(() => null);
-        const stateDetail =
-          scopedDetailVal ??
-          (scopedDetailKey !== legacyDetailKey
-            ? await AsyncStorage.getItem(legacyDetailKey).catch(() => null)
-            : null);
-
-        if (exists !== null || credentialState || stateDetail) {
-          next[mode] = {
-            exists: exists ?? false,
-            credentialState:
-              credentialState === "verified" ||
-              credentialState === "missing" ||
-              credentialState === "unknown" ||
-              credentialState === "auth_error" ||
-              credentialState === "stale" ||
-              credentialState === "generated_pending_verification"
-                ? credentialState
-                : undefined,
-            stateDetail: stateDetail ?? undefined,
-          };
-        }
-      }
-
       if (cancelled) return;
-      setStatusByMode(mergePersistedStatusByMode(next));
+      const next = await hydratePersistedStatusByMode(projectCredentialScope);
+      if (cancelled) return;
+      setStatusByMode(next);
     })();
 
     return () => {
@@ -355,114 +282,32 @@ export function useCredentialsWizardScreen() {
   }, []);
 
   const persistWizardStatus = useCallback(
-    async (mode: UiModeId, status: StatusResult | null) => {
-      const existsKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
-      const stateKey = credStatusMetaKeyForProjectUiMode({
-        mode,
-        field: "state",
-        projectScope: projectCredentialScope,
-      });
-      const detailKey = credStatusMetaKeyForProjectUiMode({
-        mode,
-        field: "detail",
-        projectScope: projectCredentialScope,
-      });
-      const removeItem = typeof AsyncStorage.removeItem === "function"
-        ? AsyncStorage.removeItem.bind(AsyncStorage)
-        : async () => undefined;
-      await Promise.all([
-        AsyncStorage.setItem(existsKey, status?.exists ? "true" : "false").catch(() => {}),
-        status?.credentialState
-          ? AsyncStorage.setItem(stateKey, status.credentialState).catch(() => {})
-          : removeItem(stateKey).catch(() => {}),
-        status?.stateDetail
-          ? AsyncStorage.setItem(detailKey, status.stateDetail).catch(() => {})
-          : removeItem(detailKey).catch(() => {}),
-      ]);
-    },
+    async (mode: UiModeId, status: StatusResult | null) =>
+      persistWizardStatusByMode({ mode, status, projectScope: projectCredentialScope }),
     [projectCredentialScope],
   );
 
-  async function refreshStatusCore(
-    mode: UiModeId,
-    userJwt: string,
-    opts?: { preservePendingOnError?: boolean },
-  ) {
-    safeSetLastError(null);
-    safeSetLastDebug(null);
-
-    try {
-      const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(
-        supabaseUrl,
-        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS,
-        adminKey,
+  const refreshStatusCore = useCallback(
+    async (
+      mode: UiModeId,
+      userJwt: string,
+      opts?: { preservePendingOnError?: boolean },
+    ) =>
+      runStatusRefreshAction({
+        mode,
         userJwt,
-        {
-        repo: repoFullName,
-        mode: apiMode,
-      });
-
-      safeSetLastDebug(r.debug);
-      if (!r.ok) {
-        safeSetLastError(r.error);
-        if (isMountedRef.current) {
-          setStatusByMode((prev) => {
-            const nextStatus =
-              opts?.preservePendingOnError && prev[mode]?.credentialState === "generated_pending_verification"
-                ? toGeneratedPendingStatusWithReason(prev[mode], "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.")
-                : toWizardErrorStatus({
-                    previous: prev[mode],
-                    statusCode: r.debug.status ?? null,
-                    error: r.error,
-                    detail: describeLocalEdgeAdminKeyIssue({
-                      adminKey,
-                      statusCode: r.debug.status ?? null,
-                      error: r.error,
-                      surface: "keystore",
-                    }),
-                  });
-            void persistWizardStatus(mode, nextStatus);
-            return {
-              ...prev,
-              [mode]: nextStatus,
-            };
-          });
-        }
-        return false;
-      }
-
-      const data = toWizardStatusResult(r.data as StatusResult);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-      }
-      await persistWizardStatus(mode, data);
-      return true;
-    } catch (e: unknown) {
-      safeSetLastError(e);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus =
-            prev[mode]?.credentialState === "generated_pending_verification"
-              ? toGeneratedPendingStatusWithReason(
-                  prev[mode],
-                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-                )
-              : toWizardErrorStatus({
-                  previous: prev[mode],
-                  error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
-                });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
-      return false;
-    }
-  }
+        opts,
+        supabaseUrl,
+        adminKey,
+        repoFullName,
+        isMounted: () => isMountedRef.current,
+        setStatusByMode,
+        safeSetLastError,
+        safeSetLastDebug,
+        persistWizardStatus,
+      }),
+    [adminKey, persistWizardStatus, repoFullName, safeSetLastDebug, safeSetLastError, supabaseUrl],
+  );
 
   async function refreshStatus(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
@@ -511,90 +356,24 @@ export function useCredentialsWizardScreen() {
     const actionKey = `generate:${mode}`;
     if (!tryBeginAction(actionKey)) return;
 
-    if (isMountedRef.current) {
-      setLastError(null);
-      setLastDebug(null);
-    }
-
     try {
-      const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(
-        supabaseUrl,
-        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE,
-        adminKey,
+      await runGenerateAction({
+        mode,
         userJwt,
-        {
-        repo: repoFullName,
-        mode: apiMode,
+        supabaseUrl,
+        adminKey,
+        repoFullName,
+        isMounted: () => isMountedRef.current,
+        setStatusByMode,
+        safeSetLastError,
+        safeSetLastDebug,
+        persistWizardStatus,
+        onGeneratedPending: () => {
+          toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
+        },
+        refreshStatusAfterGenerate: () =>
+          refreshStatusCore(mode, userJwt, { preservePendingOnError: true }),
       });
-
-      safeSetLastDebug(r.debug);
-      if (!r.ok) {
-        safeSetLastError(r.error);
-        if (isMountedRef.current) {
-          setStatusByMode((prev) => {
-            const nextStatus = toWizardErrorStatus({
-              previous: prev[mode],
-              statusCode: r.debug.status ?? null,
-              error: r.error,
-              detail: describeLocalEdgeAdminKeyIssue({
-                adminKey,
-                statusCode: r.debug.status ?? null,
-                error: r.error,
-                surface: "keystore",
-              }),
-            });
-            void persistWizardStatus(mode, nextStatus);
-            return {
-              ...prev,
-              [mode]: nextStatus,
-            };
-          });
-        }
-        return;
-      }
-
-      const data = r.data as { ok?: boolean; error?: string } | null;
-      if (data?.ok === false) {
-        safeSetLastError(data.error ?? "Generate fehlgeschlagen");
-        return;
-      }
-
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus = toGeneratedPendingStatus(prev[mode]);
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
-
-      toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
-      await refreshStatusCore(mode, userJwt, { preservePendingOnError: true });
-    } catch (e: unknown) {
-      safeSetLastError(e);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus =
-            prev[mode]?.credentialState === "generated_pending_verification"
-              ? toGeneratedPendingStatusWithReason(
-                  prev[mode],
-                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-                )
-              : toWizardErrorStatus({
-                  previous: prev[mode],
-                  error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
-                });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
     } finally {
       finishAction(actionKey);
     }
