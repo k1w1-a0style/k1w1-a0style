@@ -11,36 +11,61 @@ import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
 import {
   DEFAULT_PATCH_LIMITS,
   checkPatchLimits,
-  patchFingerprint,
   summarizeBatchLimits,
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
-import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import {
   DiagnosticFixApplyError,
-  getDiagnosticFixExecutionResult,
 } from "../../../lib/diagnostics/fixResultContract";
 import { findOwnershipViolations } from "../../../lib/projectOwnership";
 import {
-  buildBatchFixSteps,
-  buildIssueFixSteps,
-  buildSingleFixSteps,
-  setStepStatusAtIndex,
 } from "./fixRunnerHelpers";
 import {
-  buildApplyFailureResult,
-  buildFailedStepPatch,
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
   formatBatchFixResultDetail,
   formatBatchFixSubtitle,
-  formatIssueFixResultDetail,
-  formatSingleFixResultDetail,
 } from "./fixRunnerDisplayHelpers";
+import {
+  buildIssueFixPlan,
+  buildIssueFixSuccessResult,
+  buildSingleFixPlan,
+  buildSingleFixSuccessResult,
+} from "./fixRunnerFlowPlanHelpers";
+import {
+  runApplyStep,
+  runDispatchStep,
+  runSyncStep,
+  runVerifyStep,
+} from "./fixRunnerExecutionHelpers";
+import {
+  pickAutoFixCandidates,
+  pickSelectedFixCandidates,
+  pickSmartFixCandidates,
+  resolveWorkflowDispatchTarget,
+} from "./fixRunnerOrchestrationHelpers";
+import { useFixStepProgress } from "./useFixStepProgress";
+import {
+  applyUndoHistoryEntry,
+  buildPatchApplyState,
+  collectNormalizedTouchedPaths,
+  countPatchOperations,
+} from "./fixRunnerMutationHelpers";
+import {
+  buildBatchExecutionPlan,
+  collectBatchSafetyPatches,
+} from "./fixRunnerBatchPlanHelpers";
+import {
+  buildAutoFixStartMessage,
+  buildBatchRiskPromptMessage,
+  buildSelectedFixLimitMessage,
+  buildSmartFixLimitMessage,
+  confirmWithAlert,
+} from "./fixRunnerPromptHelpers";
 import {
   buildFixPreviewEntries,
   collectDeletedPatchPaths,
@@ -51,8 +76,6 @@ import {
 
 import type {
   FixHistoryEntry,
-  FixStep,
-  Status,
 } from "../types";
 
 const MAX_HISTORY = 10;
@@ -134,88 +157,19 @@ export function useDiagnosticFixRunner(opts: {
   const [applyBusy, setApplyBusy] = useState(false);
   const applyBusyRef = useRef(false);
 
-  const [fixModalVisible, setFixModalVisible] = useState(false);
-  const [fixModalTitle, setFixModalTitle] = useState("AutoFix");
-  const [fixModalSubtitle, setFixModalSubtitle] = useState<string | undefined>(
-    undefined,
-  );
-  const [fixSteps, setFixSteps] = useState<FixStep[]>([]);
-  const [fixStepIndex, setFixStepIndex] = useState(0);
-  const [fixDone, setFixDone] = useState(false);
-
-  const finishWithResult = useCallback(
-    (params: {
-      status: "advisory_only" | "patch_applicable" | "patch_applied" | "workflow_dispatched" | "blocked" | "failed" | "pending_recheck";
-      detail?: string;
-      localChangeApplied?: boolean;
-      workflowTriggered?: boolean;
-      partial?: boolean;
-      stepIndex?: number;
-    }) => {
-      const result = getDiagnosticFixExecutionResult(params);
-      setFixDone(true);
-      if (typeof params.stepIndex === "number") {
-        setFixStepIndex(params.stepIndex);
-      }
-      toast?.show?.(result.summary);
-      return result;
-    },
-    [toast],
-  );
-
-  const closeFixModal = useCallback(() => {
-    if (!fixDone) return; // only closable when done
-    setFixModalVisible(false);
-  }, [fixDone]);
-
-  const openFixModal = useCallback(
-    (params: { title: string; subtitle?: string; steps: FixStep[] }) => {
-      setFixModalTitle(params.title);
-      setFixModalSubtitle(params.subtitle);
-      setFixSteps(params.steps);
-      setFixStepIndex(0);
-      setFixDone(false);
-      setFixModalVisible(true);
-    },
-    [],
-  );
-
-  const markFixStepRunning = useCallback((index: number) => {
-    setFixStepIndex(index);
-    setFixSteps((prev) => setStepStatusAtIndex(prev, index, { status: "running" }));
-  }, []);
-
-  const markFixStepDone = useCallback((index: number) => {
-    setFixSteps((prev) => setStepStatusAtIndex(prev, index, { status: "done" }));
-  }, []);
-
-  const markFixStepFailed = useCallback(
-    (index: number, error: unknown, fallback: string) => {
-      setFixSteps((prev) =>
-        setStepStatusAtIndex(prev, index, buildFailedStepPatch(error, fallback)),
-      );
-    },
-    [],
-  );
-
-  const runFixStep = useCallback(
-    async (params: {
-      index: number;
-      run: () => Promise<void>;
-      failMessage: string;
-    }): Promise<unknown | null> => {
-      markFixStepRunning(params.index);
-      try {
-        await params.run();
-        markFixStepDone(params.index);
-        return null;
-      } catch (error: unknown) {
-        markFixStepFailed(params.index, error, params.failMessage);
-        return error;
-      }
-    },
-    [markFixStepDone, markFixStepFailed, markFixStepRunning],
-  );
+  const {
+    fixModalVisible,
+    fixModalTitle,
+    fixModalSubtitle,
+    fixSteps,
+    fixStepIndex,
+    fixDone,
+    finishWithResult,
+    closeFixModal,
+    openFixModal,
+    markFixStepFailed,
+    runFixStep,
+  } = useFixStepProgress(toast);
 
   const openPreview = useCallback(async (label: string, patch: PreflightPatch) => {
     if (!projectRef.current) return;
@@ -293,8 +247,7 @@ export function useDiagnosticFixRunner(opts: {
       if (mountedRef.current) setApplyBusy(true);
 
       const currentFiles = projectRef.current.files;
-      const operationCount =
-        (patch.upsert?.length ?? 0) + (patch.delete?.length ?? 0) + (patch.jsonMerge?.length ?? 0);
+      const operationCount = countPatchOperations(patch);
       if (operationCount === 0) {
         throw new DiagnosticFixApplyError({
           message: "Patch enthält keine anwendbaren Änderungen.",
@@ -304,22 +257,7 @@ export function useDiagnosticFixRunner(opts: {
 
       let deletedCount = 0;
       try {
-        const touchedPaths = Array.from(
-          new Set<string>([
-            ...(patch.upsert ?? []).map((u) => u.path),
-            ...(patch.delete ?? []).map((p) => p),
-            ...(patch.jsonMerge ?? []).map((j) => j.path),
-          ]),
-        );
-
-        const normalizedTouched = touchedPaths
-          .map((p) => {
-            const v = validateFilePath(p);
-            if (!v.valid || !v.normalized)
-              throw new Error(`Ungültiger Pfad im Patch: ${p} (${v.errors.join(", ") || "invalid"})`);
-            return v.normalized;
-          })
-          .sort();
+        const normalizedTouched = collectNormalizedTouchedPaths(patch);
 
         const ownershipViolations = findOwnershipViolations("diagnosisAutofix", normalizedTouched);
         if (ownershipViolations.length) {
@@ -331,57 +269,14 @@ export function useDiagnosticFixRunner(opts: {
           );
         }
 
-        const currentMap = new Map(currentFiles.map((f) => [f.path, f] as const));
-        const snapshot: ProjectFile[] = [];
-        const createdPaths: string[] = [];
-        for (const p of normalizedTouched) {
-          const prev = currentMap.get(p);
-          if (prev) snapshot.push(prev);
-          else createdPaths.push(p);
-        }
-
-        const nextMap = new Map(currentFiles.map((f) => [f.path, f.content] as const));
-
-        for (const u of patch.upsert ?? []) {
-          const pv = validateFilePath(u.path);
-          if (!pv.valid || !pv.normalized)
-            throw new Error(`Ungültiger Pfad im Patch: ${u.path} (${pv.errors.join(", ") || "invalid"})`);
-          const cv = validateFileContent(u.content ?? "");
-          if (!cv.valid) throw new Error(`Ungültiger File-Content für ${u.path}: ${cv.error ?? "unknown"}`);
-          nextMap.set(pv.normalized, u.content ?? "");
-        }
-
-        for (const p of patch.delete ?? []) {
-          const pv = validateFilePath(p);
-          if (!pv.valid || !pv.normalized)
-            throw new Error(`Ungültiger Pfad im Patch: ${p} (${pv.errors.join(", ") || "invalid"})`);
-          nextMap.delete(pv.normalized);
-        }
-
-        if (patch.jsonMerge?.length) {
-          const { applyJsonMergePatchSafe } = await import("../../../lib/diagnostics/smartPatch");
-          const merged = await applyJsonMergePatchSafe(
-            Array.from(nextMap.entries()).map(([path, content]) => ({ path, content })),
-            patch.jsonMerge,
-          );
-          nextMap.clear();
-          for (const f of merged) nextMap.set(f.path, f.content);
-        }
-
-        const nextFiles: ProjectFile[] = Array.from(nextMap.entries()).map(([path, content]) => ({
-          path,
-          content,
-        }));
-
-        // Delete files first. If any delete fails we must NOT silently continue,
-        // because updateProjectFiles is an UPSERT/merge — it won't remove files.
-        // A swallowed error here causes projectRef vs projectData divergence.
-        const deletePaths = (patch.delete ?? [])
-          .map((p) => {
-            const pv = validateFilePath(p);
-            return pv.valid && pv.normalized ? pv.normalized : null;
-          })
-          .filter(Boolean) as string[];
+        const { nextFiles, snapshot, createdPaths, deletePaths } = await buildPatchApplyState({
+          patch,
+          currentFiles,
+          applyJsonMerge: async (files, jsonMerge) => {
+            const { applyJsonMergePatchSafe } = await import("../../../lib/diagnostics/smartPatch");
+            return applyJsonMergePatchSafe(files, jsonMerge);
+          },
+        });
 
         for (const p of deletePaths) {
           await deleteFile(p);
@@ -475,8 +370,11 @@ export function useDiagnosticFixRunner(opts: {
     if (mountedRef.current) setApplyBusy(true);
 
     try {
-      for (const p of last.createdPaths ?? []) await deleteFile(p);
-      if (last.snapshot.length) await updateProjectFiles(last.snapshot);
+      await applyUndoHistoryEntry({
+        entry: last,
+        deleteFile,
+        updateProjectFiles,
+      });
       setHistory((prev) => prev.slice(1));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
@@ -504,8 +402,11 @@ export function useDiagnosticFixRunner(opts: {
           try {
             for (const entry of history) {
               try {
-                for (const p of entry.createdPaths ?? []) await deleteFile(p);
-                if (entry.snapshot.length) await updateProjectFiles(entry.snapshot);
+                await applyUndoHistoryEntry({
+                  entry,
+                  deleteFile,
+                  updateProjectFiles,
+                });
                 undone++;
               } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
@@ -533,15 +434,10 @@ export function useDiagnosticFixRunner(opts: {
     async (r: PreflightCheckResult) => {
       if (!r.fix?.patch && !r.fix?.workflowDispatch) return;
 
-      const patchForApply = r.fix?.patch;
-      const dispatch = r.fix?.workflowDispatch;
-      const doSync = patchForApply ? shouldSyncPatch(patchForApply) : false;
-
-      const steps = buildIssueFixSteps({
-        hasPatch: !!patchForApply,
-        hasDispatch: !!dispatch,
-        doSync,
+      const { patchForApply, dispatch, doSync, steps } = buildIssueFixPlan({
+        result: r,
         rerunAfterFix,
+        shouldSyncPatch,
       });
 
       openFixModal({ title: "Fix", subtitle: r.title, steps });
@@ -549,44 +445,28 @@ export function useDiagnosticFixRunner(opts: {
       let cursor = 0;
 
       let patchApplied = false;
-      if (patchForApply) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: async () => {
-            await applyPatch(r.title, patchForApply);
-            patchApplied = true;
-          },
-          failMessage: "Fehler",
-        });
-        if (stepError) {
-          finishWithResult(
-            buildApplyFailureResult({
-              error: stepError,
-              fallback: "Patch konnte nicht angewendet werden.",
-              stepIndex: cursor,
-            }),
-          );
-          return;
-        }
-        cursor++;
-      }
+      const patchStep = await runApplyStep({
+        enabled: !!patchForApply,
+        stepIndex: cursor,
+        runFixStep,
+        apply: async () => {
+          await applyPatch(r.title, patchForApply as PreflightPatch);
+        },
+        finishWithResult,
+        failMessage: "Patch konnte nicht angewendet werden.",
+      });
+      if (!patchStep.ok) return;
+      patchApplied = patchStep.applied;
+      cursor = patchStep.nextIndex;
 
       if (dispatch) {
-        const parsed = parseOwnerRepo(linkedRepo);
-        if (!parsed) {
-          const detail = "Workflow-Fix ist ohne verknüpftes Repo nicht anwendbar.";
-          markFixStepFailed(cursor, detail, detail);
-          finishWithResult({
-            status: "blocked",
-            detail,
-            localChangeApplied: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        const workflowRef = (dispatch.ref || linkedBranch || "").trim();
-        if (!workflowRef) {
-          const detail = "Workflow-Fix ist ohne verknüpften Branch nicht anwendbar.";
+        const dispatchTarget = resolveWorkflowDispatchTarget({
+          linkedRepo,
+          linkedBranch,
+          dispatchRef: dispatch.ref,
+        });
+        if (!dispatchTarget.ok) {
+          const detail = dispatchTarget.detail;
           markFixStepFailed(cursor, detail, detail);
           finishWithResult({
             status: "blocked",
@@ -597,88 +477,58 @@ export function useDiagnosticFixRunner(opts: {
           return;
         }
 
-        const stepError = await runFixStep({
-          index: cursor,
-          run: async () => {
+        const dispatchStep = await runDispatchStep({
+          enabled: true,
+          stepIndex: cursor,
+          runFixStep,
+          dispatch: async () => {
             await dispatchWorkflowFix({
-              owner: parsed.owner,
-              repo: parsed.repo,
+              owner: dispatchTarget.owner,
+              repo: dispatchTarget.repo,
               workflowFileName: dispatch.workflowFileName,
-              workflowRef,
+              workflowRef: dispatchTarget.workflowRef,
               inputs: dispatch.inputs || {},
               fallbackPatch: dispatch.fallbackPatch,
             });
           },
-          failMessage: "Workflow dispatch fehlgeschlagen",
+          finishWithResult,
+          localChangeApplied: patchApplied,
         });
-        if (stepError) {
-          finishWithResult({
-            status: "failed",
-            detail: getErrorMessage(stepError, "Workflow dispatch fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            workflowTriggered: false,
-            partial: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
+        if (!dispatchStep.ok) return;
+        cursor = dispatchStep.nextIndex;
       }
 
-      if (doSync && patchForApply) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: () => syncPatchToGitHub(r.title, patchForApply),
-          failMessage: "Sync fehlgeschlagen",
-        });
-        if (stepError) {
-          finishWithResult({
-            status: "failed",
-            detail: getErrorMessage(stepError, "Sync fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            partial: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
-      }
+      const syncStep = await runSyncStep({
+        enabled: !!(doSync && patchForApply),
+        stepIndex: cursor,
+        runFixStep,
+        sync: () => syncPatchToGitHub(r.title, patchForApply as PreflightPatch),
+        finishWithResult,
+        localChangeApplied: patchApplied,
+      });
+      if (!syncStep.ok) return;
+      cursor = syncStep.nextIndex;
 
-      if (rerunAfterFix) {
-        const stepError = await runFixStep({
-          index: cursor,
-          run: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
-          failMessage: "Verify fehlgeschlagen",
-        });
-        if (stepError) {
-          finishWithResult({
-            status: "pending_recheck",
-            detail: getErrorMessage(stepError, "Verify fehlgeschlagen"),
-            localChangeApplied: patchApplied,
-            workflowTriggered: !!dispatch,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        cursor++;
-      }
-
-      finishWithResult({
-        status:
-          rerunAfterFix || !!dispatch
-            ? "pending_recheck"
-            : patchApplied
-              ? "patch_applied"
-              : "workflow_dispatched",
-        detail: formatIssueFixResultDetail({
-          hasDispatch: !!dispatch,
-          patchApplied,
-          rerunAfterFix,
-        }),
+      const verifyStep = await runVerifyStep({
+        enabled: rerunAfterFix,
+        stepIndex: cursor,
+        runFixStep,
+        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+        finishWithResult,
         localChangeApplied: patchApplied,
         workflowTriggered: !!dispatch,
-        stepIndex: steps.length,
       });
+      if (!verifyStep.ok) return;
+      cursor = verifyStep.nextIndex;
+
+      finishWithResult(
+        buildIssueFixSuccessResult({
+          rerunAfterFix,
+          hasDispatch: !!dispatch,
+          patchApplied,
+          stepsLength: steps.length,
+        }),
+      );
     },
     [
       applyPatch,
@@ -700,9 +550,7 @@ export function useDiagnosticFixRunner(opts: {
       // --- Safety gate for batch runs ---
       // In batch mode it's easy to "silently" apply changes that touch CI / build plumbing.
       // We do one extra confirmation if any patch looks risky.
-      const batch = items
-        .filter((r) => !!r.fix?.patch)
-        .map((r) => ({ title: r.title, patch: r.fix!.patch as PreflightPatch }));
+      const batch = collectBatchSafetyPatches(items);
 
       // --- Size/complexity guard ---
       // Even if paths are not "risky", very large patches can slow devices and raise regression risk.
@@ -718,46 +566,23 @@ export function useDiagnosticFixRunner(opts: {
 
       const riskSummary = summarizeBatchRisk(batch);
       if (riskSummary.hasRisk || limitSummary.hasSoft) {
-        const softNote = limitSummary.hasSoft
-          ? `\n\nGroße Fixes (Bestätigung nötig):\n${limitSummary.softLines.join("\n")}`
-          : "";
-        const proceed = await new Promise<boolean>((resolve) => {
-          const header = riskSummary.hasRisk
-            ? "Einige Fixes betreffen CI/Build/Infra Dateien."
-            : "Einige Fixes sind sehr groß/komplex.";
-          const pathsBlock = riskSummary.hasRisk
-            ? `\n\nBetroffene Pfade:\n- ${riskSummary.shortPaths.join("\n- ")}${riskSummary.more}`
-            : "";
-          Alert.alert(
-            "Risky batch fix",
-            `${header}${pathsBlock}${softNote}\n\nWillst du wirklich fortfahren?`,
-            [
-              { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-              { text: "Weiter", onPress: () => resolve(true) },
-            ],
-          );
+        const proceed = await confirmWithAlert({
+          title: "Risky batch fix",
+          message: buildBatchRiskPromptMessage({
+            hasRisk: riskSummary.hasRisk,
+            shortPaths: riskSummary.shortPaths,
+            more: riskSummary.more,
+            softLines: limitSummary.hasSoft ? limitSummary.softLines : [],
+          }),
         });
         if (!proceed) return;
       }
 
-      // De-dup patches in batch mode: prevents repeated apply of identical patch sets.
-      const seen = new Set<string>();
-      const deduped: Array<{ r: PreflightCheckResult; patch: PreflightPatch }> = [];
-      for (const r of items) {
-        if (!r.fix?.patch) continue;
-        const patch = r.fix.patch as PreflightPatch;
-        const fp = patchFingerprint(patch);
-        if (seen.has(fp)) continue;
-        seen.add(fp);
-        deduped.push({ r, patch });
-      }
-
-      const steps = buildBatchFixSteps(
-        deduped.map(({ r, patch }) => ({ id: r.id, title: r.title, doSync: shouldSyncPatch(patch) })),
+      const { deduped, steps, skipped } = buildBatchExecutionPlan({
+        items,
         rerunAfterFix,
-      );
-
-      const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
+        shouldSyncPatch,
+      });
       openFixModal({
         title: label,
         subtitle: formatBatchFixSubtitle(deduped.length, skipped),
@@ -767,67 +592,42 @@ export function useDiagnosticFixRunner(opts: {
       let cursor = 0;
 
       let appliedCount = 0;
-      for (const { r, patch } of deduped) {
-        markFixStepRunning(cursor);
-        try {
-          await applyPatch(r.title, patch);
-          markFixStepDone(cursor);
-          appliedCount++;
-        } catch (error: unknown) {
-          const message = getErrorMessage(error, "Apply fehlgeschlagen");
-          markFixStepFailed(cursor, error, "Apply fehlgeschlagen");
-          finishWithResult(
-            buildApplyFailureResult({
-              error,
-              fallback: "Apply fehlgeschlagen",
-              stepIndex: cursor,
-              localChangeApplied: appliedCount > 0 || undefined,
-              partial: appliedCount > 0 || undefined,
-            }),
-          );
-          return;
-        }
-        cursor++;
+      for (const { result, patch } of deduped) {
+        const applyStep = await runApplyStep({
+          enabled: true,
+          stepIndex: cursor,
+          runFixStep,
+          apply: async () => {
+            await applyPatch(result.title, patch);
+          },
+          finishWithResult,
+          localChangeAppliedOnFailure: appliedCount > 0 || undefined,
+        });
+        if (!applyStep.ok) return;
+        if (applyStep.applied) appliedCount++;
+        cursor = applyStep.nextIndex;
 
-        if (shouldSyncPatch(patch)) {
-          markFixStepRunning(cursor);
-          try {
-            await syncPatchToGitHub(r.title, patch);
-            markFixStepDone(cursor);
-          } catch (error: unknown) {
-            const message = getErrorMessage(error, "Sync fehlgeschlagen");
-            markFixStepFailed(cursor, error, "Sync fehlgeschlagen");
-            finishWithResult({
-              status: "failed",
-              detail: message,
-              localChangeApplied: appliedCount > 0,
-              partial: appliedCount > 0,
-              stepIndex: cursor,
-            });
-            return;
-          }
-          cursor++;
-        }
+        const syncStep = await runSyncStep({
+          enabled: shouldSyncPatch(patch),
+          stepIndex: cursor,
+          runFixStep,
+          sync: () => syncPatchToGitHub(result.title, patch),
+          finishWithResult,
+          localChangeApplied: appliedCount > 0,
+        });
+        if (!syncStep.ok) return;
+        cursor = syncStep.nextIndex;
       }
 
-      if (rerunAfterFix) {
-        markFixStepRunning(cursor);
-        try {
-          await runDiagnostics({ resetSelection: false, resetHistory: false });
-          markFixStepDone(cursor);
-        } catch (error: unknown) {
-          const message = getErrorMessage(error, "Verify fehlgeschlagen");
-          markFixStepFailed(cursor, error, "Verify fehlgeschlagen");
-          finishWithResult({
-            status: "pending_recheck",
-            detail: message,
-            localChangeApplied: appliedCount > 0,
-            partial: false,
-            stepIndex: cursor,
-          });
-          return;
-        }
-      }
+      const verifyStep = await runVerifyStep({
+        enabled: rerunAfterFix,
+        stepIndex: cursor,
+        runFixStep,
+        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+        finishWithResult,
+        localChangeApplied: appliedCount > 0,
+      });
+      if (!verifyStep.ok) return;
 
       finishWithResult({
         status: rerunAfterFix ? "pending_recheck" : "patch_applied",
@@ -843,9 +643,7 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const recommended = fixableResults.filter(
-      (r) => ((r.status ?? "pass") as Status) === "fail" && !!r.fix?.patch,
-    );
+    const recommended = pickSmartFixCandidates(fixableResults).map(({ result }) => result);
 
     if (!recommended.length) {
       Alert.alert("Nichts zu fixen", "Keine empfohlenen Fixes (Critical) gefunden.");
@@ -856,15 +654,10 @@ export function useDiagnosticFixRunner(opts: {
     const slice = recommended.slice(0, AUTOFIX_MAX);
 
     if (total > AUTOFIX_MAX) {
-      const proceed = await new Promise<boolean>((resolve) => {
-        Alert.alert(
-          "Smart Fix Limit",
-          `Es werden nur ${AUTOFIX_MAX}/${total} empfohlenen Fixes angewendet. Filtere oder führe erneut aus, um weitere anzuwenden.`,
-          [
-            { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-            { text: `Apply ${AUTOFIX_MAX}`, onPress: () => resolve(true) },
-          ],
-        );
+      const proceed = await confirmWithAlert({
+        title: "Smart Fix Limit",
+        message: buildSmartFixLimitMessage({ max: AUTOFIX_MAX, total }),
+        confirmText: `Apply ${AUTOFIX_MAX}`,
       });
       if (!proceed) return;
     }
@@ -876,22 +669,22 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const chosenAll = sortedResults.filter((r) => selected[r.id] && r.fix?.patch);
+    const chosenAll = pickSelectedFixCandidates({ sortedResults, selected }).map(
+      ({ result }) => result,
+    );
     if (!chosenAll.length) {
       Alert.alert("Nichts ausgewählt", "Bitte wähle Fixes aus.");
       return;
     }
 
     if (chosenAll.length > AUTOFIX_MAX) {
-      const proceed = await new Promise<boolean>((resolve) => {
-        Alert.alert(
-          "Zu viele Fixes",
-          `Es sind ${chosenAll.length} Fixes ausgewählt, aber maximal ${AUTOFIX_MAX} können auf einmal angewendet werden.\n\nTipp: Nutze Filter (z.B. fail-only), oder führe AutoFix mehrfach aus.`,
-          [
-            { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
-            { text: `Weiter (${AUTOFIX_MAX}/${chosenAll.length})`, onPress: () => resolve(true) },
-          ],
-        );
+      const proceed = await confirmWithAlert({
+        title: "Zu viele Fixes",
+        message: buildSelectedFixLimitMessage({
+          max: AUTOFIX_MAX,
+          selectedCount: chosenAll.length,
+        }),
+        confirmText: `Weiter (${AUTOFIX_MAX}/${chosenAll.length})`,
       });
       if (!proceed) return;
     }
@@ -904,16 +697,12 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const baseList = (autoFixScope === "visible" ? visibleResults : fixableResults).filter(
-      (r) => !!r.fix?.patch,
-    );
-
-    const chosen = baseList.filter((r) => {
-      const st = (r.status as Status) ?? "pass";
-      if (st === "fail") return true;
-      if (autoFixIncludeWarn && st === "warn") return true;
-      return false;
-    });
+    const chosen = pickAutoFixCandidates({
+      autoFixScope,
+      visibleResults,
+      fixableResults,
+      autoFixIncludeWarn,
+    }).map(({ result }) => result);
 
     if (!chosen.length) {
       Alert.alert(
@@ -927,7 +716,11 @@ export function useDiagnosticFixRunner(opts: {
 
     Alert.alert(
       "AutoFix starten?",
-      `Es werden ${slice.length} Fix(es) automatisch angewendet.\nScope: ${autoFixScope}\nIncludes warnings: ${autoFixIncludeWarn ? "ja" : "nein"}\n\nTipp: Mit „Re-Run“ nach dem Fix wird automatisch gegengecheckt.`,
+      buildAutoFixStartMessage({
+        count: slice.length,
+        autoFixScope,
+        autoFixIncludeWarn,
+      }),
       [
         { text: "Abbrechen", style: "cancel" },
         {
@@ -965,79 +758,52 @@ export function useDiagnosticFixRunner(opts: {
       const syncWouldHelp = shouldSyncPatch(patch);
 
       const runOne = async (doSync: boolean) => {
-        const steps = buildSingleFixSteps({ doSync, rerunAfterFix });
+        const { steps } = buildSingleFixPlan({ doSync, rerunAfterFix });
 
         openFixModal({ title: "Fix", subtitle: r.title, steps });
 
-        let patchApplied = false;
-        const patchStepError = await runFixStep({
-          index: 0,
-          run: async () => {
+        const patchStep = await runApplyStep({
+          enabled: true,
+          stepIndex: 0,
+          runFixStep,
+          apply: async () => {
             await applyPatch(r.title, patch);
-            patchApplied = true;
           },
+          finishWithResult,
           failMessage: "Fehler",
         });
-        if (patchStepError) {
-          finishWithResult(
-            buildApplyFailureResult({
-              error: patchStepError,
-              fallback: "Fehler",
-              stepIndex: 0,
-            }),
-          );
-          return;
-        }
+        if (!patchStep.ok) return;
+        const patchApplied = patchStep.applied;
 
-        let stepCursor = 1;
-        if (doSync) {
-          const syncError = await runFixStep({
-            index: stepCursor,
-            run: async () => {
-              await syncPatchToGitHub(r.title, patch);
-            },
-            failMessage: "Sync fehlgeschlagen",
-          });
-          if (syncError) {
-            const message = getErrorMessage(syncError, "Sync fehlgeschlagen");
-            finishWithResult({
-              status: "failed",
-              detail: message,
-              localChangeApplied: patchApplied,
-              partial: patchApplied,
-              stepIndex: stepCursor,
-            });
-            return;
-          }
-          stepCursor++;
-        }
-
-        if (rerunAfterFix) {
-          const verifyError = await runFixStep({
-            index: stepCursor,
-            run: async () => {
-              await runDiagnostics({ resetSelection: false, resetHistory: false });
-            },
-            failMessage: "Verify fehlgeschlagen",
-          });
-          if (verifyError) {
-            const message = getErrorMessage(verifyError, "Verify fehlgeschlagen");
-            finishWithResult({
-              status: "pending_recheck",
-              detail: message,
-              localChangeApplied: patchApplied,
-              stepIndex: stepCursor,
-            });
-            return;
-          }
-        }
-
-        finishWithResult({
-          status: rerunAfterFix ? "pending_recheck" : "patch_applied",
-          detail: formatSingleFixResultDetail(rerunAfterFix),
+        let stepCursor = patchStep.nextIndex;
+        const syncStep = await runSyncStep({
+          enabled: doSync,
+          stepIndex: stepCursor,
+          runFixStep,
+          sync: () => syncPatchToGitHub(r.title, patch),
+          finishWithResult,
           localChangeApplied: patchApplied,
-          stepIndex: steps.length,
         });
+        if (!syncStep.ok) return;
+        stepCursor = syncStep.nextIndex;
+
+        const verifyStep = await runVerifyStep({
+          enabled: rerunAfterFix,
+          stepIndex: stepCursor,
+          runFixStep,
+          verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+          finishWithResult,
+          localChangeApplied: patchApplied,
+        });
+        if (!verifyStep.ok) return;
+
+        finishWithResult(
+          buildSingleFixSuccessResult({
+            rerunAfterFix,
+            patchApplied,
+            stepsLength: steps.length,
+          }),
+        );
       };
 
       Alert.alert(
