@@ -27,7 +27,5 @@ alwaysApply: false
    - Keine neuen Abhängigkeiten ohne zwingenden Grund
 
 ## Output in Cursor
-- Wenn du editierst: am Ende kurz:
-  - 🔧 Root cause
-  - ✅ Fix Summary (Dateien)
-  - 🧪 Welche Tests jetzt grün sein sollten
+- Bei Edits: Abschlussbericht vollstaendig gemaess `AGENTS.md` (kein Kurzformat).
+- Root cause/Fix/Teststatus weiterhin klar und knapp benennen.
