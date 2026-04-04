@@ -16,11 +16,13 @@ describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
   });
 
   it("keeps default branch after repo creation when GitHub provides one", () => {
-    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const screenSrc = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const crudSrc = read("screens/GitHubReposScreen/hooks/useGitHubRepoCrud.ts");
     const repoTypes = read("hooks/gitHubReposTypes.ts");
 
-    expect(src).toContain('const defaultBranch = String(repo.default_branch || "").trim() || null;');
-    expect(src).toContain("setLinkedRepo(repo.full_name, defaultBranch);");
+    expect(crudSrc).toContain('const defaultBranch = String(repo.default_branch || "").trim() || null;');
+    expect(crudSrc).toContain("setLinkedRepo(repo.full_name, defaultBranch);");
+    expect(screenSrc).toContain("useGitHubRepoCrud({");
     expect(repoTypes).toContain("default_branch?: string | null;");
   });
 });

@@ -11,10 +11,12 @@ describe("patch 483 GitHubReposScreen step 8 invariants", () => {
 
   it("keeps branch manage modal busy-aware and wired through the screen", () => {
     const hook = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const crudHook = read("screens/GitHubReposScreen/hooks/useGitHubRepoCrud.ts");
     const screen = read("screens/GitHubReposScreen/index.tsx");
 
-    expect(hook).toContain("const [manageBusy, setManageBusy] = useState(false);");
-    expect(hook).toContain("const confirmManageModal = useCallback(async () => {");
+    expect(crudHook).toContain("const [manageBusy, setManageBusy] = useState(false);");
+    expect(crudHook).toContain("const confirmManageModal = useCallback(async () => {");
+    expect(hook).toContain("useGitHubRepoCrud({");
     expect(screen).toContain("await confirmManageModal();");
     expect(screen).toContain("busy={manageBusy}");
   });
