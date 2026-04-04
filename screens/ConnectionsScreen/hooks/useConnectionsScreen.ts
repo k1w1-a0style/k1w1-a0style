@@ -65,6 +65,7 @@ import {
   easClearedPersistence,
   expoClearedPersistence,
   githubClearedPersistence,
+  loadHydrationSnapshot,
   resolveHydrationLightsState,
   supabaseClearedPersistence,
 } from "./useConnectionsScreenState";
@@ -155,6 +156,45 @@ export function useConnectionsScreen() {
       await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
     }
   }, []);
+
+  const clearGithubConnectionState = useCallback(async () => {
+    setGithubOk(false);
+    setGithubUser("");
+    setGithubScopes("");
+    setRepoOk(false);
+    setRepoOkLine("");
+    setEasOk(false);
+    setEasState("missing");
+    setEasLastVerifiedAt(null);
+    const persisted = githubClearedPersistence();
+    await persistConnLights(persisted.writes);
+    await removeConnLights(persisted.removes);
+  }, [persistConnLights, removeConnLights]);
+
+  const clearExpoConnectionState = useCallback(async () => {
+    setExpoOk(false);
+    setExpoUser("");
+    const persisted = expoClearedPersistence();
+    await persistConnLights(persisted.writes);
+    await removeConnLights(persisted.removes);
+  }, [persistConnLights, removeConnLights]);
+
+  const clearEasConnectionState = useCallback(async () => {
+    setEasOk(false);
+    setEasState("missing");
+    setEasLastVerifiedAt(null);
+    const persisted = easClearedPersistence();
+    await persistConnLights(persisted.writes);
+    await removeConnLights(persisted.removes);
+  }, [persistConnLights, removeConnLights]);
+
+  const clearSupabaseConnectionState = useCallback(async () => {
+    setSupabaseOk(false);
+    setSupabaseRef("");
+    const persisted = supabaseClearedPersistence();
+    await persistConnLights(persisted.writes);
+    await removeConnLights(persisted.removes);
+  }, [persistConnLights, removeConnLights]);
 
   const testEas = useCallback(async () => {
     if (!hydrated) return;
@@ -270,68 +310,33 @@ export function useConnectionsScreen() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [gh, ex, workflowKey, keystoreKey] = await Promise.all([
-        getGitHubToken().catch(() => ""),
-        getExpoToken().catch(() => ""),
-        getWorkflowAdminKey().catch(() => ""),
-        getAndroidKeystoreExportAdminKey().catch(() => ""),
-      ]);
+      const snapshot = await loadHydrationSnapshot(AsyncStorage, {
+        getGitHubToken,
+        getExpoToken,
+        getWorkflowAdminKey,
+        getAndroidKeystoreExportAdminKey,
+        getSupabaseAnonKey,
+      });
 
-      const [raw, url, anon, eas] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-        getSupabaseAnonKey().catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
-      ]);
-
-      // Load persistent connection lights
-      const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easStateStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_STATE).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
-        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
-      ]);
-
-      const normalizedStoredSupabaseRaw = normalizeStoredSupabaseRaw(raw || "", url || "");
-      if ((raw || "") !== normalizedStoredSupabaseRaw) {
+      const normalizedStoredSupabaseRaw = normalizeStoredSupabaseRaw(
+        snapshot.supabaseRaw,
+        snapshot.supabaseUrl,
+      );
+      if (snapshot.supabaseRaw !== normalizedStoredSupabaseRaw) {
         AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw).catch(() => {});
       }
 
       if (!mounted) return;
-      setGithubToken(gh || "");
-      setExpoToken(ex || "");
-      setWorkflowAdminKey(workflowKey || "");
-      setAndroidKeystoreExportAdminKey(keystoreKey || "");
+      setGithubToken(snapshot.githubToken);
+      setExpoToken(snapshot.expoToken);
+      setWorkflowAdminKey(snapshot.workflowAdminKey);
+      setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
       setSupabaseRaw(normalizedStoredSupabaseRaw);
-      setSupabaseUrl(url || "");
-      setSupabaseAnonKey(anon || "");
-      setEasProjectId(eas || "");
+      setSupabaseUrl(snapshot.supabaseUrl);
+      setSupabaseAnonKey(snapshot.supabaseAnonKey);
+      setEasProjectId(snapshot.easProjectId);
 
-      const restored = resolveHydrationLightsState({
-        ghOk,
-        ghUserStored,
-        ghScopesStored,
-        sbOk,
-        sbRefStored,
-        exOk,
-        exUserStored,
-        easOkStored,
-        easStateStored,
-        easLastVerifiedStored,
-        repoOkStored,
-        repoSlug,
-        repoBranch,
-        easProjectId: eas || "",
-      });
+      const restored = resolveHydrationLightsState(snapshot.lights);
       setGithubOk(restored.githubOk);
       setGithubUser(restored.githubUser);
       setGithubScopes(restored.githubScopes);
@@ -401,28 +406,14 @@ export function useConnectionsScreen() {
       if (gh) await saveGitHubToken(gh);
       else {
         await deleteGitHubToken();
-        setGithubOk(false);
-        setGithubUser("");
-        setGithubScopes("");
-        setRepoOk(false);
-        setRepoOkLine("");
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
-        const persisted = githubClearedPersistence();
-        await persistConnLights(persisted.writes);
-        await removeConnLights(persisted.removes);
+        await clearGithubConnectionState();
       }
 
       if (ex) {
         await saveExpoToken(ex);
       } else {
         await deleteExpoToken();
-        setExpoOk(false);
-        setExpoUser("");
-        const persisted = expoClearedPersistence();
-        await persistConnLights(persisted.writes);
-        await removeConnLights(persisted.removes);
+        await clearExpoConnectionState();
       }
 
       if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
@@ -446,20 +437,11 @@ export function useConnectionsScreen() {
         await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
-        const persisted = easClearedPersistence();
-        await persistConnLights(persisted.writes);
-        await removeConnLights(persisted.removes);
+        await clearEasConnectionState();
       }
 
       if (!sbUrl || !sbAnon) {
-        setSupabaseOk(false);
-        setSupabaseRef("");
-        const persisted = supabaseClearedPersistence();
-        await persistConnLights(persisted.writes);
-        await removeConnLights(persisted.removes);
+        await clearSupabaseConnectionState();
       }
 
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
@@ -484,6 +466,10 @@ export function useConnectionsScreen() {
     withBusyGuard,
     persistConnLights,
     removeConnLights,
+    clearGithubConnectionState,
+    clearExpoConnectionState,
+    clearEasConnectionState,
+    clearSupabaseConnectionState,
   ]);
 
   const testGitHub = useCallback(async () => {

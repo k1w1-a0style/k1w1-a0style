@@ -22,6 +22,30 @@ export type HydrationLightsInput = {
   easProjectId: string;
 };
 
+export type HydrationSnapshot = {
+  githubToken: string;
+  expoToken: string;
+  workflowAdminKey: string;
+  androidKeystoreExportAdminKey: string;
+  supabaseRaw: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  easProjectId: string;
+  lights: HydrationLightsInput;
+};
+
+export type HydrationLoaders = {
+  getGitHubToken: () => Promise<string | null>;
+  getExpoToken: () => Promise<string | null>;
+  getWorkflowAdminKey: () => Promise<string | null>;
+  getAndroidKeystoreExportAdminKey: () => Promise<string | null>;
+  getSupabaseAnonKey: () => Promise<string | null>;
+};
+
+export type HydrationStorage = {
+  getItem: (key: string) => Promise<string | null>;
+};
+
 export type HydrationLightsState = {
   githubOk: boolean;
   githubUser: string;
@@ -35,6 +59,68 @@ export type HydrationLightsState = {
   easLastVerifiedAt: string | null;
   repoOk: boolean;
   repoOkLine: string;
+};
+
+export const loadHydrationSnapshot = async (
+  storage: HydrationStorage,
+  loaders: HydrationLoaders,
+): Promise<HydrationSnapshot> => {
+  const [gh, ex, workflowKey, keystoreKey] = await Promise.all([
+    loaders.getGitHubToken().catch(() => ""),
+    loaders.getExpoToken().catch(() => ""),
+    loaders.getWorkflowAdminKey().catch(() => ""),
+    loaders.getAndroidKeystoreExportAdminKey().catch(() => ""),
+  ]);
+
+  const [raw, url, anon, eas] = await Promise.all([
+    storage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
+    storage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
+    loaders.getSupabaseAnonKey().catch(() => ""),
+    storage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
+  ]);
+
+  const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easStateStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
+    storage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_EAS_STATE).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
+    storage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
+  ]);
+
+  return {
+    githubToken: gh || "",
+    expoToken: ex || "",
+    workflowAdminKey: workflowKey || "",
+    androidKeystoreExportAdminKey: keystoreKey || "",
+    supabaseRaw: raw || "",
+    supabaseUrl: url || "",
+    supabaseAnonKey: anon || "",
+    easProjectId: eas || "",
+    lights: {
+      ghOk,
+      ghUserStored,
+      ghScopesStored,
+      sbOk,
+      sbRefStored,
+      exOk,
+      exUserStored,
+      easOkStored,
+      easStateStored,
+      easLastVerifiedStored,
+      repoOkStored,
+      repoSlug,
+      repoBranch,
+      easProjectId: eas || "",
+    },
+  };
 };
 
 export const resolveHydrationLightsState = (
