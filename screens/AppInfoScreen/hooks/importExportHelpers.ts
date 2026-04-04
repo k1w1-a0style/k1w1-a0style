@@ -2,7 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 
-import { validateApiBackupJson } from "../../../lib/appInfoBackup";
+import { createApiBackupExportPayload, validateApiBackupJson } from "../../../lib/appInfoBackup";
 import {
   decryptScopedBackup,
   encryptScopedBackup,
@@ -11,22 +11,32 @@ import {
   type SecureBackupPayloadV1,
   type SecureBackupScope,
 } from "../../../lib/appInfoScopedBackup";
+import { logger } from "../../../lib/logger";
 
 import { TEMPLATE_INFO } from "../types";
 import { getImportExportErrorMessage, isImportExportAborted } from "./importExportErrorHelpers";
 
+async function cleanupTemporaryFile(fileUri: string, context: string): Promise<void> {
+  await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch((error: unknown) => {
+    logger.warn(`[importExportHelpers] Temp-Datei konnte nicht entfernt werden (${context})`, {
+      fileUri,
+      error,
+    });
+  });
+}
+
 export const exportAPIConfig = async (config: unknown) => {
+  let filePath: string | null = null;
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const fileName = `k1w1-api-backup-${timestamp}.json`;
-    const filePath = FileSystem.cacheDirectory + fileName;
+    filePath = FileSystem.cacheDirectory + fileName;
 
-    const exportData = {
-      version: 1,
+    const exportData = createApiBackupExportPayload({
+      config,
       exportDate: new Date().toISOString(),
       appVersion: TEMPLATE_INFO.version,
-      config,
-    };
+    });
 
     await FileSystem.writeAsStringAsync(filePath, JSON.stringify(exportData, null, 2), {
       encoding: FileSystem.EncodingType.UTF8,
@@ -45,10 +55,15 @@ export const exportAPIConfig = async (config: unknown) => {
     return { success: true, fileName };
   } catch (error: unknown) {
     throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
+  } finally {
+    if (filePath) {
+      await cleanupTemporaryFile(filePath, "exportAPIConfig");
+    }
   }
 };
 
 export const importAPIConfig = async () => {
+  let importedFileUri: string | null = null;
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: "application/json",
@@ -59,7 +74,8 @@ export const importAPIConfig = async () => {
       throw new Error("Import abgebrochen");
     }
 
-    const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+    importedFileUri = result.assets[0].uri;
+    const fileContent = await FileSystem.readAsStringAsync(importedFileUri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
 
@@ -75,6 +91,10 @@ export const importAPIConfig = async () => {
       throw error;
     }
     throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
+  } finally {
+    if (importedFileUri) {
+      await cleanupTemporaryFile(importedFileUri, "importAPIConfig");
+    }
   }
 };
 
@@ -96,6 +116,7 @@ export const exportEncryptedScopedBackup = async (input: {
   passphrase: string;
   payload: SecureBackupPayloadV1;
 }) => {
+  let filePath: string | null = null;
   try {
     const backup = await encryptScopedBackup({
       scope: input.scope,
@@ -105,7 +126,7 @@ export const exportEncryptedScopedBackup = async (input: {
     });
 
     const fileName = backupFileNameForScope(input.scope);
-    const filePath = FileSystem.cacheDirectory + fileName;
+    filePath = FileSystem.cacheDirectory + fileName;
 
     await FileSystem.writeAsStringAsync(filePath, JSON.stringify(backup, null, 2), {
       encoding: FileSystem.EncodingType.UTF8,
@@ -124,10 +145,15 @@ export const exportEncryptedScopedBackup = async (input: {
     return { success: true, fileName, backup };
   } catch (error: unknown) {
     throw new Error(getImportExportErrorMessage(error, "Export fehlgeschlagen"));
+  } finally {
+    if (filePath) {
+      await cleanupTemporaryFile(filePath, "exportEncryptedScopedBackup");
+    }
   }
 };
 
 export const importEncryptedScopedBackup = async (passphrase: string) => {
+  let importedFileUri: string | null = null;
   try {
     const result = await DocumentPicker.getDocumentAsync({
       type: "application/json",
@@ -138,7 +164,8 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
       throw new Error("Import abgebrochen");
     }
 
-    const fileContent = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+    importedFileUri = result.assets[0].uri;
+    const fileContent = await FileSystem.readAsStringAsync(importedFileUri, {
       encoding: FileSystem.EncodingType.UTF8,
     });
 
@@ -157,6 +184,10 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
       throw error;
     }
     throw new Error(getImportExportErrorMessage(error, "Import fehlgeschlagen"));
+  } finally {
+    if (importedFileUri) {
+      await cleanupTemporaryFile(importedFileUri, "importEncryptedScopedBackup");
+    }
   }
 };
 

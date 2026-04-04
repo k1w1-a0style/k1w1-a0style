@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-04-03 (Patch 742, SoT-Abschluss ohne offene High-Priority-Restpunkte)**
+Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] AppInfo-Secret-Hotfixes (Patch 743): API-Config-Export redaktiert API-Keys fail-closed (kein Klartextpfad), API-Config-/Encrypted-Scoped-Backup-Import/Export raeumt temporäre Cache-Dateien idempotent auf, und Secure-Backup exportiert keine unnoetige Token-Duplikation mehr ueber `ciSecrets`.
 - [x] `K1W1_ALLOWED_GITHUB_REPOS` fail-closed gemacht (`supabase/functions/_shared/github.ts`): fehlend/leer blockiert jetzt statt default-open.
 - [x] `K1W1_ALLOWED_REF_REGEX` fail-closed gemacht in:
   - `supabase/functions/trigger-eas-build/index.ts`
@@ -32,11 +33,13 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ### Bewusst offen / Produktentscheidung
 
 - `diagnostics_reports`: bleibt bewusst offene Produktentscheidung (A/B), kein Blindumbau.
+- Referenz: Decision-Note 2026-04-03 (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
 
 ### Niedrige Prioritaet / Hygiene
 
 - Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde operativ bereinigt; daraus bleibt kein privilegierter Testzustand offen.
 - Optionale spaetere Hygiene: Trigger-/Hook-Funktionen ohne `search_path` punktuell live querpruefen.
+- Follow-up-Migration fuer Suchpfad-Reassertion bereits vorbereitet: `20260403010000_search_path_followup.sql`.
 - Optionale Plattformhygiene: Leaked Password Protection + Duplicate Indexes separat behandeln.
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)

@@ -48,6 +48,7 @@ import {
   importAPIConfig,
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
+import { logger } from "../../../lib/logger";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -85,18 +86,18 @@ function toProjectFiles(value: unknown): ProjectFileLike[] {
   );
 }
 
-function buildSecretCiSecrets(payload: SecretBackupPayloadV1) {
-  return {
-    GITHUB_TOKEN: payload.tokens.githubToken ?? "",
-    EXPO_TOKEN: payload.tokens.expoToken ?? "",
-    SUPABASE_URL: payload.connections.supabaseUrl,
-    SUPABASE_ANON_KEY: payload.connections.supabaseAnonKey,
-    EAS_PROJECT_ID: payload.connections.easProjectId,
-    K1W1_EDGE_WORKFLOW_ADMIN_KEY: payload.tokens.workflowAdminKey ?? "",
-    K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: payload.tokens.androidKeystoreExportAdminKey ?? "",
-    SIGNING_ADMIN_KEY: payload.tokens.signingAdminKey ?? "",
-    SIGNING_MASTER_KEY: payload.tokens.signingMasterKey ?? "",
-  };
+async function removeLegacyClientServiceRoleKeys(): Promise<void> {
+  const keys = legacyClientServiceRoleStorageKeys();
+  const results = await Promise.allSettled(keys.map((key) => AsyncStorage.removeItem(key)));
+  const failedKeys = results
+    .map((result, index) => (result.status === "rejected" ? keys[index] : null))
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (failedKeys.length > 0) {
+    logger.warn("[useAppInfoScreen] Legacy Service-Role-Keys konnten nicht vollstaendig bereinigt werden.", {
+      failedKeys,
+    });
+  }
 }
 
 export function useAppInfoScreen() {
@@ -246,9 +247,7 @@ export function useAppInfoScreen() {
       getSigningMasterKey().catch(() => null),
     ]);
 
-    await Promise.all(
-      legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),
-    );
+    await removeLegacyClientServiceRoleKeys();
 
     const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
@@ -283,10 +282,7 @@ export function useAppInfoScreen() {
       },
     });
 
-    return {
-      ...payload,
-      ciSecrets: buildSecretCiSecrets(payload),
-    } as SecretBackupPayloadV1;
+    return payload;
   }, [activeRepo, activeBranch, recentRepos]);
 
   const applySecretBackupPayload = useCallback(
@@ -300,9 +296,7 @@ export function useAppInfoScreen() {
       ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId));
 
-      await Promise.all(
-        legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),
-      );
+      await removeLegacyClientServiceRoleKeys();
       await Promise.all(ops);
 
       const t = payload.tokens;
@@ -391,7 +385,7 @@ export function useAppInfoScreen() {
               const exportDate = safeFormatBackupDate(result.exportDate);
               Alert.alert(
                 "✅ Import erfolgreich",
-                `${totalKeysImported} API-Keys wurden geladen. Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
+                `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
               );
             } catch (error: unknown) {
               if (!isAbortLikeError(error)) {

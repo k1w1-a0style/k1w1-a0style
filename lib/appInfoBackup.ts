@@ -29,6 +29,44 @@ type ApiBackupV1 = {
   config: unknown;
 };
 
+function stripApiKeysFromConfig(raw: unknown): unknown {
+  const config = asRecord(raw);
+  if (!config) {
+    return raw;
+  }
+
+  return {
+    ...config,
+    apiKeys: {
+      groq: [],
+      gemini: [],
+      openai: [],
+      anthropic: [],
+      huggingface: [],
+    },
+  };
+}
+
+export function createApiBackupExportPayload(input: {
+  config: unknown;
+  exportDate?: string;
+  appVersion?: string;
+}): ApiBackupV1 {
+  const payload: ApiBackupV1 = {
+    version: 1,
+    config: stripApiKeysFromConfig(input.config),
+  };
+
+  if (typeof input.exportDate === "string") {
+    payload.exportDate = input.exportDate;
+  }
+  if (typeof input.appVersion === "string") {
+    payload.appVersion = input.appVersion;
+  }
+
+  return payload;
+}
+
 function isProvider(value: unknown): value is AllAIProviders {
   return typeof value === "string" && PROVIDER_SET.has(value as AllAIProviders);
 }
