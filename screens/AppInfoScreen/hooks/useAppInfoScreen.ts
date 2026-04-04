@@ -177,6 +177,20 @@ export function useAppInfoScreen() {
     }
   }, [packageName, setPackageName]);
 
+  const runApplyIconToAssets = useCallback(async (base64Content: string) => {
+    await updateProjectFiles([
+      { path: "assets/icon.png", content: base64Content },
+      { path: "assets/adaptive-icon.png", content: base64Content },
+      { path: "assets/splash.png", content: base64Content },
+      { path: "assets/favicon.png", content: base64Content },
+    ]);
+
+    Alert.alert(
+      "✅ Erfolg",
+      "Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!",
+    );
+  }, [updateProjectFiles]);
+
   const handleChooseIcon = useCallback(async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -203,22 +217,11 @@ export function useAppInfoScreen() {
         return;
       }
 
-      const base64Content = asset.base64;
-      await updateProjectFiles([
-        { path: "assets/icon.png", content: base64Content },
-        { path: "assets/adaptive-icon.png", content: base64Content },
-        { path: "assets/splash.png", content: base64Content },
-        { path: "assets/favicon.png", content: base64Content },
-      ]);
-
-      Alert.alert(
-        "✅ Erfolg",
-        "Alle App-Assets wurden aktualisiert:\n\n• icon.png\n• adaptive-icon.png\n• splash.png\n• favicon.png\n\nDeine App ist bereit für den Build!",
-      );
+      await runApplyIconToAssets(asset.base64);
     } catch (error: unknown) {
       Alert.alert("Fehler", getErrorMessage(error, "Assets konnten nicht aktualisiert werden."));
     }
-  }, [updateProjectFiles]);
+  }, [runApplyIconToAssets]);
 
   const collectSecretBackupPayload = useCallback(async () => {
     const [
