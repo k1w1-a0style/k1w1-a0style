@@ -7,6 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useAI, type AIConfig, type AllAIProviders } from "../../../contexts/AIContext";
 import {
+  mergeApiConfigImportPreservingLocalKeys,
   sanitizeAiConfigFromBackup,
   safeFormatBackupDate,
 } from "../../../lib/appInfoBackup";
@@ -373,7 +374,7 @@ export function useAppInfoScreen() {
           onPress: async () => {
             try {
               const result = await importAPIConfig();
-              const nextConfig = sanitizeAiConfigFromBackup(result.config, config);
+              const nextConfig = mergeApiConfigImportPreservingLocalKeys(result.config, config);
               setConfig(nextConfig);
 
               const providers: AllAIProviders[] = ["groq", "gemini", "openai", "anthropic", "huggingface"];

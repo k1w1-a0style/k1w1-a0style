@@ -10,6 +10,7 @@ import {
 import type { AIConfig } from "../contexts/AIContext";
 import {
   createApiBackupExportPayload,
+  mergeApiConfigImportPreservingLocalKeys,
   sanitizeAiConfigFromBackup,
   validateApiBackupJson,
 } from "../lib/appInfoBackup";
@@ -323,5 +324,28 @@ describe("app info secure backup contract", () => {
     expect(imported.apiKeys.openai).toEqual([]);
     expect(imported.selectedChatProvider).toBe(baseConfig.selectedChatProvider);
     expect(imported.selectedAgentProvider).toBe(baseConfig.selectedAgentProvider);
+  });
+
+  test("api config re-import keeps local provider keys when export is redacted", () => {
+    const configWithLocalKeys: AIConfig = {
+      ...baseConfig,
+      apiKeys: {
+        ...baseConfig.apiKeys,
+        openai: ["local-openai-key"],
+        groq: ["local-groq-key"],
+      },
+    };
+
+    const payload = createApiBackupExportPayload({
+      config: configWithLocalKeys,
+      exportDate: "2026-03-20T12:00:00.000Z",
+      appVersion: "1.0.0",
+    });
+
+    const parsed = validateApiBackupJson(payload);
+    const imported = mergeApiConfigImportPreservingLocalKeys(parsed.config, configWithLocalKeys);
+
+    expect(imported.apiKeys.openai).toEqual(["local-openai-key"]);
+    expect(imported.apiKeys.groq).toEqual(["local-groq-key"]);
   });
 });

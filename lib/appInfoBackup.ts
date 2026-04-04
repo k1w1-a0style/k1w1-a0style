@@ -152,6 +152,14 @@ export function sanitizeAiConfigFromBackup(
   };
 }
 
+export function mergeApiConfigImportPreservingLocalKeys(raw: unknown, fallback: AIConfig): AIConfig {
+  const sanitized = sanitizeAiConfigFromBackup(raw, fallback);
+  return {
+    ...sanitized,
+    apiKeys: { ...fallback.apiKeys },
+  };
+}
+
 export function safeFormatBackupDate(isoMaybe: unknown): string {
   if (typeof isoMaybe !== "string") return "Unbekannt";
   const d = new Date(isoMaybe);
