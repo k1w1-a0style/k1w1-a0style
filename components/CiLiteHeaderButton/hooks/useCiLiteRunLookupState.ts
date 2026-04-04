@@ -7,6 +7,7 @@ export function useCiLiteRunLookupState() {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
   const lookupGenerationRef = useRef(0);
+  const [locatingRun, setLocatingRun] = useState(false);
   const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
 
   const stopPolling = useCallback(() => {
@@ -40,7 +41,7 @@ export function useCiLiteRunLookupState() {
     }, delay);
   }, [isLookupGenerationActive]);
 
-  const startRunLookup = useCallback((setLocatingRun: (next: boolean) => void) => {
+  const startRunLookup = useCallback(() => {
     stopPolling();
     const generation = lookupGenerationRef.current;
     lookupDiagnosisRef.current = null;
@@ -49,7 +50,7 @@ export function useCiLiteRunLookupState() {
     return generation;
   }, [stopPolling]);
 
-  const stopRunLookup = useCallback((setLocatingRun: (next: boolean) => void) => {
+  const stopRunLookup = useCallback(() => {
     setLocatingRun(false);
     stopPolling();
   }, [stopPolling]);
@@ -63,6 +64,7 @@ export function useCiLiteRunLookupState() {
   useEffect(() => () => stopPolling(), [stopPolling]);
 
   return {
+    locatingRun,
     lookupDiagnosis,
     lookupDiagnosisRef,
     stopPolling,
