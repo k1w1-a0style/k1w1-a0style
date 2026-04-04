@@ -23,8 +23,6 @@ import {
 } from "../../../lib/diagnostics/fixResultContract";
 import { findOwnershipViolations } from "../../../lib/projectOwnership";
 import {
-  buildIssueFixSteps,
-  buildSingleFixSteps,
 } from "./fixRunnerHelpers";
 import {
   getErrorMessage,
@@ -32,9 +30,13 @@ import {
 import {
   formatBatchFixResultDetail,
   formatBatchFixSubtitle,
-  formatIssueFixResultDetail,
-  formatSingleFixResultDetail,
 } from "./fixRunnerDisplayHelpers";
+import {
+  buildIssueFixPlan,
+  buildIssueFixSuccessResult,
+  buildSingleFixPlan,
+  buildSingleFixSuccessResult,
+} from "./fixRunnerFlowPlanHelpers";
 import {
   runApplyStep,
   runDispatchStep,
@@ -480,15 +482,10 @@ export function useDiagnosticFixRunner(opts: {
     async (r: PreflightCheckResult) => {
       if (!r.fix?.patch && !r.fix?.workflowDispatch) return;
 
-      const patchForApply = r.fix?.patch;
-      const dispatch = r.fix?.workflowDispatch;
-      const doSync = patchForApply ? shouldSyncPatch(patchForApply) : false;
-
-      const steps = buildIssueFixSteps({
-        hasPatch: !!patchForApply,
-        hasDispatch: !!dispatch,
-        doSync,
+      const { patchForApply, dispatch, doSync, steps } = buildIssueFixPlan({
+        result: r,
         rerunAfterFix,
+        shouldSyncPatch,
       });
 
       openFixModal({ title: "Fix", subtitle: r.title, steps });
@@ -572,22 +569,14 @@ export function useDiagnosticFixRunner(opts: {
       if (!verifyStep.ok) return;
       cursor = verifyStep.nextIndex;
 
-      finishWithResult({
-        status:
-          rerunAfterFix || !!dispatch
-            ? "pending_recheck"
-            : patchApplied
-              ? "patch_applied"
-              : "workflow_dispatched",
-        detail: formatIssueFixResultDetail({
+      finishWithResult(
+        buildIssueFixSuccessResult({
+          rerunAfterFix,
           hasDispatch: !!dispatch,
           patchApplied,
-          rerunAfterFix,
+          stepsLength: steps.length,
         }),
-        localChangeApplied: patchApplied,
-        workflowTriggered: !!dispatch,
-        stepIndex: steps.length,
-      });
+      );
     },
     [
       applyPatch,
@@ -817,7 +806,7 @@ export function useDiagnosticFixRunner(opts: {
       const syncWouldHelp = shouldSyncPatch(patch);
 
       const runOne = async (doSync: boolean) => {
-        const steps = buildSingleFixSteps({ doSync, rerunAfterFix });
+        const { steps } = buildSingleFixPlan({ doSync, rerunAfterFix });
 
         openFixModal({ title: "Fix", subtitle: r.title, steps });
 
@@ -856,12 +845,13 @@ export function useDiagnosticFixRunner(opts: {
         });
         if (!verifyStep.ok) return;
 
-        finishWithResult({
-          status: rerunAfterFix ? "pending_recheck" : "patch_applied",
-          detail: formatSingleFixResultDetail(rerunAfterFix),
-          localChangeApplied: patchApplied,
-          stepIndex: steps.length,
-        });
+        finishWithResult(
+          buildSingleFixSuccessResult({
+            rerunAfterFix,
+            patchApplied,
+            stepsLength: steps.length,
+          }),
+        );
       };
 
       Alert.alert(
