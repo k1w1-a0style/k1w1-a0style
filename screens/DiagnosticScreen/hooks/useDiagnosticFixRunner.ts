@@ -23,7 +23,6 @@ import {
 } from "../../../lib/diagnostics/fixResultContract";
 import { findOwnershipViolations } from "../../../lib/projectOwnership";
 import {
-  buildBatchFixSteps,
   buildIssueFixSteps,
   buildSingleFixSteps,
 } from "./fixRunnerHelpers";
@@ -43,13 +42,16 @@ import {
   runVerifyStep,
 } from "./fixRunnerExecutionHelpers";
 import {
-  dedupePatchCandidates,
   pickAutoFixCandidates,
   pickSelectedFixCandidates,
   pickSmartFixCandidates,
   resolveWorkflowDispatchTarget,
 } from "./fixRunnerOrchestrationHelpers";
 import { useFixStepProgress } from "./useFixStepProgress";
+import {
+  buildBatchExecutionPlan,
+  collectBatchSafetyPatches,
+} from "./fixRunnerBatchPlanHelpers";
 import {
   buildAutoFixStartMessage,
   buildBatchRiskPromptMessage,
@@ -607,9 +609,7 @@ export function useDiagnosticFixRunner(opts: {
       // --- Safety gate for batch runs ---
       // In batch mode it's easy to "silently" apply changes that touch CI / build plumbing.
       // We do one extra confirmation if any patch looks risky.
-      const batch = items
-        .filter((r) => !!r.fix?.patch)
-        .map((r) => ({ title: r.title, patch: r.fix!.patch as PreflightPatch }));
+      const batch = collectBatchSafetyPatches(items);
 
       // --- Size/complexity guard ---
       // Even if paths are not "risky", very large patches can slow devices and raise regression risk.
@@ -637,23 +637,11 @@ export function useDiagnosticFixRunner(opts: {
         if (!proceed) return;
       }
 
-      // De-dup patches in batch mode: prevents repeated apply of identical patch sets.
-      const deduped = dedupePatchCandidates(
-        items
-          .filter((r): r is PreflightCheckResult & { fix: { patch: PreflightPatch } } => !!r.fix?.patch)
-          .map((r) => ({ result: r, patch: r.fix.patch })),
-      );
-
-      const steps = buildBatchFixSteps(
-        deduped.map(({ result, patch }) => ({
-          id: result.id,
-          title: result.title,
-          doSync: shouldSyncPatch(patch),
-        })),
+      const { deduped, steps, skipped } = buildBatchExecutionPlan({
+        items,
         rerunAfterFix,
-      );
-
-      const skipped = Math.max(0, items.filter((r) => !!r.fix?.patch).length - deduped.length);
+        shouldSyncPatch,
+      });
       openFixModal({
         title: label,
         subtitle: formatBatchFixSubtitle(deduped.length, skipped),
