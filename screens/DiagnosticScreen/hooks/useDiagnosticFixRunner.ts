@@ -11,7 +11,6 @@ import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
 import {
   DEFAULT_PATCH_LIMITS,
   checkPatchLimits,
-  patchFingerprint,
   summarizeBatchLimits,
   summarizeBatchRisk,
 } from "../../../lib/diagnostics/fixSafety";
@@ -42,6 +41,13 @@ import {
   formatSingleFixResultDetail,
 } from "./fixRunnerDisplayHelpers";
 import {
+  dedupePatchCandidates,
+  pickAutoFixCandidates,
+  pickSelectedFixCandidates,
+  pickSmartFixCandidates,
+  resolveWorkflowDispatchTarget,
+} from "./fixRunnerOrchestrationHelpers";
+import {
   buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
@@ -52,7 +58,6 @@ import {
 import type {
   FixHistoryEntry,
   FixStep,
-  Status,
 } from "../types";
 
 const MAX_HISTORY = 10;
@@ -572,21 +577,13 @@ export function useDiagnosticFixRunner(opts: {
       }
 
       if (dispatch) {
-        const parsed = parseOwnerRepo(linkedRepo);
-        if (!parsed) {
-          const detail = "Workflow-Fix ist ohne verknüpftes Repo nicht anwendbar.";
-          markFixStepFailed(cursor, detail, detail);
-          finishWithResult({
-            status: "blocked",
-            detail,
-            localChangeApplied: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-        const workflowRef = (dispatch.ref || linkedBranch || "").trim();
-        if (!workflowRef) {
-          const detail = "Workflow-Fix ist ohne verknüpften Branch nicht anwendbar.";
+        const dispatchTarget = resolveWorkflowDispatchTarget({
+          linkedRepo,
+          linkedBranch,
+          dispatchRef: dispatch.ref,
+        });
+        if (!dispatchTarget.ok) {
+          const detail = dispatchTarget.detail;
           markFixStepFailed(cursor, detail, detail);
           finishWithResult({
             status: "blocked",
@@ -601,10 +598,10 @@ export function useDiagnosticFixRunner(opts: {
           index: cursor,
           run: async () => {
             await dispatchWorkflowFix({
-              owner: parsed.owner,
-              repo: parsed.repo,
+              owner: dispatchTarget.owner,
+              repo: dispatchTarget.repo,
               workflowFileName: dispatch.workflowFileName,
-              workflowRef,
+              workflowRef: dispatchTarget.workflowRef,
               inputs: dispatch.inputs || {},
               fallbackPatch: dispatch.fallbackPatch,
             });
@@ -741,19 +738,18 @@ export function useDiagnosticFixRunner(opts: {
       }
 
       // De-dup patches in batch mode: prevents repeated apply of identical patch sets.
-      const seen = new Set<string>();
-      const deduped: Array<{ r: PreflightCheckResult; patch: PreflightPatch }> = [];
-      for (const r of items) {
-        if (!r.fix?.patch) continue;
-        const patch = r.fix.patch as PreflightPatch;
-        const fp = patchFingerprint(patch);
-        if (seen.has(fp)) continue;
-        seen.add(fp);
-        deduped.push({ r, patch });
-      }
+      const deduped = dedupePatchCandidates(
+        items
+          .filter((r): r is PreflightCheckResult & { fix: { patch: PreflightPatch } } => !!r.fix?.patch)
+          .map((r) => ({ result: r, patch: r.fix.patch })),
+      );
 
       const steps = buildBatchFixSteps(
-        deduped.map(({ r, patch }) => ({ id: r.id, title: r.title, doSync: shouldSyncPatch(patch) })),
+        deduped.map(({ result, patch }) => ({
+          id: result.id,
+          title: result.title,
+          doSync: shouldSyncPatch(patch),
+        })),
         rerunAfterFix,
       );
 
@@ -767,14 +763,13 @@ export function useDiagnosticFixRunner(opts: {
       let cursor = 0;
 
       let appliedCount = 0;
-      for (const { r, patch } of deduped) {
+      for (const { result, patch } of deduped) {
         markFixStepRunning(cursor);
         try {
-          await applyPatch(r.title, patch);
+          await applyPatch(result.title, patch);
           markFixStepDone(cursor);
           appliedCount++;
         } catch (error: unknown) {
-          const message = getErrorMessage(error, "Apply fehlgeschlagen");
           markFixStepFailed(cursor, error, "Apply fehlgeschlagen");
           finishWithResult(
             buildApplyFailureResult({
@@ -792,7 +787,7 @@ export function useDiagnosticFixRunner(opts: {
         if (shouldSyncPatch(patch)) {
           markFixStepRunning(cursor);
           try {
-            await syncPatchToGitHub(r.title, patch);
+            await syncPatchToGitHub(result.title, patch);
             markFixStepDone(cursor);
           } catch (error: unknown) {
             const message = getErrorMessage(error, "Sync fehlgeschlagen");
@@ -843,9 +838,7 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const recommended = fixableResults.filter(
-      (r) => ((r.status ?? "pass") as Status) === "fail" && !!r.fix?.patch,
-    );
+    const recommended = pickSmartFixCandidates(fixableResults).map(({ result }) => result);
 
     if (!recommended.length) {
       Alert.alert("Nichts zu fixen", "Keine empfohlenen Fixes (Critical) gefunden.");
@@ -876,7 +869,9 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const chosenAll = sortedResults.filter((r) => selected[r.id] && r.fix?.patch);
+    const chosenAll = pickSelectedFixCandidates({ sortedResults, selected }).map(
+      ({ result }) => result,
+    );
     if (!chosenAll.length) {
       Alert.alert("Nichts ausgewählt", "Bitte wähle Fixes aus.");
       return;
@@ -904,16 +899,12 @@ export function useDiagnosticFixRunner(opts: {
     if (!projectRef.current) return;
     if (applyBusyRef.current) return;
 
-    const baseList = (autoFixScope === "visible" ? visibleResults : fixableResults).filter(
-      (r) => !!r.fix?.patch,
-    );
-
-    const chosen = baseList.filter((r) => {
-      const st = (r.status as Status) ?? "pass";
-      if (st === "fail") return true;
-      if (autoFixIncludeWarn && st === "warn") return true;
-      return false;
-    });
+    const chosen = pickAutoFixCandidates({
+      autoFixScope,
+      visibleResults,
+      fixableResults,
+      autoFixIncludeWarn,
+    }).map(({ result }) => result);
 
     if (!chosen.length) {
       Alert.alert(
