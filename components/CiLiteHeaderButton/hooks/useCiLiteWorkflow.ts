@@ -35,7 +35,6 @@ import {
   buildArtifactFetchContextKey,
   resolveCiLiteArtifactRequest,
   resolveCiLiteLookupFailureMessage,
-  mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
   getAutofixChainSkipReason,
   resolveCiLitePendingRunMessage,
@@ -46,6 +45,7 @@ import {
   splitRepoFullName,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
+import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -63,7 +63,6 @@ export function useCiLiteWorkflow() {
   const [workflowId, setWorkflowId] = useState<string>(WORKFLOW_CI_LITE);
   const [targetRef, setTargetRef] = useState<string | null>(null);
   const [dispatching, setDispatching] = useState(false);
-  const [locatingRun, setLocatingRun] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [headerState, setHeaderState] = useState<StepState>("idle");
@@ -76,12 +75,19 @@ export function useCiLiteWorkflow() {
   const [artifactLoading, setArtifactLoading] = useState(false);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [hydratedSnapshot, setHydratedSnapshot] = useState<PersistedCiLiteSnapshot | null>(null);
-  const [lookupDiagnosis, setLookupDiagnosis] = useState<WorkflowRunLookupDiagnosis | null>(null);
-
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lookupDiagnosisRef = useRef<WorkflowRunLookupDiagnosis | null>(null);
-  const lookupGenerationRef = useRef(0);
   const artifactAttemptedContextRef = useRef<string | null>(null);
+
+  const {
+    locatingRun,
+    lookupDiagnosisRef,
+    stopPolling,
+    isLookupGenerationActive,
+    scheduleLookupPoll,
+    startRunLookup,
+    stopRunLookup,
+    updateLookupDiagnosis,
+    lookupDiagnosis: lookupDiagnosisState,
+  } = useCiLiteRunLookupState();
 
   // ---- Derived repo/branch ----
   const githubRepo = useMemo(
@@ -92,60 +98,6 @@ export function useCiLiteWorkflow() {
     () => (projectData?.linkedBranch?.trim() || "").trim(),
     [projectData?.linkedBranch],
   );
-
-  // ---- Polling helpers ----
-  const stopPolling = useCallback(() => {
-    lookupGenerationRef.current += 1;
-    if (pollTimerRef.current) {
-      clearTimeout(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
-  }, []);
-
-  const isLookupGenerationActive = useCallback((generation: number): boolean => {
-    return lookupGenerationRef.current === generation;
-  }, []);
-
-  const scheduleLookupPoll = useCallback((params: {
-    generation: number;
-    attempt: number;
-    poll: () => Promise<boolean>;
-  }) => {
-    if (!isLookupGenerationActive(params.generation)) return;
-    const delaysMs = [1200, 1800, 2600, 3500, 4500];
-    const delay = delaysMs[Math.min(params.attempt, delaysMs.length - 1)];
-    pollTimerRef.current = setTimeout(() => {
-      void (async () => {
-        if (!isLookupGenerationActive(params.generation)) return;
-        const finished = await params.poll();
-        if (!finished && isLookupGenerationActive(params.generation)) {
-          scheduleLookupPoll({ generation: params.generation, attempt: params.attempt + 1, poll: params.poll });
-        }
-      })();
-    }, delay);
-  }, [isLookupGenerationActive]);
-
-  const startRunLookup = useCallback(() => {
-    stopPolling();
-    const generation = lookupGenerationRef.current;
-    lookupDiagnosisRef.current = null;
-    setLookupDiagnosis(null);
-    setLocatingRun(true);
-    return generation;
-  }, [stopPolling]);
-
-  const stopRunLookup = useCallback(() => {
-    setLocatingRun(false);
-    stopPolling();
-  }, [stopPolling]);
-
-  const updateLookupDiagnosis = useCallback((diagnosis: WorkflowRunLookupDiagnosis | null) => {
-    const merged = mergeWorkflowRunLookupDiagnosis(lookupDiagnosisRef.current, diagnosis);
-    lookupDiagnosisRef.current = merged;
-    setLookupDiagnosis(merged);
-  }, []);
-
-  useEffect(() => () => stopPolling(), [stopPolling]);
 
   const findMatchingRun = useCallback(
     async (opts: {
@@ -661,7 +613,6 @@ export function useCiLiteWorkflow() {
       setLocalError(null);
       setVisible(true);
       setDispatching(true);
-      setLocatingRun(false);
       setRunId(null);
       setRunUrl(null);
       setWorkflowId(workflowFile);
@@ -832,7 +783,7 @@ export function useCiLiteWorkflow() {
     showError, artifactNotice, logsLoading,
     runMeta,
     hydratedFromPersistence: Boolean(hydratedDisplaySnapshot),
-    lookupDiagnosis,
+    lookupDiagnosis: lookupDiagnosisState,
     stopPolling,
   };
 }
