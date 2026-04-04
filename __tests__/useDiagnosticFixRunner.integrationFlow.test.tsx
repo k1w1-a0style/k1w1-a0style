@@ -1,5 +1,6 @@
 import React from "react";
 import { act, render } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
 import { useDiagnosticFixRunner } from "../screens/DiagnosticScreen/hooks/useDiagnosticFixRunner";
 import { createMountedRef } from "./helpers/projectTestHelpers";
@@ -26,6 +27,10 @@ function renderRunner(params?: {
   updateProjectFiles?: jest.Mock;
   runDiagnostics?: jest.Mock;
   rerunAfterFix?: boolean;
+  fixableResults?: ReturnType<typeof makePreflightResult>[];
+  visibleResults?: ReturnType<typeof makePreflightResult>[];
+  sortedResults?: ReturnType<typeof makePreflightResult>[];
+  selected?: Record<string, boolean>;
 }) {
   const updateProjectFiles = params?.updateProjectFiles ?? jest.fn(async () => undefined);
   const runDiagnostics = params?.runDiagnostics ?? jest.fn(async () => undefined);
@@ -48,10 +53,10 @@ function renderRunner(params?: {
       rerunAfterFix: params?.rerunAfterFix ?? false,
       autoFixIncludeWarn: false,
       autoFixScope: "all",
-      sortedResults: [],
-      visibleResults: [],
-      fixableResults: [],
-      selected: {},
+      sortedResults: params?.sortedResults ?? [],
+      visibleResults: params?.visibleResults ?? [],
+      fixableResults: params?.fixableResults ?? [],
+      selected: params?.selected ?? {},
       setSelected: jest.fn(),
       runDiagnostics,
       toast,
@@ -62,6 +67,10 @@ function renderRunner(params?: {
 }
 
 describe("useDiagnosticFixRunner integration flows", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test("applyFixList dedupes identical patches before apply", async () => {
     const { getApi, updateProjectFiles } = renderRunner();
     const patch = makePreflightPatch({
@@ -93,5 +102,41 @@ describe("useDiagnosticFixRunner integration flows", () => {
 
     expect(runDiagnostics).toHaveBeenCalledTimes(1);
     expect(toast).toHaveBeenCalledWith("Patch angewendet – Re-Check noch nötig.");
+  });
+
+  test("autoFix cancel does not apply patch", async () => {
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.[0]?.onPress?.();
+    });
+    const fixable = makePreflightResult({
+      id: "f1",
+      status: "fail",
+      fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"x\"}}" }] }) },
+    });
+    const { getApi, updateProjectFiles } = renderRunner({ fixableResults: [fixable] });
+
+    await act(async () => {
+      await getApi().autoFix();
+    });
+
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+  });
+
+  test("autoFix confirm applies patch", async () => {
+    jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+      buttons?.[1]?.onPress?.();
+    });
+    const fixable = makePreflightResult({
+      id: "f2",
+      status: "fail",
+      fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"y\"}}" }] }) },
+    });
+    const { getApi, updateProjectFiles } = renderRunner({ fixableResults: [fixable] });
+
+    await act(async () => {
+      await getApi().autoFix();
+    });
+
+    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
   });
 });
