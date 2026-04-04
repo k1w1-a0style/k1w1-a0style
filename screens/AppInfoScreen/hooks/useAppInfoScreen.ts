@@ -50,15 +50,18 @@ import {
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
 import { logger } from "../../../lib/logger";
+import {
+  countMessages,
+  getApiKeysCount,
+  getAssetsStatusFromProjectFiles,
+  getIconPreviewFromProjectFiles,
+  getPackageNameFromProjectFiles,
+  toProjectFiles,
+} from "./useAppInfoScreen.helpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
-
-type ProjectFileLike = {
-  path: string;
-  content: string;
-};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -79,14 +82,6 @@ function isAbortLikeError(error: unknown): boolean {
   return message.includes("abgebrochen");
 }
 
-function toProjectFiles(value: unknown): ProjectFileLike[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(
-    (entry): entry is ProjectFileLike =>
-      isRecord(entry) && typeof entry.path === "string" && typeof entry.content === "string",
-  );
-}
-
 async function removeLegacyClientServiceRoleKeys(): Promise<void> {
   const keys = legacyClientServiceRoleStorageKeys();
   const results = await Promise.allSettled(keys.map((key) => AsyncStorage.removeItem(key)));
@@ -101,6 +96,28 @@ async function removeLegacyClientServiceRoleKeys(): Promise<void> {
   }
 }
 
+function useAppMetadataState(projectName: string | undefined, projectFiles: ReturnType<typeof toProjectFiles>) {
+  const [appName, setAppName] = useState("");
+  const [packageName, setPackageNameState] = useState("");
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!projectFiles.length) return;
+    setAppName(projectName || "Meine App");
+    setPackageNameState(getPackageNameFromProjectFiles(projectFiles));
+  }, [projectName, projectFiles]);
+
+  useEffect(() => {
+    if (!projectFiles.length) {
+      setIconPreview(null);
+      return;
+    }
+    setIconPreview(getIconPreviewFromProjectFiles(projectFiles));
+  }, [projectFiles]);
+
+  return { appName, setAppName, packageName, setPackageNameState, iconPreview, setIconPreview };
+}
+
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
   const projectFiles = useMemo(() => toProjectFiles(projectData?.files), [projectData?.files]);
@@ -112,51 +129,16 @@ export function useAppInfoScreen() {
     addRecentRepo,
     clearRecentRepos,
   } = useGitHub();
-  const [appName, setAppName] = useState("");
-  const [packageName, setPackageNameState] = useState("");
-  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const {
+    appName,
+    setAppName,
+    packageName,
+    setPackageNameState,
+    iconPreview,
+    setIconPreview,
+  } = useAppMetadataState(projectData?.name, projectFiles);
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
-
-  useEffect(() => {
-    if (!projectFiles.length) return;
-
-    setAppName(projectData?.name || "Meine App");
-
-    const pkgJson = projectFiles.find((f) => f.path === "package.json");
-    if (pkgJson && typeof pkgJson.content === "string") {
-      try {
-        const parsed = JSON.parse(pkgJson.content);
-        setPackageNameState(parsed.name || "meine-app");
-      } catch {
-        setPackageNameState("meine-app");
-      }
-    }
-  }, [projectData?.name, projectFiles]);
-
-  useEffect(() => {
-    if (!projectFiles.length) {
-      setIconPreview(null);
-      return;
-    }
-
-    const iconFile = projectFiles.find((f) => f.path === "assets/icon.png");
-    if (!iconFile?.content) {
-      setIconPreview(null);
-      return;
-    }
-
-    let base64Data = iconFile.content;
-    if (base64Data.startsWith("data:image/")) {
-      base64Data = base64Data.split(",")[1];
-    }
-
-    if (base64Data && base64Data.length > 100 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-      setIconPreview(`data:image/png;base64,${base64Data}`);
-    } else {
-      setIconPreview(null);
-    }
-  }, [projectFiles, projectData?.lastModified]);
 
   const handleSaveAppName = useCallback(async () => {
     const trimmedName = appName.trim();
@@ -259,7 +241,7 @@ export function useAppInfoScreen() {
 
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
 
-    const payload = createSecretBackupPayload({
+    return createSecretBackupPayload({
       connections: {
         supabaseRaw: normalizedSupabaseRaw,
         supabaseUrl: supabaseUrl ?? "",
@@ -282,8 +264,6 @@ export function useAppInfoScreen() {
         recentRepos,
       },
     });
-
-    return payload;
   }, [activeRepo, activeBranch, recentRepos]);
 
   const applySecretBackupPayload = useCallback(
@@ -492,34 +472,9 @@ export function useAppInfoScreen() {
   );
 
   const fileCount = useMemo(() => projectFiles.length, [projectFiles]);
-  const messageCount = useMemo(
-    () => (Array.isArray(projectData?.chatHistory) ? projectData.chatHistory : projectData?.messages)?.length || 0,
-    [projectData?.chatHistory, projectData?.messages],
-  );
-
-  const apiKeysCount = useMemo(() => {
-    const counts: Record<string, number> = {};
-    Object.keys(config.apiKeys).forEach((provider) => {
-      counts[provider] = (config.apiKeys[provider as AllAIProviders] || []).length;
-    });
-    return counts;
-  }, [config.apiKeys]);
-
-  const assetsStatus = useMemo(() => {
-    if (!projectFiles.length) {
-      return { icon: false, adaptiveIcon: false, splash: false, favicon: false };
-    }
-
-    const hasAsset = (path: string) =>
-      projectFiles.some((file) => file.path === path && file.content.length > 100);
-
-    return {
-      icon: hasAsset("assets/icon.png"),
-      adaptiveIcon: hasAsset("assets/adaptive-icon.png"),
-      splash: hasAsset("assets/splash.png"),
-      favicon: hasAsset("assets/favicon.png"),
-    };
-  }, [projectFiles]);
+  const messageCount = useMemo(() => countMessages(projectData), [projectData]);
+  const apiKeysCount = useMemo(() => getApiKeysCount(config.apiKeys), [config.apiKeys]);
+  const assetsStatus = useMemo(() => getAssetsStatusFromProjectFiles(projectFiles), [projectFiles]);
 
   return {
     projectData,
