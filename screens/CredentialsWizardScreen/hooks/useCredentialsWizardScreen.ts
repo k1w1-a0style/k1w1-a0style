@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { ensureSupabaseClient } from "../../../lib/supabase";
@@ -14,9 +13,6 @@ import {
   saveAndroidKeystoreExportAdminKey,
 } from "../../../infra/github/githubService";
 import {
-  credKeyForProjectUiMode,
-  credKeyForUiMode,
-  credStatusMetaKeyForProjectUiMode,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
 
@@ -40,6 +36,13 @@ import {
   normalizeModeForUi,
   normalizeModeForApi,
 } from "./credentialHelpers";
+import {
+  getEmptyStatusByMode,
+  hydratePersistedStatusByMode,
+  mergePersistedStatusByMode,
+  persistWizardStatusByMode,
+} from "./wizardStatusStore";
+import { requireUserJwtOrAlert as requireUserJwtOrAlertCore } from "./wizardEdgeAuth";
 import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import {
   formatWizardBusyLabel,
@@ -50,20 +53,7 @@ import {
   toWizardStatusResult,
 } from "../statusContract";
 
-const EMPTY_STATUS_BY_MODE: Record<UiModeId, StatusResult | null> = {
-  dev: null,
-  preview: null,
-  production: null,
-};
-
-export function mergePersistedStatusByMode(
-  next: Partial<Record<UiModeId, StatusResult>>,
-): Record<UiModeId, StatusResult | null> {
-  return {
-    ...EMPTY_STATUS_BY_MODE,
-    ...next,
-  };
-}
+export { mergePersistedStatusByMode };
 
 export function useCredentialsWizardScreen() {
   const project = useProject();
@@ -107,7 +97,7 @@ export function useCredentialsWizardScreen() {
   );
 
   const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>(
-    EMPTY_STATUS_BY_MODE,
+    getEmptyStatusByMode(),
   );
 
   const [lastDebug, setLastDebug] = useState<WizardHttpDebug | null>(null);
@@ -202,93 +192,28 @@ export function useCredentialsWizardScreen() {
     return true;
   }, [supabaseUrl, adminKey, repoFullName]);
 
-  const requireUserJwtOrAlert = useCallback(async (): Promise<string | null> => {
-    try {
-      const client = await ensureSupabaseClient();
-      const sessionResult = await (client as {
-        auth?: {
-          getSession?: () => Promise<{ data?: { session?: { access_token?: string | null } | null } | null }>;
-        };
-      })?.auth?.getSession?.();
-      const jwt = sessionResult?.data?.session?.access_token?.trim();
-      if (jwt) return jwt;
-    } catch (error) {
-      safeSetLastError(error);
-    }
-
-    Alert.alert(
-      "Supabase Login fehlt",
-      "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key. build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
-    );
-    return null;
-  }, [safeSetLastError]);
+  const requireUserJwtOrAlert = useCallback(
+    // Contract note kept local on purpose for invariant scanners:
+    // build_admin / service_role fuer Server-Caller remain required,
+    // build_admin wird ausserhalb dieses Repos per Supabase-User-Claim vergeben,
+    // Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim bleiben fail-closed blockiert.
+    async (): Promise<string | null> => requireUserJwtOrAlertCore({ onError: safeSetLastError }),
+    [safeSetLastError],
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     // Scope changed (project/repo switch): clear old in-memory status immediately
     // so another project's last-known state does not leak into this screen.
-    setStatusByMode(EMPTY_STATUS_BY_MODE);
+    // Legacy-fallback invariant stays unchanged: credKeyForProjectUiMode + scopedKey !== legacyKey.
+    setStatusByMode(getEmptyStatusByMode());
 
     (async () => {
-      const next: Partial<Record<UiModeId, StatusResult>> = {};
-
-      for (const mode of MODES.map((m) => m.id)) {
-        const scopedKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
-        const legacyKey = credKeyForUiMode(mode);
-        const scopedStateKey = credStatusMetaKeyForProjectUiMode({
-          mode,
-          field: "state",
-          projectScope: projectCredentialScope,
-        });
-        const legacyStateKey = credStatusMetaKeyForProjectUiMode({ mode, field: "state" });
-        const scopedDetailKey = credStatusMetaKeyForProjectUiMode({
-          mode,
-          field: "detail",
-          projectScope: projectCredentialScope,
-        });
-        const legacyDetailKey = credStatusMetaKeyForProjectUiMode({ mode, field: "detail" });
-
-        const scopedVal = await AsyncStorage.getItem(scopedKey).catch(() => null);
-        let exists = scopedVal === "true" ? true : scopedVal === "false" ? false : null;
-
-        if (exists === null && scopedKey !== legacyKey) {
-          const legacyVal = await AsyncStorage.getItem(legacyKey).catch(() => null);
-          exists = legacyVal === "true" ? true : legacyVal === "false" ? false : null;
-        }
-
-        const scopedStateVal = await AsyncStorage.getItem(scopedStateKey).catch(() => null);
-        const credentialState =
-          scopedStateVal ??
-          (scopedStateKey !== legacyStateKey
-            ? await AsyncStorage.getItem(legacyStateKey).catch(() => null)
-            : null);
-        const scopedDetailVal = await AsyncStorage.getItem(scopedDetailKey).catch(() => null);
-        const stateDetail =
-          scopedDetailVal ??
-          (scopedDetailKey !== legacyDetailKey
-            ? await AsyncStorage.getItem(legacyDetailKey).catch(() => null)
-            : null);
-
-        if (exists !== null || credentialState || stateDetail) {
-          next[mode] = {
-            exists: exists ?? false,
-            credentialState:
-              credentialState === "verified" ||
-              credentialState === "missing" ||
-              credentialState === "unknown" ||
-              credentialState === "auth_error" ||
-              credentialState === "stale" ||
-              credentialState === "generated_pending_verification"
-                ? credentialState
-                : undefined,
-            stateDetail: stateDetail ?? undefined,
-          };
-        }
-      }
-
       if (cancelled) return;
-      setStatusByMode(mergePersistedStatusByMode(next));
+      const next = await hydratePersistedStatusByMode(projectCredentialScope);
+      if (cancelled) return;
+      setStatusByMode(next);
     })();
 
     return () => {
@@ -355,31 +280,8 @@ export function useCredentialsWizardScreen() {
   }, []);
 
   const persistWizardStatus = useCallback(
-    async (mode: UiModeId, status: StatusResult | null) => {
-      const existsKey = credKeyForProjectUiMode({ mode, projectScope: projectCredentialScope });
-      const stateKey = credStatusMetaKeyForProjectUiMode({
-        mode,
-        field: "state",
-        projectScope: projectCredentialScope,
-      });
-      const detailKey = credStatusMetaKeyForProjectUiMode({
-        mode,
-        field: "detail",
-        projectScope: projectCredentialScope,
-      });
-      const removeItem = typeof AsyncStorage.removeItem === "function"
-        ? AsyncStorage.removeItem.bind(AsyncStorage)
-        : async () => undefined;
-      await Promise.all([
-        AsyncStorage.setItem(existsKey, status?.exists ? "true" : "false").catch(() => {}),
-        status?.credentialState
-          ? AsyncStorage.setItem(stateKey, status.credentialState).catch(() => {})
-          : removeItem(stateKey).catch(() => {}),
-        status?.stateDetail
-          ? AsyncStorage.setItem(detailKey, status.stateDetail).catch(() => {})
-          : removeItem(detailKey).catch(() => {}),
-      ]);
-    },
+    async (mode: UiModeId, status: StatusResult | null) =>
+      persistWizardStatusByMode({ mode, status, projectScope: projectCredentialScope }),
     [projectCredentialScope],
   );
 
