@@ -47,11 +47,8 @@ import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunV
 import {
   formatWizardBusyLabel,
   resolveWizardStatusPresentation,
-  toGeneratedPendingStatus,
-  toGeneratedPendingStatusWithReason,
-  toWizardErrorStatus,
-  toWizardStatusResult,
 } from "../statusContract";
+import { runGenerateAction, runStatusRefreshAction } from "./wizardEdgeActions";
 
 export { mergePersistedStatusByMode };
 
@@ -290,86 +287,27 @@ export function useCredentialsWizardScreen() {
     [projectCredentialScope],
   );
 
-  async function refreshStatusCore(
-    mode: UiModeId,
-    userJwt: string,
-    opts?: { preservePendingOnError?: boolean },
-  ) {
-    safeSetLastError(null);
-    safeSetLastDebug(null);
-
-    try {
-      const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(
-        supabaseUrl,
-        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_STATUS,
-        adminKey,
+  const refreshStatusCore = useCallback(
+    async (
+      mode: UiModeId,
+      userJwt: string,
+      opts?: { preservePendingOnError?: boolean },
+    ) =>
+      runStatusRefreshAction({
+        mode,
         userJwt,
-        {
-        repo: repoFullName,
-        mode: apiMode,
-      });
-
-      safeSetLastDebug(r.debug);
-      if (!r.ok) {
-        safeSetLastError(r.error);
-        if (isMountedRef.current) {
-          setStatusByMode((prev) => {
-            const nextStatus =
-              opts?.preservePendingOnError && prev[mode]?.credentialState === "generated_pending_verification"
-                ? toGeneratedPendingStatusWithReason(prev[mode], "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.")
-                : toWizardErrorStatus({
-                    previous: prev[mode],
-                    statusCode: r.debug.status ?? null,
-                    error: r.error,
-                    detail: describeLocalEdgeAdminKeyIssue({
-                      adminKey,
-                      statusCode: r.debug.status ?? null,
-                      error: r.error,
-                      surface: "keystore",
-                    }),
-                  });
-            void persistWizardStatus(mode, nextStatus);
-            return {
-              ...prev,
-              [mode]: nextStatus,
-            };
-          });
-        }
-        return false;
-      }
-
-      const data = toWizardStatusResult(r.data as StatusResult);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => ({ ...prev, [mode]: data }));
-      }
-      await persistWizardStatus(mode, data);
-      return true;
-    } catch (e: unknown) {
-      safeSetLastError(e);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus =
-            prev[mode]?.credentialState === "generated_pending_verification"
-              ? toGeneratedPendingStatusWithReason(
-                  prev[mode],
-                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-                )
-              : toWizardErrorStatus({
-                  previous: prev[mode],
-                  error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
-                });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
-      return false;
-    }
-  }
+        opts,
+        supabaseUrl,
+        adminKey,
+        repoFullName,
+        isMounted: () => isMountedRef.current,
+        setStatusByMode,
+        safeSetLastError,
+        safeSetLastDebug,
+        persistWizardStatus,
+      }),
+    [adminKey, persistWizardStatus, repoFullName, safeSetLastDebug, safeSetLastError, supabaseUrl],
+  );
 
   async function refreshStatus(mode: UiModeId) {
     if (!ensureCanRunOrAlert()) return;
@@ -418,90 +356,24 @@ export function useCredentialsWizardScreen() {
     const actionKey = `generate:${mode}`;
     if (!tryBeginAction(actionKey)) return;
 
-    if (isMountedRef.current) {
-      setLastError(null);
-      setLastDebug(null);
-    }
-
     try {
-      const apiMode = normalizeModeForApi(mode);
-      const r = await invokeEdgeJson(
-        supabaseUrl,
-        SUPABASE_EDGE_FUNCTIONS.ANDROID_KEYSTORE_GENERATE,
-        adminKey,
+      await runGenerateAction({
+        mode,
         userJwt,
-        {
-        repo: repoFullName,
-        mode: apiMode,
+        supabaseUrl,
+        adminKey,
+        repoFullName,
+        isMounted: () => isMountedRef.current,
+        setStatusByMode,
+        safeSetLastError,
+        safeSetLastDebug,
+        persistWizardStatus,
+        onGeneratedPending: () => {
+          toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
+        },
+        refreshStatusAfterGenerate: () =>
+          refreshStatusCore(mode, userJwt, { preservePendingOnError: true }),
       });
-
-      safeSetLastDebug(r.debug);
-      if (!r.ok) {
-        safeSetLastError(r.error);
-        if (isMountedRef.current) {
-          setStatusByMode((prev) => {
-            const nextStatus = toWizardErrorStatus({
-              previous: prev[mode],
-              statusCode: r.debug.status ?? null,
-              error: r.error,
-              detail: describeLocalEdgeAdminKeyIssue({
-                adminKey,
-                statusCode: r.debug.status ?? null,
-                error: r.error,
-                surface: "keystore",
-              }),
-            });
-            void persistWizardStatus(mode, nextStatus);
-            return {
-              ...prev,
-              [mode]: nextStatus,
-            };
-          });
-        }
-        return;
-      }
-
-      const data = r.data as { ok?: boolean; error?: string } | null;
-      if (data?.ok === false) {
-        safeSetLastError(data.error ?? "Generate fehlgeschlagen");
-        return;
-      }
-
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus = toGeneratedPendingStatus(prev[mode]);
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
-
-      toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
-      await refreshStatusCore(mode, userJwt, { preservePendingOnError: true });
-    } catch (e: unknown) {
-      safeSetLastError(e);
-      if (isMountedRef.current) {
-        setStatusByMode((prev) => {
-          const nextStatus =
-            prev[mode]?.credentialState === "generated_pending_verification"
-              ? toGeneratedPendingStatusWithReason(
-                  prev[mode],
-                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-                )
-              : toWizardErrorStatus({
-                  previous: prev[mode],
-                  error: e,
-                  detail: describeLocalEdgeAdminKeyIssue({ adminKey, error: e, surface: "keystore" }),
-                });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
-      }
     } finally {
       finishAction(actionKey);
     }
