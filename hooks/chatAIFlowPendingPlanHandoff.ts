@@ -11,6 +11,11 @@ export type PendingPlanHandoffResult =
       combinedRequest: string;
     };
 
+export type PendingPlanSendDecision =
+  | { kind: "none" }
+  | { kind: "hold"; message: string }
+  | { kind: "forward"; request: string };
+
 export const resolvePendingPlanHandoff = ({
   currentPlan,
   sanitizedUserContent,
@@ -45,5 +50,38 @@ export const resolvePendingPlanHandoff = ({
       sanitizedAiContent,
       wantsProceed,
     }),
+  };
+};
+
+export const resolvePendingPlanSendDecision = ({
+  currentPlan,
+  sanitizedUserContent,
+  sanitizedAiContent,
+  isDirectBuildCommand,
+}: {
+  currentPlan: PendingPlan | null;
+  sanitizedUserContent: string;
+  sanitizedAiContent: string;
+  isDirectBuildCommand: (input: string) => boolean;
+}): PendingPlanSendDecision => {
+  if (!currentPlan) return { kind: "none" };
+
+  const handoff = resolvePendingPlanHandoff({
+    currentPlan,
+    sanitizedUserContent,
+    sanitizedAiContent,
+    isDirectBuildCommand,
+  });
+
+  if (handoff.kind === "hold") {
+    return {
+      kind: "hold",
+      message: handoff.message,
+    };
+  }
+
+  return {
+    kind: "forward",
+    request: handoff.combinedRequest,
   };
 };

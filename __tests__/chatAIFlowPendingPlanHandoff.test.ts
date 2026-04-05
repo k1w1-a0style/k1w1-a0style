@@ -1,4 +1,7 @@
-import { resolvePendingPlanHandoff } from "../hooks/chatAIFlowPendingPlanHandoff";
+import {
+  resolvePendingPlanHandoff,
+  resolvePendingPlanSendDecision,
+} from "../hooks/chatAIFlowPendingPlanHandoff";
 
 describe("chatAIFlowPendingPlanHandoff", () => {
   const advicePlan = {
@@ -49,5 +52,46 @@ describe("chatAIFlowPendingPlanHandoff", () => {
       expect(forwardResult.combinedRequest).toContain("dateien bauen");
       expect(forwardResult.combinedRequest).toContain("scout plan");
     }
+  });
+
+  describe("resolvePendingPlanSendDecision", () => {
+    it("returns none when no pending plan exists", () => {
+      expect(
+        resolvePendingPlanSendDecision({
+          currentPlan: null,
+          sanitizedUserContent: "ok",
+          sanitizedAiContent: "ok",
+          isDirectBuildCommand: () => false,
+        }),
+      ).toEqual({ kind: "none" });
+    });
+
+    it("returns hold decision with the same guard message", () => {
+      expect(
+        resolvePendingPlanSendDecision({
+          currentPlan: advicePlan,
+          sanitizedUserContent: "danke",
+          sanitizedAiContent: "danke",
+          isDirectBuildCommand: () => false,
+        }),
+      ).toEqual({
+        kind: "hold",
+        message: expect.stringContaining("weiter"),
+      });
+    });
+
+    it("returns forward decision with combined request payload", () => {
+      expect(
+        resolvePendingPlanSendDecision({
+          currentPlan: advicePlan,
+          sanitizedUserContent: "weiter",
+          sanitizedAiContent: "bitte bauen",
+          isDirectBuildCommand: () => false,
+        }),
+      ).toEqual({
+        kind: "forward",
+        request: expect.stringContaining("Nutzer-Antwort/Details:"),
+      });
+    });
   });
 });

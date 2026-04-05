@@ -54,11 +54,7 @@ import {
   notifyKeyRotationEffect,
 } from "./chatAIFlowRequestSideEffects";
 import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
-import {
-  buildSendValidationErrorMessage,
-  resolvePendingPlanSendDecision,
-  resolveSanitizedUserContent,
-} from "./chatAIFlowSendFlowHelpers";
+import { resolvePendingPlanSendDecision } from "./chatAIFlowPendingPlanHandoff";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 export { extractContextBudgetNotice } from "./chatAIFlowContextBudgetHelpers";
@@ -617,7 +613,7 @@ export function useChatAIFlow({
 
       const validation = prepareValidatedChatInput(candidateInput);
       if (!validation.valid) {
-        const validationMessage = buildSendValidationErrorMessage(validation.error);
+        const validationMessage = getInputValidationMessage(validation.error);
 
         safe(() => setError(validationMessage));
         addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
@@ -625,11 +621,9 @@ export function useChatAIFlow({
       }
 
       const sanitizedAiContent = validation.sanitized;
-      const sanitizedUserContent = resolveSanitizedUserContent({
-        userContent,
-        sanitizedAiContent,
-        sanitizeInput: prepareValidatedChatInput,
-      });
+      const sanitizedUserContent = userContent
+        ? prepareValidatedChatInput(userContent).sanitized || userContent
+        : sanitizedAiContent;
 
       if (!sanitizedAiContent) {
         safe(() => setError(getEmptyMessageNoticeText()));
