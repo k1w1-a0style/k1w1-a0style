@@ -8,8 +8,11 @@ function read(rel: string): string {
 describe("Build traceability transparency invariants", () => {
   it("stores repo/branch/profile into currentBuild and history from startBuild", () => {
     const src = read("contexts/ProjectContext.tsx");
+    const helper = read("contexts/projectContextBuildHelpers.ts");
 
-    expect(src).toContain("const buildBranch = (pd.linkedBranch ?? \"\").trim();");
+    expect(src).toContain("const buildStart = prepareBuildStart({");
+    expect(helper).toContain('const branch = (project.linkedBranch ?? "").trim();');
+    expect(helper).toContain("buildProfile: profile");
     expect(src).toContain("branch: branchResolved");
     expect(src).toContain("const historySelection = resolveHistoryBuildSelection");
     expect(src).toContain("branch: historySelection.branch");

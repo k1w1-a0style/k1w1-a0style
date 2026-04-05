@@ -11,13 +11,15 @@ describe("connectionsScreen flow guards invariants", () => {
     expect(src).toContain("isBusyGuardActiveError");
   });
 
-  it("routes testEas through busy guard semantics with explicit busy feedback", () => {
+  it("routes testEas through shared busy-task alert semantics", () => {
     const start = src.indexOf("const testEas = useCallback(async () => {");
     const end = src.indexOf("// Expo connection light is persisted");
     const block = src.slice(start, end);
-    expect(block).toContain("await withBusyGuard(async () => {");
-    expect(block).toContain("if (isBusyGuardActiveError(e))");
-    expect(block).toContain('Alert.alert("Bitte warten", e.message)');
+    expect(src).toContain("const runBusyTaskWithAlerts = useCallback(async (params:");
+    expect(src).toContain('const { run, busyTitle = "Bitte warten", fallbackTitle } = params;');
+    expect(src).toContain("if (isBusyGuardActiveError(error))");
+    expect(block).toContain("await runBusyTaskWithAlerts({");
+    expect(block).toContain('fallbackTitle: "EAS Test"');
   });
 
   it("does not persist Expo token as side effect in testExpo", () => {
