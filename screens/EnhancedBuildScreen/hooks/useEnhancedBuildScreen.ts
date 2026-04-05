@@ -5,31 +5,38 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
-import type { BuildHistoryEntry, BuildStatus } from "../../../shared/types/build";
+import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
-  computeEta,
   formatDuration,
 } from "../../../utils/buildScreenUtils";
 
 import type {
   BuildProfile,
   CurrentBuildLike,
-  WorkflowRun,
   WorkflowRunsResponse,
 } from "../types";
-import type { WorkflowJob, WorkflowRunDetails } from "../../../infra/github/workflows";
 
 import {
-  FETCH_TIMEOUT_MS,
-  fetchRunDetailsBundle,
   resolveBuildStatusPresentation,
   resolveLogsLoadContext,
   sanitizeUiMessage,
   validateRepoFullName,
-  withTimeout,
 } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
+import { useEnhancedBuildRuns } from "./useEnhancedBuildRuns";
+import { useEnhancedBuildStartController } from "./useEnhancedBuildStartController";
+import { composeEnhancedBuildScreenReturn } from "./enhancedBuildScreenReturnComposer";
+import { filterBuildHistoryByMode, summarizeBuildHistoryStats } from "./enhancedBuildScreenHistory";
+import {
+  countHiddenRuns,
+  mapWorkflowLogsToLines,
+} from "./enhancedBuildScreenOrchestration";
+import {
+  createChecklistItems,
+  resolveBuildBlockedAction,
+  type BuildBlockedAction,
+} from "./enhancedBuildScreenReadiness";
 import {
   filterWorkflowRunsByProfile,
   getWorkflowRunsEmptyStateText,
@@ -37,15 +44,10 @@ import {
 } from "./runFilterState";
 
 export const MAX_RUNS_DISPLAY = 10;
-
-type BuildHistoryEntryWithBranch = BuildHistoryEntry & { branch?: string | null };
+const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
+const BRANCH_MISSING_BLOCK_REASON = "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
 
 export function useEnhancedBuildScreen() {
-  const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
-
-  // P1: Prevent duplicate build triggers on double-tap.
-  const buildInFlightRef = useRef(false);
-  const [buildInFlight, setBuildInFlight] = useState(false);
 
   // P1: Avoid state updates / alerts after unmount.
   const isMountedRef = useRef(true);
@@ -89,15 +91,8 @@ export function useEnhancedBuildScreen() {
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
     projectData?.preferredBuildProfile || "preview",
   );
-  const [loadingRuns, setLoadingRuns] = useState(false);
-
   // Runs & UI state
-  const [runs, setRuns] = useState<WorkflowRun[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [buildLoading, setBuildLoading] = useState(false);
-  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
-  const [nowTick, setNowTick] = useState<number>(0);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
@@ -118,37 +113,13 @@ export function useEnhancedBuildScreen() {
 
   const buildHistory = useBuildHistory();
 
-  const filteredRuns = useMemo(() => {
-    return filterWorkflowRunsByProfile(runs, actionsFilter);
-  }, [runs, actionsFilter]);
-
-  const runsEmptyStateText = useMemo(() => {
-    return getWorkflowRunsEmptyStateText({
-      actionsFilter,
-      filteredRunsCount: filteredRuns.length,
-      allRunsCount: runs.length,
-    });
-  }, [actionsFilter, filteredRuns.length, runs.length]);
 
   const filteredHistory = useMemo(() => {
-    const all = buildHistory.history ?? [];
-    if (historyFilter === "all") return all;
-    const needle = String(historyFilter).toLowerCase();
-    return all.filter(
-      (h) => String(h.buildProfile || "").toLowerCase() === needle,
-    );
+    return filterBuildHistoryByMode(buildHistory.history, historyFilter);
   }, [buildHistory.history, historyFilter]);
 
   const filteredStats = useMemo(() => {
-    const list = filteredHistory ?? [];
-    return {
-      total: list.length,
-      success: list.filter((e) => e.status === "success").length,
-      failed: list.filter((e) => e.status === "failed" || e.status === "error").length,
-      building: list.filter(
-        (e) => e.status === "building" || e.status === "queued",
-      ).length,
-    };
+    return summarizeBuildHistoryStats(filteredHistory);
   }, [filteredHistory]);
 
   // Sync persisted profile when project loads or changes
@@ -159,14 +130,6 @@ export function useEnhancedBuildScreen() {
     }
   }, [projectData?.preferredBuildProfile]);
 
-  // === Luxus: Run Detail Modal (Jobs/Details) ===
-  const [runDetailVisible, setRunDetailVisible] = useState(false);
-  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
-  const [runDetails, setRunDetails] = useState<WorkflowRunDetails | null>(null);
-  const [runJobs, setRunJobs] = useState<WorkflowJob[]>([]);
-  const [runDetailLoading, setRunDetailLoading] = useState(false);
-  const [runDetailError, setRunDetailError] = useState<string | null>(null);
-  const runDetailReqId = useRef(0);
 
   const jobId = currentBuild?.jobId ?? null;
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
@@ -190,17 +153,9 @@ export function useEnhancedBuildScreen() {
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
-type BuildBlockedAction = {
-  title: string;
-  detail: string;
-  ctaLabel: string;
-  screen: "GitHubRepos" | "Connections" | "Diagnostic" | "CredentialsWizard";
-  params?: Record<string, unknown>;
-};
-
   const buildBlockedReason = useMemo(() => {
-    if (!repoValidation.valid) return "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
-    if (!branchName.trim()) return "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
+    if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
+    if (!branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!hasProjectFiles) return projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!hasDiagOk) return diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
@@ -215,56 +170,16 @@ type BuildBlockedAction = {
   }, [repoValidation.valid, branchName, hasTokens, hasProjectFiles, projectFilesReason, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, repoSyncState, repoSyncReason, hasSigningKey, signingKeyReason]);
 
   const buildBlockedAction = useMemo<BuildBlockedAction | null>(() => {
-    if (!repoValidation.valid || !branchName.trim()) {
-      return {
-        title: "Repo/Branch zuerst verknüpfen",
-        detail: buildBlockedReason || "Ohne Selection sind Diagnostik, CI-Lite und Build-Gates absichtlich nicht grün.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (!hasTokens) {
-      return {
-        title: "Tokens fehlen",
-        detail: buildBlockedReason || "GitHub- und Expo-Token zuerst im Verbindungen-Screen setzen.",
-        ctaLabel: "Verbindungen öffnen",
-        screen: "Connections",
-      };
-    }
-    if (!hasDiagOk) {
-      return {
-        title: "Diagnostik fehlt oder passt nicht zur Selection",
-        detail: buildBlockedReason || "Diagnostik für dieses Repo/Branch erneut ausführen.",
-        ctaLabel: "Diagnostic öffnen",
-        screen: "Diagnostic",
-        params: { autoRun: true },
-      };
-    }
-    if (!hasCiLiteOk) {
-      return {
-        title: "CI-Lite nicht sicher grün",
-        detail: buildBlockedReason || "CI-Lite für dieses Repo/Branch erneut laufen lassen.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (repoSyncState === "unknown") {
-      return {
-        title: "Repo-Sync unklar",
-        detail: buildBlockedReason || "Einmal explizit pushen, damit der Sync-Status materialisiert wird.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (!hasSigningKey) {
-      return {
-        title: "Signing-Key fehlt",
-        detail: buildBlockedReason || "Den Wizard öffnen und den Signing-Key prüfen oder erzeugen.",
-        ctaLabel: "Wizard öffnen",
-        screen: "CredentialsWizard",
-      };
-    }
-    return null;
+    return resolveBuildBlockedAction({
+      repoValidationValid: repoValidation.valid,
+      branchName,
+      hasTokens,
+      hasDiagOk,
+      hasCiLiteOk,
+      repoSyncState,
+      hasSigningKey,
+      buildBlockedReason,
+    });
   }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, repoSyncState, hasSigningKey, buildBlockedReason]);
 
   const {
@@ -299,145 +214,7 @@ type BuildBlockedAction = {
     return logsError ? sanitizeUiMessage(logsError) : null;
   }, [logsError]);
 
-  const logLines = useMemo(() => {
-    if (!logs || logs.length === 0) return [];
-    return logs.map((entry) => {
-      // Show raw CLI output without extra prefixes
-      if (entry.level === "raw") {
-        return entry.message;
-      }
-      const ts = entry.timestamp;
-      const time = ts ? new Date(ts).toLocaleTimeString() : "";
-      const prefix = time ? `${time} ` : "";
-      return `${prefix}[${entry.level}] ${entry.message}`;
-    });
-  }, [logs]);
-
-  const canFetch = repoValidation.valid;
-  const owner = repoValidation.valid ? repoValidation.owner : "";
-  const repo = repoValidation.valid ? repoValidation.repo : "";
-
-  const hasGetWorkflowRuns = typeof getWorkflowRuns === "function";
-  const hasStartBuild = typeof startBuild === "function";
-  // Build-Screen does not mutate repo/branch anymore.
-
-  const fetchRuns = useCallback(async () => {
-    const reqId = ++runsReqIdRef.current;
-    if (!canFetch) {
-      Alert.alert(
-        "Ungültiges Repo",
-        sanitizeUiMessage(
-          repoValidation.valid
-            ? "Unbekannter Fehler"
-            : repoValidation.error || "Bitte Repo als owner/repo eintragen.",
-        ),
-      );
-      return;
-    }
-    if (!hasGetWorkflowRuns || !getWorkflowRuns) {
-      Alert.alert(
-        "Nicht verfügbar",
-        "getWorkflowRuns() ist nicht im ProjectContext definiert.",
-      );
-      return;
-    }
-
-    if (isMountedRef.current) {
-      setLoadingRuns(true);
-      setError(null);
-    }
-
-    try {
-      const res = await withTimeout(
-        // ✅ Wichtig: App-getriggerte Builds laufen über k1w1-triggered-build.yml
-        // -> getWorkflowRuns() default ist evtl. eas-build.yml, daher hier explizit:
-        getWorkflowRuns(owner.trim(), repo.trim(), "k1w1-triggered-build.yml"),
-        FETCH_TIMEOUT_MS,
-      );
-      const list = res?.workflow_runs ?? [];
-      if (reqId !== runsReqIdRef.current) return;
-      if (!isMountedRef.current) return;
-      setRuns(Array.isArray(list) ? list : []);
-      if (!list || list.length === 0) setError("Keine Workflow Runs gefunden.");
-    } catch (e) {
-      if (isMountedRef.current) {
-        setRuns([]);
-        setError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Runs nicht laden");
-      }
-    } finally {
-      if (reqId === runsReqIdRef.current && isMountedRef.current) setLoadingRuns(false);
-    }
-  }, [canFetch, getWorkflowRuns, hasGetWorkflowRuns, owner, repo, repoValidation, sanitizeUiMessage]);
-
-  const onRefresh = useCallback(async () => {
-    if (!canFetch || !hasGetWorkflowRuns) return;
-    if (isMountedRef.current) setRefreshing(true);
-    try {
-      await fetchRuns();
-      await buildHistory.refresh().catch(() => {});
-      await refreshPreconditions().catch(() => {});
-    } finally {
-      if (isMountedRef.current) setRefreshing(false);
-    }
-  }, [canFetch, fetchRuns, hasGetWorkflowRuns, buildHistory, refreshPreconditions]);
-
-  const onStartBuild = useCallback(async () => {
-    if (!repoValidation.valid) {
-      Alert.alert(
-        "Repo fehlt",
-        sanitizeUiMessage(
-          "Bitte zuerst im GitHub-Repos-Screen ein Repo (owner/repo) verknuepfen.",
-        ),
-      );
-      return;
-    }
-    if (buildBlockedReason) {
-      Alert.alert("Nicht bereit", sanitizeUiMessage(buildBlockedReason));
-      return;
-    }
-
-    if (!hasStartBuild || !startBuild) {
-      Alert.alert(
-        "Nicht verfügbar",
-        "startBuild() ist nicht im ProjectContext definiert.",
-      );
-      return;
-    }
-    if (buildInFlightRef.current) {
-      // Sync guard: blocks double-tap before the UI has a chance to disable.
-      return;
-    }
-    buildInFlightRef.current = true;
-    if (isMountedRef.current) setBuildInFlight(true);
-
-    if (isMountedRef.current) {
-      setBuildLoading(true);
-      setBuildStartTime(Date.now());
-    }
-    try {
-      await startBuild(buildProfile);
-      if (isMountedRef.current) {
-        Alert.alert(
-          "✅ Build gestartet",
-          `Der Build wurde angestoßen (${buildProfile}).`,
-        );
-      }
-    } catch (e) {
-      if (isMountedRef.current) {
-        setBuildStartTime(null);
-        Alert.alert(
-          "❌ Fehler",
-          sanitizeUiMessage(e instanceof Error ? e.message : "Build fehlgeschlagen"),
-        );
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setBuildLoading(false);
-        setBuildInFlight(false);
-      }
-      buildInFlightRef.current = false;
-    }
-  }, [repoValidation.valid, buildBlockedReason, buildProfile, hasStartBuild, startBuild, sanitizeUiMessage]);
+  const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
 
   const openRun = useCallback(async (url: string) => {
     if (!url) return;
@@ -453,112 +230,89 @@ type BuildBlockedAction = {
     }
   }, []);
 
-  const findHistoryMatchForRun = useCallback(
-    (run: WorkflowRun) => {
-      const all = (buildHistory.history ?? []) as BuildHistoryEntryWithBranch[];
-      const runUrl = String(run?.html_url || "");
-      const runIdStr = String(run?.id || "");
-      const hit = all.find((h) => {
-        const html = String(h?.htmlUrl || "");
-        if (html && runUrl && html === runUrl) return true;
-        // Fallback: some sources store a shortened/redirected URL
-        return html.includes(`/actions/runs/${runIdStr}`);
-      });
-      if (!hit) return null;
-      return {
-        jobId: hit.jobId ?? null,
-        buildProfile: hit.buildProfile ?? null,
-        branch: hit.branch ?? null,
-        repoName: hit.repoName ?? null,
-      };
-    },
-    [buildHistory.history],
-  );
 
-  const openRunDetails = useCallback(
-    async (run: WorkflowRun) => {
-      if (!run || !repoValidation.valid) {
-        if (run?.html_url) openRun(run.html_url);
-        return;
-      }
-      setSelectedRun(run);
-      setRunDetailVisible(true);
-      setRunDetails(null);
-      setRunJobs([]);
-      setRunDetailError(null);
-      setRunDetailLoading(true);
+  const canFetch = repoValidation.valid;
+  const owner = repoValidation.valid ? repoValidation.owner : "";
+  const repo = repoValidation.valid ? repoValidation.repo : "";
 
-      const reqId = ++runDetailReqId.current;
-      try {
-        const { details, jobs } = await fetchRunDetailsBundle(owner, repo, run.id);
-        if (reqId !== runDetailReqId.current) return;
-        if (!isMountedRef.current) return;
-        setRunDetails(details);
-        setRunJobs(jobs);
-      } catch (e) {
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetailError(
-          e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Run-Details nicht laden",
-        );
-      } finally {
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetailLoading(false);
-      }
-    },
-    [repoValidation.valid, owner, repo, openRun, sanitizeUiMessage],
-  );
+  const {
+    hasGetWorkflowRuns,
+    loadingRuns,
+    runs,
+    error,
+    fetchRuns,
+    runDetailVisible,
+    setRunDetailVisible,
+    selectedRun,
+    runDetails,
+    runJobs,
+    runDetailLoading,
+    runDetailError,
+    openRunDetails,
+    refreshRunDetails,
+    findHistoryMatchForRun,
+  } = useEnhancedBuildRuns({
+    canFetch,
+    owner,
+    repo,
+    repoValidationError: repoValidation.valid ? "Unbekannter Fehler" : repoValidation.error || "Bitte Repo als owner/repo eintragen.",
+    getWorkflowRuns,
+    isMountedRef,
+    openRun,
+    history: buildHistory.history,
+  });
 
-  const refreshRunDetails = useCallback(async () => {
-    if (!selectedRun) return;
-    await openRunDetails(selectedRun);
-  }, [selectedRun, openRunDetails]);
+
+  const filteredRuns = useMemo(() => {
+    return filterWorkflowRunsByProfile(runs, actionsFilter);
+  }, [runs, actionsFilter]);
+
+  const runsEmptyStateText = useMemo(() => {
+    return getWorkflowRunsEmptyStateText({
+      actionsFilter,
+      filteredRunsCount: filteredRuns.length,
+      allRunsCount: runs.length,
+    });
+  }, [actionsFilter, filteredRuns.length, runs.length]);
+  const hasStartBuild = typeof startBuild === "function";
+  // Build-Screen does not mutate repo/branch anymore.
+
+
+  const {
+    buildLoading,
+    onStartBuild,
+    etaMs,
+    canStartBuildUi,
+  } = useEnhancedBuildStartController({
+    hasStartBuild,
+    startBuild,
+    buildProfile,
+    repoValidationValid: repoValidation.valid,
+    buildBlockedReason,
+    sanitizeUiMessage,
+    status,
+    isMountedRef,
+  });
+
+  const onRefresh = useCallback(async () => {
+    if (!canFetch || !hasGetWorkflowRuns) return;
+    if (isMountedRef.current) setRefreshing(true);
+    try {
+      await fetchRuns();
+      await buildHistory.refresh().catch(() => {});
+      await refreshPreconditions().catch(() => {});
+    } finally {
+      if (isMountedRef.current) setRefreshing(false);
+    }
+  }, [canFetch, fetchRuns, hasGetWorkflowRuns, buildHistory, refreshPreconditions]);
+
 
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
-
-  // P2: make ETA feel alive by ticking while a build is active.
-  useEffect(() => {
-    const active =
-      !!buildStartTime &&
-      (status === "queued" || status === "building");
-    if (!active) return;
-
-    const t = setInterval(() => {
-      // Only update if still mounted.
-      if (isMountedRef.current) setNowTick(Date.now());
-    }, 1_000);
-    return () => clearInterval(t);
-  }, [buildStartTime, status]);
-
-  // ETA berechnen wenn Build läuft
-  const elapsedMs = useMemo(() => {
-    if (!buildStartTime) return 0;
-    return Date.now() - buildStartTime;
-  }, [buildStartTime, nowTick]);
-
-  const etaMs = useMemo(() => {
-    if (status === "idle" || status === "success" || status === "failed" || status === "error") {
-      return 0;
-    }
-    return computeEta(status, elapsedMs);
-  }, [status, elapsedMs]);
-
-  // Reset buildStartTime bei finalem Status
-  useEffect(() => {
-    if (status === "success" || status === "failed" || status === "error") {
-      setBuildStartTime(null);
-    }
-  }, [status]);
-
   const { statusEmoji, statusLabel } = resolveBuildStatusPresentation({ status, progress });
 
-  const moreCount =
-    filteredRuns.length > MAX_RUNS_DISPLAY
-      ? filteredRuns.length - MAX_RUNS_DISPLAY
-      : 0;
+  const moreCount = countHiddenRuns(filteredRuns.length, MAX_RUNS_DISPLAY);
 
   const onSelectBuildProfile = useCallback(
     async (p: BuildProfile) => {
@@ -572,113 +326,45 @@ type BuildBlockedAction = {
     [setPreferredBuildProfile],
   );
 
-  const canStartBuildUi = useMemo(() => {
-    return (
-      hasStartBuild &&
-      !buildLoading &&
-      !buildInFlight &&
-      !buildBlockedReason
-    );
-  }, [hasStartBuild, buildLoading, buildInFlight, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
-    const hasRepo = !!repoFullName.trim();
-    const hasBranch = !!branchName.trim();
-    return [
-      {
-        id: "signing_key",
-        label: "Signing-Key bereit",
-        status: hasSigningKey ? "ok" : "fail",
-        detail: hasSigningKey
-          ? `${buildProfile} · letzter bekannter Wizard-Stand`
-          : (signingKeyReason || "Fehlt noch - im Wizard prüfen oder erzeugen"),
-      },
-      {
-        id: "tokens",
-        label: "Tokens vorhanden (GitHub + Expo)",
-        status: hasTokens ? "ok" : "fail",
-        detail: hasTokens ? undefined : "Im Verbindungen-Screen setzen",
-      },
-      {
-        id: "diagnostic",
-        label: "Diagnose erfolgreich",
-        status: hasDiagOk ? "ok" : "pending",
-        detail: hasDiagOk
-          ? "Letzter bekannter Diagnose-Check: OK"
-          : (!hasRepo || !hasBranch
-            ? "Repo und Branch zuerst wählen – dann Diagnostik für genau diese Selection ausführen"
-            : (diagnosticReason || "Diagnose ausfuehren")),
-      },
-      {
-        id: "ci_lite",
-        label: "Code-Checks grün (CI Lite)",
-        status: hasCiLiteOk ? "ok" : "pending",
-        detail: hasCiLiteOk
-          ? "Letzter bekannter CI-Lite-Run: OK"
-          : (!hasRepo || !hasBranch
-            ? "Repo und Branch zuerst wählen – dann CI-Lite für genau diese Selection ausführen"
-            : (ciLiteReason || "Im Header CI Lite ausführen")),
-      },
-      {
-        id: "repo",
-        label: "Repo gewaehlt",
-        status: hasRepo ? "ok" : "fail",
-        detail: hasRepo ? repoFullName : "Im GitHub-Repos-Screen verknuepfen",
-      },
-      {
-        id: "branch",
-        label: "Branch gewaehlt",
-        status: hasBranch ? "ok" : "fail",
-        detail: hasBranch ? branchName : "Im GitHub-Repos-Screen auswaehlen",
-      },
-      {
-        id: "project_files",
-        label: "Projektdateien vorhanden",
-        status: hasProjectFiles ? "ok" : "fail",
-        detail: hasProjectFiles
-          ? `${projectData?.files?.length ?? 0} Dateien im Projekt`
-          : (projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren"),
-      },
-      {
-        id: "repo_sync",
-        label: "Repo-Sync lokal ↔ Repo bekannt",
-        status: !hasRepo || !hasBranch ? "pending" : !hasProjectFiles ? "pending" : repoSyncState === "unknown" ? "fail" : "ok",
-        detail: !hasRepo || !hasBranch
-          ? "Repo und Branch zuerst wählen"
-          : !hasProjectFiles
-            ? "Repo-Sync wird relevant, sobald Dateien im Projekt vorhanden sind"
-            : repoSyncState === "unknown"
-              ? (repoSyncReason || "Bitte einmal explizit pushen, damit der Sync-Status materialisiert wird")
-              : repoSyncState === "out_of_sync"
-                ? "Lokale Dateien weichen ab – der Build-Start pusht kontrolliert vor dem Dispatch"
-                : (repoSyncReason || "Lokaler Stand ist für diese Selection bereits bekannt"),
-      },
-      {
-        id: "build_mode",
-        label: `Build = ${buildProfile}`,
-        status: "ok",
-        detail: `Profil: ${buildProfile}`,
-      },
-    ];
+    return createChecklistItems({
+      buildProfile,
+      repoFullName,
+      branchName,
+      hasSigningKey,
+      signingKeyReason,
+      hasTokens,
+      hasDiagOk,
+      diagnosticReason,
+      hasCiLiteOk,
+      ciLiteReason,
+      hasProjectFiles,
+      projectFilesReason,
+      repoSyncState,
+      repoSyncReason,
+      projectFilesCount: projectData?.files?.length ?? 0,
+    });
   }, [
+    buildProfile,
+    repoFullName,
+    branchName,
     hasSigningKey,
     signingKeyReason,
     hasTokens,
     hasDiagOk,
     diagnosticReason,
-    hasProjectFiles,
-    projectFilesReason,
     hasCiLiteOk,
     ciLiteReason,
+    hasProjectFiles,
+    projectFilesReason,
     repoSyncState,
     repoSyncReason,
-    repoFullName,
-    branchName,
-    buildProfile,
+    projectData?.files?.length,
   ]);
 
 
-  return {
+  return composeEnhancedBuildScreenReturn({
     projectData,
     currentBuild,
     jobId,
@@ -752,7 +438,7 @@ type BuildBlockedAction = {
     runDetailError,
     openRunDetails,
     refreshRunDetails,
-    runMatch: selectedRun ? findHistoryMatchForRun(selectedRun) : null,
+    findHistoryMatchForRun,
     formatDuration,
-  };
+  });
 }
