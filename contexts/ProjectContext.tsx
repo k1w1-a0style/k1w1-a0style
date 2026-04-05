@@ -62,26 +62,24 @@ import {
   normalizeLoadedProjectData,
   removeProjectFilesByPaths,
 } from "./projectContextHelpers";
+import {
+  flushPendingProjectSave,
+  initializeProjectData,
+  shouldFlushProjectSaveOnAppState,
+} from "./projectContextPersistenceHelpers";
+import {
+  appendChatMessageWithRetention,
+  CHAT_HISTORY_RETENTION_FALLBACK,
+  CurrentBuildState,
+  mergeBuildPollIntoCurrentBuild,
+  resolveBuildProfileForStart,
+  resolveHistoryBuildSelection,
+  resolveLinkedBranchForRepoSelection,
+  sanitizeChatRetentionLimit,
+  shouldApplyHydratedRetention,
+} from "./projectContextStateHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
-
-const CHAT_HISTORY_RETENTION_FALLBACK = 200;
-
-export const appendChatMessageWithRetention = (
-  history: ChatMessage[],
-  message: ChatMessage,
-  limit: number,
-): ChatMessage[] => trimChatHistory([...(history || []), message], limit);
-
-
-export const sanitizeChatRetentionLimit = (limit: number): number => {
-  if (!Number.isFinite(limit) || limit < 0) return CHAT_HISTORY_RETENTION_FALLBACK;
-  return Math.floor(limit);
-};
-
-export const shouldApplyHydratedRetention = (
-  didSetRuntimeRetention: boolean,
-): boolean => !didSetRuntimeRetention;
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message;
@@ -89,85 +87,15 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const isBuildProfile = (
-  profile: unknown,
-): profile is "development" | "preview" | "production" => {
-  return (
-    profile === "development" ||
-    profile === "preview" ||
-    profile === "production"
-  );
-};
-
-export const resolveLinkedBranchForRepoSelection = (params: {
-  previousRepo?: string | null;
-  nextRepo?: string | null;
-  previousBranch?: string | null;
-  nextBranch?: string | null;
-}): string | null => {
-  const previousRepo = (params.previousRepo ?? "").trim();
-  const nextRepo = (params.nextRepo ?? "").trim();
-
-  if (typeof params.nextBranch !== "undefined") {
-    return params.nextBranch ?? null;
-  }
-
-  // Prevent stale branch carry-over when the user changed repo but did not pick a new branch yet.
-  if (previousRepo !== nextRepo) {
-    return null;
-  }
-
-  return params.previousBranch ?? null;
-};
-
-export const resolveBuildProfileForStart = (params: {
-  requestedProfile?: string;
-  preferredProfile?: string | null;
-}): "development" | "preview" | "production" => {
-  if (isBuildProfile(params.requestedProfile)) return params.requestedProfile;
-  if (isBuildProfile(params.preferredProfile)) return params.preferredProfile;
-  return "preview";
-};
-
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
-
-type CurrentBuildState = NonNullable<ProjectContextProps["currentBuild"]>;
 
 type BuildSelectionSnapshot = {
   jobId?: string | null;
   repoName?: string | null;
   branch?: string | null;
   buildProfile?: string | null;
-};
-
-export const resolveHistoryBuildSelection = (params: {
-  activeJobId?: string | null;
-  snapshot?: BuildSelectionSnapshot | null;
-  currentBuild?: {
-    githubRepo?: string | null;
-    branch?: string | null;
-    buildProfile?: string | null;
-  } | null;
-}) => {
-  const snapshot = params.snapshot;
-  const snapshotMatchesJob =
-    !!params.activeJobId &&
-    !!snapshot?.jobId &&
-    snapshot.jobId === params.activeJobId;
-
-  return {
-    repoName: snapshotMatchesJob
-      ? (snapshot?.repoName ?? undefined)
-      : (params.currentBuild?.githubRepo ?? undefined),
-    branch: snapshotMatchesJob
-      ? (snapshot?.branch ?? undefined)
-      : (params.currentBuild?.branch ?? undefined),
-    buildProfile: snapshotMatchesJob
-      ? (snapshot?.buildProfile ?? undefined)
-      : (params.currentBuild?.buildProfile ?? undefined),
-  };
 };
 
 export {
@@ -177,6 +105,15 @@ export {
   getExpoToken,
   syncRepoSecrets,
 } from "../infra/github/githubService";
+
+export {
+  appendChatMessageWithRetention,
+  resolveBuildProfileForStart,
+  resolveHistoryBuildSelection,
+  resolveLinkedBranchForRepoSelection,
+  sanitizeChatRetentionLimit,
+  shouldApplyHydratedRetention,
+} from "./projectContextStateHelpers";
 
 export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -656,20 +593,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     const initializeProject = async () => {
       try {
         logger.info("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
-        const savedProject = await loadProjectFromStorage();
-
-        if (savedProject) {
-          logger.info("📖 Projekt geladen:", savedProject.name);
-          setProjectData(normalizeLoadedProjectData(savedProject));
+        const initialized = await initializeProjectData({
+          loadProjectFromStorage,
+          loadTemplateFromFile,
+          saveProjectToStorage,
+          createProjectId: () => uuidv4(),
+        });
+        setProjectData(initialized.project);
+        if (initialized.source === "storage") {
+          logger.info("📖 Projekt geladen:", initialized.project.name);
         } else {
           logger.info("Kein Projekt gefunden, lade neues Template...");
-          const templateFiles = await loadTemplateFromFile();
-          const newProject = buildProjectForCreation({
-            id: uuidv4(),
-            files: templateFiles,
-          });
-          setProjectData(newProject);
-          await saveProjectToStorage(newProject);
           logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {
@@ -684,19 +618,25 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const handleAppStateChange = async (nextState: AppStateStatus) => {
-      if (nextState === "background" || nextState === "inactive") {
+      if (shouldFlushProjectSaveOnAppState(nextState)) {
         logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-          saveTimeoutRef.current = null;
-        }
-        if (projectData) {
-          try {
-            await saveProjectToStorage(projectData);
+        try {
+          const didSave = await flushPendingProjectSave({
+            saveTimeout: saveTimeoutRef.current,
+            clearPendingSave: () => {
+              if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+              }
+            },
+            projectData,
+            saveProjectToStorage,
+          });
+          if (didSave) {
             logger.info("✅ Background-Save erfolgreich");
-          } catch (error) {
-            logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
           }
+        } catch (error) {
+          logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
         }
       }
     };
@@ -714,43 +654,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     if (!activeJobId) return;
 
-    const mapped = buildPoll.status;
-    const urls = buildPoll.details?.urls;
     const nowIso = new Date().toISOString();
 
-    const msg =
-      mapped === "queued"
-        ? "⏳ Build ist in der Warteschlange…"
-        : mapped === "building"
-          ? "🔨 Build läuft…"
-          : mapped === "success"
-            ? "✅ Build erfolgreich!"
-            : mapped === "failed"
-              ? "❌ Build fehlgeschlagen."
-              : mapped === "error"
-                ? `⚠️ Fehler beim Status-Abruf${buildPoll.lastError ? ": " + buildPoll.lastError : "."}`
-                : "⏸️ Kein aktiver Build.";
-
-    setCurrentBuild((prev) => {
-      const base: CurrentBuildState = prev ?? { status: "idle" };
-      return {
-        ...base,
-        status: mapped,
-        jobId: activeJobId,
-        runId: buildPoll.details?.runId ?? base.runId ?? null,
-        sourceCommitSha: buildPoll.details?.sourceCommitSha ?? base.sourceCommitSha ?? null,
-        urls: {
-          html: urls?.html ?? base.urls?.html ?? null,
-          artifacts: urls?.artifacts ?? base.urls?.artifacts ?? null,
-          buildUrl: urls?.buildUrl ?? base.urls?.buildUrl ?? null,
-        },
-        message: msg,
-        lastUpdatedAt: nowIso,
-        completedAt: ["success", "failed", "error"].includes(mapped)
-          ? nowIso
-          : base.completedAt,
-      };
-    });
+    setCurrentBuild((prev) =>
+      mergeBuildPollIntoCurrentBuild({
+        previous: prev,
+        activeJobId,
+        details: buildPoll.details,
+        status: buildPoll.status,
+        lastError: buildPoll.lastError,
+        nowIso,
+      }),
+    );
   }, [activeJobId, buildPoll.details, buildPoll.lastError, buildPoll.status]);
 
   // Update build history as statuses arrive (best-effort)
