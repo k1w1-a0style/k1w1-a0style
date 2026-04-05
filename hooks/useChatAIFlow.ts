@@ -23,9 +23,8 @@ import {
   buildSystemMessage,
   buildUserMessage,
 } from "./chatAIFlowChatMessageFactory";
-import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
+import { getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
-  getBuilderFlowErrorNoticeText,
   getEmptyMessageNoticeText,
   getExplainFallbackNoticeText,
   getXssSanitizationNoticeText,
@@ -36,8 +35,10 @@ import {
 import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
-  BuilderNonOkError,
-} from "./chatAIFlowRequestOrchestrator";
+  buildRequestFailureNotice,
+  finalizeRequestCycle,
+  isAbortLikeError,
+} from "./chatAIFlowRequestLifecycleStageHelpers";
 import {
   getScreenBlurAbortNotice,
   hasPreservedPendingState,
@@ -533,29 +534,26 @@ export function useChatAIFlow({
         if (!isMountedRef.current) return false;
 
         const error = e instanceof Error ? e : new Error(String(e));
-        if (error.name === "AbortError" || /abgebrochen/i.test(error.message)) {
+        if (isAbortLikeError(error)) {
           return false;
         }
 
-        const builderFallbackMessage = error instanceof BuilderNonOkError
-          ? getBuilderFailureMessage(error.result)
-          : error.message;
-        const msg = getBuilderFlowErrorNoticeText(builderFallbackMessage);
+        const msg = buildRequestFailureNotice(error);
         safe(() => setError(msg));
 
         addChatMessage(buildAssistantMessage(msg, { error: true }));
 
         return false;
       } finally {
-        safe(() => setIsAiLoading(false));
-        inFlightRef.current = false;
-        if (abortControllerRef.current === controller) {
-          abortControllerRef.current = null;
-        }
-
-        setTimeout(() => {
-          if (isMountedRef.current) drainAutoFixQueue();
-        }, 0);
+        finalizeRequestCycle({
+          safe,
+          setIsAiLoading,
+          inFlightRef,
+          abortControllerRef,
+          requestController: controller,
+          isMountedRef,
+          drainAutoFixQueue,
+        });
       }
     },
     [
