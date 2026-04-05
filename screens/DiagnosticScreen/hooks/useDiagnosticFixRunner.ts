@@ -7,12 +7,6 @@ import type {
   PreflightCheckResult,
   PreflightPatch,
 } from "../../../lib/diagnostics/preflightTypes";
-import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
-import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
-import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
-import {
-  getErrorMessage,
-} from "./fixRunnerResultHelpers";
 import {
   pickAutoFixCandidates,
   pickSelectedFixCandidates,
@@ -27,8 +21,6 @@ import {
 } from "./fixRunnerPromptHelpers";
 import {
   buildFixPreviewEntries,
-  collectDeletedPatchPaths,
-  collectPatchTouchedPaths,
   shouldSyncPatchToGitHub,
 } from "./useDiagnosticFixRunnerHelpers";
 import {
@@ -44,6 +36,10 @@ import {
   undoHistoryEntries,
   undoHistoryEntry,
 } from "./fixRunnerLocalMutationExecutor";
+import {
+  dispatchWorkflowFix as dispatchWorkflowFixViaGitHub,
+  syncPatchToGitHub as syncPatchToGitHubViaGitHub,
+} from "./fixRunnerGitHubAdapter";
 
 import type {
   FixHistoryEntry,
@@ -149,10 +145,6 @@ export function useDiagnosticFixRunner(opts: {
     setPreviewVisible(true);
   }, [projectRef]);
 
-  const patchTouchedPaths = useCallback((patch: PreflightPatch): string[] => {
-    return collectPatchTouchedPaths(patch);
-  }, []);
-
   const shouldSyncPatch = useCallback(
     (patch: PreflightPatch): boolean => {
       return shouldSyncPatchToGitHub({
@@ -166,45 +158,15 @@ export function useDiagnosticFixRunner(opts: {
 
   const syncPatchToGitHub = useCallback(
     async (label: string, patch: PreflightPatch) => {
-      const parsed = parseOwnerRepo(linkedRepo);
-      if (!parsed) throw new Error("Kein verknüpftes Repo gefunden (owner/repo).");
-
-      const branch = (linkedBranch || "").trim();
-      if (!branch) {
-        throw new Error("Kein Branch verknüpft.");
-      }
-      const touched = patchTouchedPaths(patch);
-
-      const deletedSet = new Set(collectDeletedPatchPaths(patch));
-
-      const filesNow = projectRef.current?.files ?? [];
-      const nowMap = new Map(filesNow.map((f) => [f.path, f.content] as const));
-
-      for (const p of touched) {
-        if (deletedSet.has(p)) continue;
-        const content = nowMap.get(p);
-        if (typeof content !== "string") continue;
-        await createOrUpdateFile(
-          parsed.owner,
-          parsed.repo,
-          p,
-          content,
-          `Diagnostics: ${label}`,
-          branch,
-        );
-      }
-
-      for (const p of Array.from(deletedSet)) {
-        await deleteRepoFile(parsed.owner, parsed.repo, p, `Diagnostics: ${label}`, branch);
-      }
-
-      await markRepoSyncSignature({
+      await syncPatchToGitHubViaGitHub({
+        label,
+        patch,
         linkedRepo,
-        linkedBranch: branch,
-        files: projectRef.current?.files ?? [],
+        linkedBranch,
+        projectRef,
       });
     },
-    [linkedRepo, linkedBranch, patchTouchedPaths, projectRef],
+    [linkedRepo, linkedBranch, projectRef],
   );
 
   const applyPatch = useCallback(
@@ -252,29 +214,10 @@ export function useDiagnosticFixRunner(opts: {
       inputs: Record<string, string>;
       fallbackPatch?: PreflightPatch;
     }) => {
-      try {
-        await triggerWorkflow(
-          params.owner,
-          params.repo,
-          params.workflowFileName,
-          params.workflowRef,
-          params.inputs,
-        );
-      } catch (error: unknown) {
-        const msg = getErrorMessage(error, "");
-        if (/404|not found/i.test(msg) && params.fallbackPatch) {
-          await applyPatch(`Bootstrap ${params.workflowFileName}`, params.fallbackPatch);
-          await triggerWorkflow(
-            params.owner,
-            params.repo,
-            params.workflowFileName,
-            params.workflowRef,
-            params.inputs,
-          );
-          return;
-        }
-        throw error;
-      }
+      await dispatchWorkflowFixViaGitHub({
+        ...params,
+        applyPatch,
+      });
     },
     [applyPatch],
   );
