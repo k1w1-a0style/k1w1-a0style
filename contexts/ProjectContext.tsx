@@ -66,18 +66,23 @@ import {
   createProjectSaveScheduler,
   hydrateChatRetentionLimit,
   initializeProjectData,
+  shouldFlushProjectSaveOnAppState,
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
+  createBuildHistoryStatusSnapshot,
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
+  getValidContextMessages,
   mergeBuildPollIntoCurrentBuild,
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
+  shouldUpdateBuildHistoryStatus,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
+import { composeProjectContextValue } from "./projectContextValueHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -617,10 +622,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const flushPendingForAppState = async (nextState: AppStateStatus) => {
-      if (
-        nextState !== "background" &&
-        nextState !== "inactive"
-      ) {
+      if (!shouldFlushProjectSaveOnAppState(nextState)) {
         return;
       }
 
@@ -677,14 +679,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     if (!buildPoll.details) return;
 
     const status = buildPoll.status;
-    if (
-      lastHistoryStatusRef.current?.jobId === activeJobId &&
-      lastHistoryStatusRef.current?.status === status
-    ) {
+    if (!shouldUpdateBuildHistoryStatus({
+      lastSnapshot: lastHistoryStatusRef.current,
+      activeJobId,
+      status,
+    })) {
       return;
     }
 
-    lastHistoryStatusRef.current = { jobId: activeJobId, status };
+    lastHistoryStatusRef.current = createBuildHistoryStatusSnapshot({
+      activeJobId,
+      status,
+    });
 
     const historySelection = resolveHistoryBuildSelection({
       activeJobId,
@@ -804,15 +810,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
 
   const contextMessages = useMemo(
-    () =>
-      projectData?.chatHistory?.filter(
-        (msg) => msg && (msg.id || msg.timestamp) && typeof msg.content === "string",
-      ) || [],
+    () => getValidContextMessages(projectData?.chatHistory),
     [projectData?.chatHistory],
   );
 
   const value: ProjectContextProps = useMemo(
-    () => ({
+    () => composeProjectContextValue({
       projectData,
       isLoading,
       startBuild,

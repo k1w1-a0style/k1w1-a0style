@@ -67,6 +67,11 @@ type BuildSelectionSnapshot = {
   buildProfile?: string | null;
 };
 
+export type BuildHistoryStatusSnapshot = {
+  jobId: string;
+  status: BuildStatus;
+};
+
 export const resolveHistoryBuildSelection = (params: {
   activeJobId?: string | null;
   snapshot?: BuildSelectionSnapshot | null;
@@ -93,6 +98,33 @@ export const resolveHistoryBuildSelection = (params: {
       ? (snapshot?.buildProfile ?? undefined)
       : (params.currentBuild?.buildProfile ?? undefined),
   };
+};
+
+export const shouldUpdateBuildHistoryStatus = (params: {
+  lastSnapshot: BuildHistoryStatusSnapshot | null;
+  activeJobId: string;
+  status: BuildStatus;
+}): boolean => {
+  return !(
+    params.lastSnapshot?.jobId === params.activeJobId &&
+    params.lastSnapshot?.status === params.status
+  );
+};
+
+export const createBuildHistoryStatusSnapshot = (params: {
+  activeJobId: string;
+  status: BuildStatus;
+}): BuildHistoryStatusSnapshot => ({
+  jobId: params.activeJobId,
+  status: params.status,
+});
+
+export const getValidContextMessages = (
+  history: ChatMessage[] | null | undefined,
+): ChatMessage[] => {
+  return (history ?? []).filter(
+    (msg) => msg && (msg.id || msg.timestamp) && typeof msg.content === "string",
+  );
 };
 
 export type CurrentBuildState = NonNullable<ProjectContextProps["currentBuild"]>;

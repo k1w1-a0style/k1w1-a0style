@@ -6,10 +6,11 @@ function read(rel: string): string {
 }
 
 describe("ProjectContext messages reference invariants", () => {
-  it("memoizes context messages from chatHistory and reuses memoized reference in context value", () => {
+  it("memoizes context messages via helper and reuses memoized reference in context value", () => {
     const src = read("contexts/ProjectContext.tsx");
 
     expect(src).toContain("const contextMessages = useMemo(");
+    expect(src).toContain("getValidContextMessages(projectData?.chatHistory)");
     expect(src).toContain("[projectData?.chatHistory]");
     expect(src).toContain("messages: contextMessages");
   });
