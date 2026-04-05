@@ -58,7 +58,7 @@ describe("enhancedBuildScreenOrchestration", () => {
     ]);
 
     expect(result?.repoName).toBe("o/r");
-    expect(result?.jobId).toBeNull();
+    expect(result?.jobId).toBe("");
   });
 
   test("keeps active/final status guards exact", () => {

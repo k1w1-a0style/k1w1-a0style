@@ -38,12 +38,19 @@ import {
   resolveHistoryMatchForRun,
 } from "./enhancedBuildScreenOrchestration";
 import {
+  createChecklistItems,
+  resolveBuildBlockedAction,
+  type BuildBlockedAction,
+} from "./enhancedBuildScreenReadiness";
+import {
   filterWorkflowRunsByProfile,
   getWorkflowRunsEmptyStateText,
   type ModeFilter,
 } from "./runFilterState";
 
 export const MAX_RUNS_DISPLAY = 10;
+const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
+const BRANCH_MISSING_BLOCK_REASON = "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
 
 export function useEnhancedBuildScreen() {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
@@ -195,17 +202,9 @@ export function useEnhancedBuildScreen() {
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
-type BuildBlockedAction = {
-  title: string;
-  detail: string;
-  ctaLabel: string;
-  screen: "GitHubRepos" | "Connections" | "Diagnostic" | "CredentialsWizard";
-  params?: Record<string, unknown>;
-};
-
   const buildBlockedReason = useMemo(() => {
-    if (!repoValidation.valid) return "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
-    if (!branchName.trim()) return "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
+    if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
+    if (!branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!hasProjectFiles) return projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!hasDiagOk) return diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
@@ -220,56 +219,16 @@ type BuildBlockedAction = {
   }, [repoValidation.valid, branchName, hasTokens, hasProjectFiles, projectFilesReason, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, repoSyncState, repoSyncReason, hasSigningKey, signingKeyReason]);
 
   const buildBlockedAction = useMemo<BuildBlockedAction | null>(() => {
-    if (!repoValidation.valid || !branchName.trim()) {
-      return {
-        title: "Repo/Branch zuerst verknüpfen",
-        detail: buildBlockedReason || "Ohne Selection sind Diagnostik, CI-Lite und Build-Gates absichtlich nicht grün.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (!hasTokens) {
-      return {
-        title: "Tokens fehlen",
-        detail: buildBlockedReason || "GitHub- und Expo-Token zuerst im Verbindungen-Screen setzen.",
-        ctaLabel: "Verbindungen öffnen",
-        screen: "Connections",
-      };
-    }
-    if (!hasDiagOk) {
-      return {
-        title: "Diagnostik fehlt oder passt nicht zur Selection",
-        detail: buildBlockedReason || "Diagnostik für dieses Repo/Branch erneut ausführen.",
-        ctaLabel: "Diagnostic öffnen",
-        screen: "Diagnostic",
-        params: { autoRun: true },
-      };
-    }
-    if (!hasCiLiteOk) {
-      return {
-        title: "CI-Lite nicht sicher grün",
-        detail: buildBlockedReason || "CI-Lite für dieses Repo/Branch erneut laufen lassen.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (repoSyncState === "unknown") {
-      return {
-        title: "Repo-Sync unklar",
-        detail: buildBlockedReason || "Einmal explizit pushen, damit der Sync-Status materialisiert wird.",
-        ctaLabel: "GitHub-Repos öffnen",
-        screen: "GitHubRepos",
-      };
-    }
-    if (!hasSigningKey) {
-      return {
-        title: "Signing-Key fehlt",
-        detail: buildBlockedReason || "Den Wizard öffnen und den Signing-Key prüfen oder erzeugen.",
-        ctaLabel: "Wizard öffnen",
-        screen: "CredentialsWizard",
-      };
-    }
-    return null;
+    return resolveBuildBlockedAction({
+      repoValidationValid: repoValidation.valid,
+      branchName,
+      hasTokens,
+      hasDiagOk,
+      hasCiLiteOk,
+      repoSyncState,
+      hasSigningKey,
+      buildBlockedReason,
+    });
   }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, repoSyncState, hasSigningKey, buildBlockedReason]);
 
   const {
@@ -553,99 +512,39 @@ type BuildBlockedAction = {
   }, [hasStartBuild, buildLoading, buildInFlight, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
-    const hasRepo = !!repoFullName.trim();
-    const hasBranch = !!branchName.trim();
-    return [
-      {
-        id: "signing_key",
-        label: "Signing-Key bereit",
-        status: hasSigningKey ? "ok" : "fail",
-        detail: hasSigningKey
-          ? `${buildProfile} · letzter bekannter Wizard-Stand`
-          : (signingKeyReason || "Fehlt noch - im Wizard prüfen oder erzeugen"),
-      },
-      {
-        id: "tokens",
-        label: "Tokens vorhanden (GitHub + Expo)",
-        status: hasTokens ? "ok" : "fail",
-        detail: hasTokens ? undefined : "Im Verbindungen-Screen setzen",
-      },
-      {
-        id: "diagnostic",
-        label: "Diagnose erfolgreich",
-        status: hasDiagOk ? "ok" : "pending",
-        detail: hasDiagOk
-          ? "Letzter bekannter Diagnose-Check: OK"
-          : (!hasRepo || !hasBranch
-            ? "Repo und Branch zuerst wählen – dann Diagnostik für genau diese Selection ausführen"
-            : (diagnosticReason || "Diagnose ausfuehren")),
-      },
-      {
-        id: "ci_lite",
-        label: "Code-Checks grün (CI Lite)",
-        status: hasCiLiteOk ? "ok" : "pending",
-        detail: hasCiLiteOk
-          ? "Letzter bekannter CI-Lite-Run: OK"
-          : (!hasRepo || !hasBranch
-            ? "Repo und Branch zuerst wählen – dann CI-Lite für genau diese Selection ausführen"
-            : (ciLiteReason || "Im Header CI Lite ausführen")),
-      },
-      {
-        id: "repo",
-        label: "Repo gewaehlt",
-        status: hasRepo ? "ok" : "fail",
-        detail: hasRepo ? repoFullName : "Im GitHub-Repos-Screen verknuepfen",
-      },
-      {
-        id: "branch",
-        label: "Branch gewaehlt",
-        status: hasBranch ? "ok" : "fail",
-        detail: hasBranch ? branchName : "Im GitHub-Repos-Screen auswaehlen",
-      },
-      {
-        id: "project_files",
-        label: "Projektdateien vorhanden",
-        status: hasProjectFiles ? "ok" : "fail",
-        detail: hasProjectFiles
-          ? `${projectData?.files?.length ?? 0} Dateien im Projekt`
-          : (projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren"),
-      },
-      {
-        id: "repo_sync",
-        label: "Repo-Sync lokal ↔ Repo bekannt",
-        status: !hasRepo || !hasBranch ? "pending" : !hasProjectFiles ? "pending" : repoSyncState === "unknown" ? "fail" : "ok",
-        detail: !hasRepo || !hasBranch
-          ? "Repo und Branch zuerst wählen"
-          : !hasProjectFiles
-            ? "Repo-Sync wird relevant, sobald Dateien im Projekt vorhanden sind"
-            : repoSyncState === "unknown"
-              ? (repoSyncReason || "Bitte einmal explizit pushen, damit der Sync-Status materialisiert wird")
-              : repoSyncState === "out_of_sync"
-                ? "Lokale Dateien weichen ab – der Build-Start pusht kontrolliert vor dem Dispatch"
-                : (repoSyncReason || "Lokaler Stand ist für diese Selection bereits bekannt"),
-      },
-      {
-        id: "build_mode",
-        label: `Build = ${buildProfile}`,
-        status: "ok",
-        detail: `Profil: ${buildProfile}`,
-      },
-    ];
+    return createChecklistItems({
+      buildProfile,
+      repoFullName,
+      branchName,
+      hasSigningKey,
+      signingKeyReason,
+      hasTokens,
+      hasDiagOk,
+      diagnosticReason,
+      hasCiLiteOk,
+      ciLiteReason,
+      hasProjectFiles,
+      projectFilesReason,
+      repoSyncState,
+      repoSyncReason,
+      projectFilesCount: projectData?.files?.length ?? 0,
+    });
   }, [
+    buildProfile,
+    repoFullName,
+    branchName,
     hasSigningKey,
     signingKeyReason,
     hasTokens,
     hasDiagOk,
     diagnosticReason,
-    hasProjectFiles,
-    projectFilesReason,
     hasCiLiteOk,
     ciLiteReason,
+    hasProjectFiles,
+    projectFilesReason,
     repoSyncState,
     repoSyncReason,
-    repoFullName,
-    branchName,
-    buildProfile,
+    projectData?.files?.length,
   ]);
 
 
