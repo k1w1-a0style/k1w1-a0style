@@ -2,8 +2,7 @@
 // REFACTORED: types + helpers → chatAIFlowTypes.ts
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Platform, ToastAndroid } from "react-native";
-import { v4 as uuidv4 } from "uuid";
+import { Alert } from "react-native";
 import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
 import type { Quality } from "../lib/orchestrator/types";
 import { MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
@@ -49,12 +48,16 @@ import {
   clearPendingDecisionState,
   resetTransientUiState,
 } from "./chatAIFlowTransientStateHelpers";
+import { parseRetryAfterMs } from "./useChatAIFlowRetryHelpers";
 import {
-  parseRetryAfterMs,
-  readOrchestratorRuntimeNote,
-} from "./useChatAIFlowRetryHelpers";
+  announceContextBudgetNoteEffect,
+  announceRuntimeNoteEffect,
+  notifyKeyRotationEffect,
+} from "./chatAIFlowRequestSideEffects";
+import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
+export { extractContextBudgetNotice } from "./chatAIFlowContextBudgetHelpers";
 
 const BUILDER_RETRY_BACKOFF_MS = 700;
 const BUILDER_RETRY_MAX_BACKOFF_MS = 3_500;
@@ -173,19 +176,7 @@ export const isDirectBuildCommand = (input: string): boolean => {
   return lower === "direkt build" || lower === "build" || lower === "jetzt builden";
 };
 
-export const extractContextBudgetNotice = (
-  llmMessages: Array<{ role: string; content: string }>,
-): string => {
-  for (const message of llmMessages) {
-    if (message.role !== "system") continue;
-    const content = String(message.content ?? "");
-    const match = content.match(/\[intern\]\s*(Kontext gekürzt \([^)]+\)\.)/i);
-    if (match?.[1]) {
-      return `🏷️ **Kontext gekürzt:** ${match[1]}`;
-    }
-  }
-  return "";
-};
+
 
 export function useChatAIFlow({
   config,
@@ -381,61 +372,24 @@ export function useChatAIFlow({
 
   const notifyKeyRotation = useCallback(
     (res: OrchestratorResult | null | undefined) => {
-      if (!res) return;
-      const count = res.keysRotated ?? 0;
-      if (count <= 0) return;
-
-      const provider = res.provider ?? "unbekannt";
-      const msg = `🔑 Key rotiert (${count}x) wegen 429/Rate-Limit • Provider: ${provider}`;
-
-      try {
-        if (Platform.OS === "android") {
-          ToastAndroid.show(msg, ToastAndroid.LONG);
-        }
-      } catch (e) {
-        logger.warn("[notifyKeyRotation] Toast failed:", e);
-      }
-
-      addChatMessage({
-        id: uuidv4(),
-        role: "system",
-        content: msg,
-        timestamp: new Date().toISOString(),
-        meta: { keyRotation: true, provider },
-      });
+      notifyKeyRotationEffect({ result: res, addChatMessage });
     },
     [addChatMessage],
   );
 
   const announceRuntimeNote = useCallback(
     (result: OrchestratorResult | null | undefined) => {
-      const note = readOrchestratorRuntimeNote(result);
-      if (!note) return;
-
-      addChatMessage({
-        id: uuidv4(),
-        role: "system",
-        content: note,
-        timestamp: new Date().toISOString(),
-        meta: { runtimeNote: true, fallbackUsed: !!result?.fallbackUsed },
-      });
+      announceRuntimeNoteEffect({ result, addChatMessage });
     },
     [addChatMessage],
   );
 
   const announceContextBudgetNote = useCallback(
     (llmMessages: Array<{ role: string; content: string }>) => {
-      const note = extractContextBudgetNotice(llmMessages);
-      if (!note) return;
-      if (note === lastContextBudgetNoticeRef.current) return;
-      lastContextBudgetNoticeRef.current = note;
-
-      addChatMessage({
-        id: uuidv4(),
-        role: "system",
-        content: note,
-        timestamp: new Date().toISOString(),
-        meta: { runtimeNote: true, contextBudgetNote: true },
+      announceContextBudgetNoteEffect({
+        llmMessages,
+        lastContextBudgetNoticeRef,
+        addChatMessage,
       });
     },
     [addChatMessage],
@@ -508,25 +462,15 @@ export function useChatAIFlow({
           },
         });
 
-        if (pipelineResult.kind === "confirmation_required") {
-          addChatMessage(
-            buildAssistantMessage(pipelineResult.message, { planner: true }),
-          );
-          return true;
-        }
-
-        if (pipelineResult.kind === "planner_preview") {
-          addChatMessage(
-            buildAssistantMessage(pipelineResult.message, { planner: true }),
-          );
-          pendingPlanRef.current = pipelineResult.pendingPlan;
-          safe(() => setPendingPlan(pipelineResult.pendingPlan));
-          return true;
-        }
-
-        simulateStreaming(pipelineResult.summaryText, () => {
-          safe(() => setPendingChange(pipelineResult.pendingChange));
-          safe(() => setShowConfirmModal(true));
+        handlePipelineResult({
+          pipelineResult,
+          addChatMessage,
+          pendingPlanRef,
+          setPendingPlan,
+          safe,
+          simulateStreaming,
+          setPendingChange,
+          setShowConfirmModal,
         });
 
         return true;
