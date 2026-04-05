@@ -10,8 +10,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { getGitHubToken } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { useGitHubRepos, WorkflowRun } from "../../../hooks/useGitHubRepos";
-import { combineRepos } from "../utils/repos";
+import { useGitHubRepos } from "../../../hooks/useGitHubRepos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
@@ -25,6 +24,7 @@ import { useGitHubReposSelection } from "./useGitHubReposSelection";
 import { useGitHubReposEasLink } from "./useGitHubReposEasLink";
 import { useGitHubReposSyncStatus } from "./useGitHubReposSyncStatus";
 import { useGitHubReposPushPull } from "./useGitHubReposPushPull";
+import { useGitHubReposDerivedState } from "./useGitHubReposDerivedState";
 
 export function useGitHubReposScreen() {
   const {
@@ -320,33 +320,15 @@ export function useGitHubReposScreen() {
     }
   }, [activeRepo]);
 
-  const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
-
-  const activeRepoObj = useMemo(() => {
-    if (!activeRepo) return null;
-    return combinedRepos.find((r) => r.full_name === activeRepo) ?? null;
-  }, [activeRepo, combinedRepos]);
-
-  const filteredRepos = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    let list = combinedRepos;
-
-    if (filterType === "activeOnly" && activeRepo) {
-      list = list.filter((r) => r.full_name === activeRepo);
-    }
-    if (filterType === "recentOnly") {
-      list = list.filter((r) => recentRepos.includes(r.full_name));
-    }
-
-    if (term) {
-      list = list.filter((r) => r.full_name.toLowerCase().includes(term));
-    }
-    return list;
-  }, [combinedRepos, searchTerm, filterType, activeRepo, recentRepos]);
-
-  const workflowRuns = useCallback(async (owner: string, repo: string, perPage?: number): Promise<WorkflowRun[]> => {
-    return loadWorkflowRuns(owner, repo, perPage);
-  }, [loadWorkflowRuns]);
+  const { combinedRepos, activeRepoObj, filteredRepos, workflowRuns } = useGitHubReposDerivedState({
+    repos,
+    localRepos,
+    activeRepo,
+    recentRepos,
+    searchTerm,
+    filterType,
+    loadWorkflowRuns,
+  });
 
   return {
     // local project
