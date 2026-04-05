@@ -26,6 +26,7 @@ import {
 import { useBuildPreconditions } from "./useBuildPreconditions";
 import { useEnhancedBuildRuns } from "./useEnhancedBuildRuns";
 import { useEnhancedBuildStartController } from "./useEnhancedBuildStartController";
+import { filterBuildHistoryByMode, summarizeBuildHistoryStats } from "./enhancedBuildScreenHistory";
 import {
   countHiddenRuns,
   mapWorkflowLogsToLines,
@@ -113,24 +114,11 @@ export function useEnhancedBuildScreen() {
 
 
   const filteredHistory = useMemo(() => {
-    const all = buildHistory.history ?? [];
-    if (historyFilter === "all") return all;
-    const needle = String(historyFilter).toLowerCase();
-    return all.filter(
-      (h) => String(h.buildProfile || "").toLowerCase() === needle,
-    );
+    return filterBuildHistoryByMode(buildHistory.history, historyFilter);
   }, [buildHistory.history, historyFilter]);
 
   const filteredStats = useMemo(() => {
-    const list = filteredHistory ?? [];
-    return {
-      total: list.length,
-      success: list.filter((e) => e.status === "success").length,
-      failed: list.filter((e) => e.status === "failed" || e.status === "error").length,
-      building: list.filter(
-        (e) => e.status === "building" || e.status === "queued",
-      ).length,
-    };
+    return summarizeBuildHistoryStats(filteredHistory);
   }, [filteredHistory]);
 
   // Sync persisted profile when project loads or changes
