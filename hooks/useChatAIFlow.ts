@@ -32,6 +32,11 @@ import {
   tryPlanChatRequest,
 } from "./chatAIFlowRequestOrchestrator";
 import {
+  getScreenBlurAbortNotice,
+  hasPreservedPendingState,
+  shouldAbortOnScreenBlur,
+} from "./chatAIFlowLifecycleHelpers";
+import {
   parseRetryAfterMs,
   readOrchestratorRuntimeNote,
 } from "./useChatAIFlowRetryHelpers";
@@ -949,14 +954,17 @@ export function useChatAIFlow({
   ]);
 
   const handleScreenBlurCleanup = useCallback(() => {
-    const hadActiveRequest =
-      inFlightRef.current || abortControllerRef.current !== null;
-    const hadQueuedAutoFix = queuedAutoFixRef.current.length > 0;
+    const shouldAbort = shouldAbortOnScreenBlur({
+      inFlight: inFlightRef.current,
+      hasAbortController: abortControllerRef.current !== null,
+      queuedAutoFixCount: queuedAutoFixRef.current.length,
+    });
+    if (!shouldAbort) return;
 
-    if (!hadActiveRequest && !hadQueuedAutoFix) return;
-
-    const preservedPendingState =
-      pendingPlanRef.current !== null || pendingChangeRef.current !== null;
+    const preservedPendingState = hasPreservedPendingState({
+      hasPendingPlan: pendingPlanRef.current !== null,
+      hasPendingChange: pendingChangeRef.current !== null,
+    });
 
     cleanupStreamingTimer();
     streamingRunIdRef.current += 1;
@@ -972,9 +980,7 @@ export function useChatAIFlow({
     addChatMessage({
       id: uuidv4(),
       role: "system",
-      content: preservedPendingState
-        ? "ℹ️ Laufender KI-Vorgang wurde beim Verlassen des Chat-Screens abgebrochen. Vorliegende Plan-/Änderungsstände bleiben erhalten."
-        : "ℹ️ Laufender KI-Vorgang wurde beim Verlassen des Chat-Screens abgebrochen.",
+      content: getScreenBlurAbortNotice(preservedPendingState),
       timestamp: new Date().toISOString(),
       meta: {
         requestAbortedOnBlur: true,
