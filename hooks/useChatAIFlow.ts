@@ -6,7 +6,6 @@ import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
 import type { Quality } from "../lib/orchestrator/types";
-import type { ApplyFilesResult } from "../lib/fileWriter";
 import { MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
@@ -14,9 +13,7 @@ import { buildChangeConfirmationText } from "./chatChangeSummary";
 import { runOrchestrator } from "../lib/orchestrator";
 import type { AllAIProviders } from "../contexts/AIContext";
 import { logger } from "../lib/logger";
-import { applyFilesToProject } from "../lib/fileWriter";
-import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
-import { buildChangePreviews } from "../lib/changePreview";
+import { rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { validateChatInput } from "../lib/validators";
 
 import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
@@ -39,13 +36,13 @@ import {
   buildIntentConfirmationMessage,
   buildPlannerPreviewMessage,
 } from "./chatAIFlowPlannerMessageHelpers";
-import { buildAiProposalSummary } from "./chatAIFlowSummaryHelpers";
 import {
   buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
   isProceedCommand,
   shouldHoldPendingPlan,
 } from "./chatAIFlowInputRoutingHelpers";
+import { composePendingChange, computeMergeResult } from "./chatAIFlowPendingChangeComposer";
 import {
   BuilderNonOkError,
   runBuilderWithRetry,
@@ -574,18 +571,9 @@ export function useChatAIFlow({
           sideEffects: { notifyKeyRotation, addValidatorWarning },
         });
 
-        const baseProjectDigest = buildProjectStateDigest(currentProjectFiles);
-        const mergeResult: ApplyFilesResult = applyFilesToProject(
-          currentProjectFiles,
-          finalFiles,
-        );
-        const changePreviews = buildChangePreviews({
-          baseFiles: currentProjectFiles,
-          finalFiles: mergeResult.files,
-          created: mergeResult.created,
-          updated: mergeResult.updated,
-        });
         const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
+
+        const mergeResult = computeMergeResult(currentProjectFiles, finalFiles);
 
         let explainText = "";
         if (
@@ -612,37 +600,23 @@ export function useChatAIFlow({
           }
         }
 
-        const summaryText = buildAiProposalSummary({
+        const composedChange = composePendingChange({
           isAutoFix,
+          currentProjectFiles,
+          finalFiles,
+          proposedFiles: finalFiles,
+          aiResponse: ai,
+          agentResponse: agentMeta,
+          finalFileSource,
+          validatorState,
           sourceSummary,
           explainText,
           preflightIntro: buildPreflightSummaryIntro(),
-          created: mergeResult.created,
-          updated: mergeResult.updated,
-          skipped: mergeResult.skipped,
-          errors: mergeResult.errors,
           buildPathBulletList,
         });
 
-        simulateStreaming(summaryText, () => {
-          safe(() =>
-            setPendingChange({
-              files: mergeResult.files,
-              proposedFiles: finalFiles,
-              baseProjectDigest,
-              summary: summaryText,
-              created: mergeResult.created,
-              updated: mergeResult.updated,
-              skipped: mergeResult.skipped,
-              errors: mergeResult.errors,
-              aiResponse: ai,
-              agentResponse: agentMeta ?? undefined,
-              changePreviews,
-              finalFileSource,
-              validatorState,
-              sourceSummary,
-            }),
-          );
+        simulateStreaming(composedChange.summaryText, () => {
+          safe(() => setPendingChange(composedChange.pendingChange));
           safe(() => setShowConfirmModal(true));
         });
 
