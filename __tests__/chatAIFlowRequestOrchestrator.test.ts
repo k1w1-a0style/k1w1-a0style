@@ -1,6 +1,7 @@
 import type { OrchestratorResult } from "../lib/orchestrator";
 import type { AIConfig } from "../contexts/AIContext";
 import {
+  BuilderNonOkError,
   runBuilderWithRetry,
   runExplainStage,
   runValidatorIfEnabled,
@@ -114,6 +115,27 @@ describe("chatAIFlowRequestOrchestrator", () => {
     expect(result.finalFileSource).toBe("builder");
     expect(result.validatorState).toBe("builder-fallback-empty");
     expect(addValidatorWarning).toHaveBeenCalledWith("builder-fallback-empty");
+  });
+
+  it("throws BuilderNonOkError when builder remains non-ok after retries", async () => {
+    const run = jest.fn().mockResolvedValue({ ok: false, error: "Rate limit" } as OrchestratorResult);
+
+    await expect(
+      runBuilderWithRetry({
+        config: makeConfig(),
+        requestContent: "Bitte bauen",
+        currentMessages: [],
+        currentProjectFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
+        runOrchestratorWithTimeout: run,
+        computeRetryDelayMs: () => 1,
+        sleepWithAbort: jest.fn().mockResolvedValue(undefined),
+        sideEffects: {
+          announceContextBudgetNote: jest.fn(),
+          notifyKeyRotation: jest.fn(),
+          announceRuntimeNote: jest.fn(),
+        },
+      }),
+    ).rejects.toBeInstanceOf(BuilderNonOkError);
   });
 
   it("skips explain call when no changes are present", async () => {

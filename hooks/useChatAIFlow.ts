@@ -25,6 +25,7 @@ import { handleMetaCommand } from "../utils/metaCommands";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
+  BuilderNonOkError,
   runBuilderWithRetry,
   runExplainStage,
   runValidatorIfEnabled,
@@ -665,12 +666,8 @@ export function useChatAIFlow({
           return false;
         }
 
-        const builderNonOkPrefix = "builder_non_ok:";
-        const builderFallbackMessage = error.message.startsWith(builderNonOkPrefix)
-          ? getBuilderFailureMessage({
-              ok: false,
-              error: error.message.slice(builderNonOkPrefix.length),
-            })
+        const builderFallbackMessage = error instanceof BuilderNonOkError
+          ? getBuilderFailureMessage(error.result)
           : error.message;
         const msg = `⚠️ ${builderFallbackMessage || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
         safe(() => setError(msg));

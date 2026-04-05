@@ -14,6 +14,16 @@ import type { ProjectFile } from "../shared/types/project";
 
 export const BUILDER_RETRY_MAX_ATTEMPTS = 3;
 
+export class BuilderNonOkError extends Error {
+  public readonly result: OrchestratorResult | null;
+
+  constructor(result: OrchestratorResult | null) {
+    super(readOrchestratorErrorText(result));
+    this.name = "BuilderNonOkError";
+    this.result = result;
+  }
+}
+
 type RunOrchestratorWithTimeout = (
   provider: AllAIProviders,
   model: string,
@@ -159,7 +169,7 @@ export const runBuilderWithRetry = async ({
   }
 
   if (!ai || !ai.ok) {
-    throw new Error(`builder_non_ok:${readOrchestratorErrorText(ai)}`);
+    throw new BuilderNonOkError(ai);
   }
 
   const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
