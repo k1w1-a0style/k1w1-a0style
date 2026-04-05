@@ -7,8 +7,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
 import type { Quality } from "../lib/orchestrator/types";
 import type { ApplyFilesResult } from "../lib/fileWriter";
-import { extractRawOrchestratorResult, MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
-import type { ExtendedOrchestratorResult, UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
+import { MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
+import type { UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
 
 import { runOrchestrator } from "../lib/orchestrator";
@@ -18,30 +18,26 @@ import { applyFilesToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { buildChangePreviews } from "../lib/changePreview";
 import { validateChatInput } from "../lib/validators";
-import { buildBuilderMessages, buildPlannerMessages, buildValidatorMessages } from "../lib/promptEngine";
-import { buildSanitizedLlmHistory } from "../lib/promptSanitizer";
+
 import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
-import {
-  classifyChatIntent,
-  buildChangeDigest,
-  buildExplainMessages,
-  looksLikeScoutModeRequest,
-} from "../utils/chatHeuristics";
+import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
-import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
+  runBuilderWithRetry,
+  runExplainStage,
+  runValidatorIfEnabled,
+  tryPlanChatRequest,
+} from "./chatAIFlowRequestOrchestrator";
+import {
   parseRetryAfterMs,
-  readOrchestratorErrorText,
   readOrchestratorRuntimeNote,
-  shouldRetryBuilderAttempt,
 } from "./useChatAIFlowRetryHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 
 const BUILDER_RETRY_BACKOFF_MS = 700;
-const BUILDER_RETRY_MAX_ATTEMPTS = 3;
 const BUILDER_RETRY_MAX_BACKOFF_MS = 3_500;
 export const CHAT_AI_REQUEST_TIMEOUT_MS = 45_000;
 
@@ -468,22 +464,30 @@ export function useChatAIFlow({
       abortControllerRef.current = controller;
 
       try {
-        // ✅ FIX #1: Read from refs to avoid stale closures
         const currentMessages = messagesRef.current;
         const currentProjectFiles = projectFilesRef.current;
         const currentPendingPlan = pendingPlanRef.current;
 
-        const historyAsLlm = buildSanitizedLlmHistory(currentMessages);
-
-        // CALL 1: Planner (nur wenn nicht AutoFix / nicht forced / kein pendingPlan)
         if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const scoutOnly = looksLikeScoutModeRequest(sanitizedRequestContent);
-          const intentDecision = classifyChatIntent(sanitizedRequestContent);
-          const advice = intentDecision.intent === "advice";
-          const shouldPlanner = scoutOnly || intentDecision.intent !== "builder";
+          const planner = await tryPlanChatRequest({
+            config,
+            currentMessages,
+            currentProjectFiles,
+            requestContent: sanitizedRequestContent,
+            signal: controller.signal,
+            runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
+            sideEffects: {
+              announceContextBudgetNote,
+              notifyKeyRotation,
+              announceRuntimeNote,
+            },
+            recordConfirmationPrompt: () => {
+              void recordChatQualityMetric("intent_confirmation_prompt");
+            },
+          });
 
-          if (intentDecision.requiresConfirmation) {
-            void recordChatQualityMetric("intent_confirmation_prompt");
+          if (planner.requiresConfirmation) {
+            const intentDecision = classifyChatIntent(sanitizedRequestContent);
             addChatMessage({
               id: uuidv4(),
               role: "assistant",
@@ -497,116 +501,43 @@ export function useChatAIFlow({
             return true;
           }
 
-          if (shouldPlanner) {
-            const plannerMsgs = buildPlannerMessages(
-              historyAsLlm,
-              sanitizedRequestContent,
-              currentProjectFiles,
-              config.selectedChatProvider,
-            );
-            announceContextBudgetNote(plannerMsgs);
+          if (planner.pendingPlan && planner.plannerText) {
+            addChatMessage({
+              id: uuidv4(),
+              role: "assistant",
+              content:
+                "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
+                buildGuardPolicyPreHint() +
+                "\n\n" +
+                planner.plannerText +
+                "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
+                '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
+              timestamp: new Date().toISOString(),
+              meta: { planner: true },
+            });
 
-            const planRes = await runOrchestratorWithHardTimeout(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              "speed",
-              plannerMsgs,
-              controller.signal,
-            );
-
-            notifyKeyRotation(planRes);
-            announceRuntimeNote(planRes);
-
-            if (
-              planRes?.ok &&
-              typeof planRes.text === "string" &&
-              planRes.text.trim().length > 0
-            ) {
-              const planText = planRes.text.trim();
-
-              addChatMessage({
-                id: uuidv4(),
-                role: "assistant",
-                content:
-                  "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
-                  buildGuardPolicyPreHint() +
-                  "\n\n" +
-                  planText +
-                  "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
-                  '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
-                timestamp: new Date().toISOString(),
-                meta: { planner: true },
-              });
-
-              const nextPlan: PendingPlan = {
-                originalRequest: sanitizedRequestContent,
-                planText,
-                mode: scoutOnly ? "scout" : advice ? "advice" : "build",
-              };
-              // Keep ref/state in sync immediately to avoid planner→builder races
-              // when the follow-up user message lands before the next render commit.
-              pendingPlanRef.current = nextPlan;
-              safe(() => setPendingPlan(nextPlan));
-
-              return true;
-            }
+            pendingPlanRef.current = planner.pendingPlan;
+            safe(() => setPendingPlan(planner.pendingPlan));
+            return true;
           }
         }
 
-        // CALL 2: Builder
-        const llmMessages = buildBuilderMessages(
-          historyAsLlm,
-          sanitizedRequestContent,
+        const { ai, normalizedFiles } = await runBuilderWithRetry({
+          config,
+          requestContent: sanitizedRequestContent,
+          currentMessages,
           currentProjectFiles,
-          config.selectedChatProvider,
-        );
-        announceContextBudgetNote(llmMessages);
+          signal: controller.signal,
+          runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
+          computeRetryDelayMs: computeBuilderRetryDelayMs,
+          sleepWithAbort,
+          sideEffects: {
+            announceContextBudgetNote,
+            notifyKeyRotation,
+            announceRuntimeNote,
+          },
+        });
 
-        let ai: OrchestratorResult | null = null;
-        for (let attempt = 1; attempt <= BUILDER_RETRY_MAX_ATTEMPTS; attempt += 1) {
-          ai = await runOrchestratorWithHardTimeout(
-            config.selectedChatProvider,
-            config.selectedChatMode,
-            config.qualityMode,
-            llmMessages,
-            controller.signal,
-          );
-
-          notifyKeyRotation(ai);
-          announceRuntimeNote(ai);
-
-          if (ai?.ok) break;
-
-          const errText = readOrchestratorErrorText(ai);
-          const shouldRetry = shouldRetryBuilderAttempt({
-            attempt,
-            maxAttempts: BUILDER_RETRY_MAX_ATTEMPTS,
-            errorText: errText,
-          });
-          if (!shouldRetry) break;
-
-          const backoffMs = computeBuilderRetryDelayMs(attempt, errText);
-          logger.warn(
-            `[useChatAIFlow] Builder retry ${attempt}/${BUILDER_RETRY_MAX_ATTEMPTS - 1} in ${backoffMs}ms: ${errText.slice(0, 220)}`,
-          );
-          await sleepWithAbort(backoffMs, controller.signal);
-        }
-
-        if (!ai || !ai.ok) {
-          throw new Error(getBuilderFailureMessage(ai));
-        }
-
-        // ✅ FIX #7: Type-safe extraction of raw data
-        const rawForNormalizer = extractRawOrchestratorResult(ai as ExtendedOrchestratorResult);
-
-        const normalizedResult = normalizeResultFiles(rawForNormalizer);
-        const normalized = readBuilderFilesOrThrow(normalizedResult, ai.text ?? "");
-
-        // Optional Agent (Validator)
-        let finalFiles = normalized;
-        let agentMeta: OrchestratorResult | null = null;
-        let finalFileSource: PendingChange["finalFileSource"] = "builder";
-        let validatorState: PendingChange["validatorState"] = config.agentEnabled ? "builder-fallback-empty" : "disabled";
         const addValidatorWarning = (validatorStateForMessage: PendingChange["validatorState"]) => {
           const content = validatorStateForMessage
             ? getValidatorFallbackWarning(validatorStateForMessage)
@@ -622,52 +553,15 @@ export function useChatAIFlow({
           });
         };
 
-        if (config.agentEnabled) {
-          try {
-            const validatorMsgs = buildValidatorMessages(
-              sanitizedRequestContent,
-              normalized.map((f) => ({ path: f.path, content: f.content })),
-              currentProjectFiles,
-              config.selectedAgentProvider ?? config.selectedChatProvider,
-            );
-
-            const agentRes = await runOrchestratorWithHardTimeout(
-              config.selectedAgentProvider ?? config.selectedChatProvider,
-              config.selectedAgentMode ?? config.selectedChatMode,
-              "quality",
-              validatorMsgs,
-              controller.signal,
-            );
-
-            notifyKeyRotation(agentRes);
-
-            if (agentRes?.ok) {
-              const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
-              const normalizedAgent = normalizeResultFiles(agentRaw).files;
-              if (normalizedAgent && normalizedAgent.length > 0) {
-                finalFiles = normalizedAgent;
-                agentMeta = agentRes;
-                finalFileSource = "validator";
-                validatorState = "validated";
-              } else if (agentRes?.ok) {
-                logger.warn("[useChatAIFlow] Validator returned no valid file array; keeping builder files.");
-                validatorState = "builder-fallback-empty";
-                addValidatorWarning(validatorState);
-              }
-            } else if (agentRes) {
-              logger.warn("[useChatAIFlow] Validator returned non-ok result:", agentRes.error);
-              validatorState = "builder-fallback-error";
-              // Regression-Hinweis: "Validator-Prüfung war nicht erfolgreich"
-              addValidatorWarning(validatorState);
-            }
-          } catch (e) {
-            // ✅ FIX #8: Log agent errors and surface the fallback to the user
-            logger.warn("[useChatAIFlow] Agent/Validator call failed:", e);
-            validatorState = "builder-fallback-exception";
-            // Regression-Hinweis: "Validator-Prüfung konnte nicht abgeschlossen werden"
-            addValidatorWarning(validatorState);
-          }
-        }
+        const { finalFiles, agentMeta, finalFileSource, validatorState } = await runValidatorIfEnabled({
+          config,
+          requestContent: sanitizedRequestContent,
+          normalizedFiles,
+          currentProjectFiles,
+          signal: controller.signal,
+          runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
+          sideEffects: { notifyKeyRotation, addValidatorWarning },
+        });
 
         const baseProjectDigest = buildProjectStateDigest(currentProjectFiles);
         const mergeResult: ApplyFilesResult = applyFilesToProject(
@@ -682,34 +576,24 @@ export function useChatAIFlow({
         });
         const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
 
-        // Explain-Call
         let explainText = "";
         if (
           !isAutoFix &&
           mergeResult.created.length + mergeResult.updated.length > 0
         ) {
           try {
-            const digest = buildChangeDigest(
+            explainText = await runExplainStage({
+              config,
+              requestContent: sanitizedRequestContent,
               currentProjectFiles,
-              mergeResult.files,
-              mergeResult.created,
-              mergeResult.updated,
-            );
-            const explainMsgs = buildExplainMessages(sanitizedRequestContent, digest);
-            const explainRes = await runOrchestratorWithHardTimeout(
-              config.selectedChatProvider,
-              config.selectedChatMode,
-              "speed",
-              explainMsgs,
-              controller.signal,
-            );
-
-            notifyKeyRotation(explainRes);
-            if (explainRes?.ok && typeof explainRes.text === "string") {
-              explainText = explainRes.text.trim();
-            }
+              mergedFiles: mergeResult.files,
+              created: mergeResult.created,
+              updated: mergeResult.updated,
+              signal: controller.signal,
+              runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
+              notifyKeyRotation,
+            });
           } catch (e) {
-            // ✅ FIX #8: Log explain errors instead of silently swallowing
             logger.warn("[useChatAIFlow] Explain call failed:", e);
             addChatMessage({
               id: uuidv4(),
@@ -761,7 +645,7 @@ export function useChatAIFlow({
               updated: mergeResult.updated,
               skipped: mergeResult.skipped,
               errors: mergeResult.errors,
-              aiResponse: ai!,
+              aiResponse: ai,
               agentResponse: agentMeta ?? undefined,
               changePreviews,
               finalFileSource,
@@ -781,7 +665,14 @@ export function useChatAIFlow({
           return false;
         }
 
-        const msg = `⚠️ ${error.message || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
+        const builderNonOkPrefix = "builder_non_ok:";
+        const builderFallbackMessage = error.message.startsWith(builderNonOkPrefix)
+          ? getBuilderFailureMessage({
+              ok: false,
+              error: error.message.slice(builderNonOkPrefix.length),
+            })
+          : error.message;
+        const msg = `⚠️ ${builderFallbackMessage || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
         safe(() => setError(msg));
 
         addChatMessage({
@@ -800,7 +691,6 @@ export function useChatAIFlow({
           abortControllerRef.current = null;
         }
 
-        // Drain queued AutoFix after this call completes
         setTimeout(() => {
           if (isMountedRef.current) drainAutoFixQueue();
         }, 0);
@@ -808,10 +698,11 @@ export function useChatAIFlow({
     },
     [
       addChatMessage,
+      announceContextBudgetNote,
+      announceRuntimeNote,
       config,
       drainAutoFixQueue,
       notifyKeyRotation,
-      announceRuntimeNote,
       safe,
       sleepWithAbort,
       setError,
