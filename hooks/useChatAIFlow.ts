@@ -24,6 +24,7 @@ import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
+import { buildAiProposalSummary } from "./chatAIFlowSummaryHelpers";
 import {
   buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
@@ -622,34 +623,17 @@ export function useChatAIFlow({
           }
         }
 
-        const prefix = isAutoFix
-          ? "🤖 **Auto-Fix Vorschlag:**"
-          : "🤖 Die KI möchte folgende Änderungen vornehmen:";
-
-        const summaryText =
-          `${prefix}\n\n` +
-          `${buildPreflightSummaryIntro()}\n\n` +
-          `🧠 **Quelle der finalen Dateiliste:** ${sourceSummary}\n\n` +
-          (explainText
-            ? `🧾 **Kurz erklärt (warum/was):**\n${explainText}\n\n---\n\n`
-            : "") +
-          `📝 **Neue Dateien** (${mergeResult.created.length}):\n` +
-          buildPathBulletList(mergeResult.created, 6) +
-          `\n\n` +
-          `📝 **Geänderte Dateien** (${mergeResult.updated.length}):\n` +
-          buildPathBulletList(mergeResult.updated, 6) +
-          (!isAutoFix
-            ? `\n\n⏭ **Übersprungen** (${mergeResult.skipped.length}):\n` +
-              buildPathBulletList(mergeResult.skipped, 3)
-            : "") +
-          (mergeResult.errors?.length
-            ? `\n\n🚫 **Geblockt/Hinweise** (${mergeResult.errors.length}):\n` +
-              mergeResult.errors.slice(0, 4).map((e) => `  • ${e}`).join("\n") +
-              (mergeResult.errors.length > 4
-                ? `\n  ... und ${mergeResult.errors.length - 4} weitere`
-                : "")
-            : "") +
-          `\n\nMöchtest du diese Änderungen übernehmen?`;
+        const summaryText = buildAiProposalSummary({
+          isAutoFix,
+          sourceSummary,
+          explainText,
+          preflightIntro: buildPreflightSummaryIntro(),
+          created: mergeResult.created,
+          updated: mergeResult.updated,
+          skipped: mergeResult.skipped,
+          errors: mergeResult.errors,
+          buildPathBulletList,
+        });
 
         simulateStreaming(summaryText, () => {
           safe(() =>
