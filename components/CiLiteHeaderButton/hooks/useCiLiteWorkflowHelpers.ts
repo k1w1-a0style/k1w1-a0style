@@ -237,3 +237,26 @@ export const resolveCiLiteLookupFailureMessage = (params: {
   }
   return buildCiLiteLookupFailureMessage({ workflowLabel, kind: "timeout" });
 };
+
+
+export const resolveCiLiteDisplaySnapshot = <TSnapshot>(params: {
+  hasActiveRunContext: boolean;
+  workflowRunPresent: boolean;
+  hydratedSnapshot: TSnapshot | null;
+}): TSnapshot | null => {
+  if (params.hasActiveRunContext) return null;
+  if (params.workflowRunPresent) return null;
+  return params.hydratedSnapshot;
+};
+
+export const resolveCiLiteTargetRef = (params: {
+  targetRef: string | null | undefined;
+  hydratedBranch: string | null | undefined;
+  branch: string | null | undefined;
+}): string | null => {
+  const resolved =
+    String(params.targetRef ?? "").trim() ||
+    String(params.hydratedBranch ?? "").trim() ||
+    String(params.branch ?? "").trim();
+  return resolved || null;
+};

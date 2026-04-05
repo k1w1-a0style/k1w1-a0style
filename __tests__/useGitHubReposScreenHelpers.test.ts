@@ -2,6 +2,8 @@ import {
   buildRepoBranchContextKey,
   getEasLinkNeutralMessage,
   resolveSyncStatusPrecheck,
+  buildPushSelectionFromLocalFiles,
+  buildPushSelectionForWantedPaths,
 } from "../screens/GitHubReposScreen/hooks/useGitHubReposScreenHelpers";
 
 describe("useGitHubReposScreenHelpers", () => {
@@ -48,4 +50,27 @@ describe("useGitHubReposScreenHelpers", () => {
     expect(ready.repoParts).toEqual({ owner: "owner", repo: "repo" });
     expect(ready.branch).toBe("main");
   });
+
+  it("builds push selections deterministically from local files", () => {
+    expect(
+      buildPushSelectionFromLocalFiles({
+        localFiles: [{ path: "a.ts" }, { path: "  " }, { path: "b.ts" }],
+      }),
+    ).toEqual({ "a.ts": true, "b.ts": true });
+
+    expect(
+      buildPushSelectionForWantedPaths({
+        localFiles: [{ path: "a.ts" }, { path: "b.ts" }],
+        wantedPaths: [" b.ts ", "missing.ts"],
+      }),
+    ).toEqual({ selection: { "b.ts": true }, pickedCount: 1 });
+
+    expect(
+      buildPushSelectionForWantedPaths({
+        localFiles: [{ path: "a.ts" }],
+        wantedPaths: ["remote-only.ts"],
+      }),
+    ).toEqual({ selection: {}, pickedCount: 0 });
+  });
+
 });

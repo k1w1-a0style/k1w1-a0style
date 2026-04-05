@@ -12,6 +12,8 @@ import {
   resolveCiLiteLookupFailureMessage,
   resolveCiLitePendingRunMessage,
   splitRepoFullName,
+  resolveCiLiteDisplaySnapshot,
+  resolveCiLiteTargetRef,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
 describe("useCiLiteWorkflowHelpers", () => {
@@ -67,6 +69,68 @@ describe("useCiLiteWorkflowHelpers", () => {
         artifactName: "ci-lite-logs",
         filePath: "ci-logs/ci-lite-result.json",
       });
+    });
+  });
+
+
+
+  describe("display snapshot + target ref derivation", () => {
+    it("hides hydrated snapshot while active run context exists", () => {
+      const hydrated = { branch: "main" };
+      expect(
+        resolveCiLiteDisplaySnapshot({
+          hasActiveRunContext: true,
+          workflowRunPresent: false,
+          hydratedSnapshot: hydrated,
+        }),
+      ).toBeNull();
+
+      expect(
+        resolveCiLiteDisplaySnapshot({
+          hasActiveRunContext: false,
+          workflowRunPresent: true,
+          hydratedSnapshot: hydrated,
+        }),
+      ).toBeNull();
+
+      expect(
+        resolveCiLiteDisplaySnapshot({
+          hasActiveRunContext: false,
+          workflowRunPresent: false,
+          hydratedSnapshot: hydrated,
+        }),
+      ).toEqual(hydrated);
+    });
+
+    it("resolves target ref with explicit target first, then hydrated branch, then current branch", () => {
+      expect(
+        resolveCiLiteTargetRef({
+          targetRef: " release ",
+          hydratedBranch: "main",
+          branch: "develop",
+        }),
+      ).toBe("release");
+      expect(
+        resolveCiLiteTargetRef({
+          targetRef: "",
+          hydratedBranch: " main ",
+          branch: "develop",
+        }),
+      ).toBe("main");
+      expect(
+        resolveCiLiteTargetRef({
+          targetRef: "",
+          hydratedBranch: "",
+          branch: " develop ",
+        }),
+      ).toBe("develop");
+      expect(
+        resolveCiLiteTargetRef({
+          targetRef: "",
+          hydratedBranch: "",
+          branch: "",
+        }),
+      ).toBeNull();
     });
   });
 

@@ -45,6 +45,8 @@ import {
   buildRepoBranchContextKey,
   getEasLinkNeutralMessage,
   resolveSyncStatusPrecheck,
+  buildPushSelectionFromLocalFiles,
+  buildPushSelectionForWantedPaths,
 } from "./useGitHubReposScreenHelpers";
 
 type SyncStatus = {
@@ -506,13 +508,11 @@ export function useGitHubReposScreen() {
       Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
       return;
     }
-    const initial: Record<string, boolean> = {};
-    for (const f of normalizedLocalFiles) {
-      const p = f.path;
-      if (!p) continue;
-      initial[p] = true;
-    }
-    setPushSelectedPaths(initial);
+    setPushSelectedPaths(
+      buildPushSelectionFromLocalFiles({
+        localFiles: normalizedLocalFiles,
+      }),
+    );
     setPushModalVisible(true);
   }, [activeRepo, normalizedLocalFiles]);
 
@@ -526,25 +526,17 @@ export function useGitHubReposScreen() {
         Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
         return;
       }
-      const wanted = new Set((paths || []).map((p) => String(p || "").trim()).filter(Boolean));
-      const initial: Record<string, boolean> = {};
+      const { selection, pickedCount } = buildPushSelectionForWantedPaths({
+        localFiles: normalizedLocalFiles,
+        wantedPaths: paths,
+      });
 
-      for (const f of normalizedLocalFiles) {
-        const p = f.path;
-        if (!p) continue;
-        if (!wanted.size) initial[p] = true;
-        else if (wanted.has(p)) initial[p] = true;
+      if (Array.isArray(paths) && paths.length > 0 && !pickedCount) {
+        Alert.alert("⚠️", "Auswahl enthält keine lokalen Dateien (remote-only kann nicht gepusht werden).");
+        return;
       }
 
-      if (wanted.size) {
-        const picked = Object.values(initial).filter(Boolean).length;
-        if (!picked) {
-          Alert.alert("⚠️", "Auswahl enthält keine lokalen Dateien (remote-only kann nicht gepusht werden).");
-          return;
-        }
-      }
-
-      setPushSelectedPaths(initial);
+      setPushSelectedPaths(selection);
       setPushModalVisible(true);
     },
     [activeRepo, normalizedLocalFiles],
