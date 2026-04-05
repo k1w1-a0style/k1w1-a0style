@@ -28,10 +28,14 @@ describe("Patch 413 repo/branch SoT invariants", () => {
   });
 
   it("keeps repo screen pull/push/eas-link paths free of silent main fallbacks", () => {
-    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
-    expect(src).not.toContain('(activeBranch || "main").trim() || "main"');
-    expect(src).not.toContain('activeBranch ?? "main"');
-    expect(src).toContain("Kein Branch ausgewählt.");
+    const pushPullSrc = read("screens/GitHubReposScreen/hooks/useGitHubReposPushPull.ts");
+    const easLinkSrc = read("screens/GitHubReposScreen/hooks/useGitHubReposEasLink.ts");
+    expect(pushPullSrc).not.toContain('(activeBranch || "main").trim() || "main"');
+    expect(pushPullSrc).not.toContain('activeBranch ?? "main"');
+    expect(easLinkSrc).not.toContain('(activeBranch || "main").trim() || "main"');
+    expect(easLinkSrc).not.toContain('activeBranch ?? "main"');
+    expect(pushPullSrc).toContain("Kein Branch ausgewählt.");
+    expect(easLinkSrc).toContain("Kein Branch ausgewählt.");
   });
 
   it("keeps the active diff view free of silent main fallbacks and removes the dead legacy diff section", () => {

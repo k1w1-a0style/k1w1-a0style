@@ -5,11 +5,11 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("Patch 468 GitHub repo sync architecture invariants", () => {
   it("keeps sync-status comparison centralized in infra and avoids per-file content API loop", () => {
-    const screenHook = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const syncHook = read("screens/GitHubReposScreen/hooks/useGitHubReposSyncStatus.ts");
 
-    expect(screenHook).toContain("compareLocalFilesWithRepo({");
-    expect(screenHook).not.toContain("for (const f of slice)");
-    expect(screenHook).not.toContain("const remote = await getRepoFileText");
+    expect(syncHook).toContain("compareLocalFilesWithRepo({");
+    expect(syncHook).not.toContain("for (const f of slice)");
+    expect(syncHook).not.toContain("const remote = await getRepoFileText");
   });
 
   it("uses consolidated Git tree/commit/ref flow for multi-file push", () => {

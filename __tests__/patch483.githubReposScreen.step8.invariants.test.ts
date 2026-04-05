@@ -3,7 +3,7 @@ import { readRepoText as read } from "./helpers/repoSourceHelpers";
 
 describe("patch 483 GitHubReposScreen step 8 invariants", () => {
   it("ignores stale default-branch lookups after a later repo selection", () => {
-    const hook = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const hook = read("screens/GitHubReposScreen/hooks/useGitHubReposSelection.ts");
 
     expect(hook).toContain("const selectionGen = ++selectRepoGen.current;");
     expect(hook).toContain("if (selectionGen !== selectRepoGen.current) return;");

@@ -13,7 +13,7 @@
     "lint:ci": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:silent": "jest --silent",
+    "test:silent": "jest --silent --workerIdleMemoryLimit=512MB",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "VERBOSE=true jest --verbose",
