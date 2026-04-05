@@ -1,6 +1,10 @@
 import type { AIConfig } from "../contexts/AIContext";
+import type { AllAIProviders } from "../contexts/AIContext";
 import { logger } from "../lib/logger";
-import type { OrchestratorResult } from "../lib/orchestrator";
+import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
+import type { Quality } from "../lib/orchestrator/types";
+import type { ChatMessage } from "../shared/types/chat";
+import type { ProjectFile } from "../shared/types/project";
 import type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildIntentConfirmationMessage, buildPlannerPreviewMessage } from "./chatAIFlowPlannerMessageHelpers";
 import { composePendingChange, computeMergeResult } from "./chatAIFlowPendingChangeComposer";
@@ -23,18 +27,26 @@ export type RequestPipelineSideEffects = {
   onValidatorWarning: (message: string) => void;
 };
 
+type RunOrchestratorWithTimeout = (
+  provider: AllAIProviders,
+  model: string,
+  quality: Quality,
+  messages: LlmMessage[],
+  signal?: AbortSignal,
+) => Promise<OrchestratorResult>;
+
 export type ExecuteRequestPipelineArgs = {
   config: AIConfig;
   sanitizedRequestContent: string;
   isAutoFix: boolean;
   forceBuilder: boolean;
-  currentMessages: Parameters<typeof tryPlanChatRequest>[0]["currentMessages"];
-  currentProjectFiles: Parameters<typeof tryPlanChatRequest>[0]["currentProjectFiles"];
+  currentMessages: ChatMessage[];
+  currentProjectFiles: ProjectFile[];
   currentPendingPlan: PendingPlan | null;
   signal: AbortSignal;
-  runOrchestratorWithTimeout: Parameters<typeof tryPlanChatRequest>[0]["runOrchestratorWithTimeout"];
-  computeRetryDelayMs: Parameters<typeof runBuilderWithRetry>[0]["computeRetryDelayMs"];
-  sleepWithAbort: Parameters<typeof runBuilderWithRetry>[0]["sleepWithAbort"];
+  runOrchestratorWithTimeout: RunOrchestratorWithTimeout;
+  computeRetryDelayMs: (attempt: number, errorText: string) => number;
+  sleepWithAbort: (ms: number, signal?: AbortSignal) => Promise<void>;
   buildGuardPolicyPreHint: () => string;
   buildPreflightSummaryIntro: () => string;
   buildPathBulletList: BuildPathBulletList;
