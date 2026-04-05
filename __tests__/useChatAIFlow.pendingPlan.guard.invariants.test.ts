@@ -25,7 +25,7 @@ describe("useChatAIFlow pending plan guard invariants", () => {
 
   it("uses the same direct-build helper for scout handoff and metrics", () => {
     expect(src).toContain("isDirectBuildCommand(normalizedIntentReply)");
-    expect(src).toContain("resolvePendingPlanHandoff({");
+    expect(src).toContain("handlePendingPlanDecision({");
     expect(src).toContain("isDirectBuildCommand,");
   });
 });

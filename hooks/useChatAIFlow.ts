@@ -31,7 +31,6 @@ import {
 import {
   getNormalizedSendInputs,
 } from "./chatAIFlowInputRoutingHelpers";
-import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
   buildRequestFailureNotice,
@@ -55,6 +54,11 @@ import {
   notifyKeyRotationEffect,
 } from "./chatAIFlowRequestSideEffects";
 import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
+import {
+  buildSendValidationErrorMessage,
+  handlePendingPlanDecision,
+  resolveSanitizedUserContent,
+} from "./chatAIFlowSendFlowHelpers";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 export { extractContextBudgetNotice } from "./chatAIFlowContextBudgetHelpers";
@@ -613,10 +617,7 @@ export function useChatAIFlow({
 
       const validation = prepareValidatedChatInput(candidateInput);
       if (!validation.valid) {
-        const validationMessage =
-          validation.error === "Nachricht ist zu lang"
-            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
-            : `⚠️ ${validation.error || "Nachricht konnte nicht verarbeitet werden."}`;
+        const validationMessage = buildSendValidationErrorMessage(validation.error);
 
         safe(() => setError(validationMessage));
         addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
@@ -624,9 +625,11 @@ export function useChatAIFlow({
       }
 
       const sanitizedAiContent = validation.sanitized;
-      const sanitizedUserContent = userContent
-        ? prepareValidatedChatInput(userContent).sanitized || userContent
-        : sanitizedAiContent;
+      const sanitizedUserContent = resolveSanitizedUserContent({
+        userContent,
+        sanitizedAiContent,
+        sanitizeInput: prepareValidatedChatInput,
+      });
 
       if (!sanitizedAiContent) {
         safe(() => setError(getEmptyMessageNoticeText()));
@@ -647,25 +650,23 @@ export function useChatAIFlow({
       }
 
       // ✅ FIX #1: Use ref for fresh pendingPlan
-      const currentPlan = pendingPlanRef.current;
-      if (currentPlan) {
-        const handoff = resolvePendingPlanHandoff({
-          currentPlan,
-          sanitizedUserContent,
-          sanitizedAiContent,
-          isDirectBuildCommand,
-        });
-
-        if (handoff.kind === "hold") {
-          addChatMessage(buildAssistantMessage(handoff.message));
-          return true;
-        }
-
-        pendingPlanRef.current = null;
-        safe(() => setPendingPlan(null));
-        await processAIRequest(handoff.combinedRequest, false, true);
-        return true;
-      }
+      const pendingPlanHandled = await handlePendingPlanDecision({
+        currentPlan: pendingPlanRef.current,
+        sanitizedUserContent,
+        sanitizedAiContent,
+        isDirectBuildCommand,
+        clearPendingPlan: () => {
+          pendingPlanRef.current = null;
+          safe(() => setPendingPlan(null));
+        },
+        addAssistantMessage: (message) => {
+          addChatMessage(buildAssistantMessage(message));
+        },
+        processRequest: async (request) => {
+          await processAIRequest(request, false, true);
+        },
+      });
+      if (pendingPlanHandled) return true;
 
       // Regression-Hinweis: const ok = await processAIRequest(aiContent || userContent, false, false);
       const ok = await processAIRequest(sanitizedAiContent, false, false);
