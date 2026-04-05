@@ -1,12 +1,15 @@
 import type { ProjectData, ProjectFile } from "../shared/types/project";
 import {
   clearPendingProjectSaveTimeout,
+  createProjectSaveScheduler,
   flushProjectSaveForAppState,
   flushPendingProjectSave,
+  hydrateChatRetentionLimit,
   initializeProjectData,
   scheduleDebouncedProjectSave,
   shouldFlushProjectSaveOnAppState,
 } from "../contexts/projectContextPersistenceHelpers";
+import { CHAT_HISTORY_RETENTION_FALLBACK } from "../contexts/projectContextStateHelpers";
 
 const buildProject = (overrides?: Partial<ProjectData>): ProjectData => ({
   id: "project-id",
@@ -165,6 +168,78 @@ describe("projectContextPersistenceHelpers", () => {
       expect(backgroundSave).toBe(true);
       expect(clearPendingSave).toHaveBeenCalledTimes(1);
       expect(saveProjectToStorage).toHaveBeenCalledWith(project);
+    });
+
+    it("uses scheduler to debounce and flush app state saves with shared timeout state", async () => {
+      jest.useFakeTimers();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const onSaveError = jest.fn();
+      const project = buildProject();
+      const clearTimeoutFn = jest.fn((timeout: ReturnType<typeof setTimeout>) =>
+        clearTimeout(timeout),
+      );
+
+      const scheduler = createProjectSaveScheduler({
+        clearTimeoutFn,
+        setTimeoutFn: setTimeout,
+        debounceMs: 250,
+        saveProjectToStorage,
+        onSaveError,
+      });
+
+      scheduler.queueSave(project);
+      expect(scheduler.getPendingTimeout()).not.toBeNull();
+
+      const didSaveOnActive = await scheduler.flushForAppState("active", project);
+      expect(didSaveOnActive).toBe(false);
+      expect(saveProjectToStorage).not.toHaveBeenCalled();
+
+      const didSaveOnBackground = await scheduler.flushForAppState(
+        "background",
+        project,
+      );
+      expect(didSaveOnBackground).toBe(true);
+      expect(saveProjectToStorage).toHaveBeenCalledTimes(1);
+      expect(clearTimeoutFn).toHaveBeenCalledTimes(1);
+      expect(onSaveError).not.toHaveBeenCalled();
+      expect(scheduler.getPendingTimeout()).toBeNull();
+
+      jest.useRealTimers();
+    });
+  });
+
+  describe("retention hydration helper", () => {
+    it("returns hydrated retention when runtime override was not set", async () => {
+      const value = await hydrateChatRetentionLimit({
+        loadChatHistorySettings: async () => ({ retention: 77 }),
+        shouldApplyHydratedRetention: (didSetRuntimeRetention) =>
+          !didSetRuntimeRetention,
+        didSetRuntimeRetention: false,
+      });
+      expect(value).toBe(77);
+    });
+
+    it("does not hydrate when runtime value was already set", async () => {
+      const loadChatHistorySettings = jest.fn(async () => ({ retention: 50 }));
+      const value = await hydrateChatRetentionLimit({
+        loadChatHistorySettings,
+        shouldApplyHydratedRetention: (didSetRuntimeRetention) =>
+          !didSetRuntimeRetention,
+        didSetRuntimeRetention: true,
+      });
+      expect(value).toBeNull();
+      expect(loadChatHistorySettings).not.toHaveBeenCalled();
+    });
+
+    it("falls back to retention fallback on read errors", async () => {
+      const value = await hydrateChatRetentionLimit({
+        loadChatHistorySettings: async () => {
+          throw new Error("storage down");
+        },
+        shouldApplyHydratedRetention: () => true,
+        didSetRuntimeRetention: false,
+      });
+      expect(value).toBe(CHAT_HISTORY_RETENTION_FALLBACK);
     });
   });
 });
