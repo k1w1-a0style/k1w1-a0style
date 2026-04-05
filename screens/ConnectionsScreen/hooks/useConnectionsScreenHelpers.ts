@@ -1,4 +1,6 @@
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
+import { logger } from "../../../lib/logger";
+import { runCleanupTask } from "../../../lib/safeCleanup";
 
 export type ExpoProjectResponse = {
   data?: {
@@ -230,9 +232,22 @@ export const persistEntriesWithFallback = async (
   entries: PersistableEntry[],
 ): Promise<void> => {
   if (!entries.length) return;
-  await storage.multiSet(entries).catch(async () => {
-    await Promise.all(entries.map(([key, value]) => storage.setItem(key, value).catch(() => {})));
-  });
+  let multiSetFailed = false;
+  try {
+    await storage.multiSet(entries);
+  } catch (error) {
+    multiSetFailed = true;
+    logger.warn("[ConnectionsScreen] storage multiSet failed, using item fallback", { err: error });
+  }
+  if (!multiSetFailed) return;
+  await Promise.all(
+    entries.map(([key, value]) =>
+      runCleanupTask(
+        () => storage.setItem(key, value),
+        `[ConnectionsScreen] storage setItem failed for key=${key}`,
+      ),
+    ),
+  );
 };
 
 export const removeEntriesWithFallback = async (
@@ -240,7 +255,20 @@ export const removeEntriesWithFallback = async (
   keys: string[],
 ): Promise<void> => {
   if (!keys.length) return;
-  await storage.multiRemove(keys).catch(async () => {
-    await Promise.all(keys.map((key) => storage.removeItem(key).catch(() => {})));
-  });
+  let multiRemoveFailed = false;
+  try {
+    await storage.multiRemove(keys);
+  } catch (error) {
+    multiRemoveFailed = true;
+    logger.warn("[ConnectionsScreen] storage multiRemove failed, using item fallback", { err: error });
+  }
+  if (!multiRemoveFailed) return;
+  await Promise.all(
+    keys.map((key) =>
+      runCleanupTask(
+        () => storage.removeItem(key),
+        `[ConnectionsScreen] storage removeItem failed for key=${key}`,
+      ),
+    ),
+  );
 };

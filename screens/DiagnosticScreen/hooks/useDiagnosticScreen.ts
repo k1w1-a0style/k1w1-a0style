@@ -29,6 +29,7 @@ import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 
 import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
 import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
+import { runCleanupTask } from "../../../lib/safeCleanup";
 import {
   buildDiagnosticSelectionScope,
   resolveDiagnosticFocusedProfiles,
@@ -308,9 +309,15 @@ export function useDiagnosticScreen(opts: {
               linkedRepo,
               linkedBranch,
             });
-            await AsyncStorage.setItem(scopedDiagnosticKey, diagValue).catch(() => {});
+            await runCleanupTask(
+              () => AsyncStorage.setItem(scopedDiagnosticKey, diagValue),
+              `[DiagnosticScreen] persist scoped diagnostic flag failed for key=${scopedDiagnosticKey}`,
+            );
           } else {
-            await AsyncStorage.removeItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => {});
+            await runCleanupTask(
+              () => AsyncStorage.removeItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK),
+              `[DiagnosticScreen] remove unscoped diagnostic flag failed for key=${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}`,
+            );
           }
         }
       } catch (e: unknown) {

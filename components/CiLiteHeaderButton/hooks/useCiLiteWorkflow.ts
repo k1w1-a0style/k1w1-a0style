@@ -19,6 +19,8 @@ import {
   type PersistedCiLiteSnapshot,
 } from "../../../lib/ciLitePersistence";
 import { ensureSupabaseClient } from "../../../lib/supabase";
+import { logger } from "../../../lib/logger";
+import { runCleanupTask } from "../../../lib/safeCleanup";
 import { WORKFLOW_CI_LITE, WORKFLOW_CI_LITE_AUTOFIX, type StepState } from "../types";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
@@ -250,7 +252,8 @@ export function useCiLiteWorkflow() {
       if (!cancelled) {
         setHydratedSnapshot(persisted.snapshot);
       }
-    })().catch(() => {
+    })().catch((error: unknown) => {
+      logger.warn("[CiLiteWorkflow] hydrate persisted CI-Lite snapshot failed", { err: error });
       if (!cancelled) setHydratedSnapshot(null);
     });
 
@@ -579,24 +582,28 @@ export function useCiLiteWorkflow() {
         "",
       ).trim();
 
-    void AsyncStorage.multiSet(
-      buildPersistCiLiteEntries({
-        // Preferred source of truth is the repo/branch-scoped snapshot.
-        // The legacy flat keys are mirrored only temporarily for migration compatibility.
-        snapshot: {
-          repo: githubRepo,
-          branch: (targetRef || branch || "").trim(),
-          sha: sourceCommitSha,
-          runAtMs: Date.now(),
-          workflowId,
-          jobId,
-          runId: workflowRun?.id ?? null,
-          conclusion: String(workflowRun.conclusion || ""),
-          lintOk,
-          typecheckOk: typeOk,
-        },
-      }),
-    ).catch(() => {});
+    void runCleanupTask(
+      () =>
+        AsyncStorage.multiSet(
+          buildPersistCiLiteEntries({
+            // Preferred source of truth is the repo/branch-scoped snapshot.
+            // The legacy flat keys are mirrored only temporarily for migration compatibility.
+            snapshot: {
+              repo: githubRepo,
+              branch: (targetRef || branch || "").trim(),
+              sha: sourceCommitSha,
+              runAtMs: Date.now(),
+              workflowId,
+              jobId,
+              runId: workflowRun?.id ?? null,
+              conclusion: String(workflowRun.conclusion || ""),
+              lintOk,
+              typecheckOk: typeOk,
+            },
+          }),
+        ),
+      "[CiLiteWorkflow] persist CI-Lite snapshot failed",
+    );
   }, [
     workflowRun,
     workflowId,

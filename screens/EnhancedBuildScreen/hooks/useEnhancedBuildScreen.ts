@@ -5,6 +5,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
+import { runCleanupTask } from "../../../lib/safeCleanup";
 import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
@@ -299,8 +300,14 @@ export function useEnhancedBuildScreen() {
     if (isMountedRef.current) setRefreshing(true);
     try {
       await fetchRuns();
-      await buildHistory.refresh().catch(() => {});
-      await refreshPreconditions().catch(() => {});
+      await runCleanupTask(
+        () => buildHistory.refresh(),
+        "[EnhancedBuildScreen] background history refresh failed",
+      );
+      await runCleanupTask(
+        () => refreshPreconditions(),
+        "[EnhancedBuildScreen] background preconditions refresh failed",
+      );
     } finally {
       if (isMountedRef.current) setRefreshing(false);
     }

@@ -258,6 +258,23 @@ describe("useConnectionsScreenHelpers", () => {
     expect(storage.removeItem).toHaveBeenCalledTimes(2);
   });
 
+  it("skips item-level fallback when multi operations succeed", async () => {
+    const storage = {
+      multiSet: jest.fn(async () => undefined),
+      multiRemove: jest.fn(async () => undefined),
+      setItem: jest.fn(async () => undefined),
+      removeItem: jest.fn(async () => undefined),
+    };
+
+    await persistEntriesWithFallback(storage, [["k1", "v1"]]);
+    await removeEntriesWithFallback(storage, ["k1"]);
+
+    expect(storage.multiSet).toHaveBeenCalledTimes(1);
+    expect(storage.setItem).toHaveBeenCalledTimes(0);
+    expect(storage.multiRemove).toHaveBeenCalledTimes(1);
+    expect(storage.removeItem).toHaveBeenCalledTimes(0);
+  });
+
   it("restores hydration lights deterministically from persisted connection keys", () => {
     expect(
       resolveHydrationLightsState({

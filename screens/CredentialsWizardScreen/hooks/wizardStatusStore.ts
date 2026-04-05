@@ -5,6 +5,7 @@ import {
   credKeyForUiMode,
   credStatusMetaKeyForProjectUiMode,
 } from "../../../lib/storageKeys";
+import { runCleanupTask, runWithCleanupFallback } from "../../../lib/safeCleanup";
 
 import type { StatusResult, UiModeId } from "../types";
 import { MODES } from "./credentialHelpers";
@@ -47,9 +48,17 @@ export function getEmptyStatusByMode(): Record<UiModeId, StatusResult | null> {
 }
 
 async function readWithLegacyFallback(scopedKey: string, legacyKey: string): Promise<string | null> {
-  const scopedValue = await AsyncStorage.getItem(scopedKey).catch(() => null);
+  const scopedValue = await runWithCleanupFallback(
+    () => AsyncStorage.getItem(scopedKey),
+    null,
+    `[CredentialsWizard] read scoped status failed for key=${scopedKey}`,
+  );
   if (scopedValue !== null || scopedKey === legacyKey) return scopedValue;
-  return AsyncStorage.getItem(legacyKey).catch(() => null);
+  return runWithCleanupFallback(
+    () => AsyncStorage.getItem(legacyKey),
+    null,
+    `[CredentialsWizard] read legacy status failed for key=${legacyKey}`,
+  );
 }
 
 export async function hydratePersistedStatusByMode(projectScope: string | null | undefined) {
@@ -104,14 +113,31 @@ export async function persistWizardStatusByMode(params: {
     typeof AsyncStorage.removeItem === "function"
       ? AsyncStorage.removeItem.bind(AsyncStorage)
       : async () => undefined;
+  const credentialState = status?.credentialState;
+  const stateDetail = status?.stateDetail;
 
   await Promise.all([
-    AsyncStorage.setItem(existsKey, status?.exists ? "true" : "false").catch(() => {}),
-    status?.credentialState
-      ? AsyncStorage.setItem(stateKey, status.credentialState).catch(() => {})
-      : removeItem(stateKey).catch(() => {}),
-    status?.stateDetail
-      ? AsyncStorage.setItem(detailKey, status.stateDetail).catch(() => {})
-      : removeItem(detailKey).catch(() => {}),
+    runCleanupTask(
+      () => AsyncStorage.setItem(existsKey, status?.exists ? "true" : "false"),
+      `[CredentialsWizard] persist exists flag failed for key=${existsKey}`,
+    ),
+    credentialState
+      ? runCleanupTask(
+          () => AsyncStorage.setItem(stateKey, credentialState),
+          `[CredentialsWizard] persist credential state failed for key=${stateKey}`,
+        )
+      : runCleanupTask(
+          () => removeItem(stateKey),
+          `[CredentialsWizard] remove credential state failed for key=${stateKey}`,
+        ),
+    stateDetail
+      ? runCleanupTask(
+          () => AsyncStorage.setItem(detailKey, stateDetail),
+          `[CredentialsWizard] persist credential detail failed for key=${detailKey}`,
+        )
+      : runCleanupTask(
+          () => removeItem(detailKey),
+          `[CredentialsWizard] remove credential detail failed for key=${detailKey}`,
+        ),
   ]);
 }
