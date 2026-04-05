@@ -26,6 +26,7 @@ import {
 import { useBuildPreconditions } from "./useBuildPreconditions";
 import { useEnhancedBuildRuns } from "./useEnhancedBuildRuns";
 import { useEnhancedBuildStartController } from "./useEnhancedBuildStartController";
+import { composeEnhancedBuildScreenReturn } from "./enhancedBuildScreenReturnComposer";
 import { filterBuildHistoryByMode, summarizeBuildHistoryStats } from "./enhancedBuildScreenHistory";
 import {
   countHiddenRuns,
@@ -363,7 +364,7 @@ export function useEnhancedBuildScreen() {
   ]);
 
 
-  return {
+  return composeEnhancedBuildScreenReturn({
     projectData,
     currentBuild,
     jobId,
@@ -437,7 +438,7 @@ export function useEnhancedBuildScreen() {
     runDetailError,
     openRunDetails,
     refreshRunDetails,
-    runMatch: selectedRun ? findHistoryMatchForRun(selectedRun) : null,
+    findHistoryMatchForRun,
     formatDuration,
-  };
+  });
 }
