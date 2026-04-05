@@ -25,6 +25,11 @@ const mockGitHubState = {
   addRecentRepo: jest.fn(),
   clearRecentRepos: jest.fn(),
 };
+const mockProjectData = {
+  files: [] as Array<{ path: string; content: string }>,
+  linkedRepo: mockGitHubState.activeRepo,
+  linkedBranch: mockGitHubState.activeBranch,
+};
 
 jest.mock("../contexts/GitHubContext", () => ({
   useGitHub: () => mockGitHubState,
@@ -32,7 +37,7 @@ jest.mock("../contexts/GitHubContext", () => ({
 
 jest.mock("../contexts/ProjectContext", () => ({
   useProject: () => ({
-    projectData: { files: [], linkedRepo: mockGitHubState.activeRepo, linkedBranch: mockGitHubState.activeBranch },
+    projectData: mockProjectData,
     updateProjectFiles: jest.fn(async () => undefined),
     setLinkedRepo: jest.fn(),
   }),
@@ -94,6 +99,8 @@ describe("useGitHubReposScreen EAS status neutral reset", () => {
     jest.clearAllMocks();
     mockGitHubState.activeRepo = "owner/repo-a";
     mockGitHubState.activeBranch = "main";
+    mockProjectData.linkedRepo = "owner/repo-a";
+    mockProjectData.linkedBranch = "main";
     mockCheckRepoEasLinkStatus.mockResolvedValue(getEasLinkPresentation("verified", "current selection verified"));
   });
 
