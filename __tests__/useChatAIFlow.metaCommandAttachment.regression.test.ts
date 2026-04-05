@@ -3,7 +3,9 @@ import path from "node:path";
 
 describe("useChatAIFlow meta command + attachment regression", () => {
   const file = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
+  const handoffHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowPendingPlanHandoff.ts");
   const src = fs.readFileSync(file, "utf8");
+  const handoffHelpersSrc = fs.readFileSync(handoffHelpersFile, "utf8");
 
   it("routes meta commands against raw user input before AI attachment notice input", () => {
     expect(src).toContain("async (\n      rawInput: string,\n      aiInput: string = rawInput,");
@@ -19,8 +21,9 @@ describe("useChatAIFlow meta command + attachment regression", () => {
   });
 
   it("keeps attachment-only follow-up details alive in pending-plan handoff", () => {
-    expect(src).toContain("const combined = buildPendingPlanCombinedRequest({");
-    expect(src).toContain("sanitizedAiContent,");
-    expect(src).toContain("wantsProceed,");
+    expect(src).toContain("const handoff = resolvePendingPlanHandoff({");
+    expect(handoffHelpersSrc).toContain("combinedRequest: buildPendingPlanCombinedRequest({");
+    expect(handoffHelpersSrc).toContain("sanitizedAiContent,");
+    expect(handoffHelpersSrc).toContain("wantsProceed,");
   });
 });

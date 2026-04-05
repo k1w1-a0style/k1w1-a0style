@@ -6,7 +6,6 @@ import { Alert, Platform, ToastAndroid } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import type { LlmMessage, OrchestratorResult } from "../lib/orchestrator";
 import type { Quality } from "../lib/orchestrator/types";
-import type { ApplyFilesResult } from "../lib/fileWriter";
 import { MAX_AUTOFIX_QUEUE } from "./chatAIFlowTypes";
 import type { UseChatAIFlowArgs, PendingChange, PendingPlan } from "./chatAIFlowTypes";
 import { buildChangeConfirmationText } from "./chatChangeSummary";
@@ -14,45 +13,32 @@ import { buildChangeConfirmationText } from "./chatChangeSummary";
 import { runOrchestrator } from "../lib/orchestrator";
 import type { AllAIProviders } from "../contexts/AIContext";
 import { logger } from "../lib/logger";
-import { applyFilesToProject } from "../lib/fileWriter";
-import { buildProjectStateDigest, rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
-import { buildChangePreviews } from "../lib/changePreview";
+import { rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { validateChatInput } from "../lib/validators";
 
 import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
-import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import {
   buildAssistantMessage,
   buildSystemMessage,
   buildUserMessage,
 } from "./chatAIFlowChatMessageFactory";
-import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
-import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
+import { getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
-  getBuilderFlowErrorNoticeText,
   getEmptyMessageNoticeText,
   getExplainFallbackNoticeText,
   getXssSanitizationNoticeText,
 } from "./chatAIFlowNoticeMessageHelpers";
 import {
-  buildIntentConfirmationMessage,
-  buildPlannerPreviewMessage,
-} from "./chatAIFlowPlannerMessageHelpers";
-import { buildAiProposalSummary } from "./chatAIFlowSummaryHelpers";
-import {
-  buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
-  isProceedCommand,
-  shouldHoldPendingPlan,
 } from "./chatAIFlowInputRoutingHelpers";
+import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
+import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
-  BuilderNonOkError,
-  runBuilderWithRetry,
-  runExplainStage,
-  runValidatorIfEnabled,
-  tryPlanChatRequest,
-} from "./chatAIFlowRequestOrchestrator";
+  buildRequestFailureNotice,
+  finalizeRequestCycle,
+  isAbortLikeError,
+} from "./chatAIFlowRequestLifecycleStageHelpers";
 import {
   getScreenBlurAbortNotice,
   hasPreservedPendingState,
@@ -489,160 +475,57 @@ export function useChatAIFlow({
         const currentProjectFiles = projectFilesRef.current;
         const currentPendingPlan = pendingPlanRef.current;
 
-        if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const planner = await tryPlanChatRequest({
-            config,
-            currentMessages,
-            currentProjectFiles,
-            requestContent: sanitizedRequestContent,
-            signal: controller.signal,
-            runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-            sideEffects: {
-              announceContextBudgetNote,
-              notifyKeyRotation,
-              announceRuntimeNote,
-            },
-            recordConfirmationPrompt: () => {
-              void recordChatQualityMetric("intent_confirmation_prompt");
-            },
-          });
-
-          if (planner.requiresConfirmation) {
-            const intentDecision = classifyChatIntent(sanitizedRequestContent);
-            addChatMessage(
-              buildAssistantMessage(
-                buildIntentConfirmationMessage({
-                  intent: intentDecision.intent,
-                  confidence: intentDecision.confidence,
-                  reason: intentDecision.reason,
-                }),
-                { planner: true },
-              ),
-            );
-            return true;
-          }
-
-          if (planner.pendingPlan && planner.plannerText) {
-            addChatMessage(
-              buildAssistantMessage(
-                buildPlannerPreviewMessage(
-                  planner.plannerText,
-                  buildGuardPolicyPreHint(),
-                ),
-                { planner: true },
-              ),
-            );
-
-            pendingPlanRef.current = planner.pendingPlan;
-            safe(() => setPendingPlan(planner.pendingPlan));
-            return true;
-          }
-        }
-
-        const { ai, normalizedFiles } = await runBuilderWithRetry({
+        const pipelineResult = await executeChatRequestPipeline({
           config,
-          requestContent: sanitizedRequestContent,
+          sanitizedRequestContent,
+          isAutoFix,
+          forceBuilder,
           currentMessages,
           currentProjectFiles,
+          currentPendingPlan,
           signal: controller.signal,
           runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
           computeRetryDelayMs: computeBuilderRetryDelayMs,
           sleepWithAbort,
+          buildGuardPolicyPreHint,
+          buildPreflightSummaryIntro,
+          buildPathBulletList,
           sideEffects: {
             announceContextBudgetNote,
             notifyKeyRotation,
             announceRuntimeNote,
+            recordConfirmationPrompt: () => {
+              void recordChatQualityMetric("intent_confirmation_prompt");
+            },
+            onExplainFailure: () => {
+              addChatMessage(
+                buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true }),
+              );
+            },
+            onValidatorWarning: (message) => {
+              addChatMessage(buildSystemMessage(message, { validatorWarning: true }));
+            },
           },
         });
 
-        const addValidatorWarning = (validatorStateForMessage: PendingChange["validatorState"]) => {
-          const content = validatorStateForMessage
-            ? getValidatorFallbackWarning(validatorStateForMessage)
-            : null;
-          if (!content) return;
-
-          addChatMessage(buildSystemMessage(content, { validatorWarning: true }));
-        };
-
-        const { finalFiles, agentMeta, finalFileSource, validatorState } = await runValidatorIfEnabled({
-          config,
-          requestContent: sanitizedRequestContent,
-          normalizedFiles,
-          currentProjectFiles,
-          signal: controller.signal,
-          runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-          sideEffects: { notifyKeyRotation, addValidatorWarning },
-        });
-
-        const baseProjectDigest = buildProjectStateDigest(currentProjectFiles);
-        const mergeResult: ApplyFilesResult = applyFilesToProject(
-          currentProjectFiles,
-          finalFiles,
-        );
-        const changePreviews = buildChangePreviews({
-          baseFiles: currentProjectFiles,
-          finalFiles: mergeResult.files,
-          created: mergeResult.created,
-          updated: mergeResult.updated,
-        });
-        const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
-
-        let explainText = "";
-        if (
-          !isAutoFix &&
-          mergeResult.created.length + mergeResult.updated.length > 0
-        ) {
-          try {
-            explainText = await runExplainStage({
-              config,
-              requestContent: sanitizedRequestContent,
-              currentProjectFiles,
-              mergedFiles: mergeResult.files,
-              created: mergeResult.created,
-              updated: mergeResult.updated,
-              signal: controller.signal,
-              runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-              notifyKeyRotation,
-            });
-          } catch (e) {
-            logger.warn("[useChatAIFlow] Explain call failed:", e);
-            addChatMessage(
-              buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true }),
-            );
-          }
+        if (pipelineResult.kind === "confirmation_required") {
+          addChatMessage(
+            buildAssistantMessage(pipelineResult.message, { planner: true }),
+          );
+          return true;
         }
 
-        const summaryText = buildAiProposalSummary({
-          isAutoFix,
-          sourceSummary,
-          explainText,
-          preflightIntro: buildPreflightSummaryIntro(),
-          created: mergeResult.created,
-          updated: mergeResult.updated,
-          skipped: mergeResult.skipped,
-          errors: mergeResult.errors,
-          buildPathBulletList,
-        });
-
-        simulateStreaming(summaryText, () => {
-          safe(() =>
-            setPendingChange({
-              files: mergeResult.files,
-              proposedFiles: finalFiles,
-              baseProjectDigest,
-              summary: summaryText,
-              created: mergeResult.created,
-              updated: mergeResult.updated,
-              skipped: mergeResult.skipped,
-              errors: mergeResult.errors,
-              aiResponse: ai,
-              agentResponse: agentMeta ?? undefined,
-              changePreviews,
-              finalFileSource,
-              validatorState,
-              sourceSummary,
-            }),
+        if (pipelineResult.kind === "planner_preview") {
+          addChatMessage(
+            buildAssistantMessage(pipelineResult.message, { planner: true }),
           );
+          pendingPlanRef.current = pipelineResult.pendingPlan;
+          safe(() => setPendingPlan(pipelineResult.pendingPlan));
+          return true;
+        }
+
+        simulateStreaming(pipelineResult.summaryText, () => {
+          safe(() => setPendingChange(pipelineResult.pendingChange));
           safe(() => setShowConfirmModal(true));
         });
 
@@ -651,29 +534,26 @@ export function useChatAIFlow({
         if (!isMountedRef.current) return false;
 
         const error = e instanceof Error ? e : new Error(String(e));
-        if (error.name === "AbortError" || /abgebrochen/i.test(error.message)) {
+        if (isAbortLikeError(error)) {
           return false;
         }
 
-        const builderFallbackMessage = error instanceof BuilderNonOkError
-          ? getBuilderFailureMessage(error.result)
-          : error.message;
-        const msg = getBuilderFlowErrorNoticeText(builderFallbackMessage);
+        const msg = buildRequestFailureNotice(error);
         safe(() => setError(msg));
 
         addChatMessage(buildAssistantMessage(msg, { error: true }));
 
         return false;
       } finally {
-        safe(() => setIsAiLoading(false));
-        inFlightRef.current = false;
-        if (abortControllerRef.current === controller) {
-          abortControllerRef.current = null;
-        }
-
-        setTimeout(() => {
-          if (isMountedRef.current) drainAutoFixQueue();
-        }, 0);
+        finalizeRequestCycle({
+          safe,
+          setIsAiLoading,
+          inFlightRef,
+          abortControllerRef,
+          requestController: controller,
+          isMountedRef,
+          drainAutoFixQueue,
+        });
       }
     },
     [
@@ -825,29 +705,21 @@ export function useChatAIFlow({
       // ✅ FIX #1: Use ref for fresh pendingPlan
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
-        const lower = sanitizedUserContent.trim().toLowerCase();
-        const wantsDirectBuild = isDirectBuildCommand(lower);
-        const wantsProceed = isProceedCommand(lower);
-        const holdDecision = shouldHoldPendingPlan({
-          mode: currentPlan.mode,
-          wantsDirectBuild,
-          wantsProceed,
+        const handoff = resolvePendingPlanHandoff({
+          currentPlan,
+          sanitizedUserContent,
+          sanitizedAiContent,
+          isDirectBuildCommand,
         });
 
-        if (holdDecision.hold && holdDecision.message) {
-          addChatMessage(buildAssistantMessage(holdDecision.message));
+        if (handoff.kind === "hold") {
+          addChatMessage(buildAssistantMessage(handoff.message));
           return true;
         }
 
-        const combined = buildPendingPlanCombinedRequest({
-          currentPlan,
-          sanitizedAiContent,
-          wantsProceed,
-        });
-
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
-        await processAIRequest(combined, false, true);
+        await processAIRequest(handoff.combinedRequest, false, true);
         return true;
       }
 
