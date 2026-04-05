@@ -63,11 +63,9 @@ import {
   removeProjectFilesByPaths,
 } from "./projectContextHelpers";
 import {
-  clearPendingProjectSaveTimeout,
-  flushProjectSaveForAppState,
+  createProjectSaveScheduler,
+  hydrateChatRetentionLimit,
   initializeProjectData,
-  scheduleDebouncedProjectSave,
-  shouldFlushProjectSaveOnAppState,
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
@@ -147,8 +145,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     },
   });
 
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mutexRef = useRef(new Mutex());
+  const persistenceSchedulerRef = useRef(
+    createProjectSaveScheduler({
+      clearTimeoutFn: clearTimeout,
+      setTimeoutFn: setTimeout,
+      debounceMs: SAVE_DEBOUNCE_MS,
+      saveProjectToStorage,
+      onSaveError: (error) => {
+        logger.error("[ProjectContext] Save error", { error });
+      },
+    }),
+  );
 
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(
     null,
@@ -160,21 +168,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     let cancelled = false;
 
     const loadRetention = async () => {
-      try {
-        const { retention } = await loadChatHistorySettings();
-        if (
-          !cancelled &&
-          shouldApplyHydratedRetention(didSetRuntimeRetentionRef.current)
-        ) {
-          chatRetentionLimitRef.current = retention;
-        }
-      } catch {
-        if (
-          !cancelled &&
-          shouldApplyHydratedRetention(didSetRuntimeRetentionRef.current)
-        ) {
-          chatRetentionLimitRef.current = CHAT_HISTORY_RETENTION_FALLBACK;
-        }
+      const hydratedLimit = await hydrateChatRetentionLimit({
+        loadChatHistorySettings,
+        shouldApplyHydratedRetention,
+        didSetRuntimeRetention: didSetRuntimeRetentionRef.current,
+      });
+      if (!cancelled && hydratedLimit !== null) {
+        chatRetentionLimitRef.current = hydratedLimit;
       }
     };
 
@@ -185,24 +185,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   const clearPendingSave = useCallback(() => {
-    saveTimeoutRef.current = clearPendingProjectSaveTimeout({
-      saveTimeout: saveTimeoutRef.current,
-      clearTimeoutFn: clearTimeout,
-    });
+    persistenceSchedulerRef.current.clearPendingSave();
   }, []);
 
   const debouncedSave = useCallback((project: ProjectData) => {
-    saveTimeoutRef.current = scheduleDebouncedProjectSave({
-      saveTimeout: saveTimeoutRef.current,
-      clearTimeoutFn: clearTimeout,
-      setTimeoutFn: setTimeout,
-      debounceMs: SAVE_DEBOUNCE_MS,
-      project,
-      saveProjectToStorage,
-      onSaveError: (error) => {
-        logger.error("[ProjectContext] Save error", { error });
-      },
-    });
+    persistenceSchedulerRef.current.queueSave(project);
   }, []);
 
   const updateProject = useCallback(
@@ -629,24 +616,30 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    const handleAppStateChange = async (nextState: AppStateStatus) => {
-      if (shouldFlushProjectSaveOnAppState(nextState)) {
-        logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
-        try {
-          const didSave = await flushProjectSaveForAppState({
-            nextState,
-            saveTimeout: saveTimeoutRef.current,
-            clearPendingSave,
-            projectData,
-            saveProjectToStorage,
-          });
-          if (didSave) {
-            logger.info("✅ Background-Save erfolgreich");
-          }
-        } catch (error) {
-          logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
-        }
+    const flushPendingForAppState = async (nextState: AppStateStatus) => {
+      if (
+        nextState !== "background" &&
+        nextState !== "inactive"
+      ) {
+        return;
       }
+
+      logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
+      try {
+        const didSave = await persistenceSchedulerRef.current.flushForAppState(
+          nextState,
+          projectDataRef.current,
+        );
+        if (didSave) {
+          logger.info("✅ Background-Save erfolgreich");
+        }
+      } catch (error) {
+        logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
+      }
+    };
+
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      await flushPendingForAppState(nextState);
     };
 
     const subscription = AppState.addEventListener(
@@ -654,7 +647,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       handleAppStateChange,
     );
     return () => subscription.remove();
-  }, [clearPendingSave, projectData]);
+  }, []);
 
   useEffect(() => () => clearPendingSave(), [clearPendingSave]);
 

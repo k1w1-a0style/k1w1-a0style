@@ -5,6 +5,7 @@ import {
   buildProjectForCreation,
   normalizeLoadedProjectData,
 } from "./projectContextHelpers";
+import { CHAT_HISTORY_RETENTION_FALLBACK } from "./projectContextStateHelpers";
 
 export type InitializeProjectDataResult = {
   project: ProjectData;
@@ -110,4 +111,72 @@ export const flushProjectSaveForAppState = async (params: {
     projectData: params.projectData,
     saveProjectToStorage: params.saveProjectToStorage,
   });
+};
+
+export type ProjectSaveScheduler = {
+  queueSave: (project: ProjectData) => void;
+  clearPendingSave: () => void;
+  flushForAppState: (nextState: AppStateStatus, projectData: ProjectData | null) => Promise<boolean>;
+  getPendingTimeout: () => SaveTimeout | null;
+};
+
+export const createProjectSaveScheduler = (params: {
+  clearTimeoutFn: (timeout: SaveTimeout) => void;
+  setTimeoutFn: typeof setTimeout;
+  debounceMs: number;
+  saveProjectToStorage: (project: ProjectData) => Promise<void>;
+  onSaveError: (error: unknown) => void;
+}): ProjectSaveScheduler => {
+  let saveTimeout: SaveTimeout | null = null;
+
+  const clearPendingSave = () => {
+    saveTimeout = clearPendingProjectSaveTimeout({
+      saveTimeout,
+      clearTimeoutFn: params.clearTimeoutFn,
+    });
+  };
+
+  return {
+    queueSave(project) {
+      saveTimeout = scheduleDebouncedProjectSave({
+        saveTimeout,
+        clearTimeoutFn: params.clearTimeoutFn,
+        setTimeoutFn: params.setTimeoutFn,
+        debounceMs: params.debounceMs,
+        project,
+        saveProjectToStorage: params.saveProjectToStorage,
+        onSaveError: params.onSaveError,
+      });
+    },
+    clearPendingSave,
+    flushForAppState(nextState, projectData) {
+      return flushProjectSaveForAppState({
+        nextState,
+        saveTimeout,
+        clearPendingSave,
+        projectData,
+        saveProjectToStorage: params.saveProjectToStorage,
+      });
+    },
+    getPendingTimeout() {
+      return saveTimeout;
+    },
+  };
+};
+
+export const hydrateChatRetentionLimit = async (params: {
+  loadChatHistorySettings: () => Promise<{ retention: number }>;
+  shouldApplyHydratedRetention: (didSetRuntimeRetention: boolean) => boolean;
+  didSetRuntimeRetention: boolean;
+}): Promise<number | null> => {
+  if (!params.shouldApplyHydratedRetention(params.didSetRuntimeRetention)) {
+    return null;
+  }
+
+  try {
+    const { retention } = await params.loadChatHistorySettings();
+    return retention;
+  } catch {
+    return CHAT_HISTORY_RETENTION_FALLBACK;
+  }
 };
