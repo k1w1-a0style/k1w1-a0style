@@ -37,6 +37,11 @@ import {
   shouldAbortOnScreenBlur,
 } from "./chatAIFlowLifecycleHelpers";
 import {
+  clearInFlightTransientState,
+  clearPendingDecisionState,
+  resetTransientUiState,
+} from "./chatAIFlowTransientStateHelpers";
+import {
   parseRetryAfterMs,
   readOrchestratorRuntimeNote,
 } from "./useChatAIFlowRetryHelpers";
@@ -929,21 +934,30 @@ export function useChatAIFlow({
   );
 
   const resetTransientState = useCallback(() => {
-    cleanupStreamingTimer();
-    streamingRunIdRef.current += 1;
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    inFlightRef.current = false;
-    queuedAutoFixRef.current = [];
-    pendingPlanRef.current = null;
-    pendingChangeRef.current = null;
-
-    safe(() => setIsStreaming(false));
-    safe(() => setStreamingMessage(""));
-    safe(() => setIsAiLoading(false));
-    safe(() => setShowConfirmModal(false));
-    safe(() => setPendingPlan(null));
-    safe(() => setPendingChange(null));
+    clearInFlightTransientState({
+      cleanupStreamingTimer,
+      streamingRunIdRef,
+      abortControllerRef,
+      inFlightRef,
+      queuedAutoFixRef,
+    });
+    clearPendingDecisionState({
+      pendingPlanRef,
+      pendingChangeRef,
+    });
+    resetTransientUiState({
+      safe,
+      setters: {
+        setIsStreaming,
+        setStreamingMessage,
+        setIsAiLoading,
+        setShowConfirmModal,
+        setPendingPlan,
+        setPendingChange,
+      },
+      clearPendingDecisions: true,
+      closeConfirmModal: true,
+    });
   }, [
     cleanupStreamingTimer,
     safe,
@@ -966,16 +980,23 @@ export function useChatAIFlow({
       hasPendingChange: pendingChangeRef.current !== null,
     });
 
-    cleanupStreamingTimer();
-    streamingRunIdRef.current += 1;
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    inFlightRef.current = false;
-    queuedAutoFixRef.current = [];
-
-    safe(() => setIsStreaming(false));
-    safe(() => setStreamingMessage(""));
-    safe(() => setIsAiLoading(false));
+    clearInFlightTransientState({
+      cleanupStreamingTimer,
+      streamingRunIdRef,
+      abortControllerRef,
+      inFlightRef,
+      queuedAutoFixRef,
+    });
+    resetTransientUiState({
+      safe,
+      setters: {
+        setIsStreaming,
+        setStreamingMessage,
+        setIsAiLoading,
+      },
+      clearPendingDecisions: false,
+      closeConfirmModal: false,
+    });
 
     addChatMessage({
       id: uuidv4(),
