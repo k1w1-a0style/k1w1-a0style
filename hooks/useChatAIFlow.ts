@@ -31,11 +31,9 @@ import {
   getXssSanitizationNoticeText,
 } from "./chatAIFlowNoticeMessageHelpers";
 import {
-  buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
-  isProceedCommand,
-  shouldHoldPendingPlan,
 } from "./chatAIFlowInputRoutingHelpers";
+import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
   BuilderNonOkError,
@@ -709,29 +707,21 @@ export function useChatAIFlow({
       // ✅ FIX #1: Use ref for fresh pendingPlan
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
-        const lower = sanitizedUserContent.trim().toLowerCase();
-        const wantsDirectBuild = isDirectBuildCommand(lower);
-        const wantsProceed = isProceedCommand(lower);
-        const holdDecision = shouldHoldPendingPlan({
-          mode: currentPlan.mode,
-          wantsDirectBuild,
-          wantsProceed,
+        const handoff = resolvePendingPlanHandoff({
+          currentPlan,
+          sanitizedUserContent,
+          sanitizedAiContent,
+          isDirectBuildCommand,
         });
 
-        if (holdDecision.hold && holdDecision.message) {
-          addChatMessage(buildAssistantMessage(holdDecision.message));
+        if (handoff.kind === "hold") {
+          addChatMessage(buildAssistantMessage(handoff.message));
           return true;
         }
 
-        const combined = buildPendingPlanCombinedRequest({
-          currentPlan,
-          sanitizedAiContent,
-          wantsProceed,
-        });
-
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
-        await processAIRequest(combined, false, true);
+        await processAIRequest(handoff.combinedRequest, false, true);
         return true;
       }
 
