@@ -17,14 +17,12 @@ import { rebasePendingChangeOnLatest } from "../lib/chatFlowStateGuards";
 import { validateChatInput } from "../lib/validators";
 
 import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
-import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import {
   buildAssistantMessage,
   buildSystemMessage,
   buildUserMessage,
 } from "./chatAIFlowChatMessageFactory";
-import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
   getBuilderFlowErrorNoticeText,
@@ -33,22 +31,14 @@ import {
   getXssSanitizationNoticeText,
 } from "./chatAIFlowNoticeMessageHelpers";
 import {
-  buildIntentConfirmationMessage,
-  buildPlannerPreviewMessage,
-} from "./chatAIFlowPlannerMessageHelpers";
-import {
   buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
   isProceedCommand,
   shouldHoldPendingPlan,
 } from "./chatAIFlowInputRoutingHelpers";
-import { composePendingChange, computeMergeResult } from "./chatAIFlowPendingChangeComposer";
+import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
   BuilderNonOkError,
-  runBuilderWithRetry,
-  runExplainStage,
-  runValidatorIfEnabled,
-  tryPlanChatRequest,
 } from "./chatAIFlowRequestOrchestrator";
 import {
   getScreenBlurAbortNotice,
@@ -486,137 +476,57 @@ export function useChatAIFlow({
         const currentProjectFiles = projectFilesRef.current;
         const currentPendingPlan = pendingPlanRef.current;
 
-        if (!isAutoFix && !forceBuilder && !currentPendingPlan) {
-          const planner = await tryPlanChatRequest({
-            config,
-            currentMessages,
-            currentProjectFiles,
-            requestContent: sanitizedRequestContent,
-            signal: controller.signal,
-            runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-            sideEffects: {
-              announceContextBudgetNote,
-              notifyKeyRotation,
-              announceRuntimeNote,
-            },
-            recordConfirmationPrompt: () => {
-              void recordChatQualityMetric("intent_confirmation_prompt");
-            },
-          });
-
-          if (planner.requiresConfirmation) {
-            const intentDecision = classifyChatIntent(sanitizedRequestContent);
-            addChatMessage(
-              buildAssistantMessage(
-                buildIntentConfirmationMessage({
-                  intent: intentDecision.intent,
-                  confidence: intentDecision.confidence,
-                  reason: intentDecision.reason,
-                }),
-                { planner: true },
-              ),
-            );
-            return true;
-          }
-
-          if (planner.pendingPlan && planner.plannerText) {
-            addChatMessage(
-              buildAssistantMessage(
-                buildPlannerPreviewMessage(
-                  planner.plannerText,
-                  buildGuardPolicyPreHint(),
-                ),
-                { planner: true },
-              ),
-            );
-
-            pendingPlanRef.current = planner.pendingPlan;
-            safe(() => setPendingPlan(planner.pendingPlan));
-            return true;
-          }
-        }
-
-        const { ai, normalizedFiles } = await runBuilderWithRetry({
+        const pipelineResult = await executeChatRequestPipeline({
           config,
-          requestContent: sanitizedRequestContent,
+          sanitizedRequestContent,
+          isAutoFix,
+          forceBuilder,
           currentMessages,
           currentProjectFiles,
+          currentPendingPlan,
           signal: controller.signal,
           runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
           computeRetryDelayMs: computeBuilderRetryDelayMs,
           sleepWithAbort,
+          buildGuardPolicyPreHint,
+          buildPreflightSummaryIntro,
+          buildPathBulletList,
           sideEffects: {
             announceContextBudgetNote,
             notifyKeyRotation,
             announceRuntimeNote,
+            recordConfirmationPrompt: () => {
+              void recordChatQualityMetric("intent_confirmation_prompt");
+            },
+            onExplainFailure: () => {
+              addChatMessage(
+                buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true }),
+              );
+            },
+            onValidatorWarning: (message) => {
+              addChatMessage(buildSystemMessage(message, { validatorWarning: true }));
+            },
           },
         });
 
-        const addValidatorWarning = (validatorStateForMessage: PendingChange["validatorState"]) => {
-          const content = validatorStateForMessage
-            ? getValidatorFallbackWarning(validatorStateForMessage)
-            : null;
-          if (!content) return;
-
-          addChatMessage(buildSystemMessage(content, { validatorWarning: true }));
-        };
-
-        const { finalFiles, agentMeta, finalFileSource, validatorState } = await runValidatorIfEnabled({
-          config,
-          requestContent: sanitizedRequestContent,
-          normalizedFiles,
-          currentProjectFiles,
-          signal: controller.signal,
-          runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-          sideEffects: { notifyKeyRotation, addValidatorWarning },
-        });
-
-        const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
-
-        const mergeResult = computeMergeResult(currentProjectFiles, finalFiles);
-
-        let explainText = "";
-        if (
-          !isAutoFix &&
-          mergeResult.created.length + mergeResult.updated.length > 0
-        ) {
-          try {
-            explainText = await runExplainStage({
-              config,
-              requestContent: sanitizedRequestContent,
-              currentProjectFiles,
-              mergedFiles: mergeResult.files,
-              created: mergeResult.created,
-              updated: mergeResult.updated,
-              signal: controller.signal,
-              runOrchestratorWithTimeout: runOrchestratorWithHardTimeout,
-              notifyKeyRotation,
-            });
-          } catch (e) {
-            logger.warn("[useChatAIFlow] Explain call failed:", e);
-            addChatMessage(
-              buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true }),
-            );
-          }
+        if (pipelineResult.kind === "confirmation_required") {
+          addChatMessage(
+            buildAssistantMessage(pipelineResult.message, { planner: true }),
+          );
+          return true;
         }
 
-        const composedChange = composePendingChange({
-          isAutoFix,
-          currentProjectFiles,
-          finalFiles,
-          proposedFiles: finalFiles,
-          aiResponse: ai,
-          agentResponse: agentMeta,
-          finalFileSource,
-          validatorState,
-          sourceSummary,
-          explainText,
-          preflightIntro: buildPreflightSummaryIntro(),
-          buildPathBulletList,
-        });
+        if (pipelineResult.kind === "planner_preview") {
+          addChatMessage(
+            buildAssistantMessage(pipelineResult.message, { planner: true }),
+          );
+          pendingPlanRef.current = pipelineResult.pendingPlan;
+          safe(() => setPendingPlan(pipelineResult.pendingPlan));
+          return true;
+        }
 
-        simulateStreaming(composedChange.summaryText, () => {
-          safe(() => setPendingChange(composedChange.pendingChange));
+        simulateStreaming(pipelineResult.summaryText, () => {
+          safe(() => setPendingChange(pipelineResult.pendingChange));
           safe(() => setShowConfirmModal(true));
         });
 
