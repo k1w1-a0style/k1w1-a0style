@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { logger } from "../../../lib/logger";
 import {
   buildRepoOkLine,
   resolvePersistedEasState,
@@ -61,38 +62,127 @@ export type HydrationLightsState = {
   repoOkLine: string;
 };
 
+const readWithFallback = async <T>(params: {
+  read: () => Promise<T>;
+  fallback: T;
+  context: string;
+}): Promise<T> => {
+  try {
+    return await params.read();
+  } catch (error: unknown) {
+    logger.warn(`[ConnectionsScreen] hydrate read failed (${params.context})`, { err: error });
+    return params.fallback;
+  }
+};
+
 export const loadHydrationSnapshot = async (
   storage: HydrationStorage,
   loaders: HydrationLoaders,
 ): Promise<HydrationSnapshot> => {
   const [gh, ex, workflowKey, keystoreKey] = await Promise.all([
-    loaders.getGitHubToken().catch(() => ""),
-    loaders.getExpoToken().catch(() => ""),
-    loaders.getWorkflowAdminKey().catch(() => ""),
-    loaders.getAndroidKeystoreExportAdminKey().catch(() => ""),
+    readWithFallback({ read: () => loaders.getGitHubToken(), fallback: "", context: "github-token" }),
+    readWithFallback({ read: () => loaders.getExpoToken(), fallback: "", context: "expo-token" }),
+    readWithFallback({
+      read: () => loaders.getWorkflowAdminKey(),
+      fallback: "",
+      context: "workflow-admin-key",
+    }),
+    readWithFallback({
+      read: () => loaders.getAndroidKeystoreExportAdminKey(),
+      fallback: "",
+      context: "keystore-admin-key",
+    }),
   ]);
 
   const [raw, url, anon, eas] = await Promise.all([
-    storage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
-    storage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-    loaders.getSupabaseAnonKey().catch(() => ""),
-    storage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.SUPABASE_RAW),
+      fallback: "",
+      context: STORAGE_KEYS.SUPABASE_RAW,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.SUPABASE_URL),
+      fallback: "",
+      context: STORAGE_KEYS.SUPABASE_URL,
+    }),
+    readWithFallback({
+      read: () => loaders.getSupabaseAnonKey(),
+      fallback: "",
+      context: "supabase-anon-key",
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
+      fallback: "",
+      context: STORAGE_KEYS.EAS_PROJECT_ID,
+    }),
   ]);
 
   const [ghOk, ghUserStored, ghScopesStored, sbOk, sbRefStored, exOk, exUserStored, easOkStored, easStateStored, easLastVerifiedStored, repoOkStored, repoSlug, repoBranch] = await Promise.all([
-    storage.getItem(STORAGE_KEYS.CONN_GITHUB_OK).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_GITHUB_USER).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_EXPO_OK).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_EAS_OK).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_EAS_STATE).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_REPO_OK).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_REPO_SLUG).catch(() => null),
-    storage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH).catch(() => null),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_GITHUB_OK),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_GITHUB_OK,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_GITHUB_USER),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_GITHUB_USER,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_GITHUB_SCOPES,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_SUPABASE_OK,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_SUPABASE_REF,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_EXPO_OK),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_EXPO_OK,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_EXPO_USER),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_EXPO_USER,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_EAS_OK),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_EAS_OK,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_EAS_STATE),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_EAS_STATE,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_REPO_OK),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_REPO_OK,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_REPO_SLUG),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_REPO_SLUG,
+    }),
+    readWithFallback({
+      read: () => storage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH),
+      fallback: null,
+      context: STORAGE_KEYS.CONN_REPO_BRANCH,
+    }),
   ]);
 
   return {

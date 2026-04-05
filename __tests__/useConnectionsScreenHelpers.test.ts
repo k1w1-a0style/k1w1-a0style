@@ -347,6 +347,49 @@ describe("useConnectionsScreenHelpers", () => {
     });
   });
 
+  it("hydrates with safe fallbacks when storage/loaders reject", async () => {
+    const reject = async () => {
+      throw new Error("boom");
+    };
+    const snapshot = await loadHydrationSnapshot(
+      {
+        getItem: reject,
+      },
+      {
+        getGitHubToken: reject,
+        getExpoToken: reject,
+        getWorkflowAdminKey: reject,
+        getAndroidKeystoreExportAdminKey: reject,
+        getSupabaseAnonKey: reject,
+      },
+    );
+
+    expect(snapshot.githubToken).toBe("");
+    expect(snapshot.expoToken).toBe("");
+    expect(snapshot.workflowAdminKey).toBe("");
+    expect(snapshot.androidKeystoreExportAdminKey).toBe("");
+    expect(snapshot.supabaseRaw).toBe("");
+    expect(snapshot.supabaseUrl).toBe("");
+    expect(snapshot.supabaseAnonKey).toBe("");
+    expect(snapshot.easProjectId).toBe("");
+    expect(snapshot.lights).toEqual({
+      ghOk: null,
+      ghUserStored: null,
+      ghScopesStored: null,
+      sbOk: null,
+      sbRefStored: null,
+      exOk: null,
+      exUserStored: null,
+      easOkStored: null,
+      easStateStored: null,
+      easLastVerifiedStored: null,
+      repoOkStored: null,
+      repoSlug: null,
+      repoBranch: null,
+      easProjectId: "",
+    });
+  });
+
   it("keeps reset persistence payloads stable for save/delete side effects", () => {
     expect(githubClearedPersistence()).toEqual({
       writes: [

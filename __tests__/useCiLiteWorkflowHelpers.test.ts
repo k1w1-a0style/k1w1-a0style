@@ -14,6 +14,7 @@ import {
   splitRepoFullName,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
+  resolveCiLiteMissingJwtMessage,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
 describe("useCiLiteWorkflowHelpers", () => {
@@ -159,6 +160,14 @@ describe("useCiLiteWorkflowHelpers", () => {
           jobId: null,
         }),
       ).toBe("Warte auf GitHub Run…");
+    });
+  });
+
+  describe("resolveCiLiteMissingJwtMessage", () => {
+    it("keeps context-specific fail-closed JWT guard messages stable", () => {
+      expect(resolveCiLiteMissingJwtMessage("artifact")).toContain("CI-Lite-Artefakt blockiert");
+      expect(resolveCiLiteMissingJwtMessage("lookup")).toContain("Workflow-Run-Lookup blockiert");
+      expect(resolveCiLiteMissingJwtMessage("dispatch")).toContain("Workflow-Dispatch blockiert");
     });
   });
 

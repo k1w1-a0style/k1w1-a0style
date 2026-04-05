@@ -706,7 +706,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       htmlUrl: pollDetails.urls?.html ?? null,
       artifactUrl: pollDetails.urls?.artifacts ?? null,
       sourceCommitSha: pollDetails.sourceCommitSha ?? null,
-    }).catch((historyError) => {
+    }).catch((historyError: unknown) => {
       logger.warn(
         "⚠️ Build-Historie konnte nicht aktualisiert werden:",
         historyError,
@@ -787,7 +787,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             startedAt,
             buildProfile: profile,
           });
-        } catch (historyError) {
+        } catch (historyError: unknown) {
           logger.warn(
             "⚠️ Build-Historie konnte nicht gespeichert werden:",
             historyError,
