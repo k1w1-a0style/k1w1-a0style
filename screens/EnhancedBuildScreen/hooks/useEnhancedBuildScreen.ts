@@ -5,7 +5,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
-import type { BuildHistoryEntry, BuildStatus } from "../../../shared/types/build";
+import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
   computeEta,
@@ -31,14 +31,19 @@ import {
 } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
 import {
+  countHiddenRuns,
+  isBuildActive,
+  isFinalBuildStatus,
+  mapWorkflowLogsToLines,
+  resolveHistoryMatchForRun,
+} from "./enhancedBuildScreenOrchestration";
+import {
   filterWorkflowRunsByProfile,
   getWorkflowRunsEmptyStateText,
   type ModeFilter,
 } from "./runFilterState";
 
 export const MAX_RUNS_DISPLAY = 10;
-
-type BuildHistoryEntryWithBranch = BuildHistoryEntry & { branch?: string | null };
 
 export function useEnhancedBuildScreen() {
   const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
@@ -299,19 +304,7 @@ type BuildBlockedAction = {
     return logsError ? sanitizeUiMessage(logsError) : null;
   }, [logsError]);
 
-  const logLines = useMemo(() => {
-    if (!logs || logs.length === 0) return [];
-    return logs.map((entry) => {
-      // Show raw CLI output without extra prefixes
-      if (entry.level === "raw") {
-        return entry.message;
-      }
-      const ts = entry.timestamp;
-      const time = ts ? new Date(ts).toLocaleTimeString() : "";
-      const prefix = time ? `${time} ` : "";
-      return `${prefix}[${entry.level}] ${entry.message}`;
-    });
-  }, [logs]);
+  const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
 
   const canFetch = repoValidation.valid;
   const owner = repoValidation.valid ? repoValidation.owner : "";
@@ -454,24 +447,7 @@ type BuildBlockedAction = {
   }, []);
 
   const findHistoryMatchForRun = useCallback(
-    (run: WorkflowRun) => {
-      const all = (buildHistory.history ?? []) as BuildHistoryEntryWithBranch[];
-      const runUrl = String(run?.html_url || "");
-      const runIdStr = String(run?.id || "");
-      const hit = all.find((h) => {
-        const html = String(h?.htmlUrl || "");
-        if (html && runUrl && html === runUrl) return true;
-        // Fallback: some sources store a shortened/redirected URL
-        return html.includes(`/actions/runs/${runIdStr}`);
-      });
-      if (!hit) return null;
-      return {
-        jobId: hit.jobId ?? null,
-        buildProfile: hit.buildProfile ?? null,
-        branch: hit.branch ?? null,
-        repoName: hit.repoName ?? null,
-      };
-    },
+    (run: WorkflowRun) => resolveHistoryMatchForRun(run, buildHistory.history),
     [buildHistory.history],
   );
 
@@ -521,9 +497,7 @@ type BuildBlockedAction = {
 
   // P2: make ETA feel alive by ticking while a build is active.
   useEffect(() => {
-    const active =
-      !!buildStartTime &&
-      (status === "queued" || status === "building");
+    const active = isBuildActive(status, buildStartTime);
     if (!active) return;
 
     const t = setInterval(() => {
@@ -548,17 +522,14 @@ type BuildBlockedAction = {
 
   // Reset buildStartTime bei finalem Status
   useEffect(() => {
-    if (status === "success" || status === "failed" || status === "error") {
+    if (isFinalBuildStatus(status)) {
       setBuildStartTime(null);
     }
   }, [status]);
 
   const { statusEmoji, statusLabel } = resolveBuildStatusPresentation({ status, progress });
 
-  const moreCount =
-    filteredRuns.length > MAX_RUNS_DISPLAY
-      ? filteredRuns.length - MAX_RUNS_DISPLAY
-      : 0;
+  const moreCount = countHiddenRuns(filteredRuns.length, MAX_RUNS_DISPLAY);
 
   const onSelectBuildProfile = useCallback(
     async (p: BuildProfile) => {
