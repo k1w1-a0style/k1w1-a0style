@@ -9,71 +9,37 @@ import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import {
   pushFilesToRepoAdvanced,
-  compareLocalFilesWithRepo,
-  createOrUpdateFile,
-  getRepoFileText,
   getGitHubToken,
 } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
+import { useGitHubRepos, WorkflowRun } from "../../../hooks/useGitHubRepos";
 import { combineRepos, splitFullName } from "../utils/repos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
-import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { executePullApply } from "../utils/pullApplySemantics";
 import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
-import {
-  checkRepoEasLinkStatus,
-  getEasLinkPresentation,
-  resolveEasLinkWriteOutcome,
-  type EasLinkPresentation,
-} from "../utils/easLinkContract";
-import {
-  createEasLinkStatusRequestGuard,
-  type EasLinkStatusRequestToken,
-} from "../utils/easLinkStatusRequestGuard";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
 import { getCoreFileContent, CORE_TEMPLATE_FILES } from "./templateFiles";
 import type { RepoFilterType } from "./templateFiles";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
-import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
+import { getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 import { useGitHubRepoCrud } from "./useGitHubRepoCrud";
 import {
-  buildRepoBranchContextKey,
-  getEasLinkNeutralMessage,
-  resolveSyncStatusPrecheck,
   buildPushSelectionFromLocalFiles,
   buildPushSelectionForWantedPaths,
 } from "./useGitHubReposScreenHelpers";
-
-type SyncStatus = {
-  checking: boolean;
-  modified: number;
-  localOnly: number;
-  remoteOnly: number;
-  skipped: number;
-  error: number;
-  checkedAt: number | null;
-};
+import { useGitHubReposSelection } from "./useGitHubReposSelection";
+import { useGitHubReposEasLink } from "./useGitHubReposEasLink";
+import { useGitHubReposSyncStatus } from "./useGitHubReposSyncStatus";
 
 type PullPreviewState = {
   remote: ProjectFile[];
   conflicts: string[];
   remoteOnly: string[];
   updates: string[];
-};
-
-const EMPTY_SYNC_STATUS: SyncStatus = {
-  checking: false,
-  modified: 0,
-  localOnly: 0,
-  remoteOnly: 0,
-  skipped: 0,
-  error: 0,
-  checkedAt: null,
 };
 
 export function useGitHubReposScreen() {
@@ -112,7 +78,6 @@ export function useGitHubReposScreen() {
 
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
-  const selectRepoGen = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -144,18 +109,9 @@ export function useGitHubReposScreen() {
   const [pullPreviewLoading, setPullPreviewLoading] = useState(false);
   const [pullPreview, setPullPreview] = useState<PullPreviewState | null>(null);
 
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(EMPTY_SYNC_STATUS);
-
   const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
 
   const [easProjectId, setEasProjectId] = useState<string>("");
-  const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
-  const easLinkContextKey = useMemo(
-    () => buildRepoBranchContextKey(activeRepo, activeBranch),
-    [activeRepo, activeBranch],
-  );
-  const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
 
   const {
     repos,
@@ -168,60 +124,12 @@ export function useGitHubReposScreen() {
     loadDefaultBranch,
   } = useGitHubRepos(token);
 
-  const syncStatusRunRef = useRef(0);
-
-  useEffect(() => {
-    easLinkStatusGuardRef.current.setContextKey(easLinkContextKey);
-    setEasLinkStatus(
-      getEasLinkPresentation(
-        "unknown",
-        getEasLinkNeutralMessage(easLinkContextKey),
-      ),
-    );
-  }, [easLinkContextKey]);
-
-  const refreshSyncStatus = useCallback(async () => {
-    const runId = ++syncStatusRunRef.current;
-    const commitSyncStatus = (next: SyncStatus) => {
-      if (!isMountedRef.current) return;
-      if (runId !== syncStatusRunRef.current) return;
-      setSyncStatus(next);
-    };
-    const precheck = resolveSyncStatusPrecheck({
-      activeRepo,
-      activeBranch,
-    });
-
-    if (precheck.status === "missing_repo") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now() });
-      return;
-    }
-    if (precheck.status === "invalid_repo") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
-      return;
-    }
-    if (precheck.status === "missing_branch") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
-      return;
-    }
-    const parsed = precheck.repoParts;
-    const branch = precheck.branch;
-    if (!parsed) return;
-    commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
-
-    try {
-      const stats = await compareLocalFilesWithRepo({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        branch,
-        localFiles: normalizedLocalFiles,
-        maxLocalFiles: 40,
-      });
-      commitSyncStatus({ checking: false, ...stats, checkedAt: Date.now() });
-    } catch {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: false, error: 1, checkedAt: Date.now() });
-    }
-  }, [activeRepo, activeBranch, normalizedLocalFiles]);
+  const { syncStatus, refreshSyncStatus } = useGitHubReposSyncStatus({
+    activeRepo,
+    activeBranch,
+    normalizedLocalFiles,
+    isMountedRef,
+  });
 
   // Token load
   useEffect(() => {
@@ -288,16 +196,6 @@ export function useGitHubReposScreen() {
     loadRepos();
   }, [token, loadRepos]);
 
-  // Keep a lightweight "dirty" indicator up to date when repo/branch changes.
-  useEffect(() => {
-    if (!activeRepo) {
-      setSyncStatus(EMPTY_SYNC_STATUS);
-      return;
-    }
-    // fire-and-forget (best-effort)
-    refreshSyncStatus();
-  }, [activeRepo, activeBranch]);
-
   const handleRefresh = useCallback(async () => {
     if (!token) return;
 
@@ -313,70 +211,16 @@ export function useGitHubReposScreen() {
     }
   }, [token, loadRepos]);
 
-  const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {
-  const fullName =
-    typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
-  const selectionGen = ++selectRepoGen.current;
-
-  // Prefer default branch from the repo list payload (fast), fallback to API if needed.
-  const defaultBranch: string | null =
-    typeof repoOrString === "string"
-      ? null
-      : String(repoOrString.default_branch || "").trim() || null;
-
-  // Single source of truth for ALL repo selections (list + recent)
-  addRecentRepo(fullName);
-  setLinkedRepo(fullName, defaultBranch);
-  setShowRenameRepo(false);
-  setShowNewRepo(false);
-  setPullProgress("");
-
-  // If we don't have a default branch yet (e.g. recent repo string), fetch it async.
-  if (!defaultBranch) {
-    const parsed = splitFullName(fullName);
-    if (!parsed) return;
-
-    loadDefaultBranch(parsed.owner, parsed.repo)
-      .then((b) => String(b || "").trim())
-      .then((b) => {
-        if (!b) return;
-        if (!isMountedRef.current) return;
-        if (selectionGen !== selectRepoGen.current) return;
-        setLinkedRepo(fullName, b);
-      })
-      .catch(() => {
-        // non-fatal: user can still pick a branch manually
-      });
-  }
-}, [addRecentRepo, setLinkedRepo, loadDefaultBranch]);
-
-  const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_BRANCHES_BY_REPO).catch(
-        () => null,
-      );
-      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      const prev = Array.isArray(map[repoFullName]) ? map[repoFullName] : [];
-      const next = [branch, ...prev.filter((b) => b !== branch)].slice(0, 6);
-      map[repoFullName] = next;
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.RECENT_BRANCHES_BY_REPO,
-        JSON.stringify(map),
-      ).catch(() => null);
-    } catch {
-      // best-effort
-    }
-  }, []);
-
-  const handleSelectBranch = useCallback(
-    (branch: string) => {
-      if (activeRepo) {
-        setLinkedRepo(activeRepo, branch);
-        rememberRecentBranch(activeRepo, branch);
-      }
-    },
-    [activeRepo, setLinkedRepo, rememberRecentBranch],
-  );
+  const { handleSelectRepo, handleSelectBranch } = useGitHubReposSelection({
+    activeRepo,
+    addRecentRepo,
+    setLinkedRepo,
+    loadDefaultBranch,
+    isMountedRef,
+    setShowRenameRepo,
+    setShowNewRepo,
+    setPullProgress,
+  });
 
   const {
     localRepos,
@@ -644,136 +488,17 @@ export function useGitHubReposScreen() {
     await Linking.openURL(`https://github.com/${activeRepo}`);
   }, [activeRepo]);
 
-  const isCurrentEasLinkRequest = useCallback((requestId: number, contextKey: string | null) => {
-    if (!isMountedRef.current) return false;
-    return easLinkStatusGuardRef.current.isCurrent({ requestId, contextKey });
-  }, []);
-
-  const handleEasLinkStatusCheck = useCallback(async (): Promise<EasLinkPresentation | null> => {
-    if (!activeRepo || !activeBranch) {
-      easLinkStatusGuardRef.current.invalidate();
-      const presentation = getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt.");
-      setEasLinkStatus(presentation);
-      return presentation;
-    }
-
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) {
-      easLinkStatusGuardRef.current.invalidate();
-      const presentation = getEasLinkPresentation("unknown", "Repo-Auswahl konnte nicht verarbeitet werden.");
-      setEasLinkStatus(presentation);
-      return presentation;
-    }
-
-    const contextKey = `${activeRepo}@@${activeBranch}`;
-    const requestToken = easLinkStatusGuardRef.current.begin(contextKey);
-    const presentation = await checkRepoEasLinkStatus({
-      expectedProjectId: easProjectId,
-      loadFile: (path: string) =>
-        getRepoFileText({
-          owner: parsed.owner,
-          repo: parsed.repo,
-          path,
-          ref: activeBranch,
-        }),
-    });
-
-    if (!isCurrentEasLinkRequest(requestToken.requestId, requestToken.contextKey)) {
-      return null;
-    }
-
-    setEasLinkStatus(presentation);
-    return presentation;
-  }, [activeRepo, activeBranch, easProjectId, isCurrentEasLinkRequest]);
-
-  const handleEasLink = useCallback(async () => {
-    if (!activeRepo) {
-      Alert.alert("⚠️", "Kein Repo ausgewählt.");
-      return;
-    }
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const id = (easProjectId || "").trim();
-    if (!id) {
-      Alert.alert("⚠️", "Bitte EAS Project ID setzen (AsyncStorage).");
-      return;
-    }
-
-    const idValidation = validateEasProjectId(id);
-    if (!idValidation.ok) {
-      Alert.alert(idValidation.title, idValidation.message);
-      return;
-    }
-
-    const branch = (activeBranch || "").trim();
-    if (!branch) {
-      Alert.alert("⚠️", "Kein Branch ausgewählt.");
-      return;
-    }
-
-    const contextKey = buildRepoBranchContextKey(activeRepo, branch);
-    if (!contextKey) {
-      setEasLinkStatus(getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt."));
-      return;
-    }
-    const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
-
-    setIsEasLinking(true);
-    if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-      setEasLinkStatus(
-        getEasLinkPresentation(
-          "pending_recheck",
-          "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut.",
-        ),
-      );
-    }
-    try {
-      const easProjectJsonPath = "eas-project.json";
-      const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
-
-      await createOrUpdateFile(
-        parsed.owner,
-        parsed.repo,
-        easProjectJsonPath,
-        content,
-        "chore(eas): write eas-project.json",
-        branch,
-      );
-
-      if (!isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-        return;
-      }
-
-      const verification = await handleEasLinkStatusCheck();
-      if (!verification) {
-        return;
-      }
-
-      const recheckToken: EasLinkStatusRequestToken = {
-        requestId: easLinkStatusGuardRef.current.getCurrentRequestId(),
-        contextKey,
-      };
-      const writeOutcome = resolveEasLinkWriteOutcome({ verification });
-      if (isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
-        setEasLinkStatus(writeOutcome);
-      }
-
-      if (!isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
-        return;
-      }
-
-      const writeNotice = getEasLinkWriteNotice(writeOutcome);
-      Alert.alert(writeNotice.title, writeNotice.message);
-    } catch (e: unknown) {
-      if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-        setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
-        Alert.alert("❌ EAS link fehlgeschlagen", getErrorMessage(e, ""));
-      }
-    } finally {
-      setIsEasLinking(false);
-    }
-  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck, isCurrentEasLinkRequest]);
+  const {
+    isEasLinking,
+    easLinkStatus,
+    handleEasLinkStatusCheck,
+    handleEasLink,
+  } = useGitHubReposEasLink({
+    activeRepo,
+    activeBranch,
+    easProjectId,
+    isMountedRef,
+  });
 
   const handleSyncSecrets = useCallback(async () => {
     if (!activeRepo) {
