@@ -3,12 +3,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
-import { getGitHubToken } from "../../../infra/github/githubService";
-import { getGitHubUser } from "../../../infra/github/user";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { useGitHubRepos } from "../../../hooks/useGitHubRepos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
@@ -25,6 +21,7 @@ import { useGitHubReposEasLink } from "./useGitHubReposEasLink";
 import { useGitHubReposSyncStatus } from "./useGitHubReposSyncStatus";
 import { useGitHubReposPushPull } from "./useGitHubReposPushPull";
 import { useGitHubReposDerivedState } from "./useGitHubReposDerivedState";
+import { useGitHubReposScreenBootstrap } from "./useGitHubReposScreenBootstrap";
 
 export function useGitHubReposScreen() {
   const {
@@ -50,18 +47,20 @@ export function useGitHubReposScreen() {
   const effectiveTemplateId: CoreTemplateId =
     resolveEffectiveTemplateId(templateId, normalizedLocalFiles).effective;
 
-  const [token, setToken] = useState<string | null>(null);
-  const [tokenLoading, setTokenLoading] = useState(false);
-  const [tokenError, setTokenError] = useState<string | null>(null);
-
-  const [userLogin, setUserLogin] = useState<string>("" );
-  const [userLoading, setUserLoading] = useState(false);
-
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
-
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
+
+  const {
+    token,
+    tokenLoading,
+    tokenError,
+    userLogin,
+    userLoading,
+    easProjectId,
+    setEasProjectId,
+  } = useGitHubReposScreenBootstrap();
 
   useEffect(() => {
     return () => {
@@ -83,8 +82,6 @@ export function useGitHubReposScreen() {
 
   const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
 
-  const [easProjectId, setEasProjectId] = useState<string>("");
-
   const {
     repos,
     loading: loadingRepos,
@@ -102,64 +99,6 @@ export function useGitHubReposScreen() {
     normalizedLocalFiles,
     isMountedRef,
   });
-
-  // Token load
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setTokenLoading(true);
-      setTokenError(null);
-      try {
-        const t = await getGitHubToken();
-        if (!mounted) return;
-        setToken(t);
-        if (!t) {
-          setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
-        }
-      } catch (e: unknown) {
-        if (!mounted) return;
-        setToken(null);
-        setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
-      } finally {
-        if (mounted) setTokenLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  // User info (best-effort)
-  useEffect(() => {
-    let mounted = true;
-    if (!token) {
-      setUserLogin("");
-      return () => { mounted = false; };
-    }
-    setUserLoading(true);
-    getGitHubUser()
-      .then((u) => {
-        if (!mounted) return;
-        setUserLogin(String(u?.login || "").trim());
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setUserLogin("");
-      })
-      .finally(() => {
-        if (mounted) setUserLoading(false);
-      });
-    return () => { mounted = false; };
-  }, [token]);
-
-  // Load EAS project ID
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => "");
-      if (!mounted) return;
-      setEasProjectId((id || "").trim());
-    })();
-    return () => { mounted = false; };
-  }, []);
 
   // Auto-load repos once token exists
   useEffect(() => {
