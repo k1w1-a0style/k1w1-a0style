@@ -9,6 +9,7 @@ import React, {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { logger } from "../lib/logger";
+import { runCleanupTask } from "../lib/safeCleanup";
 
 import { GITHUB_STORAGE_KEYS } from "../shared/constants/github";
 
@@ -55,8 +56,14 @@ export const GitHubProvider: React.FC<{ children: React.ReactNode }> = ({
           setRecentRepos(normalizeStoredRecentRepos(parsed));
         }
         await Promise.all([
-          AsyncStorage.removeItem(ACTIVE_REPO_KEY).catch(() => {}),
-          AsyncStorage.removeItem(ACTIVE_BRANCH_KEY).catch(() => {}),
+          runCleanupTask(
+            () => AsyncStorage.removeItem(ACTIVE_REPO_KEY),
+            "[GitHubContext] remove deprecated active repo failed",
+          ),
+          runCleanupTask(
+            () => AsyncStorage.removeItem(ACTIVE_BRANCH_KEY),
+            "[GitHubContext] remove deprecated active branch failed",
+          ),
         ]);
       } catch (e) {
         logger.error("[GitHubContext] Fehler beim Laden", { err: e });

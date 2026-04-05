@@ -41,6 +41,7 @@ import {
 
 import { debugLog } from "../../../lib/debugOverlay";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
+import { runCleanupTask } from "../../../lib/safeCleanup";
 import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
 import {
   classifyVerificationError,
@@ -266,8 +267,14 @@ export function useConnectionsScreen() {
     if (!expoToken.trim()) {
       setExpoOk(false);
       setExpoUser("");
-      AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false").catch(() => {});
-      AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER).catch(() => {});
+      void runCleanupTask(
+        () => AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false"),
+        `[ConnectionsScreen] persist expo-off flag failed for key=${STORAGE_KEYS.CONN_EXPO_OK}`,
+      );
+      void runCleanupTask(
+        () => AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER),
+        `[ConnectionsScreen] remove persisted expo-user failed for key=${STORAGE_KEYS.CONN_EXPO_USER}`,
+      );
     }
   }, [expoToken, hydrated]);
 
@@ -314,7 +321,10 @@ export function useConnectionsScreen() {
         snapshot.supabaseUrl,
       );
       if (snapshot.supabaseRaw !== normalizedStoredSupabaseRaw) {
-        AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw).catch(() => {});
+        void runCleanupTask(
+          () => AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw),
+          `[ConnectionsScreen] normalize persisted supabase raw failed for key=${STORAGE_KEYS.SUPABASE_RAW}`,
+        );
       }
 
       if (!mounted) return;
@@ -656,11 +666,17 @@ Scopes: ${scopes}` : ""}`);
         // Persist token + (optional) EAS id so andere Teile der App die gleichen Werte nutzen
         await saveGitHubToken(token);
         if (projectId) {
-          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId).catch(() => null);
+          await runCleanupTask(
+            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId),
+            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
         } else {
           // We are creating a new EAS Project ID in the workflow.
           // The generated id will be committed to eas-project.json in the repo.
-          await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => null);
+          await runCleanupTask(
+            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
+            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
         }
 
         await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
