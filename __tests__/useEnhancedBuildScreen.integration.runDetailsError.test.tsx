@@ -103,4 +103,26 @@ describe("useEnhancedBuildScreen integration run detail error path", () => {
       expect(result.current.runDetailError).toContain("run details boom");
     });
   });
+
+  test("keeps error surfaced when refreshing details for an already selected run", async () => {
+    const { result } = renderHook(() => useEnhancedBuildScreen());
+
+    await act(async () => {
+      await result.current.openRunDetails({
+        id: 654,
+        html_url: "https://github.com/o/r/actions/runs/654",
+      } as WorkflowRun);
+    });
+
+    await act(async () => {
+      await result.current.refreshRunDetails();
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedRun?.id).toBe(654);
+      expect(result.current.runDetailVisible).toBe(true);
+      expect(result.current.runDetailLoading).toBe(false);
+      expect(result.current.runDetailError).toContain("run details boom");
+    });
+  });
 });
