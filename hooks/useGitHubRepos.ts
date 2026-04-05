@@ -35,6 +35,11 @@ type RepoBlobCandidate = {
 const getErrorMessage = (e: unknown, fallback: string): string =>
   e instanceof Error && e.message ? e.message : fallback;
 
+export const buildGitHubAuthHeaders = (token: string): Record<string, string> => ({
+  Accept: "application/vnd.github+json",
+  Authorization: `token ${token}`,
+});
+
 const TEXT_EXTENSIONS = new Set([
   ".ts",
   ".tsx",
@@ -179,10 +184,7 @@ export const useGitHubRepos = (
       const res = await fetchWithBackoff(
         githubApiUrl("/user/repos?per_page=100&sort=updated"),
         {
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `token ${token}`,
-          },
+          headers: buildGitHubAuthHeaders(token),
         },
       );
 
@@ -193,7 +195,7 @@ export const useGitHubRepos = (
 
       const json = (await res.json()) as GitHubRepo[];
       setRepos(json);
-     } catch (e: unknown) {
+    } catch (e: unknown) {
       logger.error("[useGitHubRepos] Error:", e);
       const errorMsg = getErrorMessage(e, "Fehler beim Laden der Repos");
       setError(errorMsg);
@@ -212,10 +214,7 @@ export const useGitHubRepos = (
           githubApiUrl(`/repos/${repo.full_name}`),
           {
             method: "DELETE",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `token ${token}`,
-            },
+            headers: buildGitHubAuthHeaders(token),
           },
         );
 
@@ -230,7 +229,7 @@ export const useGitHubRepos = (
 
         setRepos((prev) => prev.filter((r) => r.full_name !== repo.full_name));
         return true;
-       } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] Delete error:", e);
         const errorMsg = getErrorMessage(e, "Repo konnte nicht gelöscht werden.");
         callbacks?.onDeleteError?.(errorMsg, repo);
@@ -249,10 +248,7 @@ export const useGitHubRepos = (
           githubApiUrl(`/repos/${currentFullName}`),
           {
             method: "PATCH",
-            headers: {
-              Accept: "application/vnd.github+json",
-              Authorization: `token ${token}`,
-            },
+            headers: buildGitHubAuthHeaders(token),
             body: JSON.stringify({ name: newName }),
           },
         );
@@ -273,7 +269,7 @@ export const useGitHubRepos = (
         );
 
         return newFullName;
-       } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] Rename error:", e);
         const errorMsg = getErrorMessage(e, "Repo konnte nicht umbenannt werden.");
         callbacks?.onRenameError?.(errorMsg, currentFullName, newName);
@@ -293,10 +289,7 @@ export const useGitHubRepos = (
       if (!token) return null;
 
       try {
-        const headers = {
-          Accept: "application/vnd.github+json",
-          Authorization: `token ${token}`,
-        };
+        const headers = buildGitHubAuthHeaders(token);
 
         onProgress?.("Lade Repo-Info...");
 
@@ -424,7 +417,7 @@ export const useGitHubRepos = (
         }
 
         return files;
-       } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] Pull error:", e);
         const errorMsg = getErrorMessage(e, "Fehler beim Laden der Dateien.");
         callbacks?.onPullError?.(errorMsg);
@@ -439,7 +432,7 @@ export const useGitHubRepos = (
       if (!token) return [];
       try {
         return await apiBranches(owner, repo);
-       } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] Branches error:", e);
         return [];
       }
@@ -456,7 +449,7 @@ export const useGitHubRepos = (
       if (!token) return [];
       try {
         return await apiWorkflowRuns(owner, repo, perPage);
-       } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] WorkflowRuns error:", e);
         return [];
       }
@@ -476,7 +469,7 @@ export const useGitHubRepos = (
           throw new Error("GitHub lieferte keinen gueltigen Default-Branch.");
         }
         return normalizedBranch;
-      } catch (e: unknown) {
+     } catch (e: unknown) {
         logger.error("[useGitHubRepos] DefaultBranch error:", e);
         throw new Error(getErrorMessage(e, "Default-Branch konnte nicht geladen werden."));
       }
