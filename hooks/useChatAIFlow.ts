@@ -54,7 +54,7 @@ import {
   notifyKeyRotationEffect,
 } from "./chatAIFlowRequestSideEffects";
 import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
-import { resolvePendingPlanSendDecision } from "./chatAIFlowPendingPlanHandoff";
+import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 export { extractContextBudgetNotice } from "./chatAIFlowContextBudgetHelpers";
@@ -644,20 +644,23 @@ export function useChatAIFlow({
       }
 
       // ✅ FIX #1: Use ref for fresh pendingPlan
-      const pendingPlanDecision = resolvePendingPlanSendDecision({
-        currentPlan: pendingPlanRef.current,
-        sanitizedUserContent,
-        sanitizedAiContent,
-        isDirectBuildCommand,
-      });
-      if (pendingPlanDecision.kind === "hold") {
-        addChatMessage(buildAssistantMessage(pendingPlanDecision.message));
-        return true;
-      }
-      if (pendingPlanDecision.kind === "forward") {
+      const currentPlan = pendingPlanRef.current;
+      if (currentPlan) {
+        const handoff = resolvePendingPlanHandoff({
+          currentPlan,
+          sanitizedUserContent,
+          sanitizedAiContent,
+          isDirectBuildCommand,
+        });
+
+        if (handoff.kind === "hold") {
+          addChatMessage(buildAssistantMessage(handoff.message));
+          return true;
+        }
+
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
-        await processAIRequest(pendingPlanDecision.request, false, true);
+        await processAIRequest(handoff.combinedRequest, false, true);
         return true;
       }
 
