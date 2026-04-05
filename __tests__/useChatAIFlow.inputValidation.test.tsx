@@ -264,4 +264,25 @@ describe("useChatAIFlow input validation", () => {
     expect(joined).not.toContain("hunter2");
     expect(joined).not.toContain("super-secret");
   });
+
+  it("surfaces builder non-ok results as builder failure message", async () => {
+    mockedRunOrchestrator.mockReset();
+    mockedRunOrchestrator
+      .mockResolvedValueOnce({ ok: false, error: "validation failed" } as OrchestratorResult);
+
+    const { result, addChatMessage, setError } = createFlow();
+
+    await act(async () => {
+      const ok = await result.current.handleSendWithMeta("Bitte aktualisiere App.tsx");
+      expect(ok).toBe(false);
+    });
+
+    expect(setError).toHaveBeenCalledWith(expect.stringContaining("KI-Request fehlgeschlagen"));
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringContaining("KI-Request fehlgeschlagen"),
+      }),
+    );
+  });
 });
