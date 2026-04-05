@@ -6,6 +6,7 @@ import {
   resolveEasProjectVerification,
   isPersistedEasState,
   persistEntriesWithFallback,
+  runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
   resolveConnectionsAlertNotice,
@@ -273,6 +274,43 @@ describe("useConnectionsScreenHelpers", () => {
     expect(storage.setItem).toHaveBeenCalledTimes(0);
     expect(storage.multiRemove).toHaveBeenCalledTimes(1);
     expect(storage.removeItem).toHaveBeenCalledTimes(0);
+  });
+
+
+  it("skips storage multi operations when there are no items", async () => {
+    const runMulti = jest.fn(async () => undefined);
+    const runSingle = jest.fn(async () => undefined);
+
+    await runStorageMultiOpWithFallback({
+      items: [],
+      runMulti,
+      runSingle,
+      multiFailureLog: "multi failed",
+      singleFailureLog: () => "single failed",
+    });
+
+    expect(runMulti).not.toHaveBeenCalled();
+    expect(runSingle).not.toHaveBeenCalled();
+  });
+
+  it("runs single-item fallback for every item after multi failure", async () => {
+    const runMulti = jest.fn(async () => {
+      throw new Error("boom");
+    });
+    const runSingle = jest.fn(async () => undefined);
+
+    await runStorageMultiOpWithFallback({
+      items: ["k1", "k2"],
+      runMulti,
+      runSingle,
+      multiFailureLog: "multi failed",
+      singleFailureLog: (key) => `single failed ${key}`,
+    });
+
+    expect(runMulti).toHaveBeenCalledTimes(1);
+    expect(runSingle).toHaveBeenCalledTimes(2);
+    expect(runSingle).toHaveBeenCalledWith("k1");
+    expect(runSingle).toHaveBeenCalledWith("k2");
   });
 
   it("restores hydration lights deterministically from persisted connection keys", () => {
