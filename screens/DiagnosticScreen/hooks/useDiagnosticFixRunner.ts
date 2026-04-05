@@ -7,13 +7,6 @@ import type {
   PreflightCheckResult,
   PreflightPatch,
 } from "../../../lib/diagnostics/preflightTypes";
-import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
-import {
-  DEFAULT_PATCH_LIMITS,
-  checkPatchLimits,
-  summarizeBatchLimits,
-  summarizeBatchRisk,
-} from "../../../lib/diagnostics/fixSafety";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
@@ -27,26 +20,9 @@ import {
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
-  formatBatchFixResultDetail,
-  formatBatchFixSubtitle,
-} from "./fixRunnerDisplayHelpers";
-import {
-  buildIssueFixPlan,
-  buildIssueFixSuccessResult,
-  buildSingleFixPlan,
-  buildSingleFixSuccessResult,
-} from "./fixRunnerFlowPlanHelpers";
-import {
-  runApplyStep,
-  runDispatchStep,
-  runSyncStep,
-  runVerifyStep,
-} from "./fixRunnerExecutionHelpers";
-import {
   pickAutoFixCandidates,
   pickSelectedFixCandidates,
   pickSmartFixCandidates,
-  resolveWorkflowDispatchTarget,
 } from "./fixRunnerOrchestrationHelpers";
 import { useFixStepProgress } from "./useFixStepProgress";
 import {
@@ -56,12 +32,7 @@ import {
   countPatchOperations,
 } from "./fixRunnerMutationHelpers";
 import {
-  buildBatchExecutionPlan,
-  collectBatchSafetyPatches,
-} from "./fixRunnerBatchPlanHelpers";
-import {
   buildAutoFixStartMessage,
-  buildBatchRiskPromptMessage,
   buildSelectedFixLimitMessage,
   buildSmartFixLimitMessage,
   confirmWithAlert,
@@ -73,14 +44,20 @@ import {
   sameProjectFiles,
   shouldSyncPatchToGitHub,
 } from "./useDiagnosticFixRunnerHelpers";
+import {
+  AUTOFIX_MAX,
+  buildSingleFixPromptMessage,
+  executeBatchFixFlow,
+  executeIssueFixFlow,
+  executeSingleFixFlow,
+  getSingleFixPromptMeta,
+} from "./fixRunnerFlowExecutor";
 
 import type {
   FixHistoryEntry,
 } from "../types";
 
 const MAX_HISTORY = 10;
-export const AUTOFIX_MAX = 50; // safety: don't apply endless chains
-
 type ToastLike = { show: (msg: string) => void };
 
 export function useDiagnosticFixRunner(opts: {
@@ -432,103 +409,21 @@ export function useDiagnosticFixRunner(opts: {
 
   const applyIssueFix = useCallback(
     async (r: PreflightCheckResult) => {
-      if (!r.fix?.patch && !r.fix?.workflowDispatch) return;
-
-      const { patchForApply, dispatch, doSync, steps } = buildIssueFixPlan({
+      await executeIssueFixFlow({
         result: r,
+        linkedRepo,
+        linkedBranch,
         rerunAfterFix,
+        openFixModal,
+        runFixStep,
+        finishWithResult,
+        markFixStepFailed,
+        applyPatch,
+        dispatchWorkflowFix,
         shouldSyncPatch,
+        syncPatchToGitHub,
+        runDiagnostics: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
       });
-
-      openFixModal({ title: "Fix", subtitle: r.title, steps });
-
-      let cursor = 0;
-
-      let patchApplied = false;
-      const patchStep = await runApplyStep({
-        enabled: !!patchForApply,
-        stepIndex: cursor,
-        runFixStep,
-        apply: async () => {
-          await applyPatch(r.title, patchForApply as PreflightPatch);
-        },
-        finishWithResult,
-        failMessage: "Patch konnte nicht angewendet werden.",
-      });
-      if (!patchStep.ok) return;
-      patchApplied = patchStep.applied;
-      cursor = patchStep.nextIndex;
-
-      if (dispatch) {
-        const dispatchTarget = resolveWorkflowDispatchTarget({
-          linkedRepo,
-          linkedBranch,
-          dispatchRef: dispatch.ref,
-        });
-        if (!dispatchTarget.ok) {
-          const detail = dispatchTarget.detail;
-          markFixStepFailed(cursor, detail, detail);
-          finishWithResult({
-            status: "blocked",
-            detail,
-            localChangeApplied: patchApplied,
-            stepIndex: cursor,
-          });
-          return;
-        }
-
-        const dispatchStep = await runDispatchStep({
-          enabled: true,
-          stepIndex: cursor,
-          runFixStep,
-          dispatch: async () => {
-            await dispatchWorkflowFix({
-              owner: dispatchTarget.owner,
-              repo: dispatchTarget.repo,
-              workflowFileName: dispatch.workflowFileName,
-              workflowRef: dispatchTarget.workflowRef,
-              inputs: dispatch.inputs || {},
-              fallbackPatch: dispatch.fallbackPatch,
-            });
-          },
-          finishWithResult,
-          localChangeApplied: patchApplied,
-        });
-        if (!dispatchStep.ok) return;
-        cursor = dispatchStep.nextIndex;
-      }
-
-      const syncStep = await runSyncStep({
-        enabled: !!(doSync && patchForApply),
-        stepIndex: cursor,
-        runFixStep,
-        sync: () => syncPatchToGitHub(r.title, patchForApply as PreflightPatch),
-        finishWithResult,
-        localChangeApplied: patchApplied,
-      });
-      if (!syncStep.ok) return;
-      cursor = syncStep.nextIndex;
-
-      const verifyStep = await runVerifyStep({
-        enabled: rerunAfterFix,
-        stepIndex: cursor,
-        runFixStep,
-        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
-        finishWithResult,
-        localChangeApplied: patchApplied,
-        workflowTriggered: !!dispatch,
-      });
-      if (!verifyStep.ok) return;
-      cursor = verifyStep.nextIndex;
-
-      finishWithResult(
-        buildIssueFixSuccessResult({
-          rerunAfterFix,
-          hasDispatch: !!dispatch,
-          patchApplied,
-          stepsLength: steps.length,
-        }),
-      );
     },
     [
       applyPatch,
@@ -545,95 +440,20 @@ export function useDiagnosticFixRunner(opts: {
   const applyFixList = useCallback(
     async (items: PreflightCheckResult[], label: string) => {
       if (!projectRef.current) return;
-      if (!items.length) return;
-
-      // --- Safety gate for batch runs ---
-      // In batch mode it's easy to "silently" apply changes that touch CI / build plumbing.
-      // We do one extra confirmation if any patch looks risky.
-      const batch = collectBatchSafetyPatches(items);
-
-      // --- Size/complexity guard ---
-      // Even if paths are not "risky", very large patches can slow devices and raise regression risk.
-      const limitSummary = summarizeBatchLimits(batch, DEFAULT_PATCH_LIMITS);
-      if (limitSummary.hasHard) {
-        const lines = limitSummary.hardLines.join("\n");
-        Alert.alert(
-          "Patch too large",
-          `Mindestens ein Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n${lines}`,
-        );
-        return;
-      }
-
-      const riskSummary = summarizeBatchRisk(batch);
-      if (riskSummary.hasRisk || limitSummary.hasSoft) {
-        const proceed = await confirmWithAlert({
-          title: "Risky batch fix",
-          message: buildBatchRiskPromptMessage({
-            hasRisk: riskSummary.hasRisk,
-            shortPaths: riskSummary.shortPaths,
-            more: riskSummary.more,
-            softLines: limitSummary.hasSoft ? limitSummary.softLines : [],
-          }),
-        });
-        if (!proceed) return;
-      }
-
-      const { deduped, steps, skipped } = buildBatchExecutionPlan({
+      await executeBatchFixFlow({
         items,
+        label,
         rerunAfterFix,
-        shouldSyncPatch,
-      });
-      openFixModal({
-        title: label,
-        subtitle: formatBatchFixSubtitle(deduped.length, skipped),
-        steps,
-      });
-
-      let cursor = 0;
-
-      let appliedCount = 0;
-      for (const { result, patch } of deduped) {
-        const applyStep = await runApplyStep({
-          enabled: true,
-          stepIndex: cursor,
-          runFixStep,
-          apply: async () => {
-            await applyPatch(result.title, patch);
-          },
-          finishWithResult,
-          localChangeAppliedOnFailure: appliedCount > 0 || undefined,
-        });
-        if (!applyStep.ok) return;
-        if (applyStep.applied) appliedCount++;
-        cursor = applyStep.nextIndex;
-
-        const syncStep = await runSyncStep({
-          enabled: shouldSyncPatch(patch),
-          stepIndex: cursor,
-          runFixStep,
-          sync: () => syncPatchToGitHub(result.title, patch),
-          finishWithResult,
-          localChangeApplied: appliedCount > 0,
-        });
-        if (!syncStep.ok) return;
-        cursor = syncStep.nextIndex;
-      }
-
-      const verifyStep = await runVerifyStep({
-        enabled: rerunAfterFix,
-        stepIndex: cursor,
+        openFixModal,
         runFixStep,
-        verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
         finishWithResult,
-        localChangeApplied: appliedCount > 0,
-      });
-      if (!verifyStep.ok) return;
-
-      finishWithResult({
-        status: rerunAfterFix ? "pending_recheck" : "patch_applied",
-        detail: formatBatchFixResultDetail(rerunAfterFix),
-        localChangeApplied: appliedCount > 0,
-        stepIndex: steps.length,
+        applyPatch,
+        shouldSyncPatch,
+        syncPatchToGitHub,
+        runDiagnostics: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
+        onHardLimitBlock: (message) => {
+          Alert.alert("Patch too large", message);
+        },
       });
     },
     [applyPatch, finishWithResult, projectRef, rerunAfterFix, runDiagnostics, shouldSyncPatch, syncPatchToGitHub],
@@ -735,80 +555,34 @@ export function useDiagnosticFixRunner(opts: {
 
   const applySingle = useCallback(
     (r: PreflightCheckResult) => {
-      if (!r.fix?.patch) return;
-
-      // Note: TypeScript does not keep narrowing for r.fix across nested closures.
-      // Capture once so we can safely reference inside callbacks.
-      const patch = r.fix.patch as PreflightPatch;
-
-      const sizeCheck = checkPatchLimits(patch, DEFAULT_PATCH_LIMITS);
-      if (sizeCheck.hardFail) {
-        Alert.alert(
-          "Patch too large",
-          "Dieser Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n" +
-            sizeCheck.reasons.join("\n"),
-        );
+      const { blockedReason, sizeNote, canSyncRepo, syncWouldHelp, patch } = getSingleFixPromptMeta({
+        result: r,
+        linkedRepo,
+        shouldSyncPatch,
+      });
+      if (!patch) return;
+      if (blockedReason) {
+        Alert.alert("Patch too large", blockedReason);
         return;
       }
-      const sizeNote = sizeCheck.softWarn
-        ? `\n\n⚠ Größe/Komplexität: ${sizeCheck.reasons.join(", ")}`
-        : "";
-
-      const canSyncRepo = !!parseOwnerRepo(linkedRepo);
-      const syncWouldHelp = shouldSyncPatch(patch);
 
       const runOne = async (doSync: boolean) => {
-        const { steps } = buildSingleFixPlan({ doSync, rerunAfterFix });
-
-        openFixModal({ title: "Fix", subtitle: r.title, steps });
-
-        const patchStep = await runApplyStep({
-          enabled: true,
-          stepIndex: 0,
+        await executeSingleFixFlow({
+          result: r,
+          doSync,
+          rerunAfterFix,
+          openFixModal,
           runFixStep,
-          apply: async () => {
-            await applyPatch(r.title, patch);
-          },
           finishWithResult,
-          failMessage: "Fehler",
+          applyPatch,
+          syncPatchToGitHub,
+          runDiagnostics: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
         });
-        if (!patchStep.ok) return;
-        const patchApplied = patchStep.applied;
-
-        let stepCursor = patchStep.nextIndex;
-        const syncStep = await runSyncStep({
-          enabled: doSync,
-          stepIndex: stepCursor,
-          runFixStep,
-          sync: () => syncPatchToGitHub(r.title, patch),
-          finishWithResult,
-          localChangeApplied: patchApplied,
-        });
-        if (!syncStep.ok) return;
-        stepCursor = syncStep.nextIndex;
-
-        const verifyStep = await runVerifyStep({
-          enabled: rerunAfterFix,
-          stepIndex: stepCursor,
-          runFixStep,
-          verify: () => runDiagnostics({ resetSelection: false, resetHistory: false }),
-          finishWithResult,
-          localChangeApplied: patchApplied,
-        });
-        if (!verifyStep.ok) return;
-
-        finishWithResult(
-          buildSingleFixSuccessResult({
-            rerunAfterFix,
-            patchApplied,
-            stepsLength: steps.length,
-          }),
-        );
       };
 
       Alert.alert(
         "Fix anwenden?",
-        `${r.title}\n\n${safeTruncateText(r.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser Fix betrifft Repo-Dateien → Sync macht Sinn." : ""}${sizeNote}`,
+        buildSingleFixPromptMessage({ result: r, syncWouldHelp, sizeNote }),
         [
           { text: "Abbrechen", style: "cancel" },
           { text: "Preview", onPress: () => openPreview(r.title, patch) },
