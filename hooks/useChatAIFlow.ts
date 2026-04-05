@@ -25,6 +25,12 @@ import { handleMetaCommand } from "../utils/metaCommands";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
+  getBuilderFlowErrorNoticeText,
+  getEmptyMessageNoticeText,
+  getExplainFallbackNoticeText,
+  getXssSanitizationNoticeText,
+} from "./chatAIFlowNoticeMessageHelpers";
+import {
   buildIntentConfirmationMessage,
   buildPlannerPreviewMessage,
 } from "./chatAIFlowPlannerMessageHelpers";
@@ -618,7 +624,7 @@ export function useChatAIFlow({
             addChatMessage({
               id: uuidv4(),
               role: "system",
-              content: "ℹ️ Konnte die Kurz-Erklärung für die Änderungen nicht erzeugen. Dateien können trotzdem übernommen werden.",
+              content: getExplainFallbackNoticeText(),
               timestamp: new Date().toISOString(),
               meta: { explainWarning: true },
             });
@@ -671,7 +677,7 @@ export function useChatAIFlow({
         const builderFallbackMessage = error instanceof BuilderNonOkError
           ? getBuilderFailureMessage(error.result)
           : error.message;
-        const msg = `⚠️ ${builderFallbackMessage || "Es ist ein Fehler im Builder-Flow aufgetreten."}`;
+        const msg = getBuilderFlowErrorNoticeText(builderFallbackMessage);
         safe(() => setError(msg));
 
         addChatMessage({
@@ -844,7 +850,7 @@ export function useChatAIFlow({
         : sanitizedAiContent;
 
       if (!sanitizedAiContent) {
-        safe(() => setError("⚠️ Nachricht ist leer."));
+        safe(() => setError(getEmptyMessageNoticeText()));
         return false;
       }
 
@@ -860,7 +866,7 @@ export function useChatAIFlow({
         addChatMessage({
           id: uuidv4(),
           role: "system",
-          content: "ℹ️ Eingabe enthielt auffällige Script-/XSS-Muster und wurde vor dem AI-Flow bereinigt. Der Flow läuft mit der sanitizten Eingabe weiter.",
+          content: getXssSanitizationNoticeText(),
           timestamp: new Date().toISOString(),
           meta: { validatorWarning: true },
         });
