@@ -227,48 +227,57 @@ export type StorageLike = {
 
 export type PersistableEntry = [string, string];
 
+export const runStorageMultiOpWithFallback = async <T>(params: {
+  items: T[];
+  runMulti: () => Promise<unknown>;
+  runSingle: (item: T) => Promise<unknown>;
+  multiFailureLog: string;
+  singleFailureLog: (item: T) => string;
+}): Promise<void> => {
+  if (!params.items.length) return;
+
+  let multiFailed = false;
+  try {
+    await params.runMulti();
+  } catch (error) {
+    multiFailed = true;
+    logger.warn(params.multiFailureLog, { err: error });
+  }
+
+  if (!multiFailed) return;
+
+  await Promise.all(
+    params.items.map((item) =>
+      runCleanupTask(
+        () => params.runSingle(item),
+        params.singleFailureLog(item),
+      ),
+    ),
+  );
+};
+
 export const persistEntriesWithFallback = async (
   storage: StorageLike,
   entries: PersistableEntry[],
 ): Promise<void> => {
-  if (!entries.length) return;
-  let multiSetFailed = false;
-  try {
-    await storage.multiSet(entries);
-  } catch (error) {
-    multiSetFailed = true;
-    logger.warn("[ConnectionsScreen] storage multiSet failed, using item fallback", { err: error });
-  }
-  if (!multiSetFailed) return;
-  await Promise.all(
-    entries.map(([key, value]) =>
-      runCleanupTask(
-        () => storage.setItem(key, value),
-        `[ConnectionsScreen] storage setItem failed for key=${key}`,
-      ),
-    ),
-  );
+  await runStorageMultiOpWithFallback({
+    items: entries,
+    runMulti: () => storage.multiSet(entries),
+    runSingle: ([key, value]) => storage.setItem(key, value),
+    multiFailureLog: "[ConnectionsScreen] storage multiSet failed, using item fallback",
+    singleFailureLog: ([key]) => `[ConnectionsScreen] storage setItem failed for key=${key}`,
+  });
 };
 
 export const removeEntriesWithFallback = async (
   storage: StorageLike,
   keys: string[],
 ): Promise<void> => {
-  if (!keys.length) return;
-  let multiRemoveFailed = false;
-  try {
-    await storage.multiRemove(keys);
-  } catch (error) {
-    multiRemoveFailed = true;
-    logger.warn("[ConnectionsScreen] storage multiRemove failed, using item fallback", { err: error });
-  }
-  if (!multiRemoveFailed) return;
-  await Promise.all(
-    keys.map((key) =>
-      runCleanupTask(
-        () => storage.removeItem(key),
-        `[ConnectionsScreen] storage removeItem failed for key=${key}`,
-      ),
-    ),
-  );
+  await runStorageMultiOpWithFallback({
+    items: keys,
+    runMulti: () => storage.multiRemove(keys),
+    runSingle: (key) => storage.removeItem(key),
+    multiFailureLog: "[ConnectionsScreen] storage multiRemove failed, using item fallback",
+    singleFailureLog: (key) => `[ConnectionsScreen] storage removeItem failed for key=${key}`,
+  });
 };

@@ -31,7 +31,6 @@ import {
 import {
   getNormalizedSendInputs,
 } from "./chatAIFlowInputRoutingHelpers";
-import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 import { executeChatRequestPipeline } from "./chatAIFlowRequestPipeline";
 import {
   buildRequestFailureNotice,
@@ -55,6 +54,7 @@ import {
   notifyKeyRotationEffect,
 } from "./chatAIFlowRequestSideEffects";
 import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
+import { resolvePendingPlanHandoff } from "./chatAIFlowPendingPlanHandoff";
 
 export type { PendingChange, PendingPlan } from "./chatAIFlowTypes";
 export { extractContextBudgetNotice } from "./chatAIFlowContextBudgetHelpers";
@@ -613,10 +613,7 @@ export function useChatAIFlow({
 
       const validation = prepareValidatedChatInput(candidateInput);
       if (!validation.valid) {
-        const validationMessage =
-          validation.error === "Nachricht ist zu lang"
-            ? "⚠️ Deine Nachricht ist zu lang. Bitte kürze den Prompt oder teile ihn in kleinere Schritte auf."
-            : `⚠️ ${validation.error || "Nachricht konnte nicht verarbeitet werden."}`;
+        const validationMessage = getInputValidationMessage(validation.error);
 
         safe(() => setError(validationMessage));
         addChatMessage(buildAssistantMessage(validationMessage, { error: true }));

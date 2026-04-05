@@ -50,4 +50,5 @@ describe("chatAIFlowPendingPlanHandoff", () => {
       expect(forwardResult.combinedRequest).toContain("scout plan");
     }
   });
+
 });

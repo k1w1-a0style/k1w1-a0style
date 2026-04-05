@@ -113,27 +113,33 @@ export const resolveCiLiteBusyState = (params: {
   );
 };
 
+const AUTOFIX_CHAIN_SKIP_REASON_RULES: Array<{ pattern: RegExp; reason: string }> = [
+  {
+    pattern: /No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i,
+    reason: "Kein TARGET_BRANCH im Autofix-Run",
+  },
+  {
+    pattern: /Ref\s+looks\s+like\s+a\s+SHA.*skipping\s+CI\s*Lite\s+chain-?run/i,
+    reason: "Ref wurde als SHA statt Branch erkannt",
+  },
+  {
+    pattern: /Unsafe\s+ref.*skipping\s+CI\s*Lite\s+chain-?run/i,
+    reason: "Ref enthält unsichere Zeichen",
+  },
+  {
+    pattern: /CI\s*Lite\s+chain-?run\s+disabled\s+for.*regex:/i,
+    reason: "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt",
+  },
+  {
+    pattern: /is\s+not\s+a\s+remote\s+branch.*skipping\s+CI\s*Lite\s+chain-?run/i,
+    reason: "Ref existiert nicht als Remote-Branch",
+  },
+];
+
 export const getAutofixChainSkipReason = (lines: string[]): string | null => {
   if (!Array.isArray(lines) || lines.length === 0) return null;
   const joined = lines.join("\n");
-
-  if (/No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Kein TARGET_BRANCH im Autofix-Run";
-  }
-  if (/Ref\s+looks\s+like\s+a\s+SHA.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref wurde als SHA statt Branch erkannt";
-  }
-  if (/Unsafe\s+ref.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref enthält unsichere Zeichen";
-  }
-  if (/CI\s*Lite\s+chain-?run\s+disabled\s+for.*regex:/i.test(joined)) {
-    return "Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt";
-  }
-  if (/is\s+not\s+a\s+remote\s+branch.*skipping\s+CI\s*Lite\s+chain-?run/i.test(joined)) {
-    return "Ref existiert nicht als Remote-Branch";
-  }
-
-  return null;
+  return AUTOFIX_CHAIN_SKIP_REASON_RULES.find(({ pattern }) => pattern.test(joined))?.reason ?? null;
 };
 
 export const splitRepoFullName = (

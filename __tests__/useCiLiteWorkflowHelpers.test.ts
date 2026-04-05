@@ -251,9 +251,20 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(getAutofixChainSkipReason(["No TARGET_BRANCH set, skipping CI Lite chain-run"])).toBe(
         "Kein TARGET_BRANCH im Autofix-Run",
       );
+      expect(getAutofixChainSkipReason(["Ref looks like a SHA, skipping CI Lite chain-run"])).toBe(
+        "Ref wurde als SHA statt Branch erkannt",
+      );
       expect(getAutofixChainSkipReason(["Unsafe ref, skipping CI Lite chain-run"])).toBe(
         "Ref enthält unsichere Zeichen",
       );
+      expect(
+        getAutofixChainSkipReason(["CI Lite chain-run disabled for branch regex: release/.*"]),
+      ).toBe("Ref ist laut Workflow-Regeln nicht für Chain-Run erlaubt");
+      expect(
+        getAutofixChainSkipReason([
+          "origin/ref is not a remote branch, skipping CI Lite chain-run",
+        ]),
+      ).toBe("Ref existiert nicht als Remote-Branch");
       expect(getAutofixChainSkipReason(["some neutral line"])).toBeNull();
     });
   });
