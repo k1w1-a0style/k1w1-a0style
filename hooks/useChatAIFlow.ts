@@ -368,13 +368,7 @@ export function useChatAIFlow({
     const msg = queuedAutoFixRef.current.shift();
     if (!msg) return;
 
-    addChatMessage({
-      id: uuidv4(),
-      role: "user",
-      content: msg,
-      timestamp: new Date().toISOString(),
-      meta: { autoFix: true },
-    });
+    addChatMessage(buildUserMessage(msg, { autoFix: true }));
 
     const runner = processAIRequestRef.current;
     if (runner) void runner(msg, true, true);
@@ -716,14 +710,12 @@ export function useChatAIFlow({
       await updateProjectFiles(applyResult.files);
 
       if (driftDetected) {
-        addChatMessage({
-          id: uuidv4(),
-          role: "system",
-          content:
+        addChatMessage(
+          buildSystemMessage(
             "ℹ️ Projektzustand hat sich seit dem KI-Vorschlag geändert. Änderungen wurden auf den aktuellen Stand neu angewendet.",
-          timestamp: new Date().toISOString(),
-          meta: { stateDrift: true },
-        });
+            { stateDrift: true },
+          ),
+        );
       }
 
       const confirmationText = buildChangeConfirmationText({
@@ -735,13 +727,11 @@ export function useChatAIFlow({
         errors: applyResult.errors ?? pendingChange.errors,
       });
 
-      addChatMessage({
-        id: uuidv4(),
-        role: "assistant",
-        content: confirmationText,
-        timestamp: new Date().toISOString(),
-        meta: { provider: pendingChange.aiResponse?.provider || "system" },
-      });
+      addChatMessage(
+        buildAssistantMessage(confirmationText, {
+          provider: pendingChange.aiResponse?.provider || "system",
+        }),
+      );
 
       requestAnimationFrame(() => hardScrollToBottom(true));
     } catch (e: unknown) {
@@ -750,13 +740,12 @@ export function useChatAIFlow({
         "Fehler beim Anwenden",
         error.message || "Änderungen konnten nicht angewendet werden.",
       );
-      addChatMessage({
-        id: uuidv4(),
-        role: "system",
-        content: `⚠️ Fehler beim Anwenden der Änderungen: ${error.message || "Unbekannt"}`,
-        timestamp: new Date().toISOString(),
-        meta: { error: true },
-      });
+      addChatMessage(
+        buildSystemMessage(
+          `⚠️ Fehler beim Anwenden der Änderungen: ${error.message || "Unbekannt"}`,
+          { error: true },
+        ),
+      );
     } finally {
       safe(() => setPendingChange(null));
     }
@@ -770,12 +759,9 @@ export function useChatAIFlow({
   ]);
 
   const rejectChanges = useCallback(() => {
-    addChatMessage({
-      id: uuidv4(),
-      role: "system",
-      content: "❌ Änderungen wurden abgelehnt. Keine Dateien wurden geändert.",
-      timestamp: new Date().toISOString(),
-    });
+    addChatMessage(
+      buildSystemMessage("❌ Änderungen wurden abgelehnt. Keine Dateien wurden geändert."),
+    );
     safe(() => setShowConfirmModal(false));
     safe(() => setPendingChange(null));
   }, [addChatMessage, safe, setShowConfirmModal]);
@@ -937,16 +923,15 @@ export function useChatAIFlow({
       closeConfirmModal: false,
     });
 
-    addChatMessage({
-      id: uuidv4(),
-      role: "system",
-      content: getScreenBlurAbortNotice(preservedPendingState),
-      timestamp: new Date().toISOString(),
-      meta: {
-        requestAbortedOnBlur: true,
-        preservedPendingState,
-      },
-    });
+    addChatMessage(
+      buildSystemMessage(
+        getScreenBlurAbortNotice(preservedPendingState),
+        {
+          requestAbortedOnBlur: true,
+          preservedPendingState,
+        },
+      ),
+    );
   }, [
     addChatMessage,
     cleanupStreamingTimer,

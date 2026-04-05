@@ -28,7 +28,8 @@ describe("Bereich 6 / C4 cleanup invariants", () => {
     expect(flowSource).toContain("const handleScreenBlurCleanup = useCallback(() => {");
     expect(flowSource).toContain("requestAbortedOnBlur: true");
     expect(flowSource).toContain("const preservedPendingState = hasPreservedPendingState({");
-    expect(flowSource).toContain("content: getScreenBlurAbortNotice(preservedPendingState)");
+    expect(flowSource).toContain("buildSystemMessage(");
+    expect(flowSource).toContain("getScreenBlurAbortNotice(preservedPendingState)");
     expect(flowSource).toContain("clearPendingDecisions: false");
     expect(flowSource).toContain("closeConfirmModal: false");
     expect(lifecycleHelpersSource).toContain("export const shouldAbortOnScreenBlur = ({");
