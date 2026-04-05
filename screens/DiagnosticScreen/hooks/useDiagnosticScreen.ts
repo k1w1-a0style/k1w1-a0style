@@ -29,6 +29,10 @@ import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 
 import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
 import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
+import {
+  buildDiagnosticSelectionScope,
+  resolveDiagnosticFocusedProfiles,
+} from "./useDiagnosticScreenHelpers";
 
 export function pipelineCheckAppliesToModes(params: {
   checkId: string;
@@ -215,9 +219,7 @@ export function useDiagnosticScreen(opts: {
   }, [sortedResults]);
 
   useEffect(() => {
-    const repoScope = String(linkedRepo ?? "").trim().toLowerCase();
-    const branchScope = String(linkedBranch ?? "").trim();
-    activeSelectionScopeRef.current = repoScope && branchScope ? `${repoScope}::${branchScope}` : null;
+    activeSelectionScopeRef.current = buildDiagnosticSelectionScope(linkedRepo, linkedBranch);
   }, [linkedRepo, linkedBranch]);
 
   const pipelineAppliesToFocus = useCallback(
@@ -266,12 +268,11 @@ export function useDiagnosticScreen(opts: {
         const files = projectRef.current.files;
         const all: PreflightCheckResult[] = [];
 
-        const focusedProfiles: Array<"development" | "preview" | "production"> =
-          modesAll
-            ? ["development", "preview", "production"]
-            : (selectedModes.length
-                ? (selectedModes as Array<"development" | "preview" | "production">)
-                : ([recommendedMode] as Array<"development" | "preview" | "production">));
+        const focusedProfiles = resolveDiagnosticFocusedProfiles({
+          modesAll,
+          selectedModes,
+          recommendedMode,
+        });
 
         await runLocalChecks({
           includeLocalChecks,
@@ -412,9 +413,7 @@ export function useDiagnosticScreen(opts: {
   const [activeIssue, setActiveIssue] = useState<PreflightCheckResult | null>(null);
 
   useEffect(() => {
-    const repoScope = String(linkedRepo ?? "").trim().toLowerCase();
-    const branchScope = String(linkedBranch ?? "").trim();
-    const nextScope = repoScope && branchScope ? `${repoScope}::${branchScope}` : null;
+    const nextScope = buildDiagnosticSelectionScope(linkedRepo, linkedBranch);
     const previousScope = lastSelectionScopeRef.current;
     lastSelectionScopeRef.current = nextScope;
 

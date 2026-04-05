@@ -42,3 +42,37 @@ export const resolveSyncStatusPrecheck = (params: {
 
   return { status: "ready", repoParts, branch };
 };
+
+
+export const buildPushSelectionFromLocalFiles = (params: {
+  localFiles: Array<{ path: string }>;
+}): Record<string, boolean> => {
+  const initial: Record<string, boolean> = {};
+  for (const file of params.localFiles) {
+    const path = String(file.path ?? "").trim();
+    if (!path) continue;
+    initial[path] = true;
+  }
+  return initial;
+};
+
+export const buildPushSelectionForWantedPaths = (params: {
+  localFiles: Array<{ path: string }>;
+  wantedPaths: string[];
+}): { selection: Record<string, boolean>; pickedCount: number } => {
+  const wanted = new Set(
+    (params.wantedPaths || []).map((path) => String(path ?? "").trim()).filter(Boolean),
+  );
+
+  const selection: Record<string, boolean> = {};
+  for (const file of params.localFiles) {
+    const path = String(file.path ?? "").trim();
+    if (!path) continue;
+    if (!wanted.size || wanted.has(path)) {
+      selection[path] = true;
+    }
+  }
+
+  const pickedCount = Object.values(selection).filter(Boolean).length;
+  return { selection, pickedCount };
+};

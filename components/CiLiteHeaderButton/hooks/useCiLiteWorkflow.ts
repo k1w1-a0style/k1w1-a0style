@@ -43,6 +43,8 @@ import {
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
   splitRepoFullName,
+  resolveCiLiteDisplaySnapshot,
+  resolveCiLiteTargetRef,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
@@ -372,8 +374,16 @@ export function useCiLiteWorkflow() {
     });
   }, []);
 
-  const hydratedDisplaySnapshot = !hasActiveRunContext && !workflowRun ? hydratedSnapshot : null;
-  const effectiveTargetRef = (targetRef || hydratedDisplaySnapshot?.branch || branch || "").trim() || null;
+  const hydratedDisplaySnapshot = resolveCiLiteDisplaySnapshot({
+    hasActiveRunContext,
+    workflowRunPresent: Boolean(workflowRun),
+    hydratedSnapshot,
+  });
+  const effectiveTargetRef = resolveCiLiteTargetRef({
+    targetRef,
+    hydratedBranch: hydratedDisplaySnapshot?.branch ?? null,
+    branch,
+  });
 
   // ---- Derived log state ----
   const logLines = useMemo(() => {
