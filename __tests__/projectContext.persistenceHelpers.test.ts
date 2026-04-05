@@ -1,7 +1,10 @@
 import type { ProjectData, ProjectFile } from "../shared/types/project";
 import {
+  clearPendingProjectSaveTimeout,
+  flushProjectSaveForAppState,
   flushPendingProjectSave,
   initializeProjectData,
+  scheduleDebouncedProjectSave,
   shouldFlushProjectSaveOnAppState,
 } from "../contexts/projectContextPersistenceHelpers";
 
@@ -93,6 +96,75 @@ describe("projectContextPersistenceHelpers", () => {
       expect(clearPendingSave).not.toHaveBeenCalled();
       expect(saveProjectToStorage).not.toHaveBeenCalled();
       expect(didSave).toBe(false);
+    });
+
+    it("schedules debounced save and clears previous timeout first", () => {
+      jest.useFakeTimers();
+      const previousTimeout = {} as ReturnType<typeof setTimeout>;
+      const clearTimeoutFn = jest.fn();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const onSaveError = jest.fn();
+      const project = buildProject();
+
+      const timeoutHandle = scheduleDebouncedProjectSave({
+        saveTimeout: previousTimeout,
+        clearTimeoutFn,
+        setTimeoutFn: setTimeout,
+        debounceMs: 500,
+        project,
+        saveProjectToStorage,
+        onSaveError,
+      });
+
+      expect(clearTimeoutFn).toHaveBeenCalledWith(previousTimeout);
+      expect(timeoutHandle).toBeDefined();
+
+      jest.advanceTimersByTime(500);
+      expect(saveProjectToStorage).toHaveBeenCalledWith(project);
+      expect(onSaveError).not.toHaveBeenCalled();
+      jest.useRealTimers();
+    });
+
+    it("returns null when clearPendingProjectSaveTimeout has no active timeout", () => {
+      const clearTimeoutFn = jest.fn();
+
+      const result = clearPendingProjectSaveTimeout({
+        saveTimeout: null,
+        clearTimeoutFn,
+      });
+
+      expect(result).toBeNull();
+      expect(clearTimeoutFn).not.toHaveBeenCalled();
+    });
+
+    it("flushes only on background/inactive app states", async () => {
+      const clearPendingSave = jest.fn();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const project = buildProject();
+
+      const activeSave = await flushProjectSaveForAppState({
+        nextState: "active",
+        saveTimeout: {} as ReturnType<typeof setTimeout>,
+        clearPendingSave,
+        projectData: project,
+        saveProjectToStorage,
+      });
+
+      expect(activeSave).toBe(false);
+      expect(clearPendingSave).not.toHaveBeenCalled();
+      expect(saveProjectToStorage).not.toHaveBeenCalled();
+
+      const backgroundSave = await flushProjectSaveForAppState({
+        nextState: "background",
+        saveTimeout: {} as ReturnType<typeof setTimeout>,
+        clearPendingSave,
+        projectData: project,
+        saveProjectToStorage,
+      });
+
+      expect(backgroundSave).toBe(true);
+      expect(clearPendingSave).toHaveBeenCalledTimes(1);
+      expect(saveProjectToStorage).toHaveBeenCalledWith(project);
     });
   });
 });
