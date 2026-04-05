@@ -63,6 +63,11 @@ import {
   removeProjectFilesByPaths,
 } from "./projectContextHelpers";
 import {
+  flushPendingProjectSave,
+  initializeProjectData,
+  shouldFlushProjectSaveOnAppState,
+} from "./projectContextPersistenceHelpers";
+import {
   appendChatMessageWithRetention,
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
@@ -588,20 +593,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     const initializeProject = async () => {
       try {
         logger.info("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
-        const savedProject = await loadProjectFromStorage();
-
-        if (savedProject) {
-          logger.info("📖 Projekt geladen:", savedProject.name);
-          setProjectData(normalizeLoadedProjectData(savedProject));
+        const initialized = await initializeProjectData({
+          loadProjectFromStorage,
+          loadTemplateFromFile,
+          saveProjectToStorage,
+          createProjectId: () => uuidv4(),
+        });
+        setProjectData(initialized.project);
+        if (initialized.source === "storage") {
+          logger.info("📖 Projekt geladen:", initialized.project.name);
         } else {
           logger.info("Kein Projekt gefunden, lade neues Template...");
-          const templateFiles = await loadTemplateFromFile();
-          const newProject = buildProjectForCreation({
-            id: uuidv4(),
-            files: templateFiles,
-          });
-          setProjectData(newProject);
-          await saveProjectToStorage(newProject);
           logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }
       } catch (error) {
@@ -616,19 +618,25 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const handleAppStateChange = async (nextState: AppStateStatus) => {
-      if (nextState === "background" || nextState === "inactive") {
+      if (shouldFlushProjectSaveOnAppState(nextState)) {
         logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
-        if (saveTimeoutRef.current) {
-          clearTimeout(saveTimeoutRef.current);
-          saveTimeoutRef.current = null;
-        }
-        if (projectData) {
-          try {
-            await saveProjectToStorage(projectData);
+        try {
+          const didSave = await flushPendingProjectSave({
+            saveTimeout: saveTimeoutRef.current,
+            clearPendingSave: () => {
+              if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+                saveTimeoutRef.current = null;
+              }
+            },
+            projectData,
+            saveProjectToStorage,
+          });
+          if (didSave) {
             logger.info("✅ Background-Save erfolgreich");
-          } catch (error) {
-            logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
           }
+        } catch (error) {
+          logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
         }
       }
     };
