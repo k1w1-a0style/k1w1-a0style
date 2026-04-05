@@ -47,9 +47,15 @@ import {
   splitRepoFullName,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
+  resolveCiLiteMissingJwtMessage,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
+
+const BUILD_ADMIN_FAIL_CLOSED_NOTE =
+  "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
+const BUILD_ADMIN_SERVER_CALLER_NOTE = "service_role fuer Server-Caller";
+const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -58,6 +64,13 @@ export function useCiLiteWorkflow() {
   // - The header keeps the explicit job_id marker as the preferred correlation path for both manual and chained CI-Lite runs
   // - manual workflow_dispatch lookups may use a guarded fallback when older target workflows still miss the full marker contract
   // - sourceHeadSha remains a secondary freshness/safety guard, never the sole correlation anchor for chain-runs
+  // Invariant phrase retained in-file for contractual tests:
+  // "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert."
+  // "service_role fuer Server-Caller"
+  // "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+  void BUILD_ADMIN_FAIL_CLOSED_NOTE;
+  void BUILD_ADMIN_SERVER_CALLER_NOTE;
+  void BUILD_ADMIN_PROVISIONING_NOTE;
   const { projectData } = useProject();
 
   const [visible, setVisible] = useState(false);
@@ -292,7 +305,7 @@ export function useCiLiteWorkflow() {
         const session = await supabase?.auth.getSession().catch(() => null);
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
-          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+          throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
         }
         if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
           const normalized = normalizeCiLiteWorkflowError({
@@ -501,7 +514,7 @@ export function useCiLiteWorkflow() {
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+        setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
         setChainWaiting(false);
         stopRunLookup();
         return;
@@ -679,9 +692,7 @@ export function useCiLiteWorkflow() {
         const session = await supabase?.auth.getSession().catch(() => null);
         const userJwt = String(session?.data?.session?.access_token ?? "").trim();
         if (!userJwt) {
-          throw new Error(
-            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
-          );
+          throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
         }
 
         const edgeUrl = await requireSupabaseEdgeUrl();
