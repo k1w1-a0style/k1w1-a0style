@@ -11,12 +11,6 @@ import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { createOrUpdateFile, deleteRepoFile, triggerWorkflow } from "../../../infra/github/githubService";
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import {
-  DiagnosticFixApplyError,
-} from "../../../lib/diagnostics/fixResultContract";
-import { findOwnershipViolations } from "../../../lib/projectOwnership";
-import {
-} from "./fixRunnerHelpers";
-import {
   getErrorMessage,
 } from "./fixRunnerResultHelpers";
 import {
@@ -25,12 +19,6 @@ import {
   pickSmartFixCandidates,
 } from "./fixRunnerOrchestrationHelpers";
 import { useFixStepProgress } from "./useFixStepProgress";
-import {
-  applyUndoHistoryEntry,
-  buildPatchApplyState,
-  collectNormalizedTouchedPaths,
-  countPatchOperations,
-} from "./fixRunnerMutationHelpers";
 import {
   buildAutoFixStartMessage,
   buildSelectedFixLimitMessage,
@@ -41,7 +29,6 @@ import {
   buildFixPreviewEntries,
   collectDeletedPatchPaths,
   collectPatchTouchedPaths,
-  sameProjectFiles,
   shouldSyncPatchToGitHub,
 } from "./useDiagnosticFixRunnerHelpers";
 import {
@@ -52,6 +39,11 @@ import {
   executeSingleFixFlow,
   getSingleFixPromptMeta,
 } from "./fixRunnerFlowExecutor";
+import {
+  applyPatchLocally,
+  undoHistoryEntries,
+  undoHistoryEntry,
+} from "./fixRunnerLocalMutationExecutor";
 
 import type {
   FixHistoryEntry,
@@ -223,77 +215,26 @@ export function useDiagnosticFixRunner(opts: {
       applyBusyRef.current = true;
       if (mountedRef.current) setApplyBusy(true);
 
-      const currentFiles = projectRef.current.files;
-      const operationCount = countPatchOperations(patch);
-      if (operationCount === 0) {
-        throw new DiagnosticFixApplyError({
-          message: "Patch enthält keine anwendbaren Änderungen.",
-          status: "blocked",
-        });
-      }
-
-      let deletedCount = 0;
       try {
-        const normalizedTouched = collectNormalizedTouchedPaths(patch);
-
-        const ownershipViolations = findOwnershipViolations("diagnosisAutofix", normalizedTouched);
-        if (ownershipViolations.length) {
-          const details = ownershipViolations
-            .map((v) => `- ${v.path}: ${v.reason}`)
-            .join("\n");
-          throw new Error(
-            `Patch überschreitet Ownership-Grenzen und wurde blockiert:\n${details}`,
-          );
-        }
-
-        const { nextFiles, snapshot, createdPaths, deletePaths } = await buildPatchApplyState({
+        const result = await applyPatchLocally({
+          label,
           patch,
-          currentFiles,
-          applyJsonMerge: async (files, jsonMerge) => {
-            const { applyJsonMergePatchSafe } = await import("../../../lib/diagnostics/smartPatch");
-            return applyJsonMergePatchSafe(files, jsonMerge);
-          },
+          projectRef,
+          deleteFile,
+          updateProjectFiles,
         });
-
-        for (const p of deletePaths) {
-          await deleteFile(p);
-          deletedCount++;
-        }
-
-        if (sameProjectFiles(currentFiles, nextFiles)) {
-          throw new DiagnosticFixApplyError({
-            message: "Patch hat lokal keine wirksamen Änderungen erzeugt.",
-            status: "blocked",
-          });
-        }
-
-        await updateProjectFiles(nextFiles);
 
         // Only update the shadow ref after both delete + upsert succeeded.
         // This keeps projectRef consistent with projectData for subsequent
         // batch patches that read from projectRef.current.
-        projectRef.current = { ...projectRef.current, files: nextFiles };
+        projectRef.current = { ...projectRef.current, files: result.nextFiles };
 
-        setHistory((prev) => {
-          const entry: FixHistoryEntry = { label, at: Date.now(), snapshot, createdPaths };
-          return [entry, ...prev].slice(0, MAX_HISTORY);
-        });
+        setHistory((prev) => [result.historyEntry, ...prev].slice(0, MAX_HISTORY));
         return {
-          status: "patch_applied" as const,
-          localChangeApplied: true,
-          partial: false,
+          status: result.status,
+          localChangeApplied: result.localChangeApplied,
+          partial: result.partial,
         };
-      } catch (error: unknown) {
-        if (error instanceof DiagnosticFixApplyError) {
-          throw error;
-        }
-        const message = error instanceof Error ? error.message : "Patch konnte nicht angewendet werden.";
-        throw new DiagnosticFixApplyError({
-          message,
-          status: "failed",
-          partial: deletedCount > 0,
-          localChangeApplied: deletedCount > 0,
-        });
       } finally {
         applyBusyRef.current = false;
         if (mountedRef.current) setApplyBusy(false);
@@ -347,7 +288,7 @@ export function useDiagnosticFixRunner(opts: {
     if (mountedRef.current) setApplyBusy(true);
 
     try {
-      await applyUndoHistoryEntry({
+      await undoHistoryEntry({
         entry: last,
         deleteFile,
         updateProjectFiles,
@@ -377,22 +318,17 @@ export function useDiagnosticFixRunner(opts: {
 
           let undone = 0;
           try {
-            for (const entry of history) {
-              try {
-                await applyUndoHistoryEntry({
-                  entry,
-                  deleteFile,
-                  updateProjectFiles,
-                });
-                undone++;
-              } catch (e: unknown) {
-                const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
-                Alert.alert(
-                  "Undo All fehlgeschlagen",
-                  `Abgebrochen nach ${undone} Fix(es): ${msg}`,
-                );
-                break;
-              }
+            const undoResult = await undoHistoryEntries({
+              entries: history,
+              deleteFile,
+              updateProjectFiles,
+            });
+            undone = undoResult.undone;
+            if (undoResult.failedMessage) {
+              Alert.alert(
+                "Undo All fehlgeschlagen",
+                `Abgebrochen nach ${undone} Fix(es): ${undoResult.failedMessage}`,
+              );
             }
             if (mountedRef.current && undone > 0) {
               setHistory((prev) => prev.slice(undone));
