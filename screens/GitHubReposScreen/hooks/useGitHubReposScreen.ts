@@ -19,6 +19,7 @@ import { useGitHubReposPushPull } from "./useGitHubReposPushPull";
 import { useGitHubReposDerivedState } from "./useGitHubReposDerivedState";
 import { useGitHubReposScreenBootstrap } from "./useGitHubReposScreenBootstrap";
 import { useGitHubReposScreenUiState } from "./useGitHubReposScreenUiState";
+import { buildGitHubReposScreenReturnModel } from "./useGitHubReposScreenReturnModel";
 
 export function useGitHubReposScreen() {
   const {
@@ -258,90 +259,20 @@ export function useGitHubReposScreen() {
     loadWorkflowRuns,
   });
 
-  return {
-    // local project
-    projectFiles,
-
-    // token
-    token, tokenLoading, tokenError,
-    userLogin, userLoading,
-
-    // repos
-    loadingRepos, reposError, loadRepos, refreshing, handleRefresh,
-    combinedRepos, filteredRepos,
-
-    // selection + recent
-    activeRepo,
-    activeRepoObj,
-    activeBranch,
-    recentRepos, addRecentRepo, clearRecentRepos,
-
-    // UI states
-    showRepoList, setShowRepoList,
-    showNewRepo, setShowNewRepo,
-    showRenameRepo, setShowRenameRepo,
-    showAdvanced, setShowAdvanced,
-
-    // filters + form states
-    searchTerm, setSearchTerm,
-    filterType, setFilterType,
-    newRepoName, setNewRepoName,
-    newRepoPrivate, setNewRepoPrivate,
-    renameName, setRenameName,
-
-    // ops
-    handleSelectRepo, handleSelectBranch,
-    handleCreateRepo, isCreating,
-    handleRenameRepo, isRenaming,
-    handleDeleteRepo, isDeletingRepo,
-    handlePull, isPulling, pullProgress,
-    handlePush, isPushing,
-    openPushModalForPaths,
-    // advanced sync UI
-    pushModalVisible,
-    setPushModalVisible,
-    pushCommitMessage,
-    setPushCommitMessage,
-    pushSelectedPaths,
-    togglePushPath,
-    setAllPushPaths,
-    closePushModal,
-    confirmPushSelected,
-
-    pullModalVisible,
-    pullPreviewLoading,
-    pullPreview,
-    closePullModal,
-    applyPulledFiles,
-
-    syncStatus,
-    refreshSyncStatus,
-    handleOpenRepoOnGitHub,
-    handleSyncSecrets, isSyncingSecrets,
-
-    // eas link
-    easProjectId, setEasProjectId,
-    isEasLinking,
-    easLinkStatus,
-    handleEasLinkStatusCheck,
-    handleEasLink,
-
-    // github api helpers
-    loadBranches,
-    loadDefaultBranch,
-    loadWorkflowRuns: workflowRuns,
-
-    // branch ops
-    handleCreateBranch,
-    handleRenameBranch,
-    handleDeleteBranch,
-
-    // manage modal
-    manageModal,
-    manageValue,
-    manageBusy,
-    setManageValue,
-    closeManageModal,
-    confirmManageModal,
-  };
+  return buildGitHubReposScreenReturnModel({
+    localProject: { projectFiles },
+    token: { token, tokenLoading, tokenError, userLogin, userLoading },
+    repos: { loadingRepos, reposError, loadRepos, refreshing, handleRefresh, combinedRepos, filteredRepos },
+    selection: { activeRepo, activeRepoObj, activeBranch, recentRepos, addRecentRepo, clearRecentRepos },
+    uiStates: { showRepoList, setShowRepoList, showNewRepo, setShowNewRepo, showRenameRepo, setShowRenameRepo, showAdvanced, setShowAdvanced },
+    filtersAndForms: { searchTerm, setSearchTerm, filterType, setFilterType, newRepoName, setNewRepoName, newRepoPrivate, setNewRepoPrivate, renameName, setRenameName },
+    ops: { handleSelectRepo, handleSelectBranch, handleCreateRepo, isCreating, handleRenameRepo, isRenaming, handleDeleteRepo, isDeletingRepo, handlePull, isPulling, pullProgress, handlePush, isPushing, openPushModalForPaths, handleOpenRepoOnGitHub, handleSyncSecrets, isSyncingSecrets },
+    pushUi: { pushModalVisible, setPushModalVisible, pushCommitMessage, setPushCommitMessage, pushSelectedPaths, togglePushPath, setAllPushPaths, closePushModal, confirmPushSelected },
+    pullUi: { pullModalVisible, pullPreviewLoading, pullPreview, closePullModal, applyPulledFiles },
+    sync: { syncStatus, refreshSyncStatus },
+    eas: { easProjectId, setEasProjectId, isEasLinking, easLinkStatus, handleEasLinkStatusCheck, handleEasLink },
+    githubApiHelpers: { loadBranches, loadDefaultBranch, loadWorkflowRuns: workflowRuns },
+    branchOps: { handleCreateBranch, handleRenameBranch, handleDeleteBranch },
+    manageModal: { manageModal, manageValue, manageBusy, setManageValue, closeManageModal, confirmManageModal },
+  });
 }
