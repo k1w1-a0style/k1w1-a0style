@@ -56,7 +56,7 @@ import {
 import { handlePipelineResult } from "./chatAIFlowRequestResultHandlers";
 import {
   buildSendValidationErrorMessage,
-  handlePendingPlanDecision,
+  resolvePendingPlanSendDecision,
   resolveSanitizedUserContent,
 } from "./chatAIFlowSendFlowHelpers";
 
@@ -650,23 +650,22 @@ export function useChatAIFlow({
       }
 
       // ✅ FIX #1: Use ref for fresh pendingPlan
-      const pendingPlanHandled = await handlePendingPlanDecision({
+      const pendingPlanDecision = resolvePendingPlanSendDecision({
         currentPlan: pendingPlanRef.current,
         sanitizedUserContent,
         sanitizedAiContent,
         isDirectBuildCommand,
-        clearPendingPlan: () => {
-          pendingPlanRef.current = null;
-          safe(() => setPendingPlan(null));
-        },
-        addAssistantMessage: (message) => {
-          addChatMessage(buildAssistantMessage(message));
-        },
-        processRequest: async (request) => {
-          await processAIRequest(request, false, true);
-        },
       });
-      if (pendingPlanHandled) return true;
+      if (pendingPlanDecision.kind === "hold") {
+        addChatMessage(buildAssistantMessage(pendingPlanDecision.message));
+        return true;
+      }
+      if (pendingPlanDecision.kind === "forward") {
+        pendingPlanRef.current = null;
+        safe(() => setPendingPlan(null));
+        await processAIRequest(pendingPlanDecision.request, false, true);
+        return true;
+      }
 
       // Regression-Hinweis: const ok = await processAIRequest(aiContent || userContent, false, false);
       const ok = await processAIRequest(sanitizedAiContent, false, false);

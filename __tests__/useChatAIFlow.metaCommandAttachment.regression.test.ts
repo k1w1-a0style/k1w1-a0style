@@ -21,7 +21,7 @@ describe("useChatAIFlow meta command + attachment regression", () => {
   });
 
   it("keeps attachment-only follow-up details alive in pending-plan handoff", () => {
-    expect(src).toContain("const pendingPlanHandled = await handlePendingPlanDecision({");
+    expect(src).toContain("const pendingPlanDecision = resolvePendingPlanSendDecision({");
     expect(handoffHelpersSrc).toContain("combinedRequest: buildPendingPlanCombinedRequest({");
     expect(handoffHelpersSrc).toContain("sanitizedAiContent,");
     expect(handoffHelpersSrc).toContain("wantsProceed,");

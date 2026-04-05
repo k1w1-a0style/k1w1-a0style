@@ -19,26 +19,23 @@ export const resolveSanitizedUserContent = ({
   return sanitizeInput(userContent).sanitized || userContent;
 };
 
-export type HandlePendingPlanDecisionArgs = {
-  currentPlan: PendingPlan | null;
-  sanitizedUserContent: string;
-  sanitizedAiContent: string;
-  isDirectBuildCommand: (input: string) => boolean;
-  clearPendingPlan: () => void;
-  addAssistantMessage: (message: string) => void;
-  processRequest: (request: string) => Promise<void>;
-};
+export type PendingPlanSendDecision =
+  | { kind: "none" }
+  | { kind: "hold"; message: string }
+  | { kind: "forward"; request: string };
 
-export const handlePendingPlanDecision = async ({
+export const resolvePendingPlanSendDecision = ({
   currentPlan,
   sanitizedUserContent,
   sanitizedAiContent,
   isDirectBuildCommand,
-  clearPendingPlan,
-  addAssistantMessage,
-  processRequest,
-}: HandlePendingPlanDecisionArgs): Promise<boolean> => {
-  if (!currentPlan) return false;
+}: {
+  currentPlan: PendingPlan | null;
+  sanitizedUserContent: string;
+  sanitizedAiContent: string;
+  isDirectBuildCommand: (input: string) => boolean;
+}): PendingPlanSendDecision => {
+  if (!currentPlan) return { kind: "none" };
 
   const handoff = resolvePendingPlanHandoff({
     currentPlan,
@@ -48,11 +45,14 @@ export const handlePendingPlanDecision = async ({
   });
 
   if (handoff.kind === "hold") {
-    addAssistantMessage(handoff.message);
-    return true;
+    return {
+      kind: "hold",
+      message: handoff.message,
+    };
   }
 
-  clearPendingPlan();
-  await processRequest(handoff.combinedRequest);
-  return true;
+  return {
+    kind: "forward",
+    request: handoff.combinedRequest,
+  };
 };

@@ -1,6 +1,6 @@
 import {
   buildSendValidationErrorMessage,
-  handlePendingPlanDecision,
+  resolvePendingPlanSendDecision,
   resolveSanitizedUserContent,
 } from "../hooks/chatAIFlowSendFlowHelpers";
 import type { PendingPlan } from "../hooks/chatAIFlowTypes";
@@ -38,59 +38,42 @@ describe("chatAIFlowSendFlowHelpers", () => {
     expect(result).toBe("Raw Prompt");
   });
 
-  it("holds pending plan and reports assistant notice for non-proceed replies", async () => {
-    const addAssistantMessage = jest.fn();
-    const clearPendingPlan = jest.fn();
-    const processRequest = jest.fn();
-
-    const handled = await handlePendingPlanDecision({
+  it("returns a hold decision for non-proceed replies", () => {
+    const decision = resolvePendingPlanSendDecision({
       currentPlan: pendingPlan,
       sanitizedUserContent: "klingt gut",
       sanitizedAiContent: "klingt gut",
       isDirectBuildCommand: () => false,
-      clearPendingPlan,
-      addAssistantMessage,
-      processRequest,
     });
 
-    expect(handled).toBe(true);
-    expect(addAssistantMessage).toHaveBeenCalledWith(expect.stringContaining("weiter"));
-    expect(clearPendingPlan).not.toHaveBeenCalled();
-    expect(processRequest).not.toHaveBeenCalled();
+    expect(decision).toEqual({
+      kind: "hold",
+      message: expect.stringContaining("weiter"),
+    });
   });
 
-  it("forwards request and clears pending plan for proceed commands", async () => {
-    const addAssistantMessage = jest.fn();
-    const clearPendingPlan = jest.fn();
-    const processRequest = jest.fn().mockResolvedValue(undefined);
-
-    const handled = await handlePendingPlanDecision({
+  it("returns a forward decision for proceed commands", () => {
+    const decision = resolvePendingPlanSendDecision({
       currentPlan: pendingPlan,
       sanitizedUserContent: "weiter",
       sanitizedAiContent: "weiter",
       isDirectBuildCommand: () => false,
-      clearPendingPlan,
-      addAssistantMessage,
-      processRequest,
     });
 
-    expect(handled).toBe(true);
-    expect(clearPendingPlan).toHaveBeenCalledTimes(1);
-    expect(processRequest).toHaveBeenCalledWith(expect.stringContaining("Nutzer-Antwort/Details:"));
-    expect(addAssistantMessage).not.toHaveBeenCalled();
+    expect(decision).toEqual({
+      kind: "forward",
+      request: expect.stringContaining("Nutzer-Antwort/Details:"),
+    });
   });
 
-  it("returns false when there is no pending plan", async () => {
-    const handled = await handlePendingPlanDecision({
+  it("returns a none decision when there is no pending plan", () => {
+    const decision = resolvePendingPlanSendDecision({
       currentPlan: null,
       sanitizedUserContent: "irgendwas",
       sanitizedAiContent: "irgendwas",
       isDirectBuildCommand: () => false,
-      clearPendingPlan: jest.fn(),
-      addAssistantMessage: jest.fn(),
-      processRequest: jest.fn(),
     });
 
-    expect(handled).toBe(false);
+    expect(decision).toEqual({ kind: "none" });
   });
 });
