@@ -8,7 +8,6 @@ import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
-  computeEta,
   formatDuration,
 } from "../../../utils/buildScreenUtils";
 
@@ -26,12 +25,10 @@ import {
 } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
 import { useEnhancedBuildRuns } from "./useEnhancedBuildRuns";
+import { useEnhancedBuildStartController } from "./useEnhancedBuildStartController";
 import {
   countHiddenRuns,
-  isBuildActive,
-  isFinalBuildStatus,
   mapWorkflowLogsToLines,
-  resolveHistoryMatchForRun,
 } from "./enhancedBuildScreenOrchestration";
 import {
   createChecklistItems,
@@ -49,9 +46,6 @@ const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfe
 const BRANCH_MISSING_BLOCK_REASON = "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
 
 export function useEnhancedBuildScreen() {
-  // P1: Prevent duplicate build triggers on double-tap.
-  const buildInFlightRef = useRef(false);
-  const [buildInFlight, setBuildInFlight] = useState(false);
 
   // P1: Avoid state updates / alerts after unmount.
   const isMountedRef = useRef(true);
@@ -97,9 +91,6 @@ export function useEnhancedBuildScreen() {
   );
   // Runs & UI state
   const [refreshing, setRefreshing] = useState(false);
-  const [buildLoading, setBuildLoading] = useState(false);
-  const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
-  const [nowTick, setNowTick] = useState<number>(0);
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
@@ -298,6 +289,22 @@ export function useEnhancedBuildScreen() {
   // Build-Screen does not mutate repo/branch anymore.
 
 
+  const {
+    buildLoading,
+    onStartBuild,
+    etaMs,
+    canStartBuildUi,
+  } = useEnhancedBuildStartController({
+    hasStartBuild,
+    startBuild,
+    buildProfile,
+    repoValidationValid: repoValidation.valid,
+    buildBlockedReason,
+    sanitizeUiMessage,
+    status,
+    isMountedRef,
+  });
+
   const onRefresh = useCallback(async () => {
     if (!canFetch || !hasGetWorkflowRuns) return;
     if (isMountedRef.current) setRefreshing(true);
@@ -310,100 +317,10 @@ export function useEnhancedBuildScreen() {
     }
   }, [canFetch, fetchRuns, hasGetWorkflowRuns, buildHistory, refreshPreconditions]);
 
-  const onStartBuild = useCallback(async () => {
-    if (!repoValidation.valid) {
-      Alert.alert(
-        "Repo fehlt",
-        sanitizeUiMessage(
-          "Bitte zuerst im GitHub-Repos-Screen ein Repo (owner/repo) verknuepfen.",
-        ),
-      );
-      return;
-    }
-    if (buildBlockedReason) {
-      Alert.alert("Nicht bereit", sanitizeUiMessage(buildBlockedReason));
-      return;
-    }
-
-    if (!hasStartBuild || !startBuild) {
-      Alert.alert(
-        "Nicht verfügbar",
-        "startBuild() ist nicht im ProjectContext definiert.",
-      );
-      return;
-    }
-    if (buildInFlightRef.current) {
-      // Sync guard: blocks double-tap before the UI has a chance to disable.
-      return;
-    }
-    buildInFlightRef.current = true;
-    if (isMountedRef.current) setBuildInFlight(true);
-
-    if (isMountedRef.current) {
-      setBuildLoading(true);
-      setBuildStartTime(Date.now());
-    }
-    try {
-      await startBuild(buildProfile);
-      if (isMountedRef.current) {
-        Alert.alert(
-          "✅ Build gestartet",
-          `Der Build wurde angestoßen (${buildProfile}).`,
-        );
-      }
-    } catch (e) {
-      if (isMountedRef.current) {
-        setBuildStartTime(null);
-        Alert.alert(
-          "❌ Fehler",
-          sanitizeUiMessage(e instanceof Error ? e.message : "Build fehlgeschlagen"),
-        );
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setBuildLoading(false);
-        setBuildInFlight(false);
-      }
-      buildInFlightRef.current = false;
-    }
-  }, [repoValidation.valid, buildBlockedReason, buildProfile, hasStartBuild, startBuild, sanitizeUiMessage]);
 
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
-
-  // P2: make ETA feel alive by ticking while a build is active.
-  useEffect(() => {
-    const active = isBuildActive(status, buildStartTime);
-    if (!active) return;
-
-    const t = setInterval(() => {
-      // Only update if still mounted.
-      if (isMountedRef.current) setNowTick(Date.now());
-    }, 1_000);
-    return () => clearInterval(t);
-  }, [buildStartTime, status]);
-
-  // ETA berechnen wenn Build läuft
-  const elapsedMs = useMemo(() => {
-    if (!buildStartTime) return 0;
-    return Date.now() - buildStartTime;
-  }, [buildStartTime, nowTick]);
-
-  const etaMs = useMemo(() => {
-    if (status === "idle" || status === "success" || status === "failed" || status === "error") {
-      return 0;
-    }
-    return computeEta(status, elapsedMs);
-  }, [status, elapsedMs]);
-
-  // Reset buildStartTime bei finalem Status
-  useEffect(() => {
-    if (isFinalBuildStatus(status)) {
-      setBuildStartTime(null);
-    }
-  }, [status]);
-
   const { statusEmoji, statusLabel } = resolveBuildStatusPresentation({ status, progress });
 
   const moreCount = countHiddenRuns(filteredRuns.length, MAX_RUNS_DISPLAY);
@@ -420,14 +337,6 @@ export function useEnhancedBuildScreen() {
     [setPreferredBuildProfile],
   );
 
-  const canStartBuildUi = useMemo(() => {
-    return (
-      hasStartBuild &&
-      !buildLoading &&
-      !buildInFlight &&
-      !buildBlockedReason
-    );
-  }, [hasStartBuild, buildLoading, buildInFlight, buildBlockedReason]);
 
   const checklistItems: CheckItem[] = useMemo(() => {
     return createChecklistItems({
