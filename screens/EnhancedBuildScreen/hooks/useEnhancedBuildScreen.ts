@@ -15,21 +15,17 @@ import {
 import type {
   BuildProfile,
   CurrentBuildLike,
-  WorkflowRun,
   WorkflowRunsResponse,
 } from "../types";
-import type { WorkflowJob, WorkflowRunDetails } from "../../../infra/github/workflows";
 
 import {
-  FETCH_TIMEOUT_MS,
-  fetchRunDetailsBundle,
   resolveBuildStatusPresentation,
   resolveLogsLoadContext,
   sanitizeUiMessage,
   validateRepoFullName,
-  withTimeout,
 } from "./buildScreenHelpers";
 import { useBuildPreconditions } from "./useBuildPreconditions";
+import { useEnhancedBuildRuns } from "./useEnhancedBuildRuns";
 import {
   countHiddenRuns,
   isBuildActive,
@@ -53,8 +49,6 @@ const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfe
 const BRANCH_MISSING_BLOCK_REASON = "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
 
 export function useEnhancedBuildScreen() {
-  const runsReqIdRef = useRef(0); // verhindert Race-Conditions bei mehrfachen fetchRuns()
-
   // P1: Prevent duplicate build triggers on double-tap.
   const buildInFlightRef = useRef(false);
   const [buildInFlight, setBuildInFlight] = useState(false);
@@ -101,11 +95,7 @@ export function useEnhancedBuildScreen() {
   const [buildProfile, setBuildProfile] = useState<BuildProfile>(
     projectData?.preferredBuildProfile || "preview",
   );
-  const [loadingRuns, setLoadingRuns] = useState(false);
-
   // Runs & UI state
-  const [runs, setRuns] = useState<WorkflowRun[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
@@ -130,17 +120,6 @@ export function useEnhancedBuildScreen() {
 
   const buildHistory = useBuildHistory();
 
-  const filteredRuns = useMemo(() => {
-    return filterWorkflowRunsByProfile(runs, actionsFilter);
-  }, [runs, actionsFilter]);
-
-  const runsEmptyStateText = useMemo(() => {
-    return getWorkflowRunsEmptyStateText({
-      actionsFilter,
-      filteredRunsCount: filteredRuns.length,
-      allRunsCount: runs.length,
-    });
-  }, [actionsFilter, filteredRuns.length, runs.length]);
 
   const filteredHistory = useMemo(() => {
     const all = buildHistory.history ?? [];
@@ -171,14 +150,6 @@ export function useEnhancedBuildScreen() {
     }
   }, [projectData?.preferredBuildProfile]);
 
-  // === Luxus: Run Detail Modal (Jobs/Details) ===
-  const [runDetailVisible, setRunDetailVisible] = useState(false);
-  const [selectedRun, setSelectedRun] = useState<WorkflowRun | null>(null);
-  const [runDetails, setRunDetails] = useState<WorkflowRunDetails | null>(null);
-  const [runJobs, setRunJobs] = useState<WorkflowJob[]>([]);
-  const [runDetailLoading, setRunDetailLoading] = useState(false);
-  const [runDetailError, setRunDetailError] = useState<string | null>(null);
-  const runDetailReqId = useRef(0);
 
   const jobId = currentBuild?.jobId ?? null;
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
@@ -265,61 +236,67 @@ export function useEnhancedBuildScreen() {
 
   const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
 
+  const openRun = useCallback(async (url: string) => {
+    if (!url) return;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert("Fehler", "URL kann nicht geöffnet werden.");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Fehler", "Konnte URL nicht öffnen.");
+    }
+  }, []);
+
+
   const canFetch = repoValidation.valid;
   const owner = repoValidation.valid ? repoValidation.owner : "";
   const repo = repoValidation.valid ? repoValidation.repo : "";
 
-  const hasGetWorkflowRuns = typeof getWorkflowRuns === "function";
+  const {
+    hasGetWorkflowRuns,
+    loadingRuns,
+    runs,
+    error,
+    fetchRuns,
+    runDetailVisible,
+    setRunDetailVisible,
+    selectedRun,
+    runDetails,
+    runJobs,
+    runDetailLoading,
+    runDetailError,
+    openRunDetails,
+    refreshRunDetails,
+    findHistoryMatchForRun,
+  } = useEnhancedBuildRuns({
+    canFetch,
+    owner,
+    repo,
+    repoValidationError: repoValidation.valid ? "Unbekannter Fehler" : repoValidation.error || "Bitte Repo als owner/repo eintragen.",
+    getWorkflowRuns,
+    isMountedRef,
+    openRun,
+    history: buildHistory.history,
+  });
+
+
+  const filteredRuns = useMemo(() => {
+    return filterWorkflowRunsByProfile(runs, actionsFilter);
+  }, [runs, actionsFilter]);
+
+  const runsEmptyStateText = useMemo(() => {
+    return getWorkflowRunsEmptyStateText({
+      actionsFilter,
+      filteredRunsCount: filteredRuns.length,
+      allRunsCount: runs.length,
+    });
+  }, [actionsFilter, filteredRuns.length, runs.length]);
   const hasStartBuild = typeof startBuild === "function";
   // Build-Screen does not mutate repo/branch anymore.
 
-  const fetchRuns = useCallback(async () => {
-    const reqId = ++runsReqIdRef.current;
-    if (!canFetch) {
-      Alert.alert(
-        "Ungültiges Repo",
-        sanitizeUiMessage(
-          repoValidation.valid
-            ? "Unbekannter Fehler"
-            : repoValidation.error || "Bitte Repo als owner/repo eintragen.",
-        ),
-      );
-      return;
-    }
-    if (!hasGetWorkflowRuns || !getWorkflowRuns) {
-      Alert.alert(
-        "Nicht verfügbar",
-        "getWorkflowRuns() ist nicht im ProjectContext definiert.",
-      );
-      return;
-    }
-
-    if (isMountedRef.current) {
-      setLoadingRuns(true);
-      setError(null);
-    }
-
-    try {
-      const res = await withTimeout(
-        // ✅ Wichtig: App-getriggerte Builds laufen über k1w1-triggered-build.yml
-        // -> getWorkflowRuns() default ist evtl. eas-build.yml, daher hier explizit:
-        getWorkflowRuns(owner.trim(), repo.trim(), "k1w1-triggered-build.yml"),
-        FETCH_TIMEOUT_MS,
-      );
-      const list = res?.workflow_runs ?? [];
-      if (reqId !== runsReqIdRef.current) return;
-      if (!isMountedRef.current) return;
-      setRuns(Array.isArray(list) ? list : []);
-      if (!list || list.length === 0) setError("Keine Workflow Runs gefunden.");
-    } catch (e) {
-      if (isMountedRef.current) {
-        setRuns([]);
-        setError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Runs nicht laden");
-      }
-    } finally {
-      if (reqId === runsReqIdRef.current && isMountedRef.current) setLoadingRuns(false);
-    }
-  }, [canFetch, getWorkflowRuns, hasGetWorkflowRuns, owner, repo, repoValidation, sanitizeUiMessage]);
 
   const onRefresh = useCallback(async () => {
     if (!canFetch || !hasGetWorkflowRuns) return;
@@ -390,65 +367,6 @@ export function useEnhancedBuildScreen() {
       buildInFlightRef.current = false;
     }
   }, [repoValidation.valid, buildBlockedReason, buildProfile, hasStartBuild, startBuild, sanitizeUiMessage]);
-
-  const openRun = useCallback(async (url: string) => {
-    if (!url) return;
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        Alert.alert("Fehler", "URL kann nicht geöffnet werden.");
-        return;
-      }
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Fehler", "Konnte URL nicht öffnen.");
-    }
-  }, []);
-
-  const findHistoryMatchForRun = useCallback(
-    (run: WorkflowRun) => resolveHistoryMatchForRun(run, buildHistory.history),
-    [buildHistory.history],
-  );
-
-  const openRunDetails = useCallback(
-    async (run: WorkflowRun) => {
-      if (!run || !repoValidation.valid) {
-        if (run?.html_url) openRun(run.html_url);
-        return;
-      }
-      setSelectedRun(run);
-      setRunDetailVisible(true);
-      setRunDetails(null);
-      setRunJobs([]);
-      setRunDetailError(null);
-      setRunDetailLoading(true);
-
-      const reqId = ++runDetailReqId.current;
-      try {
-        const { details, jobs } = await fetchRunDetailsBundle(owner, repo, run.id);
-        if (reqId !== runDetailReqId.current) return;
-        if (!isMountedRef.current) return;
-        setRunDetails(details);
-        setRunJobs(jobs);
-      } catch (e) {
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetailError(
-          e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Run-Details nicht laden",
-        );
-      } finally {
-        if (!isMountedRef.current) return;
-        if (reqId !== runDetailReqId.current) return;
-        setRunDetailLoading(false);
-      }
-    },
-    [repoValidation.valid, owner, repo, openRun, sanitizeUiMessage],
-  );
-
-  const refreshRunDetails = useCallback(async () => {
-    if (!selectedRun) return;
-    await openRunDetails(selectedRun);
-  }, [selectedRun, openRunDetails]);
 
 
   const message = currentBuild?.message ?? "";
