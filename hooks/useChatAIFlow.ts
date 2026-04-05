@@ -25,6 +25,12 @@ import { handleMetaCommand } from "../utils/metaCommands";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
+  buildPendingPlanCombinedRequest,
+  getNormalizedSendInputs,
+  isProceedCommand,
+  shouldHoldPendingPlan,
+} from "./chatAIFlowInputRoutingHelpers";
+import {
   BuilderNonOkError,
   runBuilderWithRetry,
   runExplainStage,
@@ -806,9 +812,7 @@ export function useChatAIFlow({
       rawInput: string,
       aiInput: string = rawInput,
     ): Promise<boolean> => {
-      const userContent = rawInput.trim();
-      const aiContent = aiInput.trim();
-      const candidateInput = aiContent || userContent;
+      const { userContent, candidateInput } = getNormalizedSendInputs(rawInput, aiInput);
 
       // Regression-Hinweis für Attachment-only-Pfade:
       // if (!userContent && !aiContent) return false;
@@ -881,44 +885,28 @@ export function useChatAIFlow({
       if (currentPlan) {
         const lower = sanitizedUserContent.trim().toLowerCase();
         const wantsDirectBuild = isDirectBuildCommand(lower);
-        const wantsProceed =
-          lower === "weiter" ||
-          lower === "mach weiter" ||
-          lower === "ok" ||
-          lower === "ja" ||
-          lower === "go";
+        const wantsProceed = isProceedCommand(lower);
+        const holdDecision = shouldHoldPendingPlan({
+          mode: currentPlan.mode,
+          wantsDirectBuild,
+          wantsProceed,
+        });
 
-        if (currentPlan.mode === "scout" && !wantsDirectBuild) {
+        if (holdDecision.hold && holdDecision.message) {
           addChatMessage({
             id: uuidv4(),
             role: "assistant",
-            content:
-              "🧭 **Scout-Modus aktiv:** Ich bleibe bei Analyse/Plan ohne Builder-Phase.\n\n" +
-              'Wenn du trotzdem direkt umsetzen willst, antworte mit **„direkt build"**.',
+            content: holdDecision.message,
             timestamp: new Date().toISOString(),
           });
           return true;
         }
 
-        if (currentPlan.mode === "advice" && !wantsProceed) {
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content:
-              'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter"** oder nenn die Features.',
-            timestamp: new Date().toISOString(),
-          });
-          return true;
-        }
-
-        const combined =
-          currentPlan.originalRequest +
-          "\n\n---\nPlaner-Ausgabe:\n" +
-          currentPlan.planText +
-          "\n\n---\nNutzer-Antwort/Details:\n" +
-          // Regression-Hinweis: Attachment-only Follow-up muss semantisch aiContent/userContent weitertragen.
-          // (wantsProceed ? "(User sagt: weiter)" : aiContent || userContent);
-          (wantsProceed ? "(User sagt: weiter)" : sanitizedAiContent);
+        const combined = buildPendingPlanCombinedRequest({
+          currentPlan,
+          sanitizedAiContent,
+          wantsProceed,
+        });
 
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
