@@ -1,5 +1,7 @@
 import type { BuildStatus, BuildStatusDetails } from "../shared/types/build";
+import type { ProjectData } from "../shared/types/project";
 import type { ProjectContextProps } from "./projectTypes";
+import { resolveBuildProfileForStart } from "./projectContextStateHelpers";
 import type { CurrentBuildState } from "./projectContextStateHelpers";
 
 export type BuildSelectionSnapshot = {
@@ -8,6 +10,65 @@ export type BuildSelectionSnapshot = {
   branch?: string | null;
   buildProfile?: string | null;
 };
+
+
+export type BuildStartPreparation = {
+  project: ProjectData;
+  githubRepo: string;
+  branch: string;
+  profile: "development" | "preview" | "production";
+  startedAt: string;
+  selection: BuildSelectionSnapshot;
+};
+
+export const prepareBuildStart = (params: {
+  projectData: ProjectData | null;
+  requestedProfile?: string;
+  nowIso?: string;
+}): BuildStartPreparation => {
+  const project = params.projectData;
+  if (!project?.files || project.files.length === 0) {
+    throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
+  }
+
+  const githubRepo = (project.linkedRepo?.trim() || "").trim();
+  if (!githubRepo) {
+    throw new Error("Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.");
+  }
+
+  const profile = resolveBuildProfileForStart({
+    requestedProfile: params.requestedProfile,
+    preferredProfile: project.preferredBuildProfile,
+  });
+  const startedAt = params.nowIso ?? new Date().toISOString();
+  const branch = (project.linkedBranch ?? "").trim();
+
+  return {
+    project,
+    githubRepo,
+    branch,
+    profile,
+    startedAt,
+    selection: {
+      jobId: null,
+      repoName: githubRepo,
+      branch,
+      buildProfile: profile,
+    },
+  };
+};
+
+export const resolveBuildSelectionAfterStart = (params: {
+  jobId: string;
+  githubRepo: string;
+  branch: string;
+  buildProfile: string;
+}): BuildSelectionSnapshot => ({
+  jobId: params.jobId,
+  repoName: params.githubRepo,
+  branch: params.branch,
+  buildProfile: params.buildProfile,
+});
 
 export const createBuildPollingAbortState = (params: {
   previous: CurrentBuildState | null;

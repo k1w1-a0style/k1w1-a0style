@@ -1,8 +1,13 @@
+import type { ProjectData } from "../shared/types/project";
 import {
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
 } from "../contexts/ProjectContext";
+import {
+  prepareBuildStart,
+  resolveBuildSelectionAfterStart,
+} from "../contexts/projectContextBuildHelpers";
 
 describe("ProjectContext SoT resolvers", () => {
   describe("resolveLinkedBranchForRepoSelection", () => {
@@ -128,6 +133,70 @@ describe("resolveHistoryBuildSelection", () => {
     ).toEqual({
       repoName: "owner/repo-from-poll",
       branch: "main",
+      buildProfile: "preview",
+    });
+  });
+});
+
+
+describe("projectContextBuildHelpers prepareBuildStart", () => {
+  const baseProject: ProjectData = {
+    id: "p1",
+    name: "Demo",
+    slug: "demo",
+    files: [{ path: "App.tsx", content: "export default null" }],
+    linkedRepo: "owner/repo",
+    linkedBranch: "main",
+    preferredBuildProfile: "production",
+    chatHistory: [],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastModified: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("derives repo/branch/profile/selection snapshot in one place", () => {
+    const prepared = prepareBuildStart({
+      projectData: baseProject,
+      requestedProfile: undefined,
+      nowIso: "2026-04-05T00:00:00.000Z",
+    });
+
+    expect(prepared.githubRepo).toBe("owner/repo");
+    expect(prepared.branch).toBe("main");
+    expect(prepared.profile).toBe("production");
+    expect(prepared.selection).toEqual({
+      jobId: null,
+      repoName: "owner/repo",
+      branch: "main",
+      buildProfile: "production",
+    });
+  });
+
+  it("throws fail-closed when project has no files or no linked repo", () => {
+    expect(() =>
+      prepareBuildStart({
+        projectData: { ...baseProject, files: [] },
+      }),
+    ).toThrow(/Projekt ist leer/i);
+
+    expect(() =>
+      prepareBuildStart({
+        projectData: { ...baseProject, linkedRepo: " " },
+      }),
+    ).toThrow(/Kein GitHub-Repo verknüpft/i);
+  });
+
+  it("maps resolved build start selection after job creation", () => {
+    expect(
+      resolveBuildSelectionAfterStart({
+        jobId: "job-1",
+        githubRepo: "owner/repo",
+        branch: "release/1",
+        buildProfile: "preview",
+      }),
+    ).toEqual({
+      jobId: "job-1",
+      repoName: "owner/repo",
+      branch: "release/1",
       buildProfile: "preview",
     });
   });

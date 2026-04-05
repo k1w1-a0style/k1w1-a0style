@@ -74,7 +74,6 @@ import {
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
-  resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
@@ -88,6 +87,8 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  prepareBuildStart,
+  resolveBuildSelectionAfterStart,
   shouldSyncCurrentBuildFromPoll,
   shouldUpdateHistoryFromPoll,
 } from "./projectContextBuildHelpers";
@@ -718,29 +719,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     async (buildProfile?: string) => {
       try {
         const pd = projectData;
-        if (!pd?.files || pd.files.length === 0) {
-          throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
-        }
-
-        const githubRepo = (pd.linkedRepo?.trim() || "").trim();
-        if (!githubRepo) {
-          throw new Error("Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.");
-        }
-
-        // Build Profile: use explicit request first, otherwise keep the persisted project preference.
-        const profile = resolveBuildProfileForStart({
+        const buildStart = prepareBuildStart({
+          projectData: pd,
           requestedProfile: buildProfile,
-          preferredProfile: pd.preferredBuildProfile,
         });
+        const { project: pdResolved, githubRepo, branch: buildBranch, profile, startedAt } = buildStart;
 
-        const startedAt = new Date().toISOString();
-        const buildBranch = (pd.linkedBranch ?? "").trim();
-        activeBuildSelectionRef.current = {
-          jobId: null,
-          repoName: githubRepo,
-          branch: buildBranch,
-          buildProfile: profile,
-        };
+        activeBuildSelectionRef.current = buildStart.selection;
         setCurrentBuild(
           createBuildQueuedStateForStart({
             githubRepo,
@@ -752,19 +737,19 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
         // Build runs on GitHub. Best-effort push local files to repo, then trigger build via Supabase.
         const started = await startBuildJob({
-          project: pd,
+          project: pdResolved,
           buildProfile: profile,
         });
 
         const jobId = started.jobId;
         const githubRepoResolved = started.githubRepo;
         const branchResolved = started.branch;
-        activeBuildSelectionRef.current = {
+        activeBuildSelectionRef.current = resolveBuildSelectionAfterStart({
           jobId,
-          repoName: githubRepoResolved,
+          githubRepo: githubRepoResolved,
           branch: branchResolved,
           buildProfile: profile,
-        };
+        });
 
         setCurrentBuild((prev) =>
           createBuildQueuedStateAfterStart({
