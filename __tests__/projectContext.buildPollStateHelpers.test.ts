@@ -5,6 +5,14 @@ import {
   mergeBuildPollIntoCurrentBuild,
   shouldUpdateBuildHistoryStatus,
 } from "../contexts/projectContextStateHelpers";
+import {
+  createBuildErrorState,
+  createBuildPollingAbortState,
+  createBuildQueuedStateAfterStart,
+  createBuildQueuedStateForStart,
+  shouldSyncCurrentBuildFromPoll,
+  shouldUpdateHistoryFromPoll,
+} from "../contexts/projectContextBuildHelpers";
 
 describe("projectContextStateHelpers build poll state mapping", () => {
   it("keeps existing urls when poll details omit them", () => {
@@ -107,5 +115,92 @@ describe("projectContextStateHelpers build poll state mapping", () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]?.id).toBe("m1");
     expect(messages[1]?.timestamp).toBe("t2");
+  });
+});
+
+
+describe("projectContextBuildHelpers orchestration guards", () => {
+  it("creates queued build states before and after successful start", () => {
+    const beforeStart = createBuildQueuedStateForStart({
+      githubRepo: "owner/repo",
+      branch: "main",
+      buildProfile: "preview",
+      startedAt: "2026-04-05T00:00:00.000Z",
+    });
+
+    expect(beforeStart).toMatchObject({
+      status: "queued",
+      jobId: null,
+      githubRepo: "owner/repo",
+      branch: "main",
+      buildProfile: "preview",
+      startedAt: "2026-04-05T00:00:00.000Z",
+    });
+
+    const afterStart = createBuildQueuedStateAfterStart({
+      previous: beforeStart,
+      jobId: "job-1",
+      githubRepo: "owner/repo",
+      branch: "release/1",
+      buildProfile: "production",
+      nowIso: "2026-04-05T00:00:02.000Z",
+    });
+
+    expect(afterStart).toMatchObject({
+      status: "queued",
+      message: "✅ Build gestartet. Warte auf GitHub Actions…",
+      jobId: "job-1",
+      branch: "release/1",
+      buildProfile: "production",
+      lastUpdatedAt: "2026-04-05T00:00:02.000Z",
+    });
+  });
+
+  it("creates poll abort and generic error states", () => {
+    const pollAbort = createBuildPollingAbortState({
+      previous: { status: "building", jobId: "job-1" },
+      lastError: "Timeout",
+      nowIso: "2026-04-05T00:00:03.000Z",
+    });
+
+    expect(pollAbort.status).toBe("error");
+    expect(pollAbort.message).toContain("Timeout");
+    expect(pollAbort.lastUpdatedAt).toBe("2026-04-05T00:00:03.000Z");
+
+    const genericError = createBuildErrorState({
+      message: "boom",
+      nowIso: "2026-04-05T00:00:04.000Z",
+    });
+    expect(genericError).toEqual({
+      status: "error",
+      message: "boom",
+      lastUpdatedAt: "2026-04-05T00:00:04.000Z",
+    });
+  });
+
+  it("guards poll sync/history updates with explicit predicates", () => {
+    expect(shouldSyncCurrentBuildFromPoll({ activeJobId: null })).toBe(false);
+    expect(shouldSyncCurrentBuildFromPoll({ activeJobId: "job-1" })).toBe(true);
+
+    expect(
+      shouldUpdateHistoryFromPoll({
+        activeJobId: "job-1",
+        details: null,
+        status: "queued",
+      }),
+    ).toBe(false);
+    expect(
+      shouldUpdateHistoryFromPoll({
+        activeJobId: "job-1",
+        details: {
+          jobId: "job-1",
+          status: "building",
+          runId: 11,
+          sourceCommitSha: null,
+          raw: null,
+        },
+        status: "building",
+      }),
+    ).toBe(true);
   });
 });

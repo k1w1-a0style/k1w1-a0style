@@ -9,7 +9,7 @@ import React, {
   useRef,
   ReactNode,
 } from "react";
-import { Alert, AppState, AppStateStatus } from "react-native";
+import { Alert, AppState } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
 
@@ -63,17 +63,16 @@ import {
   removeProjectFilesByPaths,
 } from "./projectContextHelpers";
 import {
+  createAppStateSaveHandler,
   createProjectSaveScheduler,
   hydrateChatRetentionLimit,
   initializeProjectData,
-  shouldFlushProjectSaveOnAppState,
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
   createBuildHistoryStatusSnapshot,
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
-  getValidContextMessages,
   mergeBuildPollIntoCurrentBuild,
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
@@ -82,7 +81,16 @@ import {
   shouldUpdateBuildHistoryStatus,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
-import { composeProjectContextValue } from "./projectContextValueHelpers";
+import { composeProjectContextValue, deriveProjectContextMessages } from "./projectContextValueHelpers";
+import {
+  BuildSelectionSnapshot,
+  createBuildErrorState,
+  createBuildPollingAbortState,
+  createBuildQueuedStateAfterStart,
+  createBuildQueuedStateForStart,
+  shouldSyncCurrentBuildFromPoll,
+  shouldUpdateHistoryFromPoll,
+} from "./projectContextBuildHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
 
@@ -96,12 +104,6 @@ const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
 
-type BuildSelectionSnapshot = {
-  jobId?: string | null;
-  repoName?: string | null;
-  branch?: string | null;
-  buildProfile?: string | null;
-};
 
 export {
   getGitHubToken,
@@ -138,15 +140,13 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const activeJobId = currentBuild?.jobId ?? null;
   const buildPoll = useBuildStatus(activeJobId, {
     onMaxErrors: (lastError: unknown) => {
-      setCurrentBuild((prev) => {
-        const base: CurrentBuildState = prev ?? { status: "error" };
-        return {
-          ...base,
-          status: "error",
-          message: `🛑 Polling abgebrochen (zu viele Fehler). Letzter Fehler: ${lastError}`,
-          lastUpdatedAt: new Date().toISOString(),
-        };
-      });
+      setCurrentBuild((prev) =>
+        createBuildPollingAbortState({
+          previous: prev,
+          lastError,
+          nowIso: new Date().toISOString(),
+        }),
+      );
     },
   });
 
@@ -621,33 +621,23 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   }, []);
 
   useEffect(() => {
-    const flushPendingForAppState = async (nextState: AppStateStatus) => {
-      if (!shouldFlushProjectSaveOnAppState(nextState)) {
-        return;
-      }
-
-      logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
-      try {
-        const didSave = await persistenceSchedulerRef.current.flushForAppState(
-          nextState,
-          projectDataRef.current,
-        );
+    const handleAppStateChange = createAppStateSaveHandler({
+      flushForAppState: persistenceSchedulerRef.current.flushForAppState,
+      getProjectData: () => projectDataRef.current,
+      onBeforeFlush: () => {
+        logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
+      },
+      onAfterFlush: (didSave) => {
         if (didSave) {
           logger.info("✅ Background-Save erfolgreich");
         }
-      } catch (error) {
+      },
+      onFlushError: (error) => {
         logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
-      }
-    };
+      },
+    });
 
-    const handleAppStateChange = async (nextState: AppStateStatus) => {
-      await flushPendingForAppState(nextState);
-    };
-
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange,
-    );
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
     return () => subscription.remove();
   }, []);
 
@@ -657,7 +647,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   // Keep ProjectContext.currentBuild in sync with centralized polling hook
   useEffect(() => {
-    if (!activeJobId) return;
+    if (!shouldSyncCurrentBuildFromPoll({ activeJobId }) || !activeJobId) return;
 
     const nowIso = new Date().toISOString();
 
@@ -675,8 +665,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update build history as statuses arrive (best-effort)
   useEffect(() => {
-    if (!activeJobId) return;
-    if (!buildPoll.details) return;
+    const pollDetails = buildPoll.details;
+    if (
+      !shouldUpdateHistoryFromPoll({
+        activeJobId,
+        details: pollDetails,
+        status: buildPoll.status,
+      }) ||
+      !activeJobId ||
+      !pollDetails
+    ) {
+      return;
+    }
 
     const status = buildPoll.status;
     if (!shouldUpdateBuildHistoryStatus({
@@ -703,9 +703,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       branch: historySelection.branch,
       buildProfile: historySelection.buildProfile,
       repoName: historySelection.repoName,
-      htmlUrl: buildPoll.details.urls?.html ?? null,
-      artifactUrl: buildPoll.details.urls?.artifacts ?? null,
-      sourceCommitSha: buildPoll.details.sourceCommitSha ?? null,
+      htmlUrl: pollDetails.urls?.html ?? null,
+      artifactUrl: pollDetails.urls?.artifacts ?? null,
+      sourceCommitSha: pollDetails.sourceCommitSha ?? null,
     }).catch((historyError) => {
       logger.warn(
         "⚠️ Build-Historie konnte nicht aktualisiert werden:",
@@ -741,16 +741,14 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           branch: buildBranch,
           buildProfile: profile,
         };
-        setCurrentBuild({
-          status: "queued",
-          message: "🚀 Build wird gestartet…",
-          jobId: null,
-          githubRepo,
-          branch: buildBranch,
-          buildProfile: profile,
-          startedAt,
-          lastUpdatedAt: startedAt,
-        });
+        setCurrentBuild(
+          createBuildQueuedStateForStart({
+            githubRepo,
+            branch: buildBranch,
+            buildProfile: profile,
+            startedAt,
+          }),
+        );
 
         // Build runs on GitHub. Best-effort push local files to repo, then trigger build via Supabase.
         const started = await startBuildJob({
@@ -768,16 +766,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           buildProfile: profile,
         };
 
-        setCurrentBuild((prev) => ({
-          ...(prev ?? { status: "queued" }),
-          status: "queued",
-          message: "✅ Build gestartet. Warte auf GitHub Actions…",
-          jobId,
-          githubRepo: githubRepoResolved,
-          branch: branchResolved,
-          buildProfile: profile,
-          lastUpdatedAt: new Date().toISOString(),
-        }));
+        setCurrentBuild((prev) =>
+          createBuildQueuedStateAfterStart({
+            previous: prev,
+            jobId,
+            githubRepo: githubRepoResolved,
+            branch: branchResolved,
+            buildProfile: profile,
+            nowIso: new Date().toISOString(),
+          }),
+        );
 
         try {
           await addBuildToHistory({
@@ -797,11 +795,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         }
 
       } catch (e: unknown) {
-        setCurrentBuild({
-          status: "error",
-          message: getErrorMessage(e, String(e)),
-          lastUpdatedAt: new Date().toISOString(),
-        });
+        setCurrentBuild(
+          createBuildErrorState({
+            message: getErrorMessage(e, String(e)),
+            nowIso: new Date().toISOString(),
+          }),
+        );
         throw e;
       }
     },
@@ -810,7 +809,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
 
   const contextMessages = useMemo(
-    () => getValidContextMessages(projectData?.chatHistory),
+    () => deriveProjectContextMessages(projectData?.chatHistory),
     [projectData?.chatHistory],
   );
 

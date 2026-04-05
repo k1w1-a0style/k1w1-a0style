@@ -10,7 +10,7 @@ describe("ProjectContext messages reference invariants", () => {
     const src = read("contexts/ProjectContext.tsx");
 
     expect(src).toContain("const contextMessages = useMemo(");
-    expect(src).toContain("getValidContextMessages(projectData?.chatHistory)");
+    expect(src).toContain("deriveProjectContextMessages(projectData?.chatHistory)");
     expect(src).toContain("[projectData?.chatHistory]");
     expect(src).toContain("messages: contextMessages");
   });

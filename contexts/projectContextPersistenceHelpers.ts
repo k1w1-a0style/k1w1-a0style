@@ -113,6 +113,28 @@ export const flushProjectSaveForAppState = async (params: {
   });
 };
 
+export const createAppStateSaveHandler = (params: {
+  flushForAppState: (nextState: AppStateStatus, projectData: ProjectData | null) => Promise<boolean>;
+  getProjectData: () => ProjectData | null;
+  onBeforeFlush?: () => void;
+  onAfterFlush?: (didSave: boolean) => void;
+  onFlushError?: (error: unknown) => void;
+}) => {
+  return async (nextState: AppStateStatus) => {
+    if (!shouldFlushProjectSaveOnAppState(nextState)) {
+      return;
+    }
+
+    params.onBeforeFlush?.();
+    try {
+      const didSave = await params.flushForAppState(nextState, params.getProjectData());
+      params.onAfterFlush?.(didSave);
+    } catch (error) {
+      params.onFlushError?.(error);
+    }
+  };
+};
+
 export type ProjectSaveScheduler = {
   queueSave: (project: ProjectData) => void;
   clearPendingSave: () => void;

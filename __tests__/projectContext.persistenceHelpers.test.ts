@@ -1,6 +1,7 @@
 import type { ProjectData, ProjectFile } from "../shared/types/project";
 import {
   clearPendingProjectSaveTimeout,
+  createAppStateSaveHandler,
   createProjectSaveScheduler,
   flushProjectSaveForAppState,
   flushPendingProjectSave,
@@ -205,6 +206,66 @@ describe("projectContextPersistenceHelpers", () => {
       expect(scheduler.getPendingTimeout()).toBeNull();
 
       jest.useRealTimers();
+    });
+  });
+
+
+  describe("createAppStateSaveHandler", () => {
+    it("skips active app state and does not invoke flush callbacks", async () => {
+      const flushForAppState = jest.fn(async () => true);
+      const onBeforeFlush = jest.fn();
+      const onAfterFlush = jest.fn();
+
+      const handler = createAppStateSaveHandler({
+        flushForAppState,
+        getProjectData: () => buildProject(),
+        onBeforeFlush,
+        onAfterFlush,
+      });
+
+      await handler("active");
+
+      expect(flushForAppState).not.toHaveBeenCalled();
+      expect(onBeforeFlush).not.toHaveBeenCalled();
+      expect(onAfterFlush).not.toHaveBeenCalled();
+    });
+
+    it("flushes on background and reports save result", async () => {
+      const project = buildProject();
+      const flushForAppState = jest.fn(async () => true);
+      const onBeforeFlush = jest.fn();
+      const onAfterFlush = jest.fn();
+
+      const handler = createAppStateSaveHandler({
+        flushForAppState,
+        getProjectData: () => project,
+        onBeforeFlush,
+        onAfterFlush,
+      });
+
+      await handler("background");
+
+      expect(onBeforeFlush).toHaveBeenCalledTimes(1);
+      expect(flushForAppState).toHaveBeenCalledWith("background", project);
+      expect(onAfterFlush).toHaveBeenCalledWith(true);
+    });
+
+    it("routes flush errors to onFlushError", async () => {
+      const flushError = new Error("save failed");
+      const flushForAppState = jest.fn(async () => {
+        throw flushError;
+      });
+      const onFlushError = jest.fn();
+
+      const handler = createAppStateSaveHandler({
+        flushForAppState,
+        getProjectData: () => buildProject(),
+        onFlushError,
+      });
+
+      await handler("inactive");
+
+      expect(onFlushError).toHaveBeenCalledWith(flushError);
     });
   });
 
