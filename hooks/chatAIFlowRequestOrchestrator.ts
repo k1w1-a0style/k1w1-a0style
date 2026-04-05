@@ -118,7 +118,7 @@ export const runBuilderWithRetry = async ({
   computeRetryDelayMs: (attempt: number, errorText: string) => number;
   sleepWithAbort: (ms: number, signal?: AbortSignal) => Promise<void>;
   sideEffects: Pick<RequestSideEffects, "announceContextBudgetNote" | "notifyKeyRotation" | "announceRuntimeNote">;
-}): Promise<{ ai: OrchestratorResult; normalizedFiles: ProjectFile[]; historyAsLlm: LlmMessage[] }> => {
+}): Promise<{ ai: OrchestratorResult; normalizedFiles: ProjectFile[] }> => {
   const historyAsLlm = buildSanitizedLlmHistory(currentMessages);
   const llmMessages = buildBuilderMessages(
     historyAsLlm,
@@ -166,7 +166,7 @@ export const runBuilderWithRetry = async ({
   const normalizedResult = normalizeResultFiles(rawForNormalizer);
   const normalizedFiles = readBuilderFilesOrThrow(normalizedResult, ai.text ?? "");
 
-  return { ai, normalizedFiles, historyAsLlm };
+  return { ai, normalizedFiles };
 };
 
 export const runValidatorIfEnabled = async ({
