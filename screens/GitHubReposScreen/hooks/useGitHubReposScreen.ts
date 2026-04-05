@@ -20,8 +20,9 @@ import { useGitHubReposDerivedState } from "./useGitHubReposDerivedState";
 import { useGitHubReposScreenBootstrap } from "./useGitHubReposScreenBootstrap";
 import { useGitHubReposScreenUiState } from "./useGitHubReposScreenUiState";
 import { buildGitHubReposScreenReturnModel } from "./useGitHubReposScreenReturnModel";
+import type { UseGitHubReposScreenModel } from "./useGitHubReposScreen.model";
 
-export function useGitHubReposScreen() {
+export function useGitHubReposScreen(): UseGitHubReposScreenModel {
   const {
     activeRepo,
     activeBranch,

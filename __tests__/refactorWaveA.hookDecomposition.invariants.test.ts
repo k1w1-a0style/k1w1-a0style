@@ -18,6 +18,8 @@ describe("Refactor Wave A decomposition invariants", () => {
     expect(src).toContain("useGitHubReposScreenUiState({ activeRepo })");
     expect(src).toContain('from "./useGitHubReposScreenReturnModel"');
     expect(src).toContain("buildGitHubReposScreenReturnModel({");
+    expect(src).toContain('from "./useGitHubReposScreen.model"');
+    expect(src).toContain("useGitHubReposScreen(): UseGitHubReposScreenModel");
   });
 
   it("keeps CI-Lite run lookup state machine extracted into dedicated hook", () => {

@@ -44,7 +44,7 @@ const readCreatedRepoFullName = (value: unknown): string | null => {
   return ownerLogin && repoName ? `${ownerLogin}/${repoName}` : null;
 };
 
-type ManageModalConfig = {
+export type ManageModalConfig = {
   title: string;
   placeholder: string;
   initialValue?: string;
