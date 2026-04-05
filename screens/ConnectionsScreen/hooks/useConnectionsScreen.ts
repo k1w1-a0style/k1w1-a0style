@@ -122,6 +122,24 @@ export function useConnectionsScreen() {
     }
   }, []);
 
+
+  const runBusyTaskWithAlerts = useCallback(async (params: {
+    run: () => Promise<void>;
+    busyTitle?: string;
+    fallbackTitle: string;
+  }) => {
+    const { run, busyTitle = "Bitte warten", fallbackTitle } = params;
+    try {
+      await withBusyGuard(run);
+    } catch (error: unknown) {
+      if (isBusyGuardActiveError(error)) {
+        Alert.alert(busyTitle, error.message);
+        return;
+      }
+      Alert.alert(fallbackTitle, safeAlertText(error));
+    }
+  }, [withBusyGuard]);
+
   const persistConnLights = useCallback(
     async (entries: Array<[string, string]>): Promise<void> => {
       await persistEntriesWithFallback(AsyncStorage, entries);
@@ -201,8 +219,9 @@ export function useConnectionsScreen() {
   const testEas = useCallback(async () => {
     if (!hydrated) return;
 
-    try {
-      await withBusyGuard(async () => {
+    await runBusyTaskWithAlerts({
+      fallbackTitle: "EAS Test",
+      run: async () => {
         const precheck = resolveEasTestPrecheck({
           easProjectId,
           expoToken,
@@ -250,14 +269,8 @@ export function useConnectionsScreen() {
         } finally {
           setIsTestingEas(false);
         }
-      });
-    } catch (e: unknown) {
-      if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
-      } else {
-        Alert.alert("EAS Test", safeAlertText(e));
-      }
-    }
+      },
+    });
   }, [hydrated, easProjectId, expoToken, saveConnEasStatus, withBusyGuard]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
@@ -393,67 +406,62 @@ export function useConnectionsScreen() {
       return;
     }
 
-    try {
-      await withBusyGuard(async () => {
-      const gh = githubToken.trim();
-      const ex = expoToken.trim();
-      const workflowAdmin = workflowAdminKey.trim();
-      const keystoreAdmin = androidKeystoreExportAdminKey.trim();
-      const raw = supabaseRaw.trim();
-      const sbUrl = supabaseUrl.trim();
-      const sbAnon = supabaseAnonKey.trim();
-      const easId = easProjectId.trim();
+    await runBusyTaskWithAlerts({
+      fallbackTitle: "❌ Speichern fehlgeschlagen",
+      run: async () => {
+        const gh = githubToken.trim();
+        const ex = expoToken.trim();
+        const workflowAdmin = workflowAdminKey.trim();
+        const keystoreAdmin = androidKeystoreExportAdminKey.trim();
+        const raw = supabaseRaw.trim();
+        const sbUrl = supabaseUrl.trim();
+        const sbAnon = supabaseAnonKey.trim();
+        const easId = easProjectId.trim();
 
-      if (gh) await saveGitHubToken(gh);
-      else {
-        await deleteGitHubToken();
-        await clearGithubConnectionState();
-      }
+        if (gh) await saveGitHubToken(gh);
+        else {
+          await deleteGitHubToken();
+          await clearGithubConnectionState();
+        }
 
-      if (ex) {
-        await saveExpoToken(ex);
-      } else {
-        await deleteExpoToken();
-        await clearExpoConnectionState();
-      }
+        if (ex) {
+          await saveExpoToken(ex);
+        } else {
+          await deleteExpoToken();
+          await clearExpoConnectionState();
+        }
 
-      if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
-      else await deleteWorkflowAdminKey();
+        if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
+        else await deleteWorkflowAdminKey();
 
-      if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
-      else await deleteAndroidKeystoreExportAdminKey();
+        if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
+        else await deleteAndroidKeystoreExportAdminKey();
 
-      await deleteLegacyEdgeAdminKey();
+        await deleteLegacyEdgeAdminKey();
 
-      const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(raw, sbUrl);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
-      if (sbAnon) {
-        await saveSupabaseAnonKey(sbAnon);
-      } else {
-        await deleteSupabaseAnonKey();
-      }
+        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(raw, sbUrl);
+        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
+        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
+        if (sbAnon) {
+          await saveSupabaseAnonKey(sbAnon);
+        } else {
+          await deleteSupabaseAnonKey();
+        }
 
-      if (easId) {
-        await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
-        await clearEasConnectionState();
-      }
+        if (easId) {
+          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
+        } else {
+          await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+          await clearEasConnectionState();
+        }
 
-      if (!sbUrl || !sbAnon) {
-        await clearSupabaseConnectionState();
-      }
+        if (!sbUrl || !sbAnon) {
+          await clearSupabaseConnectionState();
+        }
 
-      Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
-      });
-    } catch (e: unknown) {
-      if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
-      } else {
-        Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
-      }
-    }
+        Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
+      },
+    });
   }, [
     hydrated,
     githubToken,

@@ -51,6 +51,51 @@ import {
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
 
+
+const OPERATOR_ROLE_ERROR_MESSAGE =
+  "Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
+
+const getOperatorRoleContextError = (context: string): string => `${context}: ${OPERATOR_ROLE_ERROR_MESSAGE}`;
+
+type CiLiteAuthContext = {
+  userJwt: string;
+  adminKey: string;
+};
+
+const resolveCiLiteAdminKey = async (context: "dispatch" | "lookup" | "artifact"): Promise<string> => {
+  const adminKey = await getWorkflowAdminKey().catch(() => null);
+  const trimmedAdminKey = String(adminKey ?? "").trim();
+  if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
+    const normalized = normalizeCiLiteWorkflowError({
+      context,
+      adminKey,
+    });
+    throw new Error(normalized.userMessage);
+  }
+  return trimmedAdminKey;
+};
+
+const resolveCiLiteAuthContext = async ({
+  context,
+}: {
+  context: "dispatch" | "artifact";
+}): Promise<CiLiteAuthContext> => {
+  const trimmedAdminKey = await resolveCiLiteAdminKey(context);
+
+  const supabase = await ensureSupabaseClient().catch(() => null);
+  const session = await supabase?.auth.getSession().catch(() => null);
+  const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+  if (!userJwt) {
+    throw new Error(
+      getOperatorRoleContextError(
+        context === "dispatch" ? "Workflow-Dispatch blockiert" : "CI-Lite-Artefakt blockiert",
+      ),
+    );
+  }
+
+  return { userJwt, adminKey: trimmedAdminKey };
+};
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -126,15 +171,7 @@ export function useCiLiteWorkflow() {
         requireJobIdMarker = true,
       } = opts;
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
-      const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-      if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
-        const normalized = normalizeCiLiteWorkflowError({
-          context: "lookup",
-          adminKey: trimmedWorkflowAdminKey,
-        });
-        throw new Error(normalized.userMessage);
-      }
+      const adminKey = await resolveCiLiteAdminKey("lookup");
 
       const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`, {
         timeoutMs: 15_000,
@@ -143,7 +180,7 @@ export function useCiLiteWorkflow() {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${userJwt}`,
-          "x-k1w1-admin-key": trimmedWorkflowAdminKey,
+          "x-k1w1-admin-key": adminKey,
         },
         body: JSON.stringify({ githubRepo: repo, workflowId: workflow, ref: br, perPage: 30 }),
       });
@@ -152,7 +189,7 @@ export function useCiLiteWorkflow() {
         const { payload, text } = await readCiLiteErrorResponse(r);
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: trimmedWorkflowAdminKey,
+          adminKey,
           statusCode: r.status,
           statusText: r.statusText,
           payload,
@@ -167,7 +204,7 @@ export function useCiLiteWorkflow() {
       if (workflowLookupNote) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
-          adminKey: trimmedWorkflowAdminKey,
+          adminKey,
           note: workflowLookupNote,
         });
         throw new Error(normalized.userMessage);
@@ -286,21 +323,7 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedAdminKey = String(adminKey ?? "").trim();
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
-        if (!userJwt) {
-          throw new Error("CI-Lite-Artefakt blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
-        }
-        if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "artifact",
-            adminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
+        const authContext = await resolveCiLiteAuthContext({ context: "artifact" });
 
         const { artifactName, filePath } = resolveCiLiteArtifactRequest(workflowId);
 
@@ -310,8 +333,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedAdminKey,
+            Authorization: `Bearer ${authContext.userJwt}`,
+            "x-k1w1-admin-key": authContext.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -325,7 +348,7 @@ export function useCiLiteWorkflow() {
         if (!resp.ok) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
-            adminKey: trimmedAdminKey,
+            adminKey: authContext.adminKey,
             statusCode: resp.status,
             statusText: resp.statusText,
             payload: data,
@@ -345,7 +368,7 @@ export function useCiLiteWorkflow() {
         if (!cancelled) {
           setArtifactResult(artifactJson);
         }
-      } catch (e) {
+      } catch (e: unknown) {
         if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
       } finally {
         if (!cancelled) setArtifactLoading(false);
@@ -497,11 +520,16 @@ export function useCiLiteWorkflow() {
     setRunUrl(null);
 
     void (async () => {
-      const supabase = await ensureSupabaseClient().catch(() => null);
-      const session = await supabase?.auth.getSession().catch(() => null);
-      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
-      if (!userJwt) {
-        setLocalError("Workflow-Run-Lookup blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+      let userJwt = "";
+      try {
+        const supabase = await ensureSupabaseClient().catch(() => null);
+        const session = await supabase?.auth.getSession().catch(() => null);
+        userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        if (!userJwt) {
+          throw new Error(getOperatorRoleContextError("Workflow-Run-Lookup blockiert"));
+        }
+      } catch (error: unknown) {
+        setLocalError(error instanceof Error ? error.message : String(error));
         setChainWaiting(false);
         stopRunLookup();
         return;
@@ -666,23 +694,7 @@ export function useCiLiteWorkflow() {
           targetBranch,
         ).catch(() => null);
 
-        const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-        if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "dispatch",
-            adminKey: workflowAdminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
-        if (!userJwt) {
-          throw new Error(
-            "Workflow-Dispatch blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
-          );
-        }
+        const authContext = await resolveCiLiteAuthContext({ context: "dispatch" });
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
@@ -691,8 +703,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedWorkflowAdminKey,
+            Authorization: `Bearer ${authContext.userJwt}`,
+            "x-k1w1-admin-key": authContext.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -709,7 +721,7 @@ export function useCiLiteWorkflow() {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: trimmedWorkflowAdminKey,
+            adminKey: authContext.adminKey,
             statusCode: r.status,
             statusText: r.statusText,
             payload,
@@ -726,7 +738,7 @@ export function useCiLiteWorkflow() {
               branch: targetBranch,
               jobId: newJobId,
               workflow: workflowFile,
-              userJwt,
+              userJwt: authContext.userJwt,
               expectedEvent: "workflow_dispatch",
               startedAtMs: start,
               sourceHeadSha,

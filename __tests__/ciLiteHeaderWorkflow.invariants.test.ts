@@ -82,4 +82,15 @@ describe("CI Lite Header workflow invariants", () => {
     expect(src).toContain('expectedEvent: "repository_dispatch"');
     expect(src).toContain('expectedEvent: "workflow_dispatch"');
   });
+
+  it("reuses a shared operator-role error contract across dispatch/lookup/artifact contexts", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+
+    expect(src).toContain("const OPERATOR_ROLE_ERROR_MESSAGE =");
+    expect(src).toContain("const getOperatorRoleContextError = (context: string): string =>");
+    expect(src).toContain('throw new Error(getOperatorRoleContextError("Workflow-Run-Lookup blockiert"));');
+    expect(src).toContain('const authContext = await resolveCiLiteAuthContext({ context: "dispatch" });');
+    expect(src).toContain('const authContext = await resolveCiLiteAuthContext({ context: "artifact" });');
+  });
+
 });

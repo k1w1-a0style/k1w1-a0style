@@ -171,6 +171,23 @@ export const buildGuardPolicyPreHint = (): string =>
   "🟢 `allowed` = kann ich direkt als Patch vorschlagen\n" +
   "🔴 `guarded` = kritische/manual-only Pfade, bleiben manuell";
 
+
+const handleInvalidChatInput = ({
+  validationError,
+  safe,
+  setError,
+  addChatMessage,
+}: {
+  validationError?: string;
+  safe: <T>(fn: () => T) => T | undefined;
+  setError: (message: string | null) => void;
+  addChatMessage: (message: ReturnType<typeof buildAssistantMessage>) => void;
+}) => {
+  const validationMessage = getInputValidationMessage(validationError);
+  safe(() => setError(validationMessage));
+  addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
+};
+
 export const isDirectBuildCommand = (input: string): boolean => {
   const lower = String(input ?? "").trim().toLowerCase();
   return lower === "direkt build" || lower === "build" || lower === "jetzt builden";
@@ -401,10 +418,12 @@ export function useChatAIFlow({
 
       const preparedInput = prepareValidatedChatInput(userContent);
       if (!preparedInput.valid) {
-        const validationMessage = getInputValidationMessage(preparedInput.error);
-
-        safe(() => setError(validationMessage));
-        addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
+        handleInvalidChatInput({
+          validationError: preparedInput.error,
+          safe,
+          setError,
+          addChatMessage,
+        });
         return false;
       }
 
@@ -613,10 +632,12 @@ export function useChatAIFlow({
 
       const validation = prepareValidatedChatInput(candidateInput);
       if (!validation.valid) {
-        const validationMessage = getInputValidationMessage(validation.error);
-
-        safe(() => setError(validationMessage));
-        addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
+        handleInvalidChatInput({
+          validationError: validation.error,
+          safe,
+          setError,
+          addChatMessage,
+        });
         return false;
       }
 
