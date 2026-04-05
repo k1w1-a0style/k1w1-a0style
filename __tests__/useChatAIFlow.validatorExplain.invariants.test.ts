@@ -12,14 +12,14 @@ describe("useChatAIFlow validator/explain communication invariants", () => {
   it("surfaces validator fallback warnings instead of only logging", () => {
     expect(flowSrc).toContain("const addValidatorWarning = (validatorStateForMessage: PendingChange");
     expect(flowSrc).toContain("getValidatorFallbackWarning");
-    expect(flowSrc).toContain('meta: { validatorWarning: true }');
+    expect(flowSrc).toContain("buildSystemMessage(content, { validatorWarning: true })");
 
     expect(helperSrc).toContain("Validator war nur advisory und konnte die Builder-Dateien diesmal nicht nachschärfen");
     expect(helperSrc).toContain("Validator war nur advisory und ist fehlgeschlagen");
   });
 
   it("keeps explain fallback user-visible when explain call fails", () => {
-    expect(flowSrc).toContain('meta: { explainWarning: true }');
+    expect(flowSrc).toContain("buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true })");
     expect(flowSrc).toContain("getExplainFallbackNoticeText()");
     expect(noticeMessageHelpersSrc).toContain("Konnte die Kurz-Erklärung für die Änderungen nicht erzeugen");
   });

@@ -22,6 +22,11 @@ import { validateChatInput } from "../lib/validators";
 import { recordChatQualityMetric } from "../lib/chatQualityMetrics";
 import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
+import {
+  buildAssistantMessage,
+  buildSystemMessage,
+  buildUserMessage,
+} from "./chatAIFlowChatMessageFactory";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
 import {
@@ -465,13 +470,7 @@ export function useChatAIFlow({
         const validationMessage = getInputValidationMessage(preparedInput.error);
 
         safe(() => setError(validationMessage));
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content: validationMessage,
-          timestamp: new Date().toISOString(),
-          meta: { error: true },
-        });
+        addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
         return false;
       }
 
@@ -516,31 +515,29 @@ export function useChatAIFlow({
 
           if (planner.requiresConfirmation) {
             const intentDecision = classifyChatIntent(sanitizedRequestContent);
-            addChatMessage({
-              id: uuidv4(),
-              role: "assistant",
-              content: buildIntentConfirmationMessage({
-                intent: intentDecision.intent,
-                confidence: intentDecision.confidence,
-                reason: intentDecision.reason,
-              }),
-              timestamp: new Date().toISOString(),
-              meta: { planner: true },
-            });
+            addChatMessage(
+              buildAssistantMessage(
+                buildIntentConfirmationMessage({
+                  intent: intentDecision.intent,
+                  confidence: intentDecision.confidence,
+                  reason: intentDecision.reason,
+                }),
+                { planner: true },
+              ),
+            );
             return true;
           }
 
           if (planner.pendingPlan && planner.plannerText) {
-            addChatMessage({
-              id: uuidv4(),
-              role: "assistant",
-              content: buildPlannerPreviewMessage(
-                planner.plannerText,
-                buildGuardPolicyPreHint(),
+            addChatMessage(
+              buildAssistantMessage(
+                buildPlannerPreviewMessage(
+                  planner.plannerText,
+                  buildGuardPolicyPreHint(),
+                ),
+                { planner: true },
               ),
-              timestamp: new Date().toISOString(),
-              meta: { planner: true },
-            });
+            );
 
             pendingPlanRef.current = planner.pendingPlan;
             safe(() => setPendingPlan(planner.pendingPlan));
@@ -570,13 +567,7 @@ export function useChatAIFlow({
             : null;
           if (!content) return;
 
-          addChatMessage({
-            id: uuidv4(),
-            role: "system",
-            content,
-            timestamp: new Date().toISOString(),
-            meta: { validatorWarning: true },
-          });
+          addChatMessage(buildSystemMessage(content, { validatorWarning: true }));
         };
 
         const { finalFiles, agentMeta, finalFileSource, validatorState } = await runValidatorIfEnabled({
@@ -621,13 +612,9 @@ export function useChatAIFlow({
             });
           } catch (e) {
             logger.warn("[useChatAIFlow] Explain call failed:", e);
-            addChatMessage({
-              id: uuidv4(),
-              role: "system",
-              content: getExplainFallbackNoticeText(),
-              timestamp: new Date().toISOString(),
-              meta: { explainWarning: true },
-            });
+            addChatMessage(
+              buildSystemMessage(getExplainFallbackNoticeText(), { explainWarning: true }),
+            );
           }
         }
 
@@ -680,13 +667,7 @@ export function useChatAIFlow({
         const msg = getBuilderFlowErrorNoticeText(builderFallbackMessage);
         safe(() => setError(msg));
 
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content: msg,
-          timestamp: new Date().toISOString(),
-          meta: { error: true },
-        });
+        addChatMessage(buildAssistantMessage(msg, { error: true }));
 
         return false;
       } finally {
@@ -815,13 +796,7 @@ export function useChatAIFlow({
         ? handleMetaCommand(userContent, projectFilesRef.current)
         : { handled: false };
       if (metaResult.handled && metaResult.message) {
-        addChatMessage({
-          id: uuidv4(),
-          role: "user",
-          content: userContent,
-          timestamp: new Date().toISOString(),
-          meta: { localOnly: true, metaCommand: true },
-        });
+        addChatMessage(buildUserMessage(userContent, { localOnly: true, metaCommand: true }));
         addChatMessage(metaResult.message);
         return true;
       }
@@ -834,13 +809,7 @@ export function useChatAIFlow({
             : `⚠️ ${validation.error || "Nachricht konnte nicht verarbeitet werden."}`;
 
         safe(() => setError(validationMessage));
-        addChatMessage({
-          id: uuidv4(),
-          role: "assistant",
-          content: validationMessage,
-          timestamp: new Date().toISOString(),
-          meta: { error: true },
-        });
+        addChatMessage(buildAssistantMessage(validationMessage, { error: true }));
         return false;
       }
 
@@ -854,22 +823,17 @@ export function useChatAIFlow({
         return false;
       }
 
-      addChatMessage({
-        id: uuidv4(),
-        role: "user",
-        // Regression-Hinweis: content: userContent || aiContent,
-        content: sanitizedUserContent || sanitizedAiContent,
-        timestamp: new Date().toISOString(),
-      });
+      addChatMessage(
+        buildUserMessage(
+          // Regression-Hinweis: content: userContent || aiContent,
+          sanitizedUserContent || sanitizedAiContent,
+        ),
+      );
 
       if (validation.hadXSS) {
-        addChatMessage({
-          id: uuidv4(),
-          role: "system",
-          content: getXssSanitizationNoticeText(),
-          timestamp: new Date().toISOString(),
-          meta: { validatorWarning: true },
-        });
+        addChatMessage(
+          buildSystemMessage(getXssSanitizationNoticeText(), { validatorWarning: true }),
+        );
       }
 
       // ✅ FIX #1: Use ref for fresh pendingPlan
@@ -885,12 +849,7 @@ export function useChatAIFlow({
         });
 
         if (holdDecision.hold && holdDecision.message) {
-          addChatMessage({
-            id: uuidv4(),
-            role: "assistant",
-            content: holdDecision.message,
-            timestamp: new Date().toISOString(),
-          });
+          addChatMessage(buildAssistantMessage(holdDecision.message));
           return true;
         }
 
