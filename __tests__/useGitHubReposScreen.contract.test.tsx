@@ -172,6 +172,10 @@ describe("useGitHubReposScreen contract", () => {
         handleEasLinkStatusCheck: expect.any(Function),
         handleEasLink: expect.any(Function),
         syncStatus: expect.objectContaining({ checking: false }),
+        manageModal: null,
+        manageBusy: false,
+        pushModalVisible: false,
+        pullModalVisible: false,
       }),
     );
 
