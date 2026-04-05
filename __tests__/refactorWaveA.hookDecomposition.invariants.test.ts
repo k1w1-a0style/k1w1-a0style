@@ -8,6 +8,8 @@ describe("Refactor Wave A decomposition invariants", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
     expect(src).toContain('from "./useGitHubRepoCrud"');
     expect(src).toContain("useGitHubRepoCrud({");
+    expect(src).toContain('from "./useGitHubReposPushPull"');
+    expect(src).toContain("useGitHubReposPushPull({");
   });
 
   it("keeps CI-Lite run lookup state machine extracted into dedicated hook", () => {

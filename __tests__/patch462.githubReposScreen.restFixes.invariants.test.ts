@@ -9,7 +9,7 @@ describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
   });
 
   it("guards sync status updates against stale async runs", () => {
-    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
+    const src = read("screens/GitHubReposScreen/hooks/useGitHubReposSyncStatus.ts");
 
     expect(src).toContain("const syncStatusRunRef = useRef(0);");
     expect(src).toContain("if (runId !== syncStatusRunRef.current) return;");

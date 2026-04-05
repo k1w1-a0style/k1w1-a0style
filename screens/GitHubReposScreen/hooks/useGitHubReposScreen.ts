@@ -2,81 +2,27 @@
 // REFACTORED: template data → templateFiles.ts
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Linking } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { Linking } from "react-native";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
-import {
-  pushFilesToRepoAdvanced,
-  compareLocalFilesWithRepo,
-  createOrUpdateFile,
-  getRepoFileText,
-  getGitHubToken,
-} from "../../../infra/github/githubService";
-import { getGitHubUser } from "../../../infra/github/user";
-import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
-import { combineRepos, splitFullName } from "../utils/repos";
+import { useGitHubRepos } from "../../../hooks/useGitHubRepos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
-import { validateEasProjectId } from "../../ConnectionsScreen/utils/validation";
-import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
-import { executePullApply } from "../utils/pullApplySemantics";
-import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
-import {
-  checkRepoEasLinkStatus,
-  getEasLinkPresentation,
-  resolveEasLinkWriteOutcome,
-  type EasLinkPresentation,
-} from "../utils/easLinkContract";
-import {
-  createEasLinkStatusRequestGuard,
-  type EasLinkStatusRequestToken,
-} from "../utils/easLinkStatusRequestGuard";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
 
 import { getCoreFileContent, CORE_TEMPLATE_FILES } from "./templateFiles";
-import type { RepoFilterType } from "./templateFiles";
-import { getErrorMessage } from "./githubReposScreenErrorHelpers";
-import { getEasLinkWriteNotice, getSecretsSyncNotice } from "./githubReposScreenNoticeHelpers";
 import { useGitHubRepoCrud } from "./useGitHubRepoCrud";
-import {
-  buildRepoBranchContextKey,
-  getEasLinkNeutralMessage,
-  resolveSyncStatusPrecheck,
-  buildPushSelectionFromLocalFiles,
-  buildPushSelectionForWantedPaths,
-} from "./useGitHubReposScreenHelpers";
+import { useGitHubReposSelection } from "./useGitHubReposSelection";
+import { useGitHubReposEasLink } from "./useGitHubReposEasLink";
+import { useGitHubReposSyncStatus } from "./useGitHubReposSyncStatus";
+import { useGitHubReposPushPull } from "./useGitHubReposPushPull";
+import { useGitHubReposDerivedState } from "./useGitHubReposDerivedState";
+import { useGitHubReposScreenBootstrap } from "./useGitHubReposScreenBootstrap";
+import { useGitHubReposScreenUiState } from "./useGitHubReposScreenUiState";
+import { buildGitHubReposScreenReturnModel } from "./useGitHubReposScreenReturnModel";
+import type { UseGitHubReposScreenModel } from "./useGitHubReposScreen.model";
 
-type SyncStatus = {
-  checking: boolean;
-  modified: number;
-  localOnly: number;
-  remoteOnly: number;
-  skipped: number;
-  error: number;
-  checkedAt: number | null;
-};
-
-type PullPreviewState = {
-  remote: ProjectFile[];
-  conflicts: string[];
-  remoteOnly: string[];
-  updates: string[];
-};
-
-const EMPTY_SYNC_STATUS: SyncStatus = {
-  checking: false,
-  modified: 0,
-  localOnly: 0,
-  remoteOnly: 0,
-  skipped: 0,
-  error: 0,
-  checkedAt: null,
-};
-
-export function useGitHubReposScreen() {
+export function useGitHubReposScreen(): UseGitHubReposScreenModel {
   const {
     activeRepo,
     activeBranch,
@@ -100,19 +46,20 @@ export function useGitHubReposScreen() {
   const effectiveTemplateId: CoreTemplateId =
     resolveEffectiveTemplateId(templateId, normalizedLocalFiles).effective;
 
-  const [token, setToken] = useState<string | null>(null);
-  const [tokenLoading, setTokenLoading] = useState(false);
-  const [tokenError, setTokenError] = useState<string | null>(null);
-
-  const [userLogin, setUserLogin] = useState<string>("" );
-  const [userLoading, setUserLoading] = useState(false);
-
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
-
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
-  const selectRepoGen = useRef(0);
+
+  const {
+    token,
+    tokenLoading,
+    tokenError,
+    userLogin,
+    userLoading,
+    easProjectId,
+    setEasProjectId,
+  } = useGitHubReposScreenBootstrap();
 
   useEffect(() => {
     return () => {
@@ -120,42 +67,28 @@ export function useGitHubReposScreen() {
     };
   }, []);
 
-  const [showRepoList, setShowRepoList] = useState(true);
-  const [showNewRepo, setShowNewRepo] = useState(false);
-  const [showRenameRepo, setShowRenameRepo] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<RepoFilterType>("all");
-
-  const [newRepoName, setNewRepoName] = useState("");
-  const [newRepoPrivate, setNewRepoPrivate] = useState(true);
-  const [renameName, setRenameName] = useState("");
-  const [isPulling, setIsPulling] = useState(false);
-  const [isPushing, setIsPushing] = useState(false);
-  const [pullProgress, setPullProgress] = useState("");
-
-  // Advanced sync UI state
-  const [pushModalVisible, setPushModalVisible] = useState(false);
-  const [pushCommitMessage, setPushCommitMessage] = useState("chore: sync");
-  const [pushSelectedPaths, setPushSelectedPaths] = useState<Record<string, boolean>>({});
-
-  const [pullModalVisible, setPullModalVisible] = useState(false);
-  const [pullPreviewLoading, setPullPreviewLoading] = useState(false);
-  const [pullPreview, setPullPreview] = useState<PullPreviewState | null>(null);
-
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(EMPTY_SYNC_STATUS);
-
-  const [isSyncingSecrets, setIsSyncingSecrets] = useState(false);
-
-  const [easProjectId, setEasProjectId] = useState<string>("");
-  const [isEasLinking, setIsEasLinking] = useState(false);
-  const [easLinkStatus, setEasLinkStatus] = useState<EasLinkPresentation>(getEasLinkPresentation("unknown"));
-  const easLinkContextKey = useMemo(
-    () => buildRepoBranchContextKey(activeRepo, activeBranch),
-    [activeRepo, activeBranch],
-  );
-  const easLinkStatusGuardRef = useRef(createEasLinkStatusRequestGuard(easLinkContextKey));
+  const {
+    showRepoList,
+    setShowRepoList,
+    showNewRepo,
+    setShowNewRepo,
+    showRenameRepo,
+    setShowRenameRepo,
+    showAdvanced,
+    setShowAdvanced,
+    searchTerm,
+    setSearchTerm,
+    filterType,
+    setFilterType,
+    newRepoName,
+    setNewRepoName,
+    newRepoPrivate,
+    setNewRepoPrivate,
+    renameName,
+    setRenameName,
+    isSyncingSecrets,
+    handleSyncSecrets,
+  } = useGitHubReposScreenUiState({ activeRepo });
 
   const {
     repos,
@@ -168,118 +101,12 @@ export function useGitHubReposScreen() {
     loadDefaultBranch,
   } = useGitHubRepos(token);
 
-  const syncStatusRunRef = useRef(0);
-
-  useEffect(() => {
-    easLinkStatusGuardRef.current.setContextKey(easLinkContextKey);
-    setEasLinkStatus(
-      getEasLinkPresentation(
-        "unknown",
-        getEasLinkNeutralMessage(easLinkContextKey),
-      ),
-    );
-  }, [easLinkContextKey]);
-
-  const refreshSyncStatus = useCallback(async () => {
-    const runId = ++syncStatusRunRef.current;
-    const commitSyncStatus = (next: SyncStatus) => {
-      if (!isMountedRef.current) return;
-      if (runId !== syncStatusRunRef.current) return;
-      setSyncStatus(next);
-    };
-    const precheck = resolveSyncStatusPrecheck({
-      activeRepo,
-      activeBranch,
-    });
-
-    if (precheck.status === "missing_repo") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now() });
-      return;
-    }
-    if (precheck.status === "invalid_repo") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
-      return;
-    }
-    if (precheck.status === "missing_branch") {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checkedAt: Date.now(), error: 1 });
-      return;
-    }
-    const parsed = precheck.repoParts;
-    const branch = precheck.branch;
-    if (!parsed) return;
-    commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: true });
-
-    try {
-      const stats = await compareLocalFilesWithRepo({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        branch,
-        localFiles: normalizedLocalFiles,
-        maxLocalFiles: 40,
-      });
-      commitSyncStatus({ checking: false, ...stats, checkedAt: Date.now() });
-    } catch {
-      commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: false, error: 1, checkedAt: Date.now() });
-    }
-  }, [activeRepo, activeBranch, normalizedLocalFiles]);
-
-  // Token load
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setTokenLoading(true);
-      setTokenError(null);
-      try {
-        const t = await getGitHubToken();
-        if (!mounted) return;
-        setToken(t);
-        if (!t) {
-          setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
-        }
-      } catch (e: unknown) {
-        if (!mounted) return;
-        setToken(null);
-        setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
-      } finally {
-        if (mounted) setTokenLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  // User info (best-effort)
-  useEffect(() => {
-    let mounted = true;
-    if (!token) {
-      setUserLogin("");
-      return () => { mounted = false; };
-    }
-    setUserLoading(true);
-    getGitHubUser()
-      .then((u) => {
-        if (!mounted) return;
-        setUserLogin(String(u?.login || "").trim());
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setUserLogin("");
-      })
-      .finally(() => {
-        if (mounted) setUserLoading(false);
-      });
-    return () => { mounted = false; };
-  }, [token]);
-
-  // Load EAS project ID
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => "");
-      if (!mounted) return;
-      setEasProjectId((id || "").trim());
-    })();
-    return () => { mounted = false; };
-  }, []);
+  const { syncStatus, refreshSyncStatus } = useGitHubReposSyncStatus({
+    activeRepo,
+    activeBranch,
+    normalizedLocalFiles,
+    isMountedRef,
+  });
 
   // Auto-load repos once token exists
   useEffect(() => {
@@ -287,16 +114,6 @@ export function useGitHubReposScreen() {
     hasAutoLoaded.current = true;
     loadRepos();
   }, [token, loadRepos]);
-
-  // Keep a lightweight "dirty" indicator up to date when repo/branch changes.
-  useEffect(() => {
-    if (!activeRepo) {
-      setSyncStatus(EMPTY_SYNC_STATUS);
-      return;
-    }
-    // fire-and-forget (best-effort)
-    refreshSyncStatus();
-  }, [activeRepo, activeBranch]);
 
   const handleRefresh = useCallback(async () => {
     if (!token) return;
@@ -312,71 +129,6 @@ export function useGitHubReposScreen() {
       setRefreshing(false);
     }
   }, [token, loadRepos]);
-
-  const handleSelectRepo = useCallback((repoOrString: GitHubRepo | string) => {
-  const fullName =
-    typeof repoOrString === "string" ? repoOrString : repoOrString.full_name;
-  const selectionGen = ++selectRepoGen.current;
-
-  // Prefer default branch from the repo list payload (fast), fallback to API if needed.
-  const defaultBranch: string | null =
-    typeof repoOrString === "string"
-      ? null
-      : String(repoOrString.default_branch || "").trim() || null;
-
-  // Single source of truth for ALL repo selections (list + recent)
-  addRecentRepo(fullName);
-  setLinkedRepo(fullName, defaultBranch);
-  setShowRenameRepo(false);
-  setShowNewRepo(false);
-  setPullProgress("");
-
-  // If we don't have a default branch yet (e.g. recent repo string), fetch it async.
-  if (!defaultBranch) {
-    const parsed = splitFullName(fullName);
-    if (!parsed) return;
-
-    loadDefaultBranch(parsed.owner, parsed.repo)
-      .then((b) => String(b || "").trim())
-      .then((b) => {
-        if (!b) return;
-        if (!isMountedRef.current) return;
-        if (selectionGen !== selectRepoGen.current) return;
-        setLinkedRepo(fullName, b);
-      })
-      .catch(() => {
-        // non-fatal: user can still pick a branch manually
-      });
-  }
-}, [addRecentRepo, setLinkedRepo, loadDefaultBranch]);
-
-  const rememberRecentBranch = useCallback(async (repoFullName: string, branch: string) => {
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_BRANCHES_BY_REPO).catch(
-        () => null,
-      );
-      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      const prev = Array.isArray(map[repoFullName]) ? map[repoFullName] : [];
-      const next = [branch, ...prev.filter((b) => b !== branch)].slice(0, 6);
-      map[repoFullName] = next;
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.RECENT_BRANCHES_BY_REPO,
-        JSON.stringify(map),
-      ).catch(() => null);
-    } catch {
-      // best-effort
-    }
-  }, []);
-
-  const handleSelectBranch = useCallback(
-    (branch: string) => {
-      if (activeRepo) {
-        setLinkedRepo(activeRepo, branch);
-        rememberRecentBranch(activeRepo, branch);
-      }
-    },
-    [activeRepo, setLinkedRepo, rememberRecentBranch],
-  );
 
   const {
     localRepos,
@@ -438,428 +190,11 @@ export function useGitHubReposScreen() {
     return Array.from(fileMap.entries()).map(([path, content]) => ({ path, content }));
   }, [effectiveTemplateId]);
 
-  const handlePull = useCallback(async () => {
-    // Pull now opens a preview modal (conflicts + strategy) to avoid silent overwrites.
-    if (!activeRepo) {
-      Alert.alert("⚠️", "Kein Repo ausgewählt.");
-      return;
-    }
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    if (pullPreviewLoading) return;
-    setPullModalVisible(true);
-    setPullPreviewLoading(true);
-    setPullProgress("");
-    setPullPreview(null);
-
-    try {
-      const branch = (activeBranch || "").trim();
-      if (!branch) {
-        Alert.alert("⚠️ Pull", "Kein Branch ausgewählt.");
-        setPullModalVisible(false);
-        return;
-      }
-      const pulled = await pullFromRepo(
-        parsed.owner,
-        parsed.repo,
-        (p: string) => setPullProgress(p),
-        branch,
-      );
-      if (!pulled) {
-        Alert.alert("⚠️ Pull", "Keine Dateien geladen.");
-        setPullModalVisible(false);
-        return;
-      }
-
-      // Build preview vs local
-      const localMap = new Map<string, string>();
-      for (const lf of normalizedLocalFiles) localMap.set(lf.path, lf.content);
-
-      const conflicts: string[] = [];
-      const updates: string[] = [];
-      const remoteOnly: string[] = [];
-
-      for (const rf of pulled) {
-        const p = String(rf.path || "");
-        if (!p) continue;
-        const rContent = String(rf.content ?? "");
-        if (!localMap.has(p)) {
-          remoteOnly.push(p);
-        } else {
-          const lContent = localMap.get(p) ?? "";
-          if (lContent !== rContent) conflicts.push(p);
-          else updates.push(p);
-        }
-      }
-
-      setPullPreview({ remote: pulled, conflicts, remoteOnly, updates });
-    } catch (e: unknown) {
-      Alert.alert("❌ Pull fehlgeschlagen", getErrorMessage(e, ""));
-      setPullModalVisible(false);
-    } finally {
-      setPullPreviewLoading(false);
-    }
-  }, [activeRepo, activeBranch, pullFromRepo, normalizedLocalFiles, pullPreviewLoading]);
-
-  const handlePush = useCallback(async () => {
-    // Push now opens options (commit message + file selection).
-    if (!activeRepo || !normalizedLocalFiles.length) {
-      Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
-      return;
-    }
-    setPushSelectedPaths(
-      buildPushSelectionFromLocalFiles({
-        localFiles: normalizedLocalFiles,
-      }),
-    );
-    setPushModalVisible(true);
-  }, [activeRepo, normalizedLocalFiles]);
-
-  /**
-   * Opens the Push options modal but preselects only specific local paths.
-   * Used by the Diff UI to push only changed files.
-   */
-  const openPushModalForPaths = useCallback(
-    (paths: string[]) => {
-      if (!activeRepo || !normalizedLocalFiles.length) {
-        Alert.alert("⚠️", "Kein Repo/Projekt ausgewählt oder keine Dateien.");
-        return;
-      }
-      const { selection, pickedCount } = buildPushSelectionForWantedPaths({
-        localFiles: normalizedLocalFiles,
-        wantedPaths: paths,
-      });
-
-      if (Array.isArray(paths) && paths.length > 0 && !pickedCount) {
-        Alert.alert("⚠️", "Auswahl enthält keine lokalen Dateien (remote-only kann nicht gepusht werden).");
-        return;
-      }
-
-      setPushSelectedPaths(selection);
-      setPushModalVisible(true);
-    },
-    [activeRepo, normalizedLocalFiles],
-  );
-
-  const togglePushPath = useCallback((path: string) => {
-    setPushSelectedPaths((prev) => ({ ...prev, [path]: !prev[path] }));
-  }, []);
-
-  const setAllPushPaths = useCallback((on: boolean) => {
-    setPushSelectedPaths((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const k of Object.keys(prev)) next[k] = on;
-      return next;
-    });
-  }, []);
-
-  const closePushModal = useCallback(() => setPushModalVisible(false), []);
-
-  const confirmPushSelected = useCallback(async () => {
-    if (!activeRepo) return;
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const preparation = resolvePushPreparation({
-      activeBranch,
-      pushSelectedPaths,
-      localFiles: normalizedLocalFiles,
-    });
-
-    if (!preparation.ok) {
-      Alert.alert(preparation.title, preparation.message);
-      return;
-    }
-
-    const { branch, selectedFiles } = preparation;
-
-    setIsPushing(true);
-    try {
-      const pushedFiles = withCoreFiles(selectedFiles);
-      await pushFilesToRepoAdvanced(
-        parsed.owner,
-        parsed.repo,
-        pushedFiles,
-        { branch, message: pushCommitMessage || "chore: sync" },
-      );
-      await markRepoSyncSignature({
-        linkedRepo: activeRepo,
-        linkedBranch: branch,
-        files: pushedFiles,
-      });
-      setPushModalVisible(false);
-      await refreshSyncStatus();
-      Alert.alert(
-        "✅ Push erfolgreich",
-        `${parsed.owner}/${parsed.repo}@${branch}\nDer Push wurde als ein konsolidierter Git-Commit übertragen.`,
-      );
-    } catch (e: unknown) {
-      Alert.alert("❌ Push fehlgeschlagen", getErrorMessage(e, ""));
-    } finally {
-      setIsPushing(false);
-    }
-  }, [activeRepo, activeBranch, normalizedLocalFiles, pushSelectedPaths, pushCommitMessage, withCoreFiles, refreshSyncStatus]);
-
-  const closePullModal = useCallback(() => {
-    if (pullPreviewLoading || isPulling) return;
-    setPullModalVisible(false);
-    setPullPreview(null);
-    setPullProgress("");
-  }, [pullPreviewLoading, isPulling]);
-
-  const applyPulledFiles = useCallback(async (strategy: "overwrite" | "skipConflicts") => {
-    if (!pullPreview?.remote) return;
-
-    setIsPulling(true);
-    try {
-      const semantics = await executePullApply({
-        localFiles: normalizedLocalFiles,
-        remoteFiles: pullPreview.remote,
-        strategy,
-        updateProjectFiles,
-        markSyncSignature: async (files) => {
-          await markRepoSyncSignature({
-            linkedRepo: activeRepo,
-            linkedBranch: activeBranch,
-            files,
-          });
-        },
-        refreshSyncStatus,
-      });
-
-      setPullModalVisible(false);
-      setPullPreview(null);
-      setPullProgress("");
-      Alert.alert(semantics.messageTitle, semantics.messageBody);
-    } catch (e: unknown) {
-      Alert.alert("❌ Pull Anwenden fehlgeschlagen", getErrorMessage(e, ""));
-    } finally {
-      setIsPulling(false);
-    }
-  }, [pullPreview, normalizedLocalFiles, updateProjectFiles, refreshSyncStatus, activeRepo, activeBranch]);
-
-  const handleOpenRepoOnGitHub = useCallback(async () => {
-    if (!activeRepo) return;
-    await Linking.openURL(`https://github.com/${activeRepo}`);
-  }, [activeRepo]);
-
-  const isCurrentEasLinkRequest = useCallback((requestId: number, contextKey: string | null) => {
-    if (!isMountedRef.current) return false;
-    return easLinkStatusGuardRef.current.isCurrent({ requestId, contextKey });
-  }, []);
-
-  const handleEasLinkStatusCheck = useCallback(async (): Promise<EasLinkPresentation | null> => {
-    if (!activeRepo || !activeBranch) {
-      easLinkStatusGuardRef.current.invalidate();
-      const presentation = getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt.");
-      setEasLinkStatus(presentation);
-      return presentation;
-    }
-
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) {
-      easLinkStatusGuardRef.current.invalidate();
-      const presentation = getEasLinkPresentation("unknown", "Repo-Auswahl konnte nicht verarbeitet werden.");
-      setEasLinkStatus(presentation);
-      return presentation;
-    }
-
-    const contextKey = `${activeRepo}@@${activeBranch}`;
-    const requestToken = easLinkStatusGuardRef.current.begin(contextKey);
-    const presentation = await checkRepoEasLinkStatus({
-      expectedProjectId: easProjectId,
-      loadFile: (path: string) =>
-        getRepoFileText({
-          owner: parsed.owner,
-          repo: parsed.repo,
-          path,
-          ref: activeBranch,
-        }),
-    });
-
-    if (!isCurrentEasLinkRequest(requestToken.requestId, requestToken.contextKey)) {
-      return null;
-    }
-
-    setEasLinkStatus(presentation);
-    return presentation;
-  }, [activeRepo, activeBranch, easProjectId, isCurrentEasLinkRequest]);
-
-  const handleEasLink = useCallback(async () => {
-    if (!activeRepo) {
-      Alert.alert("⚠️", "Kein Repo ausgewählt.");
-      return;
-    }
-    const parsed = splitFullName(activeRepo);
-    if (!parsed) return;
-
-    const id = (easProjectId || "").trim();
-    if (!id) {
-      Alert.alert("⚠️", "Bitte EAS Project ID setzen (AsyncStorage).");
-      return;
-    }
-
-    const idValidation = validateEasProjectId(id);
-    if (!idValidation.ok) {
-      Alert.alert(idValidation.title, idValidation.message);
-      return;
-    }
-
-    const branch = (activeBranch || "").trim();
-    if (!branch) {
-      Alert.alert("⚠️", "Kein Branch ausgewählt.");
-      return;
-    }
-
-    const contextKey = buildRepoBranchContextKey(activeRepo, branch);
-    if (!contextKey) {
-      setEasLinkStatus(getEasLinkPresentation("unknown", "Repo oder Branch sind noch nicht ausgewaehlt."));
-      return;
-    }
-    const writeToken = easLinkStatusGuardRef.current.begin(contextKey);
-
-    setIsEasLinking(true);
-    if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-      setEasLinkStatus(
-        getEasLinkPresentation(
-          "pending_recheck",
-          "Schreibe `eas-project.json` und pruefe den Repo-Zustand danach erneut.",
-        ),
-      );
-    }
-    try {
-      const easProjectJsonPath = "eas-project.json";
-      const content = JSON.stringify({ projectId: id }, null, 2) + "\n";
-
-      await createOrUpdateFile(
-        parsed.owner,
-        parsed.repo,
-        easProjectJsonPath,
-        content,
-        "chore(eas): write eas-project.json",
-        branch,
-      );
-
-      if (!isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-        return;
-      }
-
-      const verification = await handleEasLinkStatusCheck();
-      if (!verification) {
-        return;
-      }
-
-      const recheckToken: EasLinkStatusRequestToken = {
-        requestId: easLinkStatusGuardRef.current.getCurrentRequestId(),
-        contextKey,
-      };
-      const writeOutcome = resolveEasLinkWriteOutcome({ verification });
-      if (isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
-        setEasLinkStatus(writeOutcome);
-      }
-
-      if (!isCurrentEasLinkRequest(recheckToken.requestId, recheckToken.contextKey)) {
-        return;
-      }
-
-      const writeNotice = getEasLinkWriteNotice(writeOutcome);
-      Alert.alert(writeNotice.title, writeNotice.message);
-    } catch (e: unknown) {
-      if (isCurrentEasLinkRequest(writeToken.requestId, writeToken.contextKey)) {
-        setEasLinkStatus(getEasLinkPresentation("unknown", "Schreiben oder Nachverifikation ist fehlgeschlagen."));
-        Alert.alert("❌ EAS link fehlgeschlagen", getErrorMessage(e, ""));
-      }
-    } finally {
-      setIsEasLinking(false);
-    }
-  }, [activeRepo, activeBranch, easProjectId, handleEasLinkStatusCheck, isCurrentEasLinkRequest]);
-
-  const handleSyncSecrets = useCallback(async () => {
-    if (!activeRepo) {
-      Alert.alert("⚠️", "Kein Repo ausgewählt.");
-      return;
-    }
-    setIsSyncingSecrets(true);
-    try {
-      const result = await autoSyncRepoSecrets(activeRepo);
-      const syncNotice = getSecretsSyncNotice(result.updated);
-      Alert.alert(syncNotice.title, syncNotice.message);
-    } catch (e: unknown) {
-      Alert.alert("❌ Secrets Sync fehlgeschlagen", getErrorMessage(e, ""));
-    } finally {
-      setIsSyncingSecrets(false);
-    }
-  }, [activeRepo]);
-
-  const combinedRepos = useMemo(() => combineRepos(repos, localRepos), [repos, localRepos]);
-
-  const activeRepoObj = useMemo(() => {
-    if (!activeRepo) return null;
-    return combinedRepos.find((r) => r.full_name === activeRepo) ?? null;
-  }, [activeRepo, combinedRepos]);
-
-  const filteredRepos = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    let list = combinedRepos;
-
-    if (filterType === "activeOnly" && activeRepo) {
-      list = list.filter((r) => r.full_name === activeRepo);
-    }
-    if (filterType === "recentOnly") {
-      list = list.filter((r) => recentRepos.includes(r.full_name));
-    }
-
-    if (term) {
-      list = list.filter((r) => r.full_name.toLowerCase().includes(term));
-    }
-    return list;
-  }, [combinedRepos, searchTerm, filterType, activeRepo, recentRepos]);
-
-  const workflowRuns = useCallback(async (owner: string, repo: string, perPage?: number): Promise<WorkflowRun[]> => {
-    return loadWorkflowRuns(owner, repo, perPage);
-  }, [loadWorkflowRuns]);
-
-  return {
-    // local project
-    projectFiles,
-
-    // token
-    token, tokenLoading, tokenError,
-    userLogin, userLoading,
-
-    // repos
-    loadingRepos, reposError, loadRepos, refreshing, handleRefresh,
-    combinedRepos, filteredRepos,
-
-    // selection + recent
-    activeRepo,
-    activeRepoObj,
-    activeBranch,
-    recentRepos, addRecentRepo, clearRecentRepos,
-
-    // UI states
-    showRepoList, setShowRepoList,
-    showNewRepo, setShowNewRepo,
-    showRenameRepo, setShowRenameRepo,
-    showAdvanced, setShowAdvanced,
-
-    // filters + form states
-    searchTerm, setSearchTerm,
-    filterType, setFilterType,
-    newRepoName, setNewRepoName,
-    newRepoPrivate, setNewRepoPrivate,
-    renameName, setRenameName,
-
-    // ops
-    handleSelectRepo, handleSelectBranch,
-    handleCreateRepo, isCreating,
-    handleRenameRepo, isRenaming,
-    handleDeleteRepo, isDeletingRepo,
-    handlePull, isPulling, pullProgress,
-    handlePush, isPushing,
-    openPushModalForPaths,
-    // advanced sync UI
+  const {
+    isPulling,
+    isPushing,
+    pullProgress,
+    resetPullProgress,
     pushModalVisible,
     setPushModalVisible,
     pushCommitMessage,
@@ -868,42 +203,77 @@ export function useGitHubReposScreen() {
     togglePushPath,
     setAllPushPaths,
     closePushModal,
+    handlePush,
+    openPushModalForPaths,
     confirmPushSelected,
-
     pullModalVisible,
     pullPreviewLoading,
     pullPreview,
     closePullModal,
+    handlePull,
     applyPulledFiles,
-
-    syncStatus,
+  } = useGitHubReposPushPull({
+    activeRepo,
+    activeBranch,
+    normalizedLocalFiles,
+    updateProjectFiles,
     refreshSyncStatus,
-    handleOpenRepoOnGitHub,
-    handleSyncSecrets, isSyncingSecrets,
+    pullFromRepo,
+    withCoreFiles,
+  });
 
-    // eas link
-    easProjectId, setEasProjectId,
+  const { handleSelectRepo, handleSelectBranch } = useGitHubReposSelection({
+    activeRepo,
+    addRecentRepo,
+    setLinkedRepo,
+    loadDefaultBranch,
+    isMountedRef,
+    setShowRenameRepo,
+    setShowNewRepo,
+    setPullProgress: resetPullProgress,
+  });
+
+  const handleOpenRepoOnGitHub = useCallback(async () => {
+    if (!activeRepo) return;
+    await Linking.openURL(`https://github.com/${activeRepo}`);
+  }, [activeRepo]);
+
+  const {
     isEasLinking,
     easLinkStatus,
     handleEasLinkStatusCheck,
     handleEasLink,
+  } = useGitHubReposEasLink({
+    activeRepo,
+    activeBranch,
+    easProjectId,
+    isMountedRef,
+  });
 
-    // github api helpers
-    loadBranches,
-    loadDefaultBranch,
-    loadWorkflowRuns: workflowRuns,
+  const { combinedRepos, activeRepoObj, filteredRepos, workflowRuns } = useGitHubReposDerivedState({
+    repos,
+    localRepos,
+    activeRepo,
+    recentRepos,
+    searchTerm,
+    filterType,
+    loadWorkflowRuns,
+  });
 
-    // branch ops
-    handleCreateBranch,
-    handleRenameBranch,
-    handleDeleteBranch,
-
-    // manage modal
-    manageModal,
-    manageValue,
-    manageBusy,
-    setManageValue,
-    closeManageModal,
-    confirmManageModal,
-  };
+  return buildGitHubReposScreenReturnModel({
+    localProject: { projectFiles },
+    token: { token, tokenLoading, tokenError, userLogin, userLoading },
+    repos: { loadingRepos, reposError, loadRepos, refreshing, handleRefresh, combinedRepos, filteredRepos },
+    selection: { activeRepo, activeRepoObj, activeBranch, recentRepos, addRecentRepo, clearRecentRepos },
+    uiStates: { showRepoList, setShowRepoList, showNewRepo, setShowNewRepo, showRenameRepo, setShowRenameRepo, showAdvanced, setShowAdvanced },
+    filtersAndForms: { searchTerm, setSearchTerm, filterType, setFilterType, newRepoName, setNewRepoName, newRepoPrivate, setNewRepoPrivate, renameName, setRenameName },
+    ops: { handleSelectRepo, handleSelectBranch, handleCreateRepo, isCreating, handleRenameRepo, isRenaming, handleDeleteRepo, isDeletingRepo, handlePull, isPulling, pullProgress, handlePush, isPushing, openPushModalForPaths, handleOpenRepoOnGitHub, handleSyncSecrets, isSyncingSecrets },
+    pushUi: { pushModalVisible, setPushModalVisible, pushCommitMessage, setPushCommitMessage, pushSelectedPaths, togglePushPath, setAllPushPaths, closePushModal, confirmPushSelected },
+    pullUi: { pullModalVisible, pullPreviewLoading, pullPreview, closePullModal, applyPulledFiles },
+    sync: { syncStatus, refreshSyncStatus },
+    eas: { easProjectId, setEasProjectId, isEasLinking, easLinkStatus, handleEasLinkStatusCheck, handleEasLink },
+    githubApiHelpers: { loadBranches, loadDefaultBranch, loadWorkflowRuns: workflowRuns },
+    branchOps: { handleCreateBranch, handleRenameBranch, handleDeleteBranch },
+    manageModal: { manageModal, manageValue, manageBusy, setManageValue, closeManageModal, confirmManageModal },
+  });
 }
