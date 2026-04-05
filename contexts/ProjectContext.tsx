@@ -63,8 +63,10 @@ import {
   removeProjectFilesByPaths,
 } from "./projectContextHelpers";
 import {
-  flushPendingProjectSave,
+  clearPendingProjectSaveTimeout,
+  flushProjectSaveForAppState,
   initializeProjectData,
+  scheduleDebouncedProjectSave,
   shouldFlushProjectSaveOnAppState,
 } from "./projectContextPersistenceHelpers";
 import {
@@ -182,15 +184,25 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, []);
 
-  const debouncedSave = useCallback((project: ProjectData) => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+  const clearPendingSave = useCallback(() => {
+    saveTimeoutRef.current = clearPendingProjectSaveTimeout({
+      saveTimeout: saveTimeoutRef.current,
+      clearTimeoutFn: clearTimeout,
+    });
+  }, []);
 
-    saveTimeoutRef.current = setTimeout(() => {
-      // ✅ FIX: error typed (noImplicitAny)
-      saveProjectToStorage(project).catch((error: unknown) => {
+  const debouncedSave = useCallback((project: ProjectData) => {
+    saveTimeoutRef.current = scheduleDebouncedProjectSave({
+      saveTimeout: saveTimeoutRef.current,
+      clearTimeoutFn: clearTimeout,
+      setTimeoutFn: setTimeout,
+      debounceMs: SAVE_DEBOUNCE_MS,
+      project,
+      saveProjectToStorage,
+      onSaveError: (error) => {
         logger.error("[ProjectContext] Save error", { error });
-      });
-    }, SAVE_DEBOUNCE_MS);
+      },
+    });
   }, []);
 
   const updateProject = useCallback(
@@ -621,14 +633,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       if (shouldFlushProjectSaveOnAppState(nextState)) {
         logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
         try {
-          const didSave = await flushPendingProjectSave({
+          const didSave = await flushProjectSaveForAppState({
+            nextState,
             saveTimeout: saveTimeoutRef.current,
-            clearPendingSave: () => {
-              if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
-                saveTimeoutRef.current = null;
-              }
-            },
+            clearPendingSave,
             projectData,
             saveProjectToStorage,
           });
@@ -646,7 +654,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       handleAppStateChange,
     );
     return () => subscription.remove();
-  }, [projectData]);
+  }, [clearPendingSave, projectData]);
+
+  useEffect(() => () => clearPendingSave(), [clearPendingSave]);
 
   const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
 
