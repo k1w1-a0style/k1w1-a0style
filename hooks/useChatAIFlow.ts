@@ -24,6 +24,10 @@ import { classifyChatIntent } from "../utils/chatHeuristics";
 import { handleMetaCommand } from "../utils/metaCommands";
 import { getSourceSummaryText, getValidatorFallbackWarning } from "./chatAIFlowStageHelpers";
 import { getBuilderFailureMessage, getInputValidationMessage } from "./chatAIFlowNoticeHelpers";
+import {
+  buildIntentConfirmationMessage,
+  buildPlannerPreviewMessage,
+} from "./chatAIFlowPlannerMessageHelpers";
 import { buildAiProposalSummary } from "./chatAIFlowSummaryHelpers";
 import {
   buildPendingPlanCombinedRequest,
@@ -509,10 +513,11 @@ export function useChatAIFlow({
             addChatMessage({
               id: uuidv4(),
               role: "assistant",
-              content:
-                "🤔 **Kurze Intent-Bestätigung:** Soll ich zuerst planen/fragen oder direkt einen Build-Vorschlag erzeugen?\n\n" +
-                `Aktuelle Einschätzung: \`${intentDecision.intent}\` (Confidence ${Math.round(intentDecision.confidence * 100)}%, Grund: ${intentDecision.reason}).\n\n` +
-                "Antwortoptionen: `planen` oder `direkt build`.",
+              content: buildIntentConfirmationMessage({
+                intent: intentDecision.intent,
+                confidence: intentDecision.confidence,
+                reason: intentDecision.reason,
+              }),
               timestamp: new Date().toISOString(),
               meta: { planner: true },
             });
@@ -523,13 +528,10 @@ export function useChatAIFlow({
             addChatMessage({
               id: uuidv4(),
               role: "assistant",
-              content:
-                "🧩 **Kurz bevor ich Code anfasse:**\n\n" +
-                buildGuardPolicyPreHint() +
-                "\n\n" +
-                planner.plannerText +
-                "\n\n🔒 **Hinweis zu Guarded-Pfaden:** Kritische/manual-only oder baseline/read-only Dateien setze ich nicht blind um; ich markiere sie vor dem Apply explizit.\n\n" +
-                '➡️ Antworte kurz auf die Fragen **oder** sag „weiter", dann starte ich den Build.',
+              content: buildPlannerPreviewMessage(
+                planner.plannerText,
+                buildGuardPolicyPreHint(),
+              ),
               timestamp: new Date().toISOString(),
               meta: { planner: true },
             });
