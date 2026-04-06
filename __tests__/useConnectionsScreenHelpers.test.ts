@@ -9,9 +9,12 @@ import {
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
+  resolveEasLinkPostStartState,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
-  resolveLinkExistingSelectionPrecheck,
+  resolveEasWorkflowSelectionPrecheck,
+  resolveEasProjectIdPersistenceAction,
+  resolveEasLinkWorkflowTriggerInputs,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -153,59 +156,123 @@ describe("useConnectionsScreenHelpers", () => {
     });
   });
 
-  it("resolves link-existing selection precheck errors deterministically", () => {
+  it("resolves shared EAS workflow selection precheck deterministically", () => {
     expect(
-      resolveLinkExistingSelectionPrecheck({
+      resolveEasWorkflowSelectionPrecheck({
         githubToken: "",
         repoSlug: "owner/repo",
         branch: "main",
       }),
     ).toEqual({
       ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "GitHub Token fehlt (oder ist leer).",
+      notice: {
+        title: "Fehler",
+        message: "GitHub Token fehlt (oder ist leer).",
+      },
     });
 
     expect(
-      resolveLinkExistingSelectionPrecheck({
+      resolveEasWorkflowSelectionPrecheck({
         githubToken: "token",
         repoSlug: "",
         branch: "main",
       }),
     ).toEqual({
       ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "Kein Repo ausgewählt.",
+      notice: {
+        title: "Fehler",
+        message: "Kein Repo ausgewählt.",
+      },
     });
 
     expect(
-      resolveLinkExistingSelectionPrecheck({
+      resolveEasWorkflowSelectionPrecheck({
         githubToken: "token",
         repoSlug: "owner/repo",
         branch: "",
       }),
     ).toEqual({
       ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      notice: {
+        title: "Fehler",
+        message: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      },
     });
 
     expect(
-      resolveLinkExistingSelectionPrecheck({
-        githubToken: "token",
-        repoSlug: "owner/repo",
-        branch: "main",
+      resolveEasWorkflowSelectionPrecheck({
+        githubToken: " token ",
+        repoSlug: " owner/repo ",
+        branch: " main ",
       }),
     ).toEqual({
       ok: true,
-      alertTitle: null,
-      alertMessage: null,
+      selection: {
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+      },
     });
   });
 
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("derives EAS project-id persistence action deterministically", () => {
+    expect(resolveEasProjectIdPersistenceAction("project-id")).toEqual({
+      mode: "set",
+      value: "project-id",
+    });
+    expect(resolveEasProjectIdPersistenceAction(" project-id ")).toEqual({
+      mode: "set",
+      value: "project-id",
+    });
+    expect(resolveEasProjectIdPersistenceAction("")).toEqual({
+      mode: "remove",
+    });
+  });
+
+  it("builds EAS workflow trigger inputs without empty project ids", () => {
+    expect(
+      resolveEasLinkWorkflowTriggerInputs({
+        branch: " main ",
+        projectId: " project-id ",
+      }),
+    ).toEqual({
+      ref: "main",
+      eas_project_id: "project-id",
+    });
+
+    expect(
+      resolveEasLinkWorkflowTriggerInputs({
+        branch: " main ",
+        projectId: " ",
+      }),
+    ).toEqual({
+      ref: "main",
+    });
+  });
+
+  it("derives EAS post-start persistence contract deterministically", () => {
+    expect(resolveEasLinkPostStartState("project-id")).toEqual({
+      state: "stale",
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "stale"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
+
+    expect(resolveEasLinkPostStartState("")).toEqual({
+      state: "missing",
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
   });
 
   it("maps connections alert notices deterministically", () => {

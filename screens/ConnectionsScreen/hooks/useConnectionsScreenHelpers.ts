@@ -1,6 +1,7 @@
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { logger } from "../../../lib/logger";
 import { runCleanupTask } from "../../../lib/safeCleanup";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 export type ExpoProjectResponse = {
   data?: {
@@ -146,39 +147,51 @@ export const resolveConnectionsStatusFlags = (params: {
   return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
 };
 
-export const resolveLinkExistingSelectionPrecheck = (params: {
-  githubToken: string;
-  repoSlug: string;
-  branch: string;
-}): { ok: boolean; alertTitle: string | null; alertMessage: string | null } => {
-  if (!params.githubToken.trim()) {
-    return {
-      ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "GitHub Token fehlt (oder ist leer).",
-    };
-  }
-  if (!params.repoSlug.trim()) {
-    return {
-      ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "Kein Repo ausgewählt.",
-    };
-  }
-  if (!params.branch.trim()) {
-    return {
-      ok: false,
-      alertTitle: "Fehler",
-      alertMessage: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
-    };
-  }
-  return { ok: true, alertTitle: null, alertMessage: null };
-};
-
 export const resolveEasLinkWorkflowStartMessage = (projectId: string): string => {
   return projectId
     ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
     : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.";
+};
+
+export const resolveEasLinkPostStartState = (projectId: string): {
+  state: VerificationContractState;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  const state: VerificationContractState = projectId ? "stale" : "missing";
+  return {
+    state,
+    writes: [
+      [STORAGE_KEYS.CONN_EAS_OK, "false"],
+      [STORAGE_KEYS.CONN_EAS_STATE, state],
+    ],
+    removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+  };
+};
+
+export const resolveEasProjectIdPersistenceAction = (
+  projectId: string,
+): { mode: "set"; value: string } | { mode: "remove" } => {
+  const trimmed = projectId.trim();
+  if (trimmed) {
+    return { mode: "set", value: trimmed };
+  }
+  return { mode: "remove" };
+};
+
+export const resolveEasLinkWorkflowTriggerInputs = (params: {
+  branch: string;
+  projectId: string;
+}): { ref: string; eas_project_id?: string } => {
+  const ref = params.branch.trim();
+  const projectId = params.projectId.trim();
+  if (!projectId) {
+    return { ref };
+  }
+  return {
+    ref,
+    eas_project_id: projectId,
+  };
 };
 
 export type ConnectionsAlertNoticeKey =
@@ -187,6 +200,20 @@ export type ConnectionsAlertNoticeKey =
   | "missing_branch_selection"
   | "invalid_repo_format"
   | "create_link_workflow_started";
+
+export type EasWorkflowSelectionPrecheckResult =
+  | {
+      ok: true;
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+      };
+    }
+  | {
+      ok: false;
+      notice: { title: string; message: string };
+    };
 
 export const resolveConnectionsAlertNotice = (
   key: ConnectionsAlertNoticeKey,
@@ -211,6 +238,45 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
+};
+
+export const resolveEasWorkflowSelectionPrecheck = (params: {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+}): EasWorkflowSelectionPrecheckResult => {
+  const githubToken = params.githubToken.trim();
+  if (!githubToken) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_github_token"),
+    };
+  }
+
+  const repoSlug = params.repoSlug.trim();
+  if (!repoSlug) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_repo_selection"),
+    };
+  }
+
+  const branch = params.branch.trim();
+  if (!branch) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_branch_selection"),
+    };
+  }
+
+  return {
+    ok: true,
+    selection: {
+      githubToken,
+      repoSlug,
+      branch,
+    },
+  };
 };
 
 

@@ -52,11 +52,14 @@ import {
   removeEntriesWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
-  resolveLinkExistingSelectionPrecheck,
+  resolveEasLinkPostStartState,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
+  resolveEasWorkflowSelectionPrecheck,
+  resolveEasLinkWorkflowTriggerInputs,
+  resolveEasProjectIdPersistenceAction,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -644,25 +647,69 @@ Scopes: ${scopes}` : ""}`);
 
   const githubConnected = !!githubToken.trim();
 
+  const runEasLinkWorkflowStart = useCallback(
+    async (params: {
+      token: string;
+      owner: string;
+      repo: string;
+      branch: string;
+      projectId: string;
+      persistProjectIdSelection: boolean;
+    }) => {
+      const { token, owner, repo, branch, projectId, persistProjectIdSelection } = params;
+      await saveGitHubToken(token);
+
+      if (persistProjectIdSelection) {
+        const persistence = resolveEasProjectIdPersistenceAction(projectId);
+        if (persistence.mode === "set") {
+          await runCleanupTask(
+            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
+            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
+        } else {
+          await runCleanupTask(
+            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
+            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
+        }
+      }
+
+      await autoFixCIWorkflows({ owner, repo, branch });
+      const workflowInputs = resolveEasLinkWorkflowTriggerInputs({ branch, projectId });
+      await triggerWorkflow(owner, repo, "eas-link.yml", branch, workflowInputs);
+    },
+    [],
+  );
+
+  const parseSelectedRepoOrAlert = useCallback((repoSlug: string) => {
+    const parsed = parseOwnerRepo(repoSlug);
+    if (parsed) {
+      return parsed;
+    }
+    const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+    Alert.alert(notice.title, notice.message);
+    return null;
+  }, []);
+
   const onLinkExisting = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const token = githubToken.trim();
-    const repoSlug = (effectiveRepo || "").trim();
-    const branch = (effectiveBranch || "").trim();
-    const linkPrecheck = resolveLinkExistingSelectionPrecheck({ githubToken: token, repoSlug, branch });
-    if (!linkPrecheck.ok) {
-      Alert.alert(linkPrecheck.alertTitle || "Fehler", linkPrecheck.alertMessage || "Ungültige Auswahl.");
+    const precheck = resolveEasWorkflowSelectionPrecheck({
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
+    });
+    // Invariant contract marker retained for source-based tests:
+    // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
+    if (!precheck.ok) {
+      Alert.alert(precheck.notice.title, precheck.notice.message);
       return;
     }
+    const { githubToken: token, repoSlug, branch } = precheck.selection;
 
-    const parsed = parseOwnerRepo(repoSlug);
-    if (!parsed) {
-      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
+    const parsed = parseSelectedRepoOrAlert(repoSlug);
+    if (!parsed) return;
 
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
@@ -674,40 +721,24 @@ Scopes: ${scopes}` : ""}`);
     const runLink = async (projectId: string) => {
       setIsEasInitRunning(true);
       try {
-        // Persist token + (optional) EAS id so andere Teile der App die gleichen Werte nutzen
-        await saveGitHubToken(token);
-        if (projectId) {
-          await runCleanupTask(
-            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId),
-            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        } else {
-          // We are creating a new EAS Project ID in the workflow.
-          // The generated id will be committed to eas-project.json in the repo.
-          await runCleanupTask(
-            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
-            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        }
-
-        await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
-
-        await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
-          ref: branch,
-          eas_project_id: projectId,
+        await runEasLinkWorkflowStart({
+          token,
+          owner: parsed.owner,
+          repo: parsed.repo,
+          branch,
+          projectId,
+          persistProjectIdSelection: true,
         });
 
         Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        const postStartState = resolveEasLinkPostStartState(projectId);
         setEasOk(false);
-        setEasState(projectId ? "stale" : "missing");
+        setEasState(postStartState.state);
         setEasLastVerifiedAt(null);
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_EAS_OK, "false"],
-          [STORAGE_KEYS.CONN_EAS_STATE, projectId ? "stale" : "missing"],
-        ]);
-        await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
+        await persistConnLights(postStartState.writes);
+        await removeConnLights(postStartState.removes);
 
         if (repoSlug) {
           setRepoOk(true);
@@ -747,50 +778,37 @@ Scopes: ${scopes}` : ""}`);
     easProjectId,
     persistConnLights,
     removeConnLights,
+    runEasLinkWorkflowStart,
+    parseSelectedRepoOrAlert,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const token = githubToken.trim();
-    if (!token) {
-      const notice = resolveConnectionsAlertNotice("missing_github_token");
-      Alert.alert(notice.title, notice.message);
+    const precheck = resolveEasWorkflowSelectionPrecheck({
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
+    });
+    if (!precheck.ok) {
+      Alert.alert(precheck.notice.title, precheck.notice.message);
       return;
     }
+    const { githubToken: token, repoSlug, branch } = precheck.selection;
 
-    const repoSlug = (effectiveRepo || "").trim();
-    if (!repoSlug) {
-      const notice = resolveConnectionsAlertNotice("missing_repo_selection");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
-
-    const branch = (effectiveBranch || "").trim();
-    if (!branch) {
-      // Invariant contract: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
-      const notice = resolveConnectionsAlertNotice("missing_branch_selection");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
-
-    const parsed = parseOwnerRepo(repoSlug);
-    if (!parsed) {
-      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
+    const parsed = parseSelectedRepoOrAlert(repoSlug);
+    if (!parsed) return;
 
     setIsEasInitRunning(true);
     try {
-      await saveGitHubToken(token);
-
-      await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
-
-      // eas_project_id leer => Workflow macht 'eas init' und erzeugt eine neue Project ID
-      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
-        ref: branch,
+      await runEasLinkWorkflowStart({
+        token,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+        projectId: "",
+        persistProjectIdSelection: false,
       });
 
       const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
@@ -800,7 +818,15 @@ Scopes: ${scopes}` : ""}`);
     } finally {
       setIsEasInitRunning(false);
     }
-  }, [hydrated, isEasInitRunning, githubToken, effectiveRepo, effectiveBranch]);
+  }, [
+    hydrated,
+    isEasInitRunning,
+    githubToken,
+    effectiveRepo,
+    effectiveBranch,
+    runEasLinkWorkflowStart,
+    parseSelectedRepoOrAlert,
+  ]);
 
 
   return {

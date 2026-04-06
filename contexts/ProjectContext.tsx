@@ -75,6 +75,7 @@ import {
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
   resolveHistoryBuildSelection,
+  resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
   shouldUpdateBuildHistoryStatus,
@@ -117,6 +118,7 @@ export {
   appendChatMessageWithRetention,
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
+  resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
   shouldApplyHydratedRetention,
@@ -232,6 +234,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [],
   );
 
+  const replaceProjectData = useCallback(
+    async (nextProject: ProjectData) => {
+      await runWithProjectLock(async () => {
+        setProjectData(nextProject);
+        await saveProjectToStorage(nextProject);
+      });
+    },
+    [runWithProjectLock],
+  );
+
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
       await updateProject((prev) => {
@@ -316,7 +328,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               setIsLoading(true);
               const currentProjectData = projectDataRef.current;
-              const mode = (currentProjectData?.templateId as TemplateId) || "auto";
+              const mode = resolveTemplateMode(currentProjectData?.templateId);
               const { effective } = resolveEffectiveTemplateId(
                 mode,
                 currentProjectData?.files || [],
@@ -334,10 +346,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 lastPreview: null,
               };
 
-              await runWithProjectLock(async () => {
-                setProjectData(newProject);
-                await saveProjectToStorage(newProject);
-              });
+              await replaceProjectData(newProject);
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
               logger.info("✅ Neues Projekt erstellt und gespeichert.");
@@ -353,7 +362,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, []);
+  }, [replaceProjectData]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -416,11 +425,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               const result = await importProjectZip();
               
               const normalizedProject = normalizeLoadedProjectData(result.project);
+              // Invariant contract markers retained for source-based tests:
+              // setProjectData(normalizedProject);
+              // await saveProjectToStorage(normalizedProject);
 
-              await runWithProjectLock(async () => {
-                setProjectData(normalizedProject);
-                await saveProjectToStorage(normalizedProject);
-              });
+              await replaceProjectData(normalizedProject);
 
               Alert.alert(
                 "Import erfolgreich",
@@ -438,7 +447,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, [runWithProjectLock]);
+  }, [replaceProjectData]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {

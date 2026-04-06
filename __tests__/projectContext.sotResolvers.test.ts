@@ -2,6 +2,7 @@ import {
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
+  resolveTemplateMode,
 } from "../contexts/ProjectContext";
 
 describe("ProjectContext SoT resolvers", () => {
@@ -80,6 +81,18 @@ describe("ProjectContext SoT resolvers", () => {
           preferredProfile: null,
         }),
       ).toBe("preview");
+    });
+  });
+
+  describe("resolveTemplateMode", () => {
+    it("falls back to auto for empty template ids", () => {
+      expect(resolveTemplateMode(undefined)).toBe("auto");
+      expect(resolveTemplateMode(null)).toBe("auto");
+      expect(resolveTemplateMode("   ")).toBe("auto");
+    });
+
+    it("returns trimmed template id when present", () => {
+      expect(resolveTemplateMode(" blank ")).toBe("blank");
     });
   });
 });

@@ -180,4 +180,20 @@ describe("preview edge error contract", () => {
       "Remote-Preview konnte serverseitig nicht gespeichert oder geladen werden.",
     );
   });
+
+  it("maps nested response preview error codes to contract copy", () => {
+    const clientMessage = describeRemotePreviewFailure({
+      bearerJwt: "preview-user-jwt-token",
+      statusCode: 502,
+      error: {
+        response: {
+          code: "preview_db_error",
+        },
+      },
+    });
+
+    expect(clientMessage).toBe(
+      "Remote-Preview konnte serverseitig nicht gespeichert oder geladen werden.",
+    );
+  });
 });
