@@ -238,7 +238,7 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
-    };
+};
 
 export const resolveEasWorkflowSelectionPrecheck = (params: {
   githubToken: string;
@@ -360,6 +360,119 @@ export const resolveConnectionsActionAlert = (params: {
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";
+};
+
+export const resolveGitHubConnectionPersistence = (params: {
+  kind: "ok" | "failed";
+  login?: string;
+  scopes?: string;
+}): {
+  ok: boolean;
+  login: string;
+  scopes: string;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  if (params.kind === "failed") {
+    return {
+      ok: false,
+      login: "",
+      scopes: "",
+      writes: [[STORAGE_KEYS.CONN_GITHUB_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_GITHUB_USER, STORAGE_KEYS.CONN_GITHUB_SCOPES],
+    };
+  }
+
+  const login = (params.login || "").trim();
+  const scopes = (params.scopes || "").trim();
+  const writes: PersistableEntry[] = [
+    [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+    [STORAGE_KEYS.CONN_GITHUB_USER, login],
+  ];
+  const removes: string[] = [];
+  if (scopes) {
+    writes.push([STORAGE_KEYS.CONN_GITHUB_SCOPES, scopes]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_GITHUB_SCOPES);
+  }
+
+  return {
+    ok: true,
+    login,
+    scopes,
+    writes,
+    removes,
+  };
+};
+
+export const resolveExpoConnectionPersistence = (params: {
+  kind: "ok" | "failed";
+  username?: string;
+}): {
+  ok: boolean;
+  username: string;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  if (params.kind === "failed") {
+    return {
+      ok: false,
+      username: "",
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    };
+  }
+
+  const username = (params.username || "").trim();
+  const writes: PersistableEntry[] = [[STORAGE_KEYS.CONN_EXPO_OK, "true"]];
+  const removes: string[] = [];
+  if (username) {
+    writes.push([STORAGE_KEYS.CONN_EXPO_USER, username]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_EXPO_USER);
+  }
+
+  return {
+    ok: true,
+    username,
+    writes,
+    removes,
+  };
+};
+
+export const resolveSupabaseConnectionPersistence = (params: {
+  kind: "ok" | "rls_protected" | "failed";
+  ref?: string;
+}): {
+  ok: boolean;
+  ref: string;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  if (params.kind === "failed") {
+    return {
+      ok: false,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    };
+  }
+
+  const ref = (params.ref || "").trim();
+  const writes: PersistableEntry[] = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
+  const removes: string[] = [];
+  if (params.kind === "ok" && ref) {
+    writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_SUPABASE_REF);
+  }
+
+  return {
+    ok: true,
+    ref,
+    writes,
+    removes,
+  };
 };
 
 export type StorageLike = {

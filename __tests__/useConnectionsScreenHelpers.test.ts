@@ -19,6 +19,9 @@ import {
   resolvePersistedEasState,
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
+  resolveSupabaseConnectionPersistence,
+  resolveGitHubConnectionPersistence,
+  resolveExpoConnectionPersistence,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -405,6 +408,134 @@ describe("useConnectionsScreenHelpers", () => {
   it("derives supabase project ref only from supabase hosts", () => {
     expect(deriveSupabaseRefFromUrl("https://abc123.supabase.co/rest/v1")).toBe("abc123");
     expect(deriveSupabaseRefFromUrl("https://example.com/rest/v1")).toBe("");
+  });
+
+  it("resolves supabase persistence deltas for ok/rls/failure paths", () => {
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "ok",
+        ref: " abc123 ",
+      }),
+    ).toEqual({
+      ok: true,
+      ref: "abc123",
+      writes: [
+        [STORAGE_KEYS.CONN_SUPABASE_OK, "true"],
+        [STORAGE_KEYS.CONN_SUPABASE_REF, "abc123"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "rls_protected",
+      }),
+    ).toEqual({
+      ok: true,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
+
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
+  });
+
+  it("resolves github persistence deltas for ok/failure paths", () => {
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "ok",
+        login: " octocat ",
+        scopes: " repo,workflow ",
+      }),
+    ).toEqual({
+      ok: true,
+      login: "octocat",
+      scopes: "repo,workflow",
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+        [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
+        [STORAGE_KEYS.CONN_GITHUB_SCOPES, "repo,workflow"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "ok",
+        login: "octocat",
+        scopes: " ",
+      }),
+    ).toEqual({
+      ok: true,
+      login: "octocat",
+      scopes: "",
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+        [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
+      ],
+      removes: [STORAGE_KEYS.CONN_GITHUB_SCOPES],
+    });
+
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      login: "",
+      scopes: "",
+      writes: [[STORAGE_KEYS.CONN_GITHUB_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_GITHUB_USER, STORAGE_KEYS.CONN_GITHUB_SCOPES],
+    });
+  });
+
+  it("resolves expo persistence deltas for ok/failure paths", () => {
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "ok",
+        username: " expo-user ",
+      }),
+    ).toEqual({
+      ok: true,
+      username: "expo-user",
+      writes: [
+        [STORAGE_KEYS.CONN_EXPO_OK, "true"],
+        [STORAGE_KEYS.CONN_EXPO_USER, "expo-user"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "ok",
+        username: " ",
+      }),
+    ).toEqual({
+      ok: true,
+      username: "",
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "true"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    });
+
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      username: "",
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    });
   });
 
   it("persists/removes storage entries with fallback when multi operations fail", async () => {
