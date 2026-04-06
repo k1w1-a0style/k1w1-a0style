@@ -68,6 +68,7 @@ import {
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
   resolveConnectionsSavePlan,
+  runConnectionProviderTest,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -658,28 +659,14 @@ export function useConnectionsScreen() {
     [applyConnectionPersistence],
   );
 
-  const runProviderTest = useCallback(
-    async (params: {
-      defaultTitle: string;
-      task: () => Promise<void>;
-      onFailure: (error: unknown) => Promise<void>;
-    }) => {
-      await runGuardedAction({
-        defaultTitle: params.defaultTitle,
-        task: params.task,
-        onNonBusyError: params.onFailure,
-      });
-    },
-    [runGuardedAction],
-  );
-
   const testGitHub = useCallback(async () => {
     if (!hydrated) return;
     const gh = githubToken.trim();
     if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
 
-    await runProviderTest({
+    await runConnectionProviderTest({
       defaultTitle: "GitHub Test",
+      runGuardedAction,
       task: async () => {
         debugLog("connections:github", "GET /user", {
           url: "https://api.github.com/user",
@@ -711,15 +698,16 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [githubToken, hydrated, runProviderTest, applyGitHubPersistence, logConnectionFailure]);
+  }, [githubToken, hydrated, runGuardedAction, applyGitHubPersistence, logConnectionFailure]);
 
   const testExpo = useCallback(async () => {
     if (!hydrated) return;
     const ex = expoToken.trim();
     if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
 
-    await runProviderTest({
+    await runConnectionProviderTest({
       defaultTitle: "Expo Test",
+      runGuardedAction,
       task: async () => {
         debugLog("connections:expo", "POST /graphql", { url: "https://api.expo.dev/graphql" });
         const result = await runExpoConnectionCheck(ex);
@@ -749,7 +737,7 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [expoToken, hydrated, runProviderTest, applyExpoPersistence, logConnectionFailure]);
+  }, [expoToken, hydrated, runGuardedAction, applyExpoPersistence, logConnectionFailure]);
 
   const testSupabase = useCallback(async () => {
     if (!hydrated) return;
@@ -758,8 +746,9 @@ Scopes: ${scopes}` : ""}`);
     if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");
     if (!anon) return Alert.alert("Fehlt", "Supabase ANON Key fehlt.");
 
-    await runProviderTest({
+    await runConnectionProviderTest({
       defaultTitle: "Supabase Test",
+      runGuardedAction,
       task: async () => {
         const result = await runSupabaseConnectionCheck(url, anon);
         if (result.kind === "rls_protected") {
@@ -796,7 +785,7 @@ Scopes: ${scopes}` : ""}`);
     supabaseUrl,
     supabaseAnonKey,
     hydrated,
-    runProviderTest,
+    runGuardedAction,
     applySupabasePersistence,
     logConnectionFailure,
   ]);
@@ -910,6 +899,10 @@ Scopes: ${scopes}` : ""}`);
     return launchSelection.selection;
   }, [resolveCurrentEasLaunchSelection]);
 
+  const canStartEasWorkflow = useCallback((): boolean => {
+    return hydrated && !busyRef.current && !isEasInitRunning;
+  }, [hydrated, isEasInitRunning]);
+
   const startEasWorkflow = useCallback(
     async (params: {
       selection: {
@@ -946,7 +939,7 @@ Scopes: ${scopes}` : ""}`);
   );
 
   const onLinkExisting = useCallback(async () => {
-    if (!hydrated || busyRef.current || isEasInitRunning) return;
+    if (!canStartEasWorkflow()) return;
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
@@ -987,15 +980,14 @@ Scopes: ${scopes}` : ""}`);
 
     await runLink(easId);
   }, [
-    hydrated,
-    isEasInitRunning,
+    canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     easProjectId,
     startEasWorkflow,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
-    if (!hydrated || busyRef.current || isEasInitRunning) return;
+    if (!canStartEasWorkflow()) return;
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     if (!launchSelection) return;
@@ -1007,8 +999,7 @@ Scopes: ${scopes}` : ""}`);
       startedNotice: notice,
     });
   }, [
-    hydrated,
-    isEasInitRunning,
+    canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     startEasWorkflow,
   ]);

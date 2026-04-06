@@ -25,6 +25,7 @@ import {
   resolveSupabaseConnectionPersistence,
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
+  runConnectionProviderTest,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -476,6 +477,25 @@ describe("useConnectionsScreenHelpers", () => {
     ).toEqual({
       title: "GitHub Test",
       message: "Unbekannter Fehler",
+    });
+  });
+
+  it("delegates provider tests through guarded action wiring", async () => {
+    const runGuardedAction = jest.fn(async () => undefined);
+    const task = jest.fn(async () => undefined);
+    const onFailure = jest.fn(async () => undefined);
+
+    await runConnectionProviderTest({
+      defaultTitle: "GitHub Test",
+      runGuardedAction,
+      task,
+      onFailure,
+    });
+
+    expect(runGuardedAction).toHaveBeenCalledWith({
+      defaultTitle: "GitHub Test",
+      task,
+      onNonBusyError: onFailure,
     });
   });
 

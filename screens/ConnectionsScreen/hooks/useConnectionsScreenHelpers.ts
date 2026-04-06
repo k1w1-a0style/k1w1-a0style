@@ -640,3 +640,20 @@ export const applyPersistenceDelta = async (params: {
     await params.remove(removes);
   }
 };
+
+export const runConnectionProviderTest = async (params: {
+  defaultTitle: string;
+  runGuardedAction: (args: {
+    defaultTitle: string;
+    task: () => Promise<void>;
+    onNonBusyError?: (error: unknown) => Promise<void> | void;
+  }) => Promise<void>;
+  task: () => Promise<void>;
+  onFailure: (error: unknown) => Promise<void>;
+}): Promise<void> => {
+  await params.runGuardedAction({
+    defaultTitle: params.defaultTitle,
+    task: params.task,
+    onNonBusyError: params.onFailure,
+  });
+};
