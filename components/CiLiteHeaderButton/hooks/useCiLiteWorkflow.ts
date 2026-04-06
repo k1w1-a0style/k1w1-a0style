@@ -213,6 +213,17 @@ export function useCiLiteWorkflow() {
     [],
   );
 
+  const stopLookupWithError = useCallback(
+    (error: unknown, options?: { chainWaiting?: boolean }) => {
+      setLocalError(getCiLiteWorkflowErrorMessage(error, String(error)));
+      if (options?.chainWaiting) {
+        setChainWaiting(false);
+      }
+      stopRunLookup();
+    },
+    [stopRunLookup],
+  );
+
   // ---- Logs ----
   const trackedRunId = runId;
   const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
@@ -540,15 +551,13 @@ export function useCiLiteWorkflow() {
             return true;
           }
         } catch (e: unknown) {
-          setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
-          setChainWaiting(false);
-          stopRunLookup();
+          stopLookupWithError(e, { chainWaiting: true });
           return true;
         }
         if (Date.now() - start > 75_000) {
-          setLocalError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }));
-          setChainWaiting(false);
-          stopRunLookup();
+          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }), {
+            chainWaiting: true,
+          });
           return true;
         }
         return false;
@@ -559,7 +568,7 @@ export function useCiLiteWorkflow() {
         scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
       }
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -748,13 +757,11 @@ export function useCiLiteWorkflow() {
               return true;
             }
           } catch (e: unknown) {
-            setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
-            stopRunLookup();
+            stopLookupWithError(e);
             return true;
           }
           if (Date.now() - start > 60_000) {
-            setLocalError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
-            stopRunLookup();
+            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
             return true;
           }
           return false;
@@ -766,13 +773,12 @@ export function useCiLiteWorkflow() {
           scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
         }
       } catch (e: unknown) {
-        setLocalError(getCiLiteWorkflowErrorMessage(e, String(e)));
-        stopRunLookup();
+        stopLookupWithError(e);
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, stopRunLookup, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive],
+    [dispatching, githubRepo, branch, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError],
   );
 
 

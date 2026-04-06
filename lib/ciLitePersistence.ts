@@ -107,6 +107,10 @@ type ParsedSnapshotResult = {
   reason: CiLitePersistenceReason | null;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 function parseSnapshotRecord(parsed: Record<string, unknown>): ParsedSnapshotResult {
   const lintOk = typeof parsed.lintOk === "boolean" ? parsed.lintOk : null;
   const typecheckOk = typeof parsed.typecheckOk === "boolean" ? parsed.typecheckOk : null;
@@ -153,8 +157,8 @@ function parseSnapshotFromRaw(raw: string | null): ParsedSnapshotResult {
   }
 
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed)) {
       return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
     }
     return parseSnapshotRecord(parsed);
@@ -204,7 +208,7 @@ async function readScopedOrLegacySnapshotRaw(
     typecheckOk: readBooleanFlag(typeOkRaw),
   };
 
-  const parsedLegacy = parseSnapshotRecord(legacySnapshot as unknown as Record<string, unknown>);
+  const parsedLegacy = parseSnapshotRecord(legacySnapshot);
   return {
     parsed: parsedLegacy.snapshot,
     parseReason: parsedLegacy.reason,

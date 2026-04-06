@@ -47,6 +47,10 @@ import {
   importAPIConfig,
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
+import {
+  getImportExportErrorMessage,
+  isImportExportAborted,
+} from "./importExportErrorHelpers";
 import { logger } from "../../../lib/logger";
 import {
   countMessages,
@@ -77,6 +81,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
+  const importExportMessage = getImportExportErrorMessage(error, "");
+  if (importExportMessage) {
+    return importExportMessage;
+  }
   if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
     return error.message;
   }
@@ -87,6 +95,9 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function isAbortLikeError(error: unknown): boolean {
+  if (isImportExportAborted(error)) {
+    return true;
+  }
   const message = getErrorMessage(error, "").toLowerCase();
   return message.includes("abgebrochen");
 }
