@@ -184,6 +184,54 @@ export function useConnectionsScreen() {
     [],
   );
 
+  const applyConnectionPersistence = useCallback(
+    async (params: {
+      persistence: {
+        writes: Array<[string, string]>;
+        removes: string[];
+      };
+      applyState: () => void;
+    }): Promise<void> => {
+      params.applyState();
+      await applyPersistenceDelta({
+        writes: params.persistence.writes,
+        removes: params.persistence.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
+    },
+    [persistConnLights, removeConnLights],
+  );
+
+  const logConnectionFailure = useCallback((params: {
+    channel: string;
+    message: string;
+    error: unknown;
+  }): void => {
+    debugLog(params.channel, params.message, {
+      error: redactSecrets(truncateWithMarker(safeAlertText(params.error), 800)),
+    });
+  }, []);
+
+  const applyClearedConnectionState = useCallback(
+    async (params: {
+      resetState: () => void;
+      persistence: {
+        writes: Array<[string, string]>;
+        removes: string[];
+      };
+    }): Promise<void> => {
+      params.resetState();
+      await applyPersistenceDelta({
+        writes: params.persistence.writes,
+        removes: params.persistence.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
+    },
+    [persistConnLights, removeConnLights],
+  );
+
   const saveConnEasStatus = useCallback(
     async (params: {
       ok: boolean;
@@ -211,59 +259,51 @@ export function useConnectionsScreen() {
   );
 
   const clearGithubConnectionState = useCallback(async () => {
-    setGithubOk(false);
-    setGithubUser("");
-    setGithubScopes("");
-    setRepoOk(false);
-    setRepoOkLine("");
-    setEasOk(false);
-    setEasState("missing");
-    setEasLastVerifiedAt(null);
-    const persisted = githubClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setGithubOk(false);
+        setGithubUser("");
+        setGithubScopes("");
+        setRepoOk(false);
+        setRepoOkLine("");
+        setEasOk(false);
+        setEasState("missing");
+        setEasLastVerifiedAt(null);
+      },
+      persistence: githubClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearExpoConnectionState = useCallback(async () => {
-    setExpoOk(false);
-    setExpoUser("");
-    const persisted = expoClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setExpoOk(false);
+        setExpoUser("");
+      },
+      persistence: expoClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearEasConnectionState = useCallback(async () => {
-    setEasOk(false);
-    setEasState("missing");
-    setEasLastVerifiedAt(null);
-    const persisted = easClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setEasOk(false);
+        setEasState("missing");
+        setEasLastVerifiedAt(null);
+      },
+      persistence: easClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
-    setSupabaseOk(false);
-    setSupabaseRef("");
-    const persisted = supabaseClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setSupabaseOk(false);
+        setSupabaseRef("");
+      },
+      persistence: supabaseClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const testEas = useCallback(async () => {
     if (!hydrated) return;
@@ -552,14 +592,13 @@ export function useConnectionsScreen() {
           login: result.login,
           scopes: result.scopes,
         });
-        setGithubOk(persistence.ok);
-        setGithubUser(persistence.login);
-        setGithubScopes(persistence.scopes);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setGithubOk(persistence.ok);
+            setGithubUser(persistence.login);
+            setGithubScopes(persistence.scopes);
+          },
         });
         const login = persistence.login;
         const scopes = persistence.scopes;
@@ -570,21 +609,22 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveGitHubConnectionPersistence({
           kind: "failed",
         });
-        setGithubOk(persistence.ok);
-        setGithubUser(persistence.login);
-        setGithubScopes(persistence.scopes);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setGithubOk(persistence.ok);
+            setGithubUser(persistence.login);
+            setGithubScopes(persistence.scopes);
+          },
         });
-        debugLog("connections:github", "GitHub ERROR", {
-          error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
+        logConnectionFailure({
+          channel: "connections:github",
+          message: "GitHub ERROR",
+          error: e,
         });
       },
     });
-  }, [githubToken, hydrated, runGuardedAction, persistConnLights, removeConnLights]);
+  }, [githubToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
 
   const testExpo = useCallback(async () => {
     if (!hydrated) return;
@@ -605,13 +645,12 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           username: result.username,
         });
-        setExpoOk(persistence.ok);
-        setExpoUser(persistence.username);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setExpoOk(persistence.ok);
+            setExpoUser(persistence.username);
+          },
         });
 
         const username = persistence.username;
@@ -621,20 +660,21 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveExpoConnectionPersistence({
           kind: "failed",
         });
-        setExpoOk(persistence.ok);
-        setExpoUser(persistence.username);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setExpoOk(persistence.ok);
+            setExpoUser(persistence.username);
+          },
         });
-        debugLog("connections:expo", "Expo ERROR", {
-          error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
+        logConnectionFailure({
+          channel: "connections:expo",
+          message: "Expo ERROR",
+          error: e,
         });
       },
     });
-  }, [expoToken, hydrated, runGuardedAction, persistConnLights, removeConnLights]);
+  }, [expoToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
 
   const testSupabase = useCallback(async () => {
     if (!hydrated) return;
@@ -651,13 +691,12 @@ Scopes: ${scopes}` : ""}`);
           const persistence = resolveSupabaseConnectionPersistence({
             kind: "rls_protected",
           });
-          setSupabaseOk(persistence.ok);
-          setSupabaseRef(persistence.ref);
-          await applyPersistenceDelta({
-            writes: persistence.writes,
-            removes: persistence.removes,
-            persist: persistConnLights,
-            remove: removeConnLights,
+          await applyConnectionPersistence({
+            persistence,
+            applyState: () => {
+              setSupabaseOk(persistence.ok);
+              setSupabaseRef(persistence.ref);
+            },
           });
           Alert.alert(
             "Supabase OK",
@@ -669,13 +708,12 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           ref: result.ref,
         });
-        setSupabaseOk(persistence.ok);
-        setSupabaseRef(persistence.ref);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setSupabaseOk(persistence.ok);
+            setSupabaseRef(persistence.ref);
+          },
         });
         Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       },
@@ -683,16 +721,17 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveSupabaseConnectionPersistence({
           kind: "failed",
         });
-        setSupabaseOk(persistence.ok);
-        setSupabaseRef(persistence.ref);
-        await applyPersistenceDelta({
-          writes: persistence.writes,
-          removes: persistence.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
+        await applyConnectionPersistence({
+          persistence,
+          applyState: () => {
+            setSupabaseOk(persistence.ok);
+            setSupabaseRef(persistence.ref);
+          },
         });
-        debugLog("connections:supabase", "Supabase ERROR", {
-          error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
+        logConnectionFailure({
+          channel: "connections:supabase",
+          message: "Supabase ERROR",
+          error: e,
         });
       },
     });
@@ -701,8 +740,8 @@ Scopes: ${scopes}` : ""}`);
     supabaseAnonKey,
     hydrated,
     runGuardedAction,
-    persistConnLights,
-    removeConnLights,
+    applyConnectionPersistence,
+    logConnectionFailure,
   ]);
 
   // Status flags
@@ -796,24 +835,61 @@ Scopes: ${scopes}` : ""}`);
     [persistConnLights],
   );
 
-  const onLinkExisting = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    if (isEasInitRunning) return;
-
-    const launchSelection = resolveEasWorkflowLaunchSelection({
+  const resolveCurrentEasLaunchSelection = useCallback(() => {
+    return resolveEasWorkflowLaunchSelection({
       githubToken,
       repoSlug: effectiveRepo || "",
       branch: effectiveBranch || "",
       parseOwnerRepo,
     });
+  }, [githubToken, effectiveRepo, effectiveBranch]);
+
+  const startEasWorkflow = useCallback(
+    async (params: {
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+        owner: string;
+        repo: string;
+      };
+      projectId: string;
+      persistProjectIdSelection: boolean;
+      startedNotice: { title: string; message: string };
+    }): Promise<void> => {
+      setIsEasInitRunning(true);
+      try {
+        await runEasLinkWorkflowStart({
+          token: params.selection.githubToken,
+          owner: params.selection.owner,
+          repo: params.selection.repo,
+          branch: params.selection.branch,
+          projectId: params.projectId,
+          persistProjectIdSelection: params.persistProjectIdSelection,
+        });
+        await applyEasWorkflowPostStartState(params.projectId);
+        await persistRepoSelectionState(params.selection.repoSlug, params.selection.branch);
+        Alert.alert(params.startedNotice.title, params.startedNotice.message);
+      } catch (e: unknown) {
+        Alert.alert("Fehler", safeAlertText(e));
+      } finally {
+        setIsEasInitRunning(false);
+      }
+    },
+    [runEasLinkWorkflowStart, applyEasWorkflowPostStartState, persistRepoSelectionState],
+  );
+
+  const onLinkExisting = useCallback(async () => {
+    if (!hydrated || busyRef.current) return;
+    if (isEasInitRunning) return;
+
+    const launchSelection = resolveCurrentEasLaunchSelection();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
     if (!launchSelection.ok) {
       Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
     }
-    const { githubToken: token, repoSlug, branch, owner, repo } = launchSelection.selection;
-
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
     if (!easValidation.ok) {
@@ -822,28 +898,17 @@ Scopes: ${scopes}` : ""}`);
     }
 
     const runLink = async (projectId: string) => {
-      setIsEasInitRunning(true);
-      try {
-        await runEasLinkWorkflowStart({
-          token,
-          owner,
-          repo,
-          branch,
-          projectId,
-          persistProjectIdSelection: true,
-        });
-
-        Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
-
-        // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
-        // Invariant contract marker retained for source-based tests: setEasOk(false)
-        await applyEasWorkflowPostStartState(projectId);
-        await persistRepoSelectionState(repoSlug, branch);
-      } catch (e: unknown) {
-        Alert.alert("Fehler", safeAlertText(e));
-      } finally {
-        setIsEasInitRunning(false);
-      }
+      // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+      // Invariant contract marker retained for source-based tests: setEasOk(false)
+      await startEasWorkflow({
+        selection: launchSelection.selection,
+        projectId,
+        persistProjectIdSelection: true,
+        startedNotice: {
+          title: "OK",
+          message: resolveEasLinkWorkflowStartMessage(projectId),
+        },
+      });
     };
 
     if (!easId) {
@@ -862,61 +927,32 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    githubToken,
-    effectiveRepo,
-    effectiveBranch,
+    resolveCurrentEasLaunchSelection,
     easProjectId,
-    runEasLinkWorkflowStart,
-    applyEasWorkflowPostStartState,
-    persistRepoSelectionState,
+    startEasWorkflow,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const launchSelection = resolveEasWorkflowLaunchSelection({
-      githubToken,
-      repoSlug: effectiveRepo || "",
-      branch: effectiveBranch || "",
-      parseOwnerRepo,
-    });
+    const launchSelection = resolveCurrentEasLaunchSelection();
     if (!launchSelection.ok) {
       Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
     }
-    const { githubToken: token, repoSlug, branch, owner, repo } = launchSelection.selection;
-
-    setIsEasInitRunning(true);
-    try {
-      await runEasLinkWorkflowStart({
-        token,
-        owner,
-        repo,
-        branch,
-        projectId: "",
-        persistProjectIdSelection: false,
-      });
-
-      await applyEasWorkflowPostStartState("");
-      await persistRepoSelectionState(repoSlug, branch);
-
-      const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
-      Alert.alert(notice.title, notice.message);
-    } catch (e: unknown) {
-      Alert.alert("Fehler", safeAlertText(e));
-    } finally {
-      setIsEasInitRunning(false);
-    }
+    const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
+    await startEasWorkflow({
+      selection: launchSelection.selection,
+      projectId: "",
+      persistProjectIdSelection: false,
+      startedNotice: notice,
+    });
   }, [
     hydrated,
     isEasInitRunning,
-    githubToken,
-    effectiveRepo,
-    effectiveBranch,
-    runEasLinkWorkflowStart,
-    applyEasWorkflowPostStartState,
-    persistRepoSelectionState,
+    resolveCurrentEasLaunchSelection,
+    startEasWorkflow,
   ]);
 
 
