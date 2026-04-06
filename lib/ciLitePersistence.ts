@@ -63,7 +63,6 @@ type SelectionDeps = {
 type ScopedSnapshotReadResult = {
   parsed: PersistedCiLiteSnapshot | null;
   parseReason: CiLitePersistenceReason | null;
-  source: "scoped" | "legacy";
 };
 
 function parseRepoParts(repoFullName: string): { owner: string; repo: string } | null {
@@ -181,7 +180,7 @@ async function readScopedOrLegacySnapshotRaw(
   const scopedRaw = await storageGetItem(scopedKey).catch(() => null);
   if (scopedRaw != null) {
     const parsed = parseSnapshotFromRaw(scopedRaw);
-    return { parsed: parsed.snapshot, parseReason: parsed.reason, source: "scoped" };
+    return { parsed: parsed.snapshot, parseReason: parsed.reason };
   }
 
   const [lintOkRaw, typeOkRaw, lastRepo, lastBranch, lastRunAt, lastSha, lastWorkflow, lastJobId, lastRunId, lastConclusion] =
@@ -215,7 +214,6 @@ async function readScopedOrLegacySnapshotRaw(
   return {
     parsed: parsedLegacy.snapshot,
     parseReason: parsedLegacy.reason,
-    source: "legacy",
   };
 }
 
