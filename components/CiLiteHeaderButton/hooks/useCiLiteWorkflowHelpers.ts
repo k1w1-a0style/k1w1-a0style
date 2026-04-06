@@ -329,9 +329,10 @@ export const resolveCiLiteMatchedRun = (
 ): { runId: number; runUrl: string | null } | null => {
   if (!candidate?.id) return null;
   const parsedRunId = Number(candidate.id);
-  if (!Number.isFinite(parsedRunId)) return null;
+  if (!Number.isFinite(parsedRunId) || parsedRunId <= 0 || !Number.isInteger(parsedRunId)) return null;
+  const runUrl = typeof candidate.html_url === "string" ? candidate.html_url.trim() : "";
   return {
     runId: parsedRunId,
-    runUrl: typeof candidate.html_url === "string" ? candidate.html_url : null,
+    runUrl: runUrl || null,
   };
 };

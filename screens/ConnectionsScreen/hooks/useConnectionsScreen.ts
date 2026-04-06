@@ -40,6 +40,7 @@ import {
 } from "../utils/validation";
 
 import { debugLog } from "../../../lib/debugOverlay";
+import { logger } from "../../../lib/logger";
 import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
 import { runCleanupTask } from "../../../lib/safeCleanup";
 import { BusyGuardActiveError, isBusyGuardActiveError } from "./busyGuard";
@@ -151,7 +152,13 @@ export function useConnectionsScreen() {
           showActionError(params.defaultTitle, error);
           return;
         }
-        await params.onNonBusyError?.(error);
+        if (params.onNonBusyError) {
+          try {
+            await params.onNonBusyError(error);
+          } catch (cleanupError: unknown) {
+            logger.warn("[ConnectionsScreen] non-busy cleanup failed", { error: cleanupError });
+          }
+        }
         showActionError(params.defaultTitle, error);
       }
     },

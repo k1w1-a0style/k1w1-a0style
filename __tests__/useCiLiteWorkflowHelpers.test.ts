@@ -182,7 +182,7 @@ describe("useCiLiteWorkflowHelpers", () => {
         runId: 321,
         runUrl: "https://example.com/runs/321",
       });
-      expect(resolveCiLiteMatchedRun({ id: 99, html_url: null })).toEqual({
+      expect(resolveCiLiteMatchedRun({ id: 99, html_url: "   " })).toEqual({
         runId: 99,
         runUrl: null,
       });
@@ -192,6 +192,9 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(resolveCiLiteMatchedRun(null)).toBeNull();
       expect(resolveCiLiteMatchedRun({ id: null })).toBeNull();
       expect(resolveCiLiteMatchedRun({ id: "abc" })).toBeNull();
+      expect(resolveCiLiteMatchedRun({ id: 0 })).toBeNull();
+      expect(resolveCiLiteMatchedRun({ id: -10 })).toBeNull();
+      expect(resolveCiLiteMatchedRun({ id: 3.14 })).toBeNull();
     });
   });
 
