@@ -8,6 +8,8 @@ import {
   resolveCiLiteArtifactRequest,
   resolveCiLiteBusyState,
   resolveCiLiteCompletionErrorText,
+  resolveCiLiteLookupTimeoutMs,
+  hasCiLiteLookupTimedOut,
   resolveHydratedCiLiteStepInfo,
   resolveCiLiteLookupFailureLabel,
   resolveCiLiteLookupFailureMessage,
@@ -197,6 +199,20 @@ describe("useCiLiteWorkflowHelpers", () => {
     });
   });
 
+  describe("lookup timeout helpers", () => {
+    it("maps lookup mode to deterministic timeout windows", () => {
+      expect(resolveCiLiteLookupTimeoutMs("chain")).toBe(75_000);
+      expect(resolveCiLiteLookupTimeoutMs("default")).toBe(60_000);
+    });
+
+    it("detects lookup timeout against the mode-specific timeout", () => {
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "default", nowMs: 61_001 })).toBe(true);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "default", nowMs: 60_000 })).toBe(false);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "chain", nowMs: 76_100 })).toBe(true);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "chain", nowMs: 75_000 })).toBe(false);
+    });
+  });
+
   describe("resolveCiLiteCompletionErrorText", () => {
     it("prioritizes completed workflow failure over hydrated fallback", () => {
       expect(
@@ -292,6 +308,16 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(getCiLiteWorkflowErrorMessage(new Error("broken"))).toBe("broken");
       expect(getCiLiteWorkflowErrorMessage({ message: "from-object" })).toBe("from-object");
       expect(getCiLiteWorkflowErrorMessage(42, "fallback")).toBe("fallback");
+    });
+  });
+
+  describe("readCiLiteArtifactPayloadCandidate", () => {
+    it("throws a stable validation error when text JSON is malformed", () => {
+      expect(() =>
+        readCiLiteArtifactPayloadCandidate({
+          text: "{not-valid-json}",
+        }),
+      ).toThrow("Artifact JSON missing or invalid");
     });
   });
 

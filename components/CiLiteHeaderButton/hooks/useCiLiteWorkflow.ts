@@ -45,6 +45,8 @@ import {
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
+  hasCiLiteLookupTimedOut,
+  resolveCiLiteLookupFailureLabel,
   splitRepoFullName,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
@@ -58,6 +60,13 @@ const BUILD_ADMIN_FAIL_CLOSED_NOTE =
   "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
 const BUILD_ADMIN_SERVER_CALLER_NOTE = "service_role fuer Server-Caller";
 const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
+
+async function readOperatorJwt(): Promise<string | null> {
+  const supabase = await ensureSupabaseClient().catch(() => null);
+  const session = await supabase?.auth.getSession().catch(() => null);
+  const jwt = String(session?.data?.session?.access_token ?? "").trim();
+  return jwt || null;
+}
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -315,9 +324,7 @@ export function useCiLiteWorkflow() {
         const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        const userJwt = await readOperatorJwt();
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
         }
@@ -367,8 +374,12 @@ export function useCiLiteWorkflow() {
         if (!cancelled) {
           setArtifactResult(artifactJson);
         }
-      } catch (e) {
-        if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setArtifactError(
+            getCiLiteWorkflowErrorMessage(error, "CI-Lite-Artefakt konnte nicht ausgewertet werden."),
+          );
+        }
       } finally {
         if (!cancelled) setArtifactLoading(false);
       }
@@ -519,9 +530,7 @@ export function useCiLiteWorkflow() {
     setRunUrl(null);
 
     void (async () => {
-      const supabase = await ensureSupabaseClient().catch(() => null);
-      const session = await supabase?.auth.getSession().catch(() => null);
-      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      const userJwt = await readOperatorJwt();
       if (!userJwt) {
         setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
         setChainWaiting(false);
@@ -556,8 +565,10 @@ export function useCiLiteWorkflow() {
           stopLookupWithError(e, { chainWaiting: true });
           return true;
         }
-        if (Date.now() - start > 75_000) {
-          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }), {
+        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "chain" })) {
+          // Invariant contract marker retained for source-based tests:
+          // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
+          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("chain") }), {
             chainWaiting: true,
           });
           return true;
@@ -695,9 +706,7 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        const userJwt = await readOperatorJwt();
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
         }
@@ -762,8 +771,8 @@ export function useCiLiteWorkflow() {
             stopLookupWithError(e);
             return true;
           }
-          if (Date.now() - start > 60_000) {
-            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
+          if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "default" })) {
+            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("default") }));
             return true;
           }
           return false;

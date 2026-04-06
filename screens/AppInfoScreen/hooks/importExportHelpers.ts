@@ -14,10 +14,17 @@ import {
 import { logger } from "../../../lib/logger";
 
 import { TEMPLATE_INFO } from "../types";
-import { getImportExportErrorMessage, isImportExportAborted } from "./importExportErrorHelpers";
+import {
+  getImportExportErrorMessage,
+  isIgnorableImportExportCleanupError,
+  isImportExportAborted,
+} from "./importExportErrorHelpers";
 
 async function cleanupTemporaryFile(fileUri: string, context: string): Promise<void> {
   await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch((error: unknown) => {
+    if (isIgnorableImportExportCleanupError(error)) {
+      return;
+    }
     logger.warn(`[importExportHelpers] Temp-Datei konnte nicht entfernt werden (${context})`, {
       fileUri,
       error,

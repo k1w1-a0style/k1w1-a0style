@@ -15,5 +15,7 @@ describe("useAppInfoScreen secure backup flow split invariants", () => {
     expect(src).toContain("await persistImportedConnectionSecrets(payload);");
     expect(src).toContain("await persistImportedTokenSecrets(payload);");
     expect(src).toContain("await hydrateImportedGitHubSelection(payload);");
+    expect(src).toContain("aiConfig: config,");
+    expect(src).toContain('logger.info("[useAppInfoScreen] Secure-Backup-Flow wurde abgebrochen.");');
   });
 });

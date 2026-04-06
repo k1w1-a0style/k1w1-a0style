@@ -1,5 +1,6 @@
 import {
   getImportExportErrorMessage,
+  isIgnorableImportExportCleanupError,
   isImportExportAborted,
 } from "../screens/AppInfoScreen/hooks/importExportErrorHelpers";
 
@@ -33,6 +34,21 @@ describe("importExportErrorHelpers", () => {
 
     it("does not classify regular failures as aborted", () => {
       expect(isImportExportAborted(new Error("Datei defekt"))).toBe(false);
+    });
+  });
+
+  describe("isIgnorableImportExportCleanupError", () => {
+    it("treats abort-like cleanup failures as ignorable", () => {
+      expect(isIgnorableImportExportCleanupError(new Error("Import abgebrochen"))).toBe(true);
+    });
+
+    it("treats missing-file cleanup failures as ignorable", () => {
+      expect(isIgnorableImportExportCleanupError(new Error("ENOENT: no such file or directory"))).toBe(true);
+      expect(isIgnorableImportExportCleanupError("File does not exist")).toBe(true);
+    });
+
+    it("keeps unexpected cleanup failures visible", () => {
+      expect(isIgnorableImportExportCleanupError(new Error("permission denied"))).toBe(false);
     });
   });
 });

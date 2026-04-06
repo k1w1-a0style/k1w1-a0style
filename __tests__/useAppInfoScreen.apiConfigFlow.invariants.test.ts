@@ -8,5 +8,6 @@ describe("useAppInfoScreen API-config flow split invariants", () => {
     expect(src).toContain("const handleImportAPIConfig = useCallback(async () => {");
     expect(src).toContain("void runApiConfigImport();");
     expect(src).toContain("applyImportedApiConfig(result.config, config)");
+    expect(src).toContain('logger.info("[useAppInfoScreen] API-Config-Import wurde abgebrochen.");');
   });
 });

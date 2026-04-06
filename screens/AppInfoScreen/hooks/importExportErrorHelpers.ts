@@ -27,8 +27,19 @@ export const getImportExportErrorMessage = (
 };
 
 const ABORT_MARKERS = ["abgebrochen", "cancelled", "canceled"] as const;
+const CLEANUP_IGNORABLE_MARKERS = [
+  "no such file or directory",
+  "does not exist",
+  "enoent",
+] as const;
 
 export const isImportExportAborted = (error: unknown): boolean => {
   const message = getImportExportErrorMessage(error, "").toLowerCase();
   return ABORT_MARKERS.some((marker) => message.includes(marker));
+};
+
+export const isIgnorableImportExportCleanupError = (error: unknown): boolean => {
+  if (isImportExportAborted(error)) return true;
+  const message = getImportExportErrorMessage(error, "").toLowerCase();
+  return CLEANUP_IGNORABLE_MARKERS.some((marker) => message.includes(marker));
 };

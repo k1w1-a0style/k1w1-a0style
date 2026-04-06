@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useAI, type AIConfig } from "../../../contexts/AIContext";
+import { useAI } from "../../../contexts/AIContext";
 import {
   sanitizeAiConfigFromBackup,
   safeFormatBackupDate,
@@ -341,9 +341,11 @@ export function useAppInfoScreen() {
         `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
       );
     } catch (error: unknown) {
-      if (!isAbortLikeError(error)) {
-        Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
+      if (isAbortLikeError(error)) {
+        logger.info("[useAppInfoScreen] API-Config-Import wurde abgebrochen.");
+        return;
       }
+      Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
     }
   }, [config, setConfig]);
 
@@ -403,7 +405,7 @@ export function useAppInfoScreen() {
         scope === "secrets"
           ? secretPayload
           : createConfigAndSecretsBackupPayload({
-              aiConfig: config as AIConfig,
+              aiConfig: config,
               secrets: secretPayload,
             });
 
@@ -459,7 +461,9 @@ export function useAppInfoScreen() {
 
         setSecureBackupRequest(null);
       } catch (error: unknown) {
-        if (!isAbortLikeError(error)) {
+        if (isAbortLikeError(error)) {
+          logger.info("[useAppInfoScreen] Secure-Backup-Flow wurde abgebrochen.");
+        } else {
           Alert.alert("Fehler beim gesicherten Backup", getErrorMessage(error, "Backup fehlgeschlagen"));
         }
       } finally {

@@ -77,6 +77,19 @@ export const resolveCiLiteLookupFailureLabel = (mode: "chain" | "default"): stri
   return mode === "chain" ? "Autofix-Chain → CI Lite" : "Workflow";
 };
 
+export const resolveCiLiteLookupTimeoutMs = (mode: "chain" | "default"): number => {
+  return mode === "chain" ? 75_000 : 60_000;
+};
+
+export const hasCiLiteLookupTimedOut = (params: {
+  startedAtMs: number;
+  mode: "chain" | "default";
+  nowMs?: number;
+}): boolean => {
+  const now = params.nowMs ?? Date.now();
+  return now - params.startedAtMs > resolveCiLiteLookupTimeoutMs(params.mode);
+};
+
 export const resolveCiLiteCompletionErrorText = (params: {
   workflowStatus: string | null | undefined;
   workflowConclusion: string | null | undefined;
@@ -217,7 +230,11 @@ export const readCiLiteArtifactPayloadCandidate = (payload: unknown): unknown =>
     return inlineJson;
   }
   if (typeof parsed.text === "string") {
-    return JSON.parse(parsed.text);
+    try {
+      return JSON.parse(parsed.text);
+    } catch {
+      throw new Error("Artifact JSON missing or invalid");
+    }
   }
   return null;
 };
