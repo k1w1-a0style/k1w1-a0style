@@ -48,6 +48,7 @@ import {
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
+  readCiLiteArtifactPayloadCandidate,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
@@ -219,7 +220,7 @@ export function useCiLiteWorkflow() {
     dispatching ||
     locatingRun ||
     chainWaiting ||
-    false;
+    trackedRunId != null;
 
   const {
     logs,
@@ -347,12 +348,7 @@ export function useCiLiteWorkflow() {
           throw new Error(normalized.userMessage);
         }
 
-        const parsed = data && typeof data === "object" ? (data as Record<string, unknown>) : {};
-        const inlineJson = parsed.json;
-        const jsonCandidate =
-          (inlineJson && typeof inlineJson === "object" ? inlineJson : null) ??
-          (typeof parsed.text === "string" ? JSON.parse(parsed.text) : null);
-
+        const jsonCandidate = readCiLiteArtifactPayloadCandidate(data);
         const artifactJson = parseCiLiteArtifactJson(jsonCandidate);
 
         if (!cancelled) {
