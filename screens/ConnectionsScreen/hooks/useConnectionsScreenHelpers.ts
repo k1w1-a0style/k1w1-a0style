@@ -169,6 +169,28 @@ export const resolveEasLinkPostStartState = (projectId: string): {
   };
 };
 
+export const resolveEasStatusPersistence = (params: {
+  ok: boolean;
+  state: VerificationContractState;
+  verifiedAt?: string | null;
+}): {
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  const verifiedAt = params.verifiedAt ?? null;
+  const writes: PersistableEntry[] = [
+    [STORAGE_KEYS.CONN_EAS_OK, params.ok ? "true" : "false"],
+    [STORAGE_KEYS.CONN_EAS_STATE, params.state],
+  ];
+  const removes: string[] = [];
+  if (verifiedAt) {
+    writes.push([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT);
+  }
+  return { writes, removes };
+};
+
 export const resolveEasProjectIdPersistenceAction = (
   projectId: string,
 ): { mode: "set"; value: string } | { mode: "remove" } => {

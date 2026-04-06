@@ -60,6 +60,7 @@ import {
   resolveConnectionsActionAlert,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
+  resolveEasStatusPersistence,
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
   buildRepoOkLine,
@@ -243,19 +244,15 @@ export function useConnectionsScreen() {
       setEasOk(ok);
       setEasState(state);
       setEasLastVerifiedAt(verifiedAt);
-      await persistEntriesWithFallback(AsyncStorage, [
-        [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
-        [STORAGE_KEYS.CONN_EAS_STATE, state],
-      ]);
-      if (verifiedAt) {
-        await persistEntriesWithFallback(AsyncStorage, [
-          [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt],
-        ]);
-      } else {
-        await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
-      }
+      const persistence = resolveEasStatusPersistence({ ok, state, verifiedAt });
+      await applyPersistenceDelta({
+        writes: persistence.writes,
+        removes: persistence.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
     },
-    [],
+    [persistConnLights, removeConnLights],
   );
 
   const clearGithubConnectionState = useCallback(async () => {
@@ -572,6 +569,46 @@ export function useConnectionsScreen() {
     clearSupabaseConnectionState,
   ]);
 
+  const applyGitHubPersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveGitHubConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setGithubOk(persistence.ok);
+          setGithubUser(persistence.login);
+          setGithubScopes(persistence.scopes);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
+  const applyExpoPersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveExpoConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setExpoOk(persistence.ok);
+          setExpoUser(persistence.username);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
+  const applySupabasePersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveSupabaseConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setSupabaseOk(persistence.ok);
+          setSupabaseRef(persistence.ref);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
   const testGitHub = useCallback(async () => {
     if (!hydrated) return;
     const gh = githubToken.trim();
@@ -592,14 +629,7 @@ export function useConnectionsScreen() {
           login: result.login,
           scopes: result.scopes,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setGithubOk(persistence.ok);
-            setGithubUser(persistence.login);
-            setGithubScopes(persistence.scopes);
-          },
-        });
+        await applyGitHubPersistence(persistence);
         const login = persistence.login;
         const scopes = persistence.scopes;
         Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
@@ -609,14 +639,7 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveGitHubConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setGithubOk(persistence.ok);
-            setGithubUser(persistence.login);
-            setGithubScopes(persistence.scopes);
-          },
-        });
+        await applyGitHubPersistence(persistence);
         logConnectionFailure({
           channel: "connections:github",
           message: "GitHub ERROR",
@@ -624,7 +647,7 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [githubToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
+  }, [githubToken, hydrated, runGuardedAction, applyGitHubPersistence, logConnectionFailure]);
 
   const testExpo = useCallback(async () => {
     if (!hydrated) return;
@@ -645,13 +668,7 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           username: result.username,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setExpoOk(persistence.ok);
-            setExpoUser(persistence.username);
-          },
-        });
+        await applyExpoPersistence(persistence);
 
         const username = persistence.username;
         Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
@@ -660,13 +677,7 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveExpoConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setExpoOk(persistence.ok);
-            setExpoUser(persistence.username);
-          },
-        });
+        await applyExpoPersistence(persistence);
         logConnectionFailure({
           channel: "connections:expo",
           message: "Expo ERROR",
@@ -674,7 +685,7 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [expoToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
+  }, [expoToken, hydrated, runGuardedAction, applyExpoPersistence, logConnectionFailure]);
 
   const testSupabase = useCallback(async () => {
     if (!hydrated) return;
@@ -691,13 +702,7 @@ Scopes: ${scopes}` : ""}`);
           const persistence = resolveSupabaseConnectionPersistence({
             kind: "rls_protected",
           });
-          await applyConnectionPersistence({
-            persistence,
-            applyState: () => {
-              setSupabaseOk(persistence.ok);
-              setSupabaseRef(persistence.ref);
-            },
-          });
+          await applySupabasePersistence(persistence);
           Alert.alert(
             "Supabase OK",
             "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
@@ -708,26 +713,14 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           ref: result.ref,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setSupabaseOk(persistence.ok);
-            setSupabaseRef(persistence.ref);
-          },
-        });
+        await applySupabasePersistence(persistence);
         Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       },
       onNonBusyError: async (e: unknown) => {
         const persistence = resolveSupabaseConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setSupabaseOk(persistence.ok);
-            setSupabaseRef(persistence.ref);
-          },
-        });
+        await applySupabasePersistence(persistence);
         logConnectionFailure({
           channel: "connections:supabase",
           message: "Supabase ERROR",
@@ -740,7 +733,7 @@ Scopes: ${scopes}` : ""}`);
     supabaseAnonKey,
     hydrated,
     runGuardedAction,
-    applyConnectionPersistence,
+    applySupabasePersistence,
     logConnectionFailure,
   ]);
 
