@@ -17,6 +17,8 @@ import {
   splitRepoFullName,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
+  resolveCiLiteDispatchSelection,
+  resolveCiLiteSyncStateError,
   resolveCiLiteMissingJwtMessage,
   readCiLiteArtifactPayloadCandidate,
   resolveCiLiteMatchedRun,
@@ -323,6 +325,52 @@ describe("useCiLiteWorkflowHelpers", () => {
     it("parses owner/repo and rejects malformed values", () => {
       expect(splitRepoFullName("owner/repo")).toEqual({ owner: "owner", repo: "repo" });
       expect(splitRepoFullName("owner")).toBeNull();
+    });
+  });
+
+  describe("resolveCiLiteDispatchSelection", () => {
+    it("fails for missing repo format or branch and returns normalized selection otherwise", () => {
+      expect(
+        resolveCiLiteDispatchSelection({
+          githubRepo: "owner-only",
+          branch: "main",
+        }),
+      ).toEqual({
+        ok: false,
+        message: "Kein gültiges Repo (owner/repo) ausgewählt.",
+      });
+
+      expect(
+        resolveCiLiteDispatchSelection({
+          githubRepo: "owner/repo",
+          branch: " ",
+        }),
+      ).toEqual({
+        ok: false,
+        message: "CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.",
+      });
+
+      expect(
+        resolveCiLiteDispatchSelection({
+          githubRepo: " owner/repo ",
+          branch: " release/1 ",
+        }),
+      ).toEqual({
+        ok: true,
+        selection: {
+          owner: "owner",
+          repo: "repo",
+          branch: "release/1",
+        },
+      });
+    });
+  });
+
+  describe("resolveCiLiteSyncStateError", () => {
+    it("maps sync states to deterministic blocking text", () => {
+      expect(resolveCiLiteSyncStateError("in_sync")).toBeNull();
+      expect(resolveCiLiteSyncStateError("out_of_sync")).toContain("noch nicht");
+      expect(resolveCiLiteSyncStateError("unknown")).toContain("unklar");
     });
   });
 

@@ -307,6 +307,60 @@ export const resolveCiLiteTargetRef = (params: {
   return resolved || null;
 };
 
+export type CiLiteDispatchSelectionResult =
+  | {
+      ok: true;
+      selection: {
+        owner: string;
+        repo: string;
+        branch: string;
+      };
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export const resolveCiLiteDispatchSelection = (params: {
+  githubRepo: string;
+  branch: string;
+}): CiLiteDispatchSelectionResult => {
+  const repoParts = splitRepoFullName(params.githubRepo);
+  if (!repoParts) {
+    return {
+      ok: false,
+      message: "Kein gültiges Repo (owner/repo) ausgewählt.",
+    };
+  }
+
+  const targetBranch = params.branch.trim();
+  if (!targetBranch) {
+    return {
+      ok: false,
+      message: "CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.",
+    };
+  }
+
+  return {
+    ok: true,
+    selection: {
+      owner: repoParts.owner,
+      repo: repoParts.repo,
+      branch: targetBranch,
+    },
+  };
+};
+
+export const resolveCiLiteSyncStateError = (
+  syncState: "in_sync" | "out_of_sync" | "unknown",
+): string | null => {
+  if (syncState === "in_sync") return null;
+  if (syncState === "out_of_sync") {
+    return "CI Lite blockiert: Lokale Änderungen sind noch nicht im gewählten Repo/Branch. Bitte zuerst pushen.";
+  }
+  return "CI Lite blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.";
+};
+
 export const resolveCiLiteMissingJwtMessage = (
   context: "artifact" | "lookup" | "dispatch",
 ): string => {

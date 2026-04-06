@@ -47,7 +47,8 @@ import {
   resolveCiLiteBusyState,
   hasCiLiteLookupTimedOut,
   resolveCiLiteLookupFailureLabel,
-  splitRepoFullName,
+  resolveCiLiteDispatchSelection,
+  resolveCiLiteSyncStateError,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
@@ -720,11 +721,15 @@ export function useCiLiteWorkflow() {
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
       if (dispatching) return;
-      const repoParts = splitRepoFullName(githubRepo);
-      if (!repoParts) {
-        Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
+      const dispatchSelection = resolveCiLiteDispatchSelection({
+        githubRepo,
+        branch,
+      });
+      if (!dispatchSelection.ok) {
+        Alert.alert("CI Lite", dispatchSelection.message);
         return;
       }
+      const { owner, repo, branch: targetBranch } = dispatchSelection.selection;
 
       setLocalError(null);
       setVisible(true);
@@ -740,28 +745,20 @@ export function useCiLiteWorkflow() {
       setJobId(newJobId);
 
       try {
-        const targetBranch = branch.trim();
-        if (!targetBranch) {
-          throw new Error("CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.");
-        }
-
         const syncState = await getRepoSyncState({
           linkedRepo: githubRepo,
           linkedBranch: targetBranch,
           files: projectData?.files ?? [],
         });
-        if (syncState !== "in_sync") {
-          throw new Error(
-            syncState === "out_of_sync"
-              ? "CI Lite blockiert: Lokale Änderungen sind noch nicht im gewählten Repo/Branch. Bitte zuerst pushen."
-              : "CI Lite blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.",
-          );
+        const syncStateError = resolveCiLiteSyncStateError(syncState);
+        if (syncStateError) {
+          throw new Error(syncStateError);
         }
         setTargetRef(targetBranch);
 
         const sourceHeadSha = await getBranchHeadSha(
-          repoParts.owner,
-          repoParts.repo,
+          owner,
+          repo,
           targetBranch,
         ).catch(() => null);
 
