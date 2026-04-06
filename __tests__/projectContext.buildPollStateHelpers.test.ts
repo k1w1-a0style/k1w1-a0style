@@ -3,6 +3,7 @@ import {
   getValidContextMessages,
   getBuildStatusMessage,
   mergeBuildPollIntoCurrentBuild,
+  resolveBuildHistoryPollUpdate,
   shouldUpdateBuildHistoryStatus,
 } from "../contexts/projectContextStateHelpers";
 import {
@@ -104,6 +105,82 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         status: "building",
       }),
     ).toBe(true);
+  });
+
+  it("resolves poll-driven history updates only when details and status delta exist", () => {
+    expect(
+      resolveBuildHistoryPollUpdate({
+        activeJobId: null,
+        details: null,
+        status: "queued",
+        lastSnapshot: null,
+      }),
+    ).toBeNull();
+
+    const next = resolveBuildHistoryPollUpdate({
+      activeJobId: "job-1",
+      details: {
+        jobId: "job-1",
+        status: "building",
+        runId: 11,
+        sourceCommitSha: "abc123",
+        urls: {
+          html: "https://example.com/run",
+          artifacts: "https://example.com/artifacts",
+        },
+        raw: null,
+      },
+      status: "building",
+      lastSnapshot: createBuildHistoryStatusSnapshot({
+        activeJobId: "job-1",
+        status: "queued",
+      }),
+      selectionSnapshot: {
+        jobId: "job-1",
+        repoName: "owner/repo",
+        branch: "main",
+        buildProfile: "preview",
+      },
+      currentBuild: {
+        githubRepo: "fallback/repo",
+        branch: "release",
+        buildProfile: "production",
+      },
+    });
+
+    expect(next).toEqual({
+      nextSnapshot: {
+        jobId: "job-1",
+        status: "building",
+      },
+      update: {
+        jobId: "job-1",
+        status: "building",
+        repoName: "owner/repo",
+        branch: "main",
+        buildProfile: "preview",
+        htmlUrl: "https://example.com/run",
+        artifactUrl: "https://example.com/artifacts",
+        sourceCommitSha: "abc123",
+      },
+    });
+
+    expect(
+      resolveBuildHistoryPollUpdate({
+        activeJobId: "job-1",
+        details: {
+          jobId: "job-1",
+          status: "building",
+          runId: 11,
+          raw: null,
+        },
+        status: "building",
+        lastSnapshot: createBuildHistoryStatusSnapshot({
+          activeJobId: "job-1",
+          status: "building",
+        }),
+      }),
+    ).toBeNull();
   });
 
   it("filters invalid chat messages for context value stability", () => {

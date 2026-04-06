@@ -411,6 +411,78 @@ export function useCiLiteWorkflow() {
     });
   }, []);
 
+  const startLookupTracking = useCallback(
+    async (params: {
+      githubRepo: string;
+      branch: string;
+      jobId: string;
+      workflow: string;
+      userJwt: string;
+      expectedEvent: "repository_dispatch" | "workflow_dispatch";
+      sourceHeadSha?: string | null;
+      mode: "chain" | "default";
+      onMatch?: () => void;
+      stopLookupOptions?: { chainWaiting?: boolean };
+    }) => {
+      const lookupGeneration = startRunLookup();
+      const start = Date.now();
+
+      const poll = async () => {
+        try {
+          const lookup = await findMatchingRun({
+            githubRepo: params.githubRepo,
+            branch: params.branch,
+            jobId: params.jobId,
+            workflow: params.workflow,
+            userJwt: params.userJwt,
+            expectedEvent: params.expectedEvent,
+            startedAtMs: start,
+            sourceHeadSha: params.sourceHeadSha,
+            requireJobIdMarker: true,
+          });
+          if (!isLookupGenerationActive(lookupGeneration)) return true;
+          updateLookupDiagnosis(lookup.diagnosis);
+          const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
+          if (matchedRun) {
+            setRunId(matchedRun.runId);
+            setRunUrl(matchedRun.runUrl);
+            params.onMatch?.();
+            stopRunLookup();
+            return true;
+          }
+        } catch (e: unknown) {
+          stopLookupWithError(e, params.stopLookupOptions);
+          return true;
+        }
+
+        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: params.mode })) {
+          stopLookupWithError(
+            buildLookupFailureMessage({
+              workflowLabel: resolveCiLiteLookupFailureLabel(params.mode),
+            }),
+            params.stopLookupOptions,
+          );
+          return true;
+        }
+        return false;
+      };
+
+      const lookupFinished = await poll();
+      if (!lookupFinished) {
+        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
+      }
+    },
+    [
+      buildLookupFailureMessage,
+      findMatchingRun,
+      isLookupGenerationActive,
+      scheduleLookupPoll,
+      startRunLookup,
+      stopLookupWithError,
+      updateLookupDiagnosis,
+    ],
+  );
+
   const hydratedDisplaySnapshot = resolveCiLiteDisplaySnapshot({
     hasActiveRunContext,
     workflowRunPresent: Boolean(workflowRun),
@@ -525,7 +597,6 @@ export function useCiLiteWorkflow() {
     }
 
     setChainWaiting(true);
-    const lookupGeneration = startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
@@ -539,51 +610,24 @@ export function useCiLiteWorkflow() {
         return;
       }
 
-      const start = Date.now();
-      const poll = async () => {
-        try {
-          const lookup = await findMatchingRun({
-            githubRepo,
-            branch: b,
-            jobId,
-            workflow: WORKFLOW_CI_LITE,
-            userJwt,
-            expectedEvent: "repository_dispatch",
-            startedAtMs: start,
-            sourceHeadSha: workflowRun.head_sha ?? null,
-            requireJobIdMarker: true,
-          });
-          if (!isLookupGenerationActive(lookupGeneration)) return true;
-          updateLookupDiagnosis(lookup.diagnosis);
-          const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
-          if (matchedRun) {
-            setRunId(matchedRun.runId);
-            setRunUrl(matchedRun.runUrl);
-            setChainWaiting(false);
-            stopRunLookup();
-            return true;
-          }
-        } catch (e: unknown) {
-          stopLookupWithError(e, { chainWaiting: true });
-          return true;
-        }
-        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "chain" })) {
-          // Invariant contract marker retained for source-based tests:
-          // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
-          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("chain") }), {
-            chainWaiting: true,
-          });
-          return true;
-        }
-        return false;
-      };
-
-      const lookupFinished = await poll();
-      if (!lookupFinished) {
-        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
-      }
+      // Invariant contract marker retained for source-based tests:
+      // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
+      await startLookupTracking({
+        githubRepo,
+        branch: b,
+        jobId,
+        workflow: WORKFLOW_CI_LITE,
+        userJwt,
+        expectedEvent: "repository_dispatch",
+        sourceHeadSha: workflowRun.head_sha ?? null,
+        mode: "chain",
+        onMatch: () => {
+          setChainWaiting(false);
+        },
+        stopLookupOptions: { chainWaiting: true },
+      });
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, startRunLookup, stopRunLookup, startLookupTracking]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -747,52 +791,23 @@ export function useCiLiteWorkflow() {
           throw new Error(normalized.userMessage);
         }
 
-        const start = Date.now();
-        const poll = async () => {
-          try {
-            const lookup = await findMatchingRun({
-              githubRepo,
-              branch: targetBranch,
-              jobId: newJobId,
-              workflow: workflowFile,
-              userJwt,
-              expectedEvent: "workflow_dispatch",
-              startedAtMs: start,
-              sourceHeadSha,
-              requireJobIdMarker: true,
-            });
-            if (!isLookupGenerationActive(lookupGeneration)) return true;
-            updateLookupDiagnosis(lookup.diagnosis);
-            const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
-            if (matchedRun) {
-              setRunId(matchedRun.runId);
-              setRunUrl(matchedRun.runUrl);
-              stopRunLookup();
-              return true;
-            }
-          } catch (e: unknown) {
-            stopLookupWithError(e);
-            return true;
-          }
-          if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "default" })) {
-            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("default") }));
-            return true;
-          }
-          return false;
-        };
-
-        const lookupGeneration = startRunLookup();
-        const lookupFinished = await poll();
-        if (!lookupFinished) {
-          scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
-        }
+        await startLookupTracking({
+          githubRepo,
+          branch: targetBranch,
+          jobId: newJobId,
+          workflow: workflowFile,
+          userJwt,
+          expectedEvent: "workflow_dispatch",
+          sourceHeadSha,
+          mode: "default",
+        });
       } catch (e: unknown) {
         stopLookupWithError(e);
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError],
+    [branch, dispatching, githubRepo, projectData?.files, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
   );
 
 

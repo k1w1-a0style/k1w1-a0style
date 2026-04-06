@@ -71,15 +71,13 @@ import {
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
-  createBuildHistoryStatusSnapshot,
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
-  resolveHistoryBuildSelection,
+  resolveBuildHistoryPollUpdate,
   resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
-  shouldUpdateBuildHistoryStatus,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
 import { composeProjectContextValue, deriveProjectContextMessages } from "./projectContextValueHelpers";
@@ -700,48 +698,29 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update build history as statuses arrive (best-effort)
   useEffect(() => {
-    const pollDetails = buildPoll.details;
     if (
       !shouldUpdateHistoryFromPoll({
         activeJobId,
-        details: pollDetails,
+        details: buildPoll.details,
         status: buildPoll.status,
-      }) ||
-      !activeJobId ||
-      !pollDetails
+      })
     ) {
       return;
     }
 
-    const status = buildPoll.status;
-    if (!shouldUpdateBuildHistoryStatus({
+    const nextHistoryUpdate = resolveBuildHistoryPollUpdate({
+      activeJobId,
+      details: buildPoll.details,
+      status: buildPoll.status,
       lastSnapshot: lastHistoryStatusRef.current,
-      activeJobId,
-      status,
-    })) {
-      return;
-    }
-
-    lastHistoryStatusRef.current = createBuildHistoryStatusSnapshot({
-      activeJobId,
-      status,
-    });
-
-    const historySelection = resolveHistoryBuildSelection({
-      activeJobId,
-      snapshot: activeBuildSelectionRef.current,
+      selectionSnapshot: activeBuildSelectionRef.current,
       currentBuild: currentBuildRef.current,
     });
+    if (!nextHistoryUpdate) return;
 
-    updateBuildInHistory(activeJobId, {
-      status,
-      branch: historySelection.branch,
-      buildProfile: historySelection.buildProfile,
-      repoName: historySelection.repoName,
-      htmlUrl: pollDetails.urls?.html ?? null,
-      artifactUrl: pollDetails.urls?.artifacts ?? null,
-      sourceCommitSha: pollDetails.sourceCommitSha ?? null,
-    }).catch((historyError: unknown) => {
+    lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
+
+    updateBuildInHistory(nextHistoryUpdate.update.jobId, nextHistoryUpdate.update).catch((historyError: unknown) => {
       logger.warn("⚠️ Build-Historie konnte nicht aktualisiert werden", { error: historyError });
     });
   }, [activeJobId, buildPoll.details, buildPoll.status]);
