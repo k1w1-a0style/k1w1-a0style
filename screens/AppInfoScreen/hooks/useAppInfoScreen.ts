@@ -47,6 +47,10 @@ import {
   importAPIConfig,
   importEncryptedScopedBackup,
 } from "./importExportHelpers";
+import {
+  getImportExportErrorMessage,
+  isImportExportAborted,
+} from "./importExportErrorHelpers";
 import { logger } from "../../../lib/logger";
 import {
   countMessages,
@@ -72,23 +76,12 @@ type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
-    return error.message;
-  }
-  if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
-    return error.message;
-  }
-  return fallback;
+  return getImportExportErrorMessage(error, fallback);
 }
 
 function isAbortLikeError(error: unknown): boolean {
-  const message = getErrorMessage(error, "").toLowerCase();
-  return message.includes("abgebrochen");
+  return isImportExportAborted(error);
 }
 
 async function removeLegacyClientServiceRoleKeys(): Promise<void> {

@@ -15,7 +15,9 @@ describe("importExportErrorHelpers", () => {
 
     it("falls back for empty or unsupported values", () => {
       expect(getImportExportErrorMessage("   ", "fallback")).toBe("fallback");
-      expect(getImportExportErrorMessage({ message: "hidden" }, "fallback")).toBe("fallback");
+      expect(getImportExportErrorMessage({ message: " hidden " }, "fallback")).toBe("hidden");
+      expect(getImportExportErrorMessage({ message: "   " }, "fallback")).toBe("fallback");
+      expect(getImportExportErrorMessage({ nope: true }, "fallback")).toBe("fallback");
     });
   });
 

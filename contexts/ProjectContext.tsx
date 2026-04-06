@@ -67,6 +67,7 @@ import {
   createProjectSaveScheduler,
   hydrateChatRetentionLimit,
   initializeProjectData,
+  runWithProjectLoading,
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
@@ -128,6 +129,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const isMountedRef = useRef(true);
   const projectDataRef = useRef<ProjectData | null>(null);
   projectDataRef.current = projectData;
   const [isLoading, setIsLoading] = useState(true);
@@ -170,6 +172,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   );
   const chatRetentionLimitRef = useRef<number>(CHAT_HISTORY_RETENTION_FALLBACK);
   const didSetRuntimeRetentionRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const setIsLoadingSafe = useCallback((nextValue: boolean) => {
+    if (!isMountedRef.current) return;
+    setIsLoading(nextValue);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -326,43 +339,45 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           style: "destructive",
           onPress: async () => {
             try {
-              setIsLoading(true);
-              const currentProjectData = projectDataRef.current;
-              const mode = resolveTemplateMode(currentProjectData?.templateId);
-              const { effective } = resolveEffectiveTemplateId(
-                mode,
-                currentProjectData?.files || [],
-              );
-              const templateFiles = await loadTemplateFromFile(effective);
-              const newProject: ProjectData = {
-                ...buildProjectForCreation({
-                  id: uuidv4(),
-                  files: templateFiles,
-                  templateId: mode,
-                  effectiveTemplateId: effective,
-                  preferredPreviewMode:
-                    currentProjectData?.preferredPreviewMode ?? "supabase",
-                }),
-                lastPreview: null,
-              };
+              await runWithProjectLoading({
+                setLoading: setIsLoadingSafe,
+                task: async () => {
+                  const currentProjectData = projectDataRef.current;
+                  const mode = resolveTemplateMode(currentProjectData?.templateId);
+                  const { effective } = resolveEffectiveTemplateId(
+                    mode,
+                    currentProjectData?.files || [],
+                  );
+                  const templateFiles = await loadTemplateFromFile(effective);
+                  const newProject: ProjectData = {
+                    ...buildProjectForCreation({
+                      id: uuidv4(),
+                      files: templateFiles,
+                      templateId: mode,
+                      effectiveTemplateId: effective,
+                      preferredPreviewMode:
+                        currentProjectData?.preferredPreviewMode ?? "supabase",
+                    }),
+                    lastPreview: null,
+                  };
 
-              await replaceProjectData(newProject);
+                  await replaceProjectData(newProject);
 
-              Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
-              logger.info("✅ Neues Projekt erstellt und gespeichert.");
+                  Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
+                  logger.info("✅ Neues Projekt erstellt und gespeichert.");
+                },
+              });
             } catch (error: unknown) {
               Alert.alert(
                 "Fehler",
                 getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
               );
-            } finally {
-              setIsLoading(false);
             }
           },
         },
       ],
     );
-  }, [replaceProjectData]);
+  }, [replaceProjectData, setIsLoadingSafe]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -420,34 +435,36 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         {
           text: "Auswählen",
           onPress: async () => {
-            setIsLoading(true);
             try {
-              const result = await importProjectZip();
-              
-              const normalizedProject = normalizeLoadedProjectData(result.project);
-              // Invariant contract markers retained for source-based tests:
-              // setProjectData(normalizedProject);
-              // await saveProjectToStorage(normalizedProject);
+              await runWithProjectLoading({
+                setLoading: setIsLoadingSafe,
+                task: async () => {
+                  const result = await importProjectZip();
 
-              await replaceProjectData(normalizedProject);
+                  const normalizedProject = normalizeLoadedProjectData(result.project);
+                  // Invariant contract markers retained for source-based tests:
+                  // setProjectData(normalizedProject);
+                  // await saveProjectToStorage(normalizedProject);
 
-              Alert.alert(
-                "Import erfolgreich",
-                `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
-              );
+                  await replaceProjectData(normalizedProject);
+
+                  Alert.alert(
+                    "Import erfolgreich",
+                    `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
+                  );
+                },
+              });
             } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
                 getErrorMessage(error, "Fehler beim Importieren"),
               );
-            } finally {
-              setIsLoading(false);
             }
           },
         },
       ],
     );
-  }, [replaceProjectData]);
+  }, [replaceProjectData, setIsLoadingSafe]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {
@@ -618,7 +635,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           saveProjectToStorage,
           createProjectId: () => uuidv4(),
         });
-        setProjectData(initialized.project);
+        if (isMountedRef.current) {
+          setProjectData(initialized.project);
+        }
         if (initialized.source === "storage") {
           logger.info("📖 Projekt geladen:", initialized.project.name);
         } else {
@@ -628,12 +647,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       } catch (error) {
         logger.error("[ProjectContext] App-Start Ladefehler", { error });
       } finally {
-        setIsLoading(false);
+        setIsLoadingSafe(false);
       }
     };
 
-    initializeProject();
-  }, []);
+    void initializeProject();
+  }, [setIsLoadingSafe]);
 
   useEffect(() => {
     const handleAppStateChange = createAppStateSaveHandler({

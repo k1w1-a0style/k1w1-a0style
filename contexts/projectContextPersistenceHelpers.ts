@@ -202,3 +202,15 @@ export const hydrateChatRetentionLimit = async (params: {
     return CHAT_HISTORY_RETENTION_FALLBACK;
   }
 };
+
+export const runWithProjectLoading = async (params: {
+  setLoading: (loading: boolean) => void;
+  task: () => Promise<void>;
+}): Promise<void> => {
+  params.setLoading(true);
+  try {
+    await params.task();
+  } finally {
+    params.setLoading(false);
+  }
+};

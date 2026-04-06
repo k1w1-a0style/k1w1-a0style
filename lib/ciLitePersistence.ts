@@ -63,7 +63,6 @@ type SelectionDeps = {
 type ScopedSnapshotReadResult = {
   parsed: PersistedCiLiteSnapshot | null;
   parseReason: CiLitePersistenceReason | null;
-  source: "scoped" | "legacy";
 };
 
 function parseRepoParts(repoFullName: string): { owner: string; repo: string } | null {
@@ -106,6 +105,10 @@ type ParsedSnapshotResult = {
   snapshot: PersistedCiLiteSnapshot | null;
   reason: CiLitePersistenceReason | null;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 function parseSnapshotRecord(parsed: Record<string, unknown>): ParsedSnapshotResult {
   const lintOk = typeof parsed.lintOk === "boolean" ? parsed.lintOk : null;
@@ -153,14 +156,17 @@ function parseSnapshotFromRaw(raw: string | null): ParsedSnapshotResult {
   }
 
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (!parsed || typeof parsed !== "object") {
-      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
-    }
-    return parseSnapshotRecord(parsed);
+    return parseSnapshotFromUnknown(JSON.parse(raw));
   } catch {
     return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
   }
+}
+
+function parseSnapshotFromUnknown(parsed: unknown): ParsedSnapshotResult {
+  if (!isRecord(parsed)) {
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
+  }
+  return parseSnapshotRecord(parsed);
 }
 
 async function readScopedOrLegacySnapshotRaw(
@@ -174,7 +180,7 @@ async function readScopedOrLegacySnapshotRaw(
   const scopedRaw = await storageGetItem(scopedKey).catch(() => null);
   if (scopedRaw != null) {
     const parsed = parseSnapshotFromRaw(scopedRaw);
-    return { parsed: parsed.snapshot, parseReason: parsed.reason, source: "scoped" };
+    return { parsed: parsed.snapshot, parseReason: parsed.reason };
   }
 
   const [lintOkRaw, typeOkRaw, lastRepo, lastBranch, lastRunAt, lastSha, lastWorkflow, lastJobId, lastRunId, lastConclusion] =
@@ -204,11 +210,10 @@ async function readScopedOrLegacySnapshotRaw(
     typecheckOk: readBooleanFlag(typeOkRaw),
   };
 
-  const parsedLegacy = parseSnapshotRecord(legacySnapshot as unknown as Record<string, unknown>);
+  const parsedLegacy = parseSnapshotFromUnknown(legacySnapshot);
   return {
     parsed: parsedLegacy.snapshot,
     parseReason: parsedLegacy.reason,
-    source: "legacy",
   };
 }
 
