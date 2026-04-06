@@ -10,6 +10,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
   shouldUpdateHistoryFromPoll,
 } from "../contexts/projectContextBuildHelpers";
@@ -202,5 +203,58 @@ describe("projectContextBuildHelpers orchestration guards", () => {
         status: "building",
       }),
     ).toBe(true);
+  });
+
+  it("resolves build start context with explicit repo/profile SoT", () => {
+    const context = resolveBuildStartContext({
+      project: {
+        id: "p1",
+        name: "Project",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+        chatHistory: [],
+        createdAt: "2026-04-06T00:00:00.000Z",
+        linkedRepo: " owner/repo ",
+        linkedBranch: " release ",
+        preferredBuildProfile: "production",
+        lastModified: "2026-04-06T00:00:00.000Z",
+      },
+      requestedBuildProfile: "preview",
+    });
+
+    expect(context.githubRepo).toBe("owner/repo");
+    expect(context.branch).toBe("release");
+    expect(context.buildProfile).toBe("preview");
+  });
+
+  it("fails closed when build start context has no files or no linked repo", () => {
+    expect(() =>
+      resolveBuildStartContext({
+        project: {
+          id: "p2",
+          name: "Empty",
+          files: [],
+          chatHistory: [],
+          createdAt: "2026-04-06T00:00:00.000Z",
+          linkedRepo: "owner/repo",
+          linkedBranch: "main",
+          lastModified: "2026-04-06T00:00:00.000Z",
+        },
+      }),
+    ).toThrow("Projekt ist leer");
+
+    expect(() =>
+      resolveBuildStartContext({
+        project: {
+          id: "p3",
+          name: "NoRepo",
+          files: [{ path: "App.tsx", content: "ok" }],
+          chatHistory: [],
+          createdAt: "2026-04-06T00:00:00.000Z",
+          linkedRepo: " ",
+          linkedBranch: "main",
+          lastModified: "2026-04-06T00:00:00.000Z",
+        },
+      }),
+    ).toThrow("Kein GitHub-Repo verknüpft");
   });
 });

@@ -10,6 +10,7 @@ import {
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
   resolveConnectionsAlertNotice,
+  resolveConnectionsActionAlert,
   resolveLinkExistingSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
@@ -227,6 +228,41 @@ describe("useConnectionsScreenHelpers", () => {
     expect(resolveConnectionsAlertNotice("create_link_workflow_started")).toEqual({
       title: "OK",
       message: "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+    });
+  });
+
+  it("maps busy vs non-busy action alerts deterministically", () => {
+    expect(
+      resolveConnectionsActionAlert({
+        isBusy: true,
+        error: new Error("Bitte später"),
+        defaultTitle: "GitHub Test",
+      }),
+    ).toEqual({
+      title: "Bitte warten",
+      message: "Bitte später",
+    });
+
+    expect(
+      resolveConnectionsActionAlert({
+        isBusy: false,
+        error: new Error("Token ungültig"),
+        defaultTitle: "GitHub Test",
+      }),
+    ).toEqual({
+      title: "GitHub Test",
+      message: "Token ungültig",
+    });
+
+    expect(
+      resolveConnectionsActionAlert({
+        isBusy: false,
+        error: null,
+        defaultTitle: "GitHub Test",
+      }),
+    ).toEqual({
+      title: "GitHub Test",
+      message: "Unbekannter Fehler",
     });
   });
 

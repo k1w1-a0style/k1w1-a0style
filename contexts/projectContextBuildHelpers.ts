@@ -1,6 +1,7 @@
 import type { BuildStatus, BuildStatusDetails } from "../shared/types/build";
+import type { ProjectData } from "../shared/types/project";
 import type { ProjectContextProps } from "./projectTypes";
-import type { CurrentBuildState } from "./projectContextStateHelpers";
+import { resolveBuildProfileForStart, type CurrentBuildState } from "./projectContextStateHelpers";
 
 export type BuildSelectionSnapshot = {
   jobId?: string | null;
@@ -65,6 +66,38 @@ export const createBuildErrorState = (params: {
   message: params.message,
   lastUpdatedAt: params.nowIso,
 });
+
+export const resolveBuildStartContext = (params: {
+  project: ProjectData | null;
+  requestedBuildProfile?: string;
+}): {
+  project: ProjectData;
+  githubRepo: string;
+  branch: string;
+  buildProfile: "development" | "preview" | "production";
+} => {
+  const project = params.project;
+  if (!project?.files || project.files.length === 0) {
+    throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
+  }
+
+  const githubRepo = (project.linkedRepo?.trim() || "").trim();
+  if (!githubRepo) {
+    throw new Error(
+      "Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.",
+    );
+  }
+
+  return {
+    project,
+    githubRepo,
+    branch: (project.linkedBranch ?? "").trim(),
+    buildProfile: resolveBuildProfileForStart({
+      requestedProfile: params.requestedBuildProfile,
+      preferredProfile: project.preferredBuildProfile,
+    }),
+  };
+};
 
 export const shouldSyncCurrentBuildFromPoll = (params: {
   activeJobId: string | null;

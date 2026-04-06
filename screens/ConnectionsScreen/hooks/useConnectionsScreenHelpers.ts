@@ -213,6 +213,35 @@ export const resolveConnectionsAlertNotice = (
   }
 };
 
+
+export const resolveConnectionsActionAlert = (params: {
+  isBusy: boolean;
+  error: unknown;
+  defaultTitle: string;
+}): { title: string; message: string } => {
+  if (params.isBusy) {
+    return {
+      title: "Bitte warten",
+      message:
+        params.error instanceof Error && params.error.message
+          ? params.error.message
+          : "Eine andere Aktion läuft bereits.",
+    };
+  }
+
+  const message =
+    params.error instanceof Error && params.error.message
+      ? params.error.message
+      : typeof params.error === "string" && params.error.trim()
+        ? params.error
+        : "Unbekannter Fehler";
+
+  return {
+    title: params.defaultTitle,
+    message,
+  };
+};
+
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";
