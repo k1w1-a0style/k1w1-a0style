@@ -25,6 +25,7 @@ import {
   resolveSupabaseConnectionPersistence,
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
+  parseExpoProjectResponse,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -477,6 +478,37 @@ describe("useConnectionsScreenHelpers", () => {
       title: "GitHub Test",
       message: "Unbekannter Fehler",
     });
+  });
+
+  it("parses expo project response fail-safe from unknown payloads", () => {
+    expect(
+      parseExpoProjectResponse({
+        data: {
+          id: "project-id",
+          slug: "slug",
+          name: "Project",
+          project: { id: "nested-id", slug: "nested-slug" },
+        },
+      }),
+    ).toEqual({
+      data: {
+        id: "project-id",
+        slug: "slug",
+        name: "Project",
+        project: { id: "nested-id", slug: "nested-slug" },
+      },
+    });
+
+    expect(parseExpoProjectResponse({ data: { id: 123 } })).toEqual({
+      data: {
+        id: undefined,
+        slug: undefined,
+        name: undefined,
+        project: undefined,
+      },
+    });
+
+    expect(parseExpoProjectResponse(null)).toBeNull();
   });
 
   it("applies persistence deltas only for present writes/removes", async () => {

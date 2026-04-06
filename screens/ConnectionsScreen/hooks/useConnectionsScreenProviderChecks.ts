@@ -1,7 +1,12 @@
 import { githubApiUrl } from "../../../shared/constants/github";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
+import { readJsonRecordSafe, readStringField } from "../../../infra/github/githubResponseHelpers";
 import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
-import { deriveSupabaseRefFromUrl, type ExpoProjectResponse } from "./useConnectionsScreenHelpers";
+import {
+  deriveSupabaseRefFromUrl,
+  parseExpoProjectResponse,
+  type ExpoProjectResponse,
+} from "./useConnectionsScreenHelpers";
 
 export type GitHubConnectionCheckResult = {
   login: string;
@@ -19,10 +24,10 @@ export const runGitHubConnectionCheck = async (token: string): Promise<GitHubCon
     },
   });
   if (!resp.ok) throw new Error(`GitHub Test failed (${resp.status})`);
-  const userData = await resp.json().catch(() => ({}));
+  const userData = await readJsonRecordSafe(resp);
   const scopesHeader = resp.headers.get("x-oauth-scopes") || resp.headers.get("X-OAuth-Scopes") || "";
   return {
-    login: userData?.login || "",
+    login: readStringField(userData, "login"),
     scopes: String(scopesHeader || "").trim(),
     status: resp.status,
   };
@@ -108,6 +113,6 @@ export const runEasProjectCheck = async (
   return {
     ok: resp.ok,
     status: resp.status,
-    json: (await resp.json().catch(() => null)) as ExpoProjectResponse | null,
+    json: parseExpoProjectResponse(await resp.json().catch(() => null)),
   };
 };

@@ -910,6 +910,10 @@ Scopes: ${scopes}` : ""}`);
     return launchSelection.selection;
   }, [resolveCurrentEasLaunchSelection]);
 
+  const canStartEasWorkflow = useCallback((): boolean => {
+    return hydrated && !busyRef.current && !isEasInitRunning;
+  }, [hydrated, isEasInitRunning]);
+
   const startEasWorkflow = useCallback(
     async (params: {
       selection: {
@@ -946,7 +950,7 @@ Scopes: ${scopes}` : ""}`);
   );
 
   const onLinkExisting = useCallback(async () => {
-    if (!hydrated || busyRef.current || isEasInitRunning) return;
+    if (!canStartEasWorkflow()) return;
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
@@ -987,15 +991,14 @@ Scopes: ${scopes}` : ""}`);
 
     await runLink(easId);
   }, [
-    hydrated,
-    isEasInitRunning,
+    canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     easProjectId,
     startEasWorkflow,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
-    if (!hydrated || busyRef.current || isEasInitRunning) return;
+    if (!canStartEasWorkflow()) return;
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     if (!launchSelection) return;
@@ -1007,8 +1010,7 @@ Scopes: ${scopes}` : ""}`);
       startedNotice: notice,
     });
   }, [
-    hydrated,
-    isEasInitRunning,
+    canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     startEasWorkflow,
   ]);
