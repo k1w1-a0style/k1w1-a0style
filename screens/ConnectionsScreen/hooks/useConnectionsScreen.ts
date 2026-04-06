@@ -56,6 +56,7 @@ import {
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
+  resolveConnectionsActionAlert,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -121,6 +122,18 @@ export function useConnectionsScreen() {
       setBusy(false);
     }
   }, []);
+
+  const showActionError = useCallback(
+    (defaultTitle: string, error: unknown) => {
+      const alert = resolveConnectionsActionAlert({
+        isBusy: isBusyGuardActiveError(error),
+        error: safeAlertText(error),
+        defaultTitle,
+      });
+      Alert.alert(alert.title, alert.message);
+    },
+    [],
+  );
 
   const persistConnLights = useCallback(
     async (entries: Array<[string, string]>): Promise<void> => {
@@ -258,10 +271,10 @@ export function useConnectionsScreen() {
       if (isBusyGuardActiveError(e)) {
         Alert.alert("Bitte warten", e.message);
       } else {
-        Alert.alert("EAS Test", safeAlertText(e));
+        showActionError("EAS Test", e);
       }
     }
-  }, [hydrated, easProjectId, expoToken, saveConnEasStatus, withBusyGuard]);
+  }, [hydrated, easProjectId, expoToken, saveConnEasStatus, withBusyGuard, showActionError]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).
@@ -271,15 +284,15 @@ export function useConnectionsScreen() {
       setExpoOk(false);
       setExpoUser("");
       void runCleanupTask(
-        () => AsyncStorage.setItem(STORAGE_KEYS.CONN_EXPO_OK, "false"),
+        () => persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]),
         `[ConnectionsScreen] persist expo-off flag failed for key=${STORAGE_KEYS.CONN_EXPO_OK}`,
       );
       void runCleanupTask(
-        () => AsyncStorage.removeItem(STORAGE_KEYS.CONN_EXPO_USER),
+        () => removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]),
         `[ConnectionsScreen] remove persisted expo-user failed for key=${STORAGE_KEYS.CONN_EXPO_USER}`,
       );
     }
-  }, [expoToken, hydrated]);
+  }, [expoToken, hydrated, persistConnLights, removeConnLights]);
 
   const [workflowAdminKey, setWorkflowAdminKey] = useState("");
   const [androidKeystoreExportAdminKey, setAndroidKeystoreExportAdminKey] = useState("");
@@ -325,7 +338,7 @@ export function useConnectionsScreen() {
       );
       if (snapshot.supabaseRaw !== normalizedStoredSupabaseRaw) {
         void runCleanupTask(
-          () => AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw),
+          () => persistConnLights([[STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw]]),
           `[ConnectionsScreen] normalize persisted supabase raw failed for key=${STORAGE_KEYS.SUPABASE_RAW}`,
         );
       }
@@ -361,7 +374,7 @@ export function useConnectionsScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [persistConnLights]);
 
   // Auto-Check: EAS Status einmalig im Hintergrund validieren,
   // sobald Token + Project ID geladen sind.
@@ -451,13 +464,10 @@ export function useConnectionsScreen() {
       Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
       });
     } catch (e: unknown) {
-      if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
-      } else {
-        Alert.alert("❌ Speichern fehlgeschlagen", safeAlertText(e));
-      }
+      showActionError("❌ Speichern fehlgeschlagen", e);
     }
   }, [
+    showActionError,
     hydrated,
     githubToken,
     expoToken,
@@ -506,7 +516,7 @@ Scopes: ${scopes}` : ""}`);
       });
     } catch (e: unknown) {
       if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
+        showActionError("GitHub Test", e);
         return;
       }
 
@@ -518,9 +528,9 @@ Scopes: ${scopes}` : ""}`);
       debugLog("connections:github", "GitHub ERROR", {
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
-      Alert.alert("GitHub Test", safeAlertText(e));
+      showActionError("GitHub Test", e);
     }
-  }, [githubToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
+  }, [githubToken, hydrated, withBusyGuard, persistConnLights, removeConnLights, showActionError]);
 
   const testExpo = useCallback(async () => {
     if (!hydrated) return;
@@ -552,7 +562,7 @@ Scopes: ${scopes}` : ""}`);
       });
     } catch (e: unknown) {
       if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
+        showActionError("Expo Test", e);
         return;
       }
 
@@ -563,9 +573,9 @@ Scopes: ${scopes}` : ""}`);
       debugLog("connections:expo", "Expo ERROR", {
         error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
       });
-      Alert.alert("Expo Test", safeAlertText(e));
+      showActionError("Expo Test", e);
     }
-  }, [expoToken, hydrated, withBusyGuard, persistConnLights, removeConnLights]);
+  }, [expoToken, hydrated, withBusyGuard, persistConnLights, removeConnLights, showActionError]);
 
   const testSupabase = useCallback(async () => {
     if (!hydrated) return;
@@ -597,15 +607,15 @@ Scopes: ${scopes}` : ""}`);
       });
     } catch (e: unknown) {
       if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
+        showActionError("Supabase Test", e);
         return;
       }
 
       setSupabaseOk(false);
       await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
-      Alert.alert("Supabase Test", safeAlertText(e));
+      showActionError("Supabase Test", e);
     }
-  }, [supabaseUrl, supabaseAnonKey, hydrated, withBusyGuard, persistConnLights]);
+  }, [supabaseUrl, supabaseAnonKey, hydrated, withBusyGuard, persistConnLights, showActionError]);
 
   // Status flags
   const status = useMemo(() => {

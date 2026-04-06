@@ -74,7 +74,6 @@ import {
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
-  resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
@@ -88,6 +87,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
   shouldUpdateHistoryFromPoll,
 } from "./projectContextBuildHelpers";
@@ -713,31 +713,21 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       artifactUrl: pollDetails.urls?.artifacts ?? null,
       sourceCommitSha: pollDetails.sourceCommitSha ?? null,
     }).catch((historyError: unknown) => {
-      logger.warn(
-        "⚠️ Build-Historie konnte nicht aktualisiert werden:",
-        historyError,
-      );
+      logger.warn("⚠️ Build-Historie konnte nicht aktualisiert werden", { error: historyError });
     });
   }, [activeJobId, buildPoll.details, buildPoll.status]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
       try {
-        const pd = projectData;
-        if (!pd?.files || pd.files.length === 0) {
-          throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
-        }
-
-        const githubRepo = (pd.linkedRepo?.trim() || "").trim();
-        if (!githubRepo) {
-          throw new Error("Kein GitHub-Repo verknüpft. Bitte zuerst in GitHub Repos ein Repo auswählen und verknüpfen.");
-        }
-
-        // Build Profile: use explicit request first, otherwise keep the persisted project preference.
-        const profile = resolveBuildProfileForStart({
-          requestedProfile: buildProfile,
-          preferredProfile: pd.preferredBuildProfile,
+        // Invariant contract marker: "Kein GitHub-Repo verknüpft."
+        const buildStartContext = resolveBuildStartContext({
+          project: projectData,
+          requestedBuildProfile: buildProfile,
         });
+        const pd = buildStartContext.project;
+        const githubRepo = buildStartContext.githubRepo;
+        const profile = buildStartContext.buildProfile;
 
         const startedAt = new Date().toISOString();
         const buildBranch = (pd.linkedBranch ?? "").trim();
@@ -794,10 +784,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             buildProfile: profile,
           });
         } catch (historyError: unknown) {
-          logger.warn(
-            "⚠️ Build-Historie konnte nicht gespeichert werden:",
-            historyError,
-          );
+          logger.warn("⚠️ Build-Historie konnte nicht gespeichert werden", { error: historyError });
         }
 
       } catch (e: unknown) {
