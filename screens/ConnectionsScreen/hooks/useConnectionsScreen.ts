@@ -239,9 +239,9 @@ export function useConnectionsScreen() {
 
   const testEas = useCallback(async () => {
     if (!hydrated) return;
-
-    try {
-      await withBusyGuard(async () => {
+    await runGuardedAction({
+      defaultTitle: "EAS Test",
+      task: async () => {
         const precheck = resolveEasTestPrecheck({
           easProjectId,
           expoToken,
@@ -289,15 +289,9 @@ export function useConnectionsScreen() {
         } finally {
           setIsTestingEas(false);
         }
-      });
-    } catch (e: unknown) {
-      if (isBusyGuardActiveError(e)) {
-        Alert.alert("Bitte warten", e.message);
-      } else {
-        showActionError("EAS Test", e);
-      }
-    }
-  }, [hydrated, easProjectId, expoToken, saveConnEasStatus, withBusyGuard, showActionError]);
+      },
+    });
+  }, [hydrated, easProjectId, expoToken, runGuardedAction, saveConnEasStatus]);
 
   // Expo connection light is persisted (set by explicit "Test Expo"),
   // but we force it OFF if the token is cleared (after hydration).

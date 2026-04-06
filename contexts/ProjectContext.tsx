@@ -191,6 +191,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         loadChatHistorySettings,
         shouldApplyHydratedRetention,
         didSetRuntimeRetention: didSetRuntimeRetentionRef.current,
+        onHydrationError: (error) => {
+          logger.warn("[ProjectContext] chat retention hydration failed; using fallback", { error });
+        },
       });
       if (!cancelled && hydratedLimit !== null) {
         chatRetentionLimitRef.current = hydratedLimit;

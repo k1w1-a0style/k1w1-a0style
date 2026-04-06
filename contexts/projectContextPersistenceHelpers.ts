@@ -190,6 +190,7 @@ export const hydrateChatRetentionLimit = async (params: {
   loadChatHistorySettings: () => Promise<{ retention: number }>;
   shouldApplyHydratedRetention: (didSetRuntimeRetention: boolean) => boolean;
   didSetRuntimeRetention: boolean;
+  onHydrationError?: (error: unknown) => void;
 }): Promise<number | null> => {
   if (!params.shouldApplyHydratedRetention(params.didSetRuntimeRetention)) {
     return null;
@@ -198,7 +199,8 @@ export const hydrateChatRetentionLimit = async (params: {
   try {
     const { retention } = await params.loadChatHistorySettings();
     return retention;
-  } catch {
+  } catch (error) {
+    params.onHydrationError?.(error);
     return CHAT_HISTORY_RETENTION_FALLBACK;
   }
 };
