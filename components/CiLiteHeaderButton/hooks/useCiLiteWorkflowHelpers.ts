@@ -169,6 +169,16 @@ export const getCiLiteWorkflowErrorMessage = (
   return fallback;
 };
 
+export const resolveCiLiteWorkflowErrorFallback = (
+  error: unknown,
+  fallback = "Workflow-Lookup fehlgeschlagen. Bitte erneut versuchen.",
+): string => {
+  if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+};
+
 export type CiLiteArtifactJson = {
   ok: boolean;
   eslint_exit?: number;

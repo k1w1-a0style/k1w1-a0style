@@ -42,6 +42,7 @@ import {
   resolveCiLitePendingRunMessage,
   resolveHydratedCiLiteStepInfo,
   getCiLiteWorkflowErrorMessage,
+  resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
   splitRepoFullName,
@@ -215,10 +216,7 @@ export function useCiLiteWorkflow() {
 
   const stopLookupWithError = useCallback(
     (error: unknown, options?: { chainWaiting?: boolean }) => {
-      const fallbackMessage =
-        error instanceof Error && typeof error.message === "string" && error.message.trim()
-          ? error.message
-          : "Workflow-Lookup fehlgeschlagen. Bitte erneut versuchen.";
+      const fallbackMessage = resolveCiLiteWorkflowErrorFallback(error);
       setLocalError(getCiLiteWorkflowErrorMessage(error, fallbackMessage));
       if (options?.chainWaiting) {
         setChainWaiting(false);

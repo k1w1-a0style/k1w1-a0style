@@ -4,6 +4,7 @@ import {
   getCiLiteWorkflowErrorMessage,
   mergeWorkflowRunLookupDiagnosis,
   parseCiLiteArtifactJson,
+  resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteArtifactRequest,
   resolveCiLiteBusyState,
   resolveCiLiteCompletionErrorText,
@@ -291,6 +292,19 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(getCiLiteWorkflowErrorMessage(new Error("broken"))).toBe("broken");
       expect(getCiLiteWorkflowErrorMessage({ message: "from-object" })).toBe("from-object");
       expect(getCiLiteWorkflowErrorMessage(42, "fallback")).toBe("fallback");
+    });
+  });
+
+  describe("resolveCiLiteWorkflowErrorFallback", () => {
+    it("uses a trimmed Error message when available", () => {
+      expect(resolveCiLiteWorkflowErrorFallback(new Error("lookup failed"))).toBe("lookup failed");
+    });
+
+    it("falls back to default or provided fallback for unknown inputs", () => {
+      expect(resolveCiLiteWorkflowErrorFallback({})).toBe(
+        "Workflow-Lookup fehlgeschlagen. Bitte erneut versuchen.",
+      );
+      expect(resolveCiLiteWorkflowErrorFallback(null, "custom fallback")).toBe("custom fallback");
     });
   });
 
