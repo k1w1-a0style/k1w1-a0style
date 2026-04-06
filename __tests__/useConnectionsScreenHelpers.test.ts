@@ -8,6 +8,7 @@ import {
   persistEntriesWithFallback,
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
+  resolveConnectionsSavePlan,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
   resolveEasStatusPersistence,
@@ -159,6 +160,56 @@ describe("useConnectionsScreenHelpers", () => {
       sbAnon: false,
       linked: true,
       eas: true,
+    });
+  });
+
+  it("builds a trimmed save plan with clear-flags for dependent lights", () => {
+    expect(
+      resolveConnectionsSavePlan({
+        githubToken: " gh ",
+        expoToken: " ex ",
+        workflowAdminKey: " wa ",
+        androidKeystoreExportAdminKey: " ka ",
+        supabaseRaw: " https://abc.supabase.co:::legacy ",
+        supabaseUrl: " https://abc.supabase.co ",
+        supabaseAnonKey: " anon ",
+        easProjectId: " 550e8400-e29b-41d4-a716-446655440000 ",
+      }),
+    ).toEqual({
+      githubToken: "gh",
+      expoToken: "ex",
+      workflowAdminKey: "wa",
+      androidKeystoreExportAdminKey: "ka",
+      supabaseRaw: "https://abc.supabase.co:::legacy",
+      supabaseUrl: "https://abc.supabase.co",
+      supabaseAnonKey: "anon",
+      easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      shouldClearSupabaseConnection: false,
+      shouldClearEasConnection: false,
+    });
+
+    expect(
+      resolveConnectionsSavePlan({
+        githubToken: "",
+        expoToken: "",
+        workflowAdminKey: "",
+        androidKeystoreExportAdminKey: "",
+        supabaseRaw: "",
+        supabaseUrl: " ",
+        supabaseAnonKey: " ",
+        easProjectId: " ",
+      }),
+    ).toEqual({
+      githubToken: "",
+      expoToken: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      supabaseRaw: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+      easProjectId: "",
+      shouldClearSupabaseConnection: true,
+      shouldClearEasConnection: true,
     });
   });
 

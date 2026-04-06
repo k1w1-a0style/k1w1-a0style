@@ -67,6 +67,7 @@ import {
   resolveSupabaseConnectionPersistence,
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
+  resolveConnectionsSavePlan,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -406,6 +407,38 @@ export function useConnectionsScreen() {
   const effectiveBranch = selection.branch || null;
   const selectionSource = selection.source;
 
+  const applyHydrationSnapshotState = useCallback(
+    (params: {
+      snapshot: Awaited<ReturnType<typeof loadHydrationSnapshot>>;
+      normalizedSupabaseRaw: string;
+    }) => {
+      const { snapshot, normalizedSupabaseRaw } = params;
+      setGithubToken(snapshot.githubToken);
+      setExpoToken(snapshot.expoToken);
+      setWorkflowAdminKey(snapshot.workflowAdminKey);
+      setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
+      setSupabaseRaw(normalizedSupabaseRaw);
+      setSupabaseUrl(snapshot.supabaseUrl);
+      setSupabaseAnonKey(snapshot.supabaseAnonKey);
+      setEasProjectId(snapshot.easProjectId);
+
+      const restored = resolveHydrationLightsState(snapshot.lights);
+      setGithubOk(restored.githubOk);
+      setGithubUser(restored.githubUser);
+      setGithubScopes(restored.githubScopes);
+      setSupabaseOk(restored.supabaseOk);
+      setSupabaseRef(restored.supabaseRef);
+      setExpoOk(restored.expoOk);
+      setExpoUser(restored.expoUser);
+      setEasOk(restored.easOk);
+      if (restored.easState) setEasState(restored.easState);
+      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      setRepoOk(restored.repoOk);
+      setRepoOkLine(restored.repoOkLine);
+      setHydrated(true);
+    },
+    [],
+  );
 
   // Load stored settings on mount
   useEffect(() => {
@@ -431,37 +464,16 @@ export function useConnectionsScreen() {
       }
 
       if (!mounted) return;
-      setGithubToken(snapshot.githubToken);
-      setExpoToken(snapshot.expoToken);
-      setWorkflowAdminKey(snapshot.workflowAdminKey);
-      setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
-      setSupabaseRaw(normalizedStoredSupabaseRaw);
-      setSupabaseUrl(snapshot.supabaseUrl);
-      setSupabaseAnonKey(snapshot.supabaseAnonKey);
-      setEasProjectId(snapshot.easProjectId);
-
-      const restored = resolveHydrationLightsState(snapshot.lights);
-      setGithubOk(restored.githubOk);
-      setGithubUser(restored.githubUser);
-      setGithubScopes(restored.githubScopes);
-      setSupabaseOk(restored.supabaseOk);
-      setSupabaseRef(restored.supabaseRef);
-      setExpoOk(restored.expoOk);
-      setExpoUser(restored.expoUser);
-      setEasOk(restored.easOk);
-      if (restored.easState) setEasState(restored.easState);
-      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
-      setRepoOk(restored.repoOk);
-      setRepoOkLine(restored.repoOkLine);
-
-      // Hydration finished (prevents initial token empty state from clearing saved OK lights).
-      setHydrated(true);
+      applyHydrationSnapshotState({
+        snapshot,
+        normalizedSupabaseRaw: normalizedStoredSupabaseRaw,
+      });
     })();
 
     return () => {
       mounted = false;
     };
-  }, [persistConnLights]);
+  }, [persistConnLights, applyHydrationSnapshotState]);
 
   // Auto-Check: EAS Status einmalig im Hintergrund validieren,
   // sobald Token + Project ID geladen sind.
@@ -499,53 +511,60 @@ export function useConnectionsScreen() {
     await runGuardedAction({
       defaultTitle: "❌ Speichern fehlgeschlagen",
       task: async () => {
-        const gh = githubToken.trim();
-        const ex = expoToken.trim();
-        const workflowAdmin = workflowAdminKey.trim();
-        const keystoreAdmin = androidKeystoreExportAdminKey.trim();
-        const raw = supabaseRaw.trim();
-        const sbUrl = supabaseUrl.trim();
-        const sbAnon = supabaseAnonKey.trim();
-        const easId = easProjectId.trim();
+        const plan = resolveConnectionsSavePlan({
+          githubToken,
+          expoToken,
+          workflowAdminKey,
+          androidKeystoreExportAdminKey,
+          supabaseRaw,
+          supabaseUrl,
+          supabaseAnonKey,
+          easProjectId,
+        });
 
-        if (gh) await saveGitHubToken(gh);
+        if (plan.githubToken) await saveGitHubToken(plan.githubToken);
         else {
           await deleteGitHubToken();
           await clearGithubConnectionState();
         }
 
-        if (ex) {
-          await saveExpoToken(ex);
+        if (plan.expoToken) {
+          await saveExpoToken(plan.expoToken);
         } else {
           await deleteExpoToken();
           await clearExpoConnectionState();
         }
 
-        if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
+        if (plan.workflowAdminKey) await saveWorkflowAdminKey(plan.workflowAdminKey);
         else await deleteWorkflowAdminKey();
 
-        if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
+        if (plan.androidKeystoreExportAdminKey) {
+          await saveAndroidKeystoreExportAdminKey(plan.androidKeystoreExportAdminKey);
+        }
         else await deleteAndroidKeystoreExportAdminKey();
 
         await deleteLegacyEdgeAdminKey();
 
-        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(raw, sbUrl);
+        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
         await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
-        if (sbAnon) {
-          await saveSupabaseAnonKey(sbAnon);
+        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
+        if (plan.supabaseAnonKey) {
+          await saveSupabaseAnonKey(plan.supabaseAnonKey);
         } else {
           await deleteSupabaseAnonKey();
         }
 
-        if (easId) {
-          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
+        if (plan.easProjectId) {
+          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, plan.easProjectId);
         } else {
           await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        }
+
+        if (plan.shouldClearEasConnection) {
           await clearEasConnectionState();
         }
 
-        if (!sbUrl || !sbAnon) {
+        if (plan.shouldClearSupabaseConnection) {
           await clearSupabaseConnectionState();
         }
 
