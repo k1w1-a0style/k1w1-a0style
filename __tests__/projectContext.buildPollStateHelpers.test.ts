@@ -10,6 +10,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
   shouldUpdateHistoryFromPoll,
@@ -177,6 +178,12 @@ describe("projectContextBuildHelpers orchestration guards", () => {
       message: "boom",
       lastUpdatedAt: "2026-04-05T00:00:04.000Z",
     });
+  });
+
+  it("maps unknown build start errors to stable user-facing text", () => {
+    expect(resolveBuildStartErrorMessage(new Error("dispatch failed"))).toBe("dispatch failed");
+    expect(resolveBuildStartErrorMessage("network down")).toBe("network down");
+    expect(resolveBuildStartErrorMessage({ detail: "opaque" })).toBe("Build konnte nicht gestartet werden.");
   });
 
   it("guards poll sync/history updates with explicit predicates", () => {

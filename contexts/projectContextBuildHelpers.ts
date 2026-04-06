@@ -67,6 +67,19 @@ export const createBuildErrorState = (params: {
   lastUpdatedAt: params.nowIso,
 });
 
+export const resolveBuildStartErrorMessage = (
+  error: unknown,
+  fallback = "Build konnte nicht gestartet werden.",
+): string => {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  return fallback;
+};
+
 export const resolveBuildStartContext = (params: {
   project: ProjectData | null;
   requestedBuildProfile?: string;

@@ -89,6 +89,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
   shouldUpdateHistoryFromPoll,
@@ -818,7 +819,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       } catch (e: unknown) {
         setCurrentBuild(
           createBuildErrorState({
-            message: getErrorMessage(e, String(e)),
+            message: resolveBuildStartErrorMessage(e),
             nowIso: new Date().toISOString(),
           }),
         );

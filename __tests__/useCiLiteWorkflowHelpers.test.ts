@@ -19,6 +19,7 @@ import {
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
   readCiLiteArtifactPayloadCandidate,
+  resolveCiLiteMatchedRun,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
 describe("useCiLiteWorkflowHelpers", () => {
@@ -172,6 +173,25 @@ describe("useCiLiteWorkflowHelpers", () => {
       expect(resolveCiLiteMissingJwtMessage("artifact")).toContain("CI-Lite-Artefakt blockiert");
       expect(resolveCiLiteMissingJwtMessage("lookup")).toContain("Workflow-Run-Lookup blockiert");
       expect(resolveCiLiteMissingJwtMessage("dispatch")).toContain("Workflow-Dispatch blockiert");
+    });
+  });
+
+  describe("resolveCiLiteMatchedRun", () => {
+    it("returns a normalized run id + url for valid candidates", () => {
+      expect(resolveCiLiteMatchedRun({ id: "321", html_url: "https://example.com/runs/321" })).toEqual({
+        runId: 321,
+        runUrl: "https://example.com/runs/321",
+      });
+      expect(resolveCiLiteMatchedRun({ id: 99, html_url: null })).toEqual({
+        runId: 99,
+        runUrl: null,
+      });
+    });
+
+    it("rejects candidates without a numeric run id", () => {
+      expect(resolveCiLiteMatchedRun(null)).toBeNull();
+      expect(resolveCiLiteMatchedRun({ id: null })).toBeNull();
+      expect(resolveCiLiteMatchedRun({ id: "abc" })).toBeNull();
     });
   });
 

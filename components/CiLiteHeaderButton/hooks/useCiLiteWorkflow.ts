@@ -52,6 +52,7 @@ import {
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
   readCiLiteArtifactPayloadCandidate,
+  resolveCiLiteMatchedRun,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
@@ -554,9 +555,10 @@ export function useCiLiteWorkflow() {
           });
           if (!isLookupGenerationActive(lookupGeneration)) return true;
           updateLookupDiagnosis(lookup.diagnosis);
-          if (lookup.candidate?.id) {
-            setRunId(Number(lookup.candidate.id));
-            setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+          const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
+          if (matchedRun) {
+            setRunId(matchedRun.runId);
+            setRunUrl(matchedRun.runUrl);
             setChainWaiting(false);
             stopRunLookup();
             return true;
@@ -761,9 +763,10 @@ export function useCiLiteWorkflow() {
             });
             if (!isLookupGenerationActive(lookupGeneration)) return true;
             updateLookupDiagnosis(lookup.diagnosis);
-            if (lookup.candidate?.id) {
-              setRunId(Number(lookup.candidate.id));
-              setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
+            const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
+            if (matchedRun) {
+              setRunId(matchedRun.runId);
+              setRunUrl(matchedRun.runUrl);
               stopRunLookup();
               return true;
             }
