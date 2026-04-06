@@ -62,6 +62,8 @@ import {
   resolveEasProjectIdPersistenceAction,
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
+  buildRepoOkLine,
+  resolveSupabaseConnectionPersistence,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -624,30 +626,63 @@ Scopes: ${scopes}` : ""}`);
       defaultTitle: "Supabase Test",
       task: async () => {
         const result = await runSupabaseConnectionCheck(url, anon);
-        setSupabaseOk(true);
         if (result.kind === "rls_protected") {
-          await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]]);
+          const persistence = resolveSupabaseConnectionPersistence({
+            kind: "rls_protected",
+          });
+          setSupabaseOk(persistence.ok);
+          setSupabaseRef(persistence.ref);
+          await applyPersistenceDelta({
+            writes: persistence.writes,
+            removes: persistence.removes,
+            persist: persistConnLights,
+            remove: removeConnLights,
+          });
           Alert.alert(
             "Supabase OK",
             "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
           );
           return;
         }
+        const persistence = resolveSupabaseConnectionPersistence({
+          kind: "ok",
+          ref: result.ref,
+        });
+        setSupabaseOk(persistence.ok);
+        setSupabaseRef(persistence.ref);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
         Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
-        const writes: Array<[string, string]> = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
-        const ref = result.ref;
-        if (ref) {
-          setSupabaseRef(ref);
-          writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
-        }
-        await persistConnLights(writes);
       },
-      onNonBusyError: async () => {
-        setSupabaseOk(false);
-        await persistConnLights([[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]]);
+      onNonBusyError: async (e: unknown) => {
+        const persistence = resolveSupabaseConnectionPersistence({
+          kind: "failed",
+        });
+        setSupabaseOk(persistence.ok);
+        setSupabaseRef(persistence.ref);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
+        debugLog("connections:supabase", "Supabase ERROR", {
+          error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
+        });
       },
     });
-  }, [supabaseUrl, supabaseAnonKey, hydrated, runGuardedAction, persistConnLights]);
+  }, [
+    supabaseUrl,
+    supabaseAnonKey,
+    hydrated,
+    runGuardedAction,
+    persistConnLights,
+    removeConnLights,
+  ]);
 
   // Status flags
   const status = useMemo(() => {
@@ -710,6 +745,36 @@ Scopes: ${scopes}` : ""}`);
     [],
   );
 
+  const applyEasWorkflowPostStartState = useCallback(
+    async (projectId: string) => {
+      const postStartState = resolveEasLinkPostStartState(projectId);
+      setEasOk(false);
+      setEasState(postStartState.state);
+      setEasLastVerifiedAt(null);
+      await applyPersistenceDelta({
+        writes: postStartState.writes,
+        removes: postStartState.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
+    },
+    [persistConnLights, removeConnLights],
+  );
+
+  const persistRepoSelectionState = useCallback(
+    async (repoSlug: string, branch: string) => {
+      if (!repoSlug) return;
+      setRepoOk(true);
+      setRepoOkLine(buildRepoOkLine(repoSlug, branch));
+      await persistConnLights([
+        [STORAGE_KEYS.CONN_REPO_OK, "true"],
+        [STORAGE_KEYS.CONN_REPO_SLUG, repoSlug],
+        [STORAGE_KEYS.CONN_REPO_BRANCH, branch],
+      ]);
+    },
+    [persistConnLights],
+  );
+
   const onLinkExisting = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
@@ -750,26 +815,8 @@ Scopes: ${scopes}` : ""}`);
         Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
-        const postStartState = resolveEasLinkPostStartState(projectId);
-        setEasOk(false);
-        setEasState(postStartState.state);
-        setEasLastVerifiedAt(null);
-        await applyPersistenceDelta({
-          writes: postStartState.writes,
-          removes: postStartState.removes,
-          persist: persistConnLights,
-          remove: removeConnLights,
-        });
-
-        if (repoSlug) {
-          setRepoOk(true);
-          setRepoOkLine(`${repoSlug}${branch ? ` (${branch})` : ""}`);
-          await persistConnLights([
-            [STORAGE_KEYS.CONN_REPO_OK, "true"],
-            [STORAGE_KEYS.CONN_REPO_SLUG, repoSlug],
-            [STORAGE_KEYS.CONN_REPO_BRANCH, branch],
-          ]);
-        }
+        await applyEasWorkflowPostStartState(projectId);
+        await persistRepoSelectionState(repoSlug, branch);
       } catch (e: unknown) {
         Alert.alert("Fehler", safeAlertText(e));
       } finally {
@@ -797,9 +844,9 @@ Scopes: ${scopes}` : ""}`);
     effectiveRepo,
     effectiveBranch,
     easProjectId,
-    persistConnLights,
-    removeConnLights,
     runEasLinkWorkflowStart,
+    applyEasWorkflowPostStartState,
+    persistRepoSelectionState,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
@@ -816,7 +863,7 @@ Scopes: ${scopes}` : ""}`);
       Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
     }
-    const { githubToken: token, branch, owner, repo } = launchSelection.selection;
+    const { githubToken: token, repoSlug, branch, owner, repo } = launchSelection.selection;
 
     setIsEasInitRunning(true);
     try {
@@ -828,6 +875,9 @@ Scopes: ${scopes}` : ""}`);
         projectId: "",
         persistProjectIdSelection: false,
       });
+
+      await applyEasWorkflowPostStartState("");
+      await persistRepoSelectionState(repoSlug, branch);
 
       const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
       Alert.alert(notice.title, notice.message);
@@ -843,6 +893,8 @@ Scopes: ${scopes}` : ""}`);
     effectiveRepo,
     effectiveBranch,
     runEasLinkWorkflowStart,
+    applyEasWorkflowPostStartState,
+    persistRepoSelectionState,
   ]);
 
 

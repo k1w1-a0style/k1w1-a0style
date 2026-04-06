@@ -19,6 +19,7 @@ import {
   resolvePersistedEasState,
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
+  resolveSupabaseConnectionPersistence,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -405,6 +406,45 @@ describe("useConnectionsScreenHelpers", () => {
   it("derives supabase project ref only from supabase hosts", () => {
     expect(deriveSupabaseRefFromUrl("https://abc123.supabase.co/rest/v1")).toBe("abc123");
     expect(deriveSupabaseRefFromUrl("https://example.com/rest/v1")).toBe("");
+  });
+
+  it("resolves supabase persistence deltas for ok/rls/failure paths", () => {
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "ok",
+        ref: " abc123 ",
+      }),
+    ).toEqual({
+      ok: true,
+      ref: "abc123",
+      writes: [
+        [STORAGE_KEYS.CONN_SUPABASE_OK, "true"],
+        [STORAGE_KEYS.CONN_SUPABASE_REF, "abc123"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "rls_protected",
+      }),
+    ).toEqual({
+      ok: true,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
+
+    expect(
+      resolveSupabaseConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
   });
 
   it("persists/removes storage entries with fallback when multi operations fail", async () => {

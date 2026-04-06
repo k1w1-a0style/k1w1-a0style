@@ -238,7 +238,7 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
-    };
+};
 
 export const resolveEasWorkflowSelectionPrecheck = (params: {
   githubToken: string;
@@ -360,6 +360,41 @@ export const resolveConnectionsActionAlert = (params: {
 export const deriveSupabaseRefFromUrl = (url: string): string => {
   const host = url.replace(/^https?:\/\//, "").split("/")[0] || "";
   return host.endsWith(".supabase.co") ? host.split(".")[0] || "" : "";
+};
+
+export const resolveSupabaseConnectionPersistence = (params: {
+  kind: "ok" | "rls_protected" | "failed";
+  ref?: string;
+}): {
+  ok: boolean;
+  ref: string;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  if (params.kind === "failed") {
+    return {
+      ok: false,
+      ref: "",
+      writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    };
+  }
+
+  const ref = (params.ref || "").trim();
+  const writes: PersistableEntry[] = [[STORAGE_KEYS.CONN_SUPABASE_OK, "true"]];
+  const removes: string[] = [];
+  if (params.kind === "ok" && ref) {
+    writes.push([STORAGE_KEYS.CONN_SUPABASE_REF, ref]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_SUPABASE_REF);
+  }
+
+  return {
+    ok: true,
+    ref,
+    writes,
+    removes,
+  };
 };
 
 export type StorageLike = {
