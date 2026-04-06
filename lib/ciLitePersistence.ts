@@ -157,14 +157,17 @@ function parseSnapshotFromRaw(raw: string | null): ParsedSnapshotResult {
   }
 
   try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed)) {
-      return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
-    }
-    return parseSnapshotRecord(parsed);
+    return parseSnapshotFromUnknown(JSON.parse(raw));
   } catch {
     return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
   }
+}
+
+function parseSnapshotFromUnknown(parsed: unknown): ParsedSnapshotResult {
+  if (!isRecord(parsed)) {
+    return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.PERSISTENCE_MISSING };
+  }
+  return parseSnapshotRecord(parsed);
 }
 
 async function readScopedOrLegacySnapshotRaw(
@@ -208,7 +211,7 @@ async function readScopedOrLegacySnapshotRaw(
     typecheckOk: readBooleanFlag(typeOkRaw),
   };
 
-  const parsedLegacy = parseSnapshotRecord(legacySnapshot);
+  const parsedLegacy = parseSnapshotFromUnknown(legacySnapshot);
   return {
     parsed: parsedLegacy.snapshot,
     parseReason: parsedLegacy.reason,

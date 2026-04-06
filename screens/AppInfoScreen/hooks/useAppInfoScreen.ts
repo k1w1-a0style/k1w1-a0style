@@ -76,22 +76,8 @@ type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function getErrorMessage(error: unknown, fallback: string): string {
-  const importExportMessage = getImportExportErrorMessage(error, "");
-  if (importExportMessage) {
-    return importExportMessage;
-  }
-  if (error instanceof Error && typeof error.message === "string" && error.message.trim()) {
-    return error.message;
-  }
-  if (isRecord(error) && typeof error.message === "string" && error.message.trim()) {
-    return error.message;
-  }
-  return fallback;
+  return getImportExportErrorMessage(error, fallback);
 }
 
 function isAbortLikeError(error: unknown): boolean {
