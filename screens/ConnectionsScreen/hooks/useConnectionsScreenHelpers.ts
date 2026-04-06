@@ -238,7 +238,7 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
-};
+    };
 
 export const resolveEasWorkflowSelectionPrecheck = (params: {
   githubToken: string;
@@ -275,6 +275,55 @@ export const resolveEasWorkflowSelectionPrecheck = (params: {
       githubToken,
       repoSlug,
       branch,
+    },
+  };
+};
+
+export type EasWorkflowLaunchSelectionResult =
+  | {
+      ok: true;
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+        owner: string;
+        repo: string;
+      };
+    }
+  | {
+      ok: false;
+      notice: { title: string; message: string };
+    };
+
+export const resolveEasWorkflowLaunchSelection = (params: {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+  parseOwnerRepo: (repoSlug: string) => { owner: string; repo: string } | null;
+}): EasWorkflowLaunchSelectionResult => {
+  const precheck = resolveEasWorkflowSelectionPrecheck({
+    githubToken: params.githubToken,
+    repoSlug: params.repoSlug,
+    branch: params.branch,
+  });
+  if (!precheck.ok) {
+    return precheck;
+  }
+
+  const parsed = params.parseOwnerRepo(precheck.selection.repoSlug);
+  if (!parsed) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("invalid_repo_format"),
+    };
+  }
+
+  return {
+    ok: true,
+    selection: {
+      ...precheck.selection,
+      owner: parsed.owner,
+      repo: parsed.repo,
     },
   };
 };

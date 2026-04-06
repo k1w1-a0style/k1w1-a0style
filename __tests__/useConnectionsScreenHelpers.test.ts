@@ -18,6 +18,7 @@ import {
   removeEntriesWithFallback,
   resolvePersistedEasState,
   applyPersistenceDelta,
+  resolveEasWorkflowLaunchSelection,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -212,6 +213,47 @@ describe("useConnectionsScreenHelpers", () => {
         githubToken: "token",
         repoSlug: "owner/repo",
         branch: "main",
+      },
+    });
+  });
+
+  it("resolves EAS workflow launch selection including owner/repo parsing", () => {
+    const parseOwnerRepo = (repoSlug: string) => {
+      const [owner, repo] = repoSlug.split("/");
+      if (!owner || !repo) return null;
+      return { owner, repo };
+    };
+
+    expect(
+      resolveEasWorkflowLaunchSelection({
+        githubToken: " token ",
+        repoSlug: " owner/repo ",
+        branch: " main ",
+        parseOwnerRepo,
+      }),
+    ).toEqual({
+      ok: true,
+      selection: {
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+        owner: "owner",
+        repo: "repo",
+      },
+    });
+
+    expect(
+      resolveEasWorkflowLaunchSelection({
+        githubToken: "token",
+        repoSlug: "owner-only",
+        branch: "main",
+        parseOwnerRepo,
+      }),
+    ).toEqual({
+      ok: false,
+      notice: {
+        title: "Fehler",
+        message: "Repo-Format ist ungültig. Erwartet: owner/repo",
       },
     });
   });
