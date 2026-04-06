@@ -67,7 +67,9 @@ async function readOperatorJwt(context: "artifact" | "lookup" | "dispatch"): Pro
     logger.warn("[CiLiteWorkflow] ensureSupabaseClient failed while reading operator jwt", { context, error });
     return null;
   });
-  const session = await supabase?.auth.getSession().catch((error: unknown) => {
+  if (!supabase) return null;
+
+  const session = await supabase.auth.getSession().catch((error: unknown) => {
     logger.warn("[CiLiteWorkflow] auth.getSession failed while reading operator jwt", { context, error });
     return null;
   });
@@ -633,7 +635,7 @@ export function useCiLiteWorkflow() {
         stopLookupOptions: { chainWaiting: true },
       });
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, startRunLookup, stopRunLookup, startLookupTracking]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startLookupTracking]);
 
   // ---- Header state lamp ----
   useEffect(() => {

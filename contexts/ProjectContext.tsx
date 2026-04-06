@@ -75,6 +75,7 @@ import {
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
   resolveBuildHistoryPollUpdate,
+  resolveHistoryBuildSelection,
   resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
@@ -700,19 +701,34 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update build history as statuses arrive (best-effort)
   useEffect(() => {
+    const pollDetails = buildPoll.details;
     const nextHistoryUpdate = resolveBuildHistoryPollUpdate({
       activeJobId,
-      details: buildPoll.details,
+      details: pollDetails,
       status: buildPoll.status,
       lastSnapshot: lastHistoryStatusRef.current,
       selectionSnapshot: activeBuildSelectionRef.current,
       currentBuild: currentBuildRef.current,
     });
-    if (!nextHistoryUpdate) return;
+    if (!nextHistoryUpdate || !activeJobId || !pollDetails) return;
+
+    const historySelection = resolveHistoryBuildSelection({
+      activeJobId,
+      snapshot: activeBuildSelectionRef.current,
+      currentBuild: currentBuildRef.current,
+    });
 
     lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
 
-    updateBuildInHistory(nextHistoryUpdate.update.jobId, nextHistoryUpdate.update).catch((historyError: unknown) => {
+    updateBuildInHistory(activeJobId, {
+      status: nextHistoryUpdate.update.status,
+      branch: historySelection.branch,
+      buildProfile: historySelection.buildProfile,
+      repoName: historySelection.repoName,
+      htmlUrl: pollDetails.urls?.html ?? null,
+      artifactUrl: pollDetails.urls?.artifacts ?? null,
+      sourceCommitSha: pollDetails.sourceCommitSha ?? null,
+    }).catch((historyError: unknown) => {
       logger.warn("⚠️ Build-Historie konnte nicht aktualisiert werden", { error: historyError });
     });
   }, [activeJobId, buildPoll.details, buildPoll.status]);
