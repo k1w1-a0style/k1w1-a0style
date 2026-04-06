@@ -147,6 +147,51 @@ export const resolveConnectionsStatusFlags = (params: {
   return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
 };
 
+export type ConnectionsSavePlan = {
+  githubToken: string;
+  expoToken: string;
+  workflowAdminKey: string;
+  androidKeystoreExportAdminKey: string;
+  supabaseRaw: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  easProjectId: string;
+  shouldClearSupabaseConnection: boolean;
+  shouldClearEasConnection: boolean;
+};
+
+export const resolveConnectionsSavePlan = (params: {
+  githubToken: string;
+  expoToken: string;
+  workflowAdminKey: string;
+  androidKeystoreExportAdminKey: string;
+  supabaseRaw: string;
+  supabaseUrl: string;
+  supabaseAnonKey: string;
+  easProjectId: string;
+}): ConnectionsSavePlan => {
+  const githubToken = params.githubToken.trim();
+  const expoToken = params.expoToken.trim();
+  const workflowAdminKey = params.workflowAdminKey.trim();
+  const androidKeystoreExportAdminKey = params.androidKeystoreExportAdminKey.trim();
+  const supabaseRaw = params.supabaseRaw.trim();
+  const supabaseUrl = params.supabaseUrl.trim();
+  const supabaseAnonKey = params.supabaseAnonKey.trim();
+  const easProjectId = params.easProjectId.trim();
+  return {
+    githubToken,
+    expoToken,
+    workflowAdminKey,
+    androidKeystoreExportAdminKey,
+    supabaseRaw,
+    supabaseUrl,
+    supabaseAnonKey,
+    easProjectId,
+    shouldClearSupabaseConnection: !supabaseUrl || !supabaseAnonKey,
+    shouldClearEasConnection: !easProjectId,
+  };
+};
+
 export const resolveEasLinkWorkflowStartMessage = (projectId: string): string => {
   return projectId
     ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
@@ -167,6 +212,28 @@ export const resolveEasLinkPostStartState = (projectId: string): {
     ],
     removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
   };
+};
+
+export const resolveEasStatusPersistence = (params: {
+  ok: boolean;
+  state: VerificationContractState;
+  verifiedAt?: string | null;
+}): {
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  const verifiedAt = params.verifiedAt ?? null;
+  const writes: PersistableEntry[] = [
+    [STORAGE_KEYS.CONN_EAS_OK, params.ok ? "true" : "false"],
+    [STORAGE_KEYS.CONN_EAS_STATE, params.state],
+  ];
+  const removes: string[] = [];
+  if (verifiedAt) {
+    writes.push([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt]);
+  } else {
+    removes.push(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT);
+  }
+  return { writes, removes };
 };
 
 export const resolveEasProjectIdPersistenceAction = (

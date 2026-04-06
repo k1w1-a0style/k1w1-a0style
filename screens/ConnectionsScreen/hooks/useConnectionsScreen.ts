@@ -60,12 +60,14 @@ import {
   resolveConnectionsActionAlert,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
+  resolveEasStatusPersistence,
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
   buildRepoOkLine,
   resolveSupabaseConnectionPersistence,
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
+  resolveConnectionsSavePlan,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -243,19 +245,15 @@ export function useConnectionsScreen() {
       setEasOk(ok);
       setEasState(state);
       setEasLastVerifiedAt(verifiedAt);
-      await persistEntriesWithFallback(AsyncStorage, [
-        [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
-        [STORAGE_KEYS.CONN_EAS_STATE, state],
-      ]);
-      if (verifiedAt) {
-        await persistEntriesWithFallback(AsyncStorage, [
-          [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt],
-        ]);
-      } else {
-        await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
-      }
+      const persistence = resolveEasStatusPersistence({ ok, state, verifiedAt });
+      await applyPersistenceDelta({
+        writes: persistence.writes,
+        removes: persistence.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
     },
-    [],
+    [persistConnLights, removeConnLights],
   );
 
   const clearGithubConnectionState = useCallback(async () => {
@@ -409,6 +407,38 @@ export function useConnectionsScreen() {
   const effectiveBranch = selection.branch || null;
   const selectionSource = selection.source;
 
+  const applyHydrationSnapshotState = useCallback(
+    (params: {
+      snapshot: Awaited<ReturnType<typeof loadHydrationSnapshot>>;
+      normalizedSupabaseRaw: string;
+    }) => {
+      const { snapshot, normalizedSupabaseRaw } = params;
+      setGithubToken(snapshot.githubToken);
+      setExpoToken(snapshot.expoToken);
+      setWorkflowAdminKey(snapshot.workflowAdminKey);
+      setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
+      setSupabaseRaw(normalizedSupabaseRaw);
+      setSupabaseUrl(snapshot.supabaseUrl);
+      setSupabaseAnonKey(snapshot.supabaseAnonKey);
+      setEasProjectId(snapshot.easProjectId);
+
+      const restored = resolveHydrationLightsState(snapshot.lights);
+      setGithubOk(restored.githubOk);
+      setGithubUser(restored.githubUser);
+      setGithubScopes(restored.githubScopes);
+      setSupabaseOk(restored.supabaseOk);
+      setSupabaseRef(restored.supabaseRef);
+      setExpoOk(restored.expoOk);
+      setExpoUser(restored.expoUser);
+      setEasOk(restored.easOk);
+      if (restored.easState) setEasState(restored.easState);
+      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      setRepoOk(restored.repoOk);
+      setRepoOkLine(restored.repoOkLine);
+      setHydrated(true);
+    },
+    [],
+  );
 
   // Load stored settings on mount
   useEffect(() => {
@@ -434,37 +464,16 @@ export function useConnectionsScreen() {
       }
 
       if (!mounted) return;
-      setGithubToken(snapshot.githubToken);
-      setExpoToken(snapshot.expoToken);
-      setWorkflowAdminKey(snapshot.workflowAdminKey);
-      setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
-      setSupabaseRaw(normalizedStoredSupabaseRaw);
-      setSupabaseUrl(snapshot.supabaseUrl);
-      setSupabaseAnonKey(snapshot.supabaseAnonKey);
-      setEasProjectId(snapshot.easProjectId);
-
-      const restored = resolveHydrationLightsState(snapshot.lights);
-      setGithubOk(restored.githubOk);
-      setGithubUser(restored.githubUser);
-      setGithubScopes(restored.githubScopes);
-      setSupabaseOk(restored.supabaseOk);
-      setSupabaseRef(restored.supabaseRef);
-      setExpoOk(restored.expoOk);
-      setExpoUser(restored.expoUser);
-      setEasOk(restored.easOk);
-      if (restored.easState) setEasState(restored.easState);
-      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
-      setRepoOk(restored.repoOk);
-      setRepoOkLine(restored.repoOkLine);
-
-      // Hydration finished (prevents initial token empty state from clearing saved OK lights).
-      setHydrated(true);
+      applyHydrationSnapshotState({
+        snapshot,
+        normalizedSupabaseRaw: normalizedStoredSupabaseRaw,
+      });
     })();
 
     return () => {
       mounted = false;
     };
-  }, [persistConnLights]);
+  }, [persistConnLights, applyHydrationSnapshotState]);
 
   // Auto-Check: EAS Status einmalig im Hintergrund validieren,
   // sobald Token + Project ID geladen sind.
@@ -502,53 +511,60 @@ export function useConnectionsScreen() {
     await runGuardedAction({
       defaultTitle: "❌ Speichern fehlgeschlagen",
       task: async () => {
-        const gh = githubToken.trim();
-        const ex = expoToken.trim();
-        const workflowAdmin = workflowAdminKey.trim();
-        const keystoreAdmin = androidKeystoreExportAdminKey.trim();
-        const raw = supabaseRaw.trim();
-        const sbUrl = supabaseUrl.trim();
-        const sbAnon = supabaseAnonKey.trim();
-        const easId = easProjectId.trim();
+        const plan = resolveConnectionsSavePlan({
+          githubToken,
+          expoToken,
+          workflowAdminKey,
+          androidKeystoreExportAdminKey,
+          supabaseRaw,
+          supabaseUrl,
+          supabaseAnonKey,
+          easProjectId,
+        });
 
-        if (gh) await saveGitHubToken(gh);
+        if (plan.githubToken) await saveGitHubToken(plan.githubToken);
         else {
           await deleteGitHubToken();
           await clearGithubConnectionState();
         }
 
-        if (ex) {
-          await saveExpoToken(ex);
+        if (plan.expoToken) {
+          await saveExpoToken(plan.expoToken);
         } else {
           await deleteExpoToken();
           await clearExpoConnectionState();
         }
 
-        if (workflowAdmin) await saveWorkflowAdminKey(workflowAdmin);
+        if (plan.workflowAdminKey) await saveWorkflowAdminKey(plan.workflowAdminKey);
         else await deleteWorkflowAdminKey();
 
-        if (keystoreAdmin) await saveAndroidKeystoreExportAdminKey(keystoreAdmin);
+        if (plan.androidKeystoreExportAdminKey) {
+          await saveAndroidKeystoreExportAdminKey(plan.androidKeystoreExportAdminKey);
+        }
         else await deleteAndroidKeystoreExportAdminKey();
 
         await deleteLegacyEdgeAdminKey();
 
-        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(raw, sbUrl);
+        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
         await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, sbUrl);
-        if (sbAnon) {
-          await saveSupabaseAnonKey(sbAnon);
+        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
+        if (plan.supabaseAnonKey) {
+          await saveSupabaseAnonKey(plan.supabaseAnonKey);
         } else {
           await deleteSupabaseAnonKey();
         }
 
-        if (easId) {
-          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
+        if (plan.easProjectId) {
+          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, plan.easProjectId);
         } else {
           await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        }
+
+        if (plan.shouldClearEasConnection) {
           await clearEasConnectionState();
         }
 
-        if (!sbUrl || !sbAnon) {
+        if (plan.shouldClearSupabaseConnection) {
           await clearSupabaseConnectionState();
         }
 
@@ -572,6 +588,46 @@ export function useConnectionsScreen() {
     clearSupabaseConnectionState,
   ]);
 
+  const applyGitHubPersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveGitHubConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setGithubOk(persistence.ok);
+          setGithubUser(persistence.login);
+          setGithubScopes(persistence.scopes);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
+  const applyExpoPersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveExpoConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setExpoOk(persistence.ok);
+          setExpoUser(persistence.username);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
+  const applySupabasePersistence = useCallback(
+    async (persistence: ReturnType<typeof resolveSupabaseConnectionPersistence>) => {
+      await applyConnectionPersistence({
+        persistence,
+        applyState: () => {
+          setSupabaseOk(persistence.ok);
+          setSupabaseRef(persistence.ref);
+        },
+      });
+    },
+    [applyConnectionPersistence],
+  );
+
   const testGitHub = useCallback(async () => {
     if (!hydrated) return;
     const gh = githubToken.trim();
@@ -592,14 +648,7 @@ export function useConnectionsScreen() {
           login: result.login,
           scopes: result.scopes,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setGithubOk(persistence.ok);
-            setGithubUser(persistence.login);
-            setGithubScopes(persistence.scopes);
-          },
-        });
+        await applyGitHubPersistence(persistence);
         const login = persistence.login;
         const scopes = persistence.scopes;
         Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
@@ -609,14 +658,7 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveGitHubConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setGithubOk(persistence.ok);
-            setGithubUser(persistence.login);
-            setGithubScopes(persistence.scopes);
-          },
-        });
+        await applyGitHubPersistence(persistence);
         logConnectionFailure({
           channel: "connections:github",
           message: "GitHub ERROR",
@@ -624,7 +666,7 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [githubToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
+  }, [githubToken, hydrated, runGuardedAction, applyGitHubPersistence, logConnectionFailure]);
 
   const testExpo = useCallback(async () => {
     if (!hydrated) return;
@@ -645,13 +687,7 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           username: result.username,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setExpoOk(persistence.ok);
-            setExpoUser(persistence.username);
-          },
-        });
+        await applyExpoPersistence(persistence);
 
         const username = persistence.username;
         Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
@@ -660,13 +696,7 @@ Scopes: ${scopes}` : ""}`);
         const persistence = resolveExpoConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setExpoOk(persistence.ok);
-            setExpoUser(persistence.username);
-          },
-        });
+        await applyExpoPersistence(persistence);
         logConnectionFailure({
           channel: "connections:expo",
           message: "Expo ERROR",
@@ -674,7 +704,7 @@ Scopes: ${scopes}` : ""}`);
         });
       },
     });
-  }, [expoToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
+  }, [expoToken, hydrated, runGuardedAction, applyExpoPersistence, logConnectionFailure]);
 
   const testSupabase = useCallback(async () => {
     if (!hydrated) return;
@@ -691,13 +721,7 @@ Scopes: ${scopes}` : ""}`);
           const persistence = resolveSupabaseConnectionPersistence({
             kind: "rls_protected",
           });
-          await applyConnectionPersistence({
-            persistence,
-            applyState: () => {
-              setSupabaseOk(persistence.ok);
-              setSupabaseRef(persistence.ref);
-            },
-          });
+          await applySupabasePersistence(persistence);
           Alert.alert(
             "Supabase OK",
             "REST erreichbar. build_jobs ist durch RLS geschützt (401/403) – das ist okay. CI/Edge nutzt den Service-Role-Key serverseitig.",
@@ -708,26 +732,14 @@ Scopes: ${scopes}` : ""}`);
           kind: "ok",
           ref: result.ref,
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setSupabaseOk(persistence.ok);
-            setSupabaseRef(persistence.ref);
-          },
-        });
+        await applySupabasePersistence(persistence);
         Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       },
       onNonBusyError: async (e: unknown) => {
         const persistence = resolveSupabaseConnectionPersistence({
           kind: "failed",
         });
-        await applyConnectionPersistence({
-          persistence,
-          applyState: () => {
-            setSupabaseOk(persistence.ok);
-            setSupabaseRef(persistence.ref);
-          },
-        });
+        await applySupabasePersistence(persistence);
         logConnectionFailure({
           channel: "connections:supabase",
           message: "Supabase ERROR",
@@ -740,7 +752,7 @@ Scopes: ${scopes}` : ""}`);
     supabaseAnonKey,
     hydrated,
     runGuardedAction,
-    applyConnectionPersistence,
+    applySupabasePersistence,
     logConnectionFailure,
   ]);
 
@@ -771,6 +783,21 @@ Scopes: ${scopes}` : ""}`);
 
   const githubConnected = !!githubToken.trim();
 
+  const persistSelectedEasProjectIdBestEffort = useCallback(async (projectId: string) => {
+    const persistence = resolveEasProjectIdPersistenceAction(projectId);
+    if (persistence.mode === "set") {
+      await runCleanupTask(
+        () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
+        `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+      );
+      return;
+    }
+    await runCleanupTask(
+      () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
+      `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+    );
+  }, []);
+
   const runEasLinkWorkflowStart = useCallback(
     async (params: {
       token: string;
@@ -784,25 +811,14 @@ Scopes: ${scopes}` : ""}`);
       await saveGitHubToken(token);
 
       if (persistProjectIdSelection) {
-        const persistence = resolveEasProjectIdPersistenceAction(projectId);
-        if (persistence.mode === "set") {
-          await runCleanupTask(
-            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
-            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        } else {
-          await runCleanupTask(
-            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
-            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        }
+        await persistSelectedEasProjectIdBestEffort(projectId);
       }
 
       await autoFixCIWorkflows({ owner, repo, branch });
       const workflowInputs = resolveEasLinkWorkflowTriggerInputs({ branch, projectId });
       await triggerWorkflow(owner, repo, "eas-link.yml", branch, workflowInputs);
     },
-    [],
+    [persistSelectedEasProjectIdBestEffort],
   );
 
   const applyEasWorkflowPostStartState = useCallback(
@@ -844,6 +860,15 @@ Scopes: ${scopes}` : ""}`);
     });
   }, [githubToken, effectiveRepo, effectiveBranch]);
 
+  const resolveEasLaunchSelectionOrAlert = useCallback(() => {
+    const launchSelection = resolveCurrentEasLaunchSelection();
+    if (!launchSelection.ok) {
+      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
+      return null;
+    }
+    return launchSelection.selection;
+  }, [resolveCurrentEasLaunchSelection]);
+
   const startEasWorkflow = useCallback(
     async (params: {
       selection: {
@@ -880,16 +905,12 @@ Scopes: ${scopes}` : ""}`);
   );
 
   const onLinkExisting = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    if (isEasInitRunning) return;
+    if (!hydrated || busyRef.current || isEasInitRunning) return;
 
-    const launchSelection = resolveCurrentEasLaunchSelection();
+    const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
-    if (!launchSelection.ok) {
-      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
-      return;
-    }
+    if (!launchSelection) return;
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
     if (!easValidation.ok) {
@@ -901,7 +922,7 @@ Scopes: ${scopes}` : ""}`);
       // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
       // Invariant contract marker retained for source-based tests: setEasOk(false)
       await startEasWorkflow({
-        selection: launchSelection.selection,
+        selection: launchSelection,
         projectId,
         persistProjectIdSelection: true,
         startedNotice: {
@@ -927,23 +948,19 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    resolveCurrentEasLaunchSelection,
+    resolveEasLaunchSelectionOrAlert,
     easProjectId,
     startEasWorkflow,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    if (isEasInitRunning) return;
+    if (!hydrated || busyRef.current || isEasInitRunning) return;
 
-    const launchSelection = resolveCurrentEasLaunchSelection();
-    if (!launchSelection.ok) {
-      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
-      return;
-    }
+    const launchSelection = resolveEasLaunchSelectionOrAlert();
+    if (!launchSelection) return;
     const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
     await startEasWorkflow({
-      selection: launchSelection.selection,
+      selection: launchSelection,
       projectId: "",
       persistProjectIdSelection: false,
       startedNotice: notice,
@@ -951,7 +968,7 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    resolveCurrentEasLaunchSelection,
+    resolveEasLaunchSelectionOrAlert,
     startEasWorkflow,
   ]);
 

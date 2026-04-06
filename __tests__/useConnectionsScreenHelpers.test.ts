@@ -8,8 +8,10 @@ import {
   persistEntriesWithFallback,
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
+  resolveConnectionsSavePlan,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
+  resolveEasStatusPersistence,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveEasWorkflowSelectionPrecheck,
@@ -158,6 +160,56 @@ describe("useConnectionsScreenHelpers", () => {
       sbAnon: false,
       linked: true,
       eas: true,
+    });
+  });
+
+  it("builds a trimmed save plan with clear-flags for dependent lights", () => {
+    expect(
+      resolveConnectionsSavePlan({
+        githubToken: " gh ",
+        expoToken: " ex ",
+        workflowAdminKey: " wa ",
+        androidKeystoreExportAdminKey: " ka ",
+        supabaseRaw: " https://abc.supabase.co:::legacy ",
+        supabaseUrl: " https://abc.supabase.co ",
+        supabaseAnonKey: " anon ",
+        easProjectId: " 550e8400-e29b-41d4-a716-446655440000 ",
+      }),
+    ).toEqual({
+      githubToken: "gh",
+      expoToken: "ex",
+      workflowAdminKey: "wa",
+      androidKeystoreExportAdminKey: "ka",
+      supabaseRaw: "https://abc.supabase.co:::legacy",
+      supabaseUrl: "https://abc.supabase.co",
+      supabaseAnonKey: "anon",
+      easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      shouldClearSupabaseConnection: false,
+      shouldClearEasConnection: false,
+    });
+
+    expect(
+      resolveConnectionsSavePlan({
+        githubToken: "",
+        expoToken: "",
+        workflowAdminKey: "",
+        androidKeystoreExportAdminKey: "",
+        supabaseRaw: "",
+        supabaseUrl: " ",
+        supabaseAnonKey: " ",
+        easProjectId: " ",
+      }),
+    ).toEqual({
+      githubToken: "",
+      expoToken: "",
+      workflowAdminKey: "",
+      androidKeystoreExportAdminKey: "",
+      supabaseRaw: "",
+      supabaseUrl: "",
+      supabaseAnonKey: "",
+      easProjectId: "",
+      shouldClearSupabaseConnection: true,
+      shouldClearEasConnection: true,
     });
   });
 
@@ -316,6 +368,37 @@ describe("useConnectionsScreenHelpers", () => {
       writes: [
         [STORAGE_KEYS.CONN_EAS_OK, "false"],
         [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
+  });
+
+  it("derives persisted EAS status writes/removes from verification metadata", () => {
+    expect(
+      resolveEasStatusPersistence({
+        ok: true,
+        state: "verified",
+        verifiedAt: "2026-04-06T00:00:00.000Z",
+      }),
+    ).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "true"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "verified"],
+        [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, "2026-04-06T00:00:00.000Z"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveEasStatusPersistence({
+        ok: false,
+        state: "unknown",
+        verifiedAt: null,
+      }),
+    ).toEqual({
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "unknown"],
       ],
       removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
     });
