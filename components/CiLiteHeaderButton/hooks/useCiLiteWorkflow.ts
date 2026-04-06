@@ -59,6 +59,13 @@ const BUILD_ADMIN_FAIL_CLOSED_NOTE =
 const BUILD_ADMIN_SERVER_CALLER_NOTE = "service_role fuer Server-Caller";
 const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
 
+async function readOperatorJwt(): Promise<string | null> {
+  const supabase = await ensureSupabaseClient().catch(() => null);
+  const session = await supabase?.auth.getSession().catch(() => null);
+  const jwt = String(session?.data?.session?.access_token ?? "").trim();
+  return jwt || null;
+}
+
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
   // - Autofix dispatches repository_dispatch(trigger-ci-lite) with the same source commit SHA and job_id
@@ -315,9 +322,7 @@ export function useCiLiteWorkflow() {
         const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        const userJwt = await readOperatorJwt();
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
         }
@@ -367,8 +372,12 @@ export function useCiLiteWorkflow() {
         if (!cancelled) {
           setArtifactResult(artifactJson);
         }
-      } catch (e) {
-        if (!cancelled) setArtifactError(String(e instanceof Error ? e.message : e));
+      } catch (error: unknown) {
+        if (!cancelled) {
+          setArtifactError(
+            getCiLiteWorkflowErrorMessage(error, "CI-Lite-Artefakt konnte nicht ausgewertet werden."),
+          );
+        }
       } finally {
         if (!cancelled) setArtifactLoading(false);
       }
@@ -519,9 +528,7 @@ export function useCiLiteWorkflow() {
     setRunUrl(null);
 
     void (async () => {
-      const supabase = await ensureSupabaseClient().catch(() => null);
-      const session = await supabase?.auth.getSession().catch(() => null);
-      const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+      const userJwt = await readOperatorJwt();
       if (!userJwt) {
         setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
         setChainWaiting(false);
@@ -695,9 +702,7 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
-        const supabase = await ensureSupabaseClient().catch(() => null);
-        const session = await supabase?.auth.getSession().catch(() => null);
-        const userJwt = String(session?.data?.session?.access_token ?? "").trim();
+        const userJwt = await readOperatorJwt();
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
         }

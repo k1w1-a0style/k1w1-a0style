@@ -65,6 +65,13 @@ type ScopedSnapshotReadResult = {
   parseReason: CiLitePersistenceReason | null;
 };
 
+async function safeStorageGet(
+  storageGetItem: (key: string) => Promise<string | null>,
+  key: string,
+): Promise<string | null> {
+  return storageGetItem(key).catch(() => null);
+}
+
 function parseRepoParts(repoFullName: string): { owner: string; repo: string } | null {
   const normalized = String(repoFullName ?? "").trim();
   const parts = normalized.split("/");
@@ -177,7 +184,7 @@ async function readScopedOrLegacySnapshotRaw(
     linkedRepo: params.repoFullName,
     linkedBranch: params.branchName,
   });
-  const scopedRaw = await storageGetItem(scopedKey).catch(() => null);
+  const scopedRaw = await safeStorageGet(storageGetItem, scopedKey);
   if (scopedRaw != null) {
     const parsed = parseSnapshotFromRaw(scopedRaw);
     return { parsed: parsed.snapshot, parseReason: parsed.reason };
@@ -185,16 +192,16 @@ async function readScopedOrLegacySnapshotRaw(
 
   const [lintOkRaw, typeOkRaw, lastRepo, lastBranch, lastRunAt, lastSha, lastWorkflow, lastJobId, lastRunId, lastConclusion] =
     await Promise.all([
-      storageGetItem(STORAGE_KEYS.CI_LITE_LINT_OK).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_TYPECHECK_OK).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_REPO).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_BRANCH).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_AT).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_SHA).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_WORKFLOW).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_JOB_ID).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_RUN_ID).catch(() => null),
-      storageGetItem(STORAGE_KEYS.CI_LITE_LAST_CONCLUSION).catch(() => null),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LINT_OK),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_TYPECHECK_OK),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_REPO),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_BRANCH),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_RUN_AT),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_SHA),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_WORKFLOW),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_JOB_ID),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_RUN_ID),
+      safeStorageGet(storageGetItem, STORAGE_KEYS.CI_LITE_LAST_CONCLUSION),
     ]);
 
   const legacySnapshot = {
@@ -235,10 +242,10 @@ function validateSnapshotForSelection(params: {
     return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.BRANCH_MISMATCH, stale: false };
   }
 
-  const stale = Date.now() - snapshot.runAtMs > CI_LITE_PERSISTENCE_MAX_AGE_MS;
   if (!Number.isFinite(snapshot.runAtMs) || snapshot.runAtMs <= 0) {
     return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.INVALID_TIMESTAMP, stale: false };
   }
+  const stale = Date.now() - snapshot.runAtMs > CI_LITE_PERSISTENCE_MAX_AGE_MS;
 
   if (stale) {
     return { snapshot: null, reason: CI_LITE_PERSISTENCE_REASONS.STALE, stale: true };

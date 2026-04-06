@@ -151,6 +151,24 @@ describe("readPersistedCiLiteSelection", () => {
     expect(result.stale).toBe(true);
   });
 
+  it("rejects persisted state with invalid timestamps before freshness handling", async () => {
+    const storageMap = buildScopedStorageMap({
+      overrides: { runAtMs: "not-a-number" },
+    });
+
+    const result = await readPersistedCiLiteSelection({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+      },
+    });
+
+    expect(result.snapshot).toBeNull();
+    expect(result.reason).toBe(CI_LITE_PERSISTENCE_REASONS.INVALID_TIMESTAMP);
+    expect(result.stale).toBe(false);
+  });
+
   it("rejects incomplete or corrupt scoped persistence instead of treating it as green", async () => {
     const storageMap = buildScopedStorageMap({
       overrides: {

@@ -5,7 +5,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import { useAI, type AIConfig } from "../../../contexts/AIContext";
+import { useAI } from "../../../contexts/AIContext";
 import {
   sanitizeAiConfigFromBackup,
   safeFormatBackupDate,
@@ -403,7 +403,7 @@ export function useAppInfoScreen() {
         scope === "secrets"
           ? secretPayload
           : createConfigAndSecretsBackupPayload({
-              aiConfig: config as AIConfig,
+              aiConfig: config,
               secrets: secretPayload,
             });
 

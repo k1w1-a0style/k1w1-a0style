@@ -217,7 +217,11 @@ export const readCiLiteArtifactPayloadCandidate = (payload: unknown): unknown =>
     return inlineJson;
   }
   if (typeof parsed.text === "string") {
-    return JSON.parse(parsed.text);
+    try {
+      return JSON.parse(parsed.text);
+    } catch {
+      throw new Error("Artifact JSON missing or invalid");
+    }
   }
   return null;
 };

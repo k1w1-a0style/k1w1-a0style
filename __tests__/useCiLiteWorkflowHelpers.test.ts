@@ -295,6 +295,16 @@ describe("useCiLiteWorkflowHelpers", () => {
     });
   });
 
+  describe("readCiLiteArtifactPayloadCandidate", () => {
+    it("throws a stable validation error when text JSON is malformed", () => {
+      expect(() =>
+        readCiLiteArtifactPayloadCandidate({
+          text: "{not-valid-json}",
+        }),
+      ).toThrow("Artifact JSON missing or invalid");
+    });
+  });
+
   describe("resolveCiLiteWorkflowErrorFallback", () => {
     it("uses a trimmed Error message when available", () => {
       expect(resolveCiLiteWorkflowErrorFallback(new Error("lookup failed"))).toBe("lookup failed");
