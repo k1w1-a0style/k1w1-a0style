@@ -783,6 +783,21 @@ Scopes: ${scopes}` : ""}`);
 
   const githubConnected = !!githubToken.trim();
 
+  const persistSelectedEasProjectIdBestEffort = useCallback(async (projectId: string) => {
+    const persistence = resolveEasProjectIdPersistenceAction(projectId);
+    if (persistence.mode === "set") {
+      await runCleanupTask(
+        () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
+        `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+      );
+      return;
+    }
+    await runCleanupTask(
+      () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
+      `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+    );
+  }, []);
+
   const runEasLinkWorkflowStart = useCallback(
     async (params: {
       token: string;
@@ -796,25 +811,14 @@ Scopes: ${scopes}` : ""}`);
       await saveGitHubToken(token);
 
       if (persistProjectIdSelection) {
-        const persistence = resolveEasProjectIdPersistenceAction(projectId);
-        if (persistence.mode === "set") {
-          await runCleanupTask(
-            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
-            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        } else {
-          await runCleanupTask(
-            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
-            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        }
+        await persistSelectedEasProjectIdBestEffort(projectId);
       }
 
       await autoFixCIWorkflows({ owner, repo, branch });
       const workflowInputs = resolveEasLinkWorkflowTriggerInputs({ branch, projectId });
       await triggerWorkflow(owner, repo, "eas-link.yml", branch, workflowInputs);
     },
-    [],
+    [persistSelectedEasProjectIdBestEffort],
   );
 
   const applyEasWorkflowPostStartState = useCallback(
@@ -856,6 +860,15 @@ Scopes: ${scopes}` : ""}`);
     });
   }, [githubToken, effectiveRepo, effectiveBranch]);
 
+  const resolveEasLaunchSelectionOrAlert = useCallback(() => {
+    const launchSelection = resolveCurrentEasLaunchSelection();
+    if (!launchSelection.ok) {
+      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
+      return null;
+    }
+    return launchSelection.selection;
+  }, [resolveCurrentEasLaunchSelection]);
+
   const startEasWorkflow = useCallback(
     async (params: {
       selection: {
@@ -892,16 +905,12 @@ Scopes: ${scopes}` : ""}`);
   );
 
   const onLinkExisting = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    if (isEasInitRunning) return;
+    if (!hydrated || busyRef.current || isEasInitRunning) return;
 
-    const launchSelection = resolveCurrentEasLaunchSelection();
+    const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
-    if (!launchSelection.ok) {
-      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
-      return;
-    }
+    if (!launchSelection) return;
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
     if (!easValidation.ok) {
@@ -913,7 +922,7 @@ Scopes: ${scopes}` : ""}`);
       // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
       // Invariant contract marker retained for source-based tests: setEasOk(false)
       await startEasWorkflow({
-        selection: launchSelection.selection,
+        selection: launchSelection,
         projectId,
         persistProjectIdSelection: true,
         startedNotice: {
@@ -939,23 +948,19 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    resolveCurrentEasLaunchSelection,
+    resolveEasLaunchSelectionOrAlert,
     easProjectId,
     startEasWorkflow,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
-    if (!hydrated || busyRef.current) return;
-    if (isEasInitRunning) return;
+    if (!hydrated || busyRef.current || isEasInitRunning) return;
 
-    const launchSelection = resolveCurrentEasLaunchSelection();
-    if (!launchSelection.ok) {
-      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
-      return;
-    }
+    const launchSelection = resolveEasLaunchSelectionOrAlert();
+    if (!launchSelection) return;
     const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
     await startEasWorkflow({
-      selection: launchSelection.selection,
+      selection: launchSelection,
       projectId: "",
       persistProjectIdSelection: false,
       startedNotice: notice,
@@ -963,7 +968,7 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    resolveCurrentEasLaunchSelection,
+    resolveEasLaunchSelectionOrAlert,
     startEasWorkflow,
   ]);
 
