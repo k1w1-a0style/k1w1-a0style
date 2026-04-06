@@ -34,4 +34,9 @@ describe("connectionsScreen flow guards invariants", () => {
     expect(block).toContain("setEasOk(false)");
     expect(block).not.toContain("setEasOk(true)");
   });
+
+  it("routes EAS link/create flows through one shared start helper", () => {
+    expect(src).toContain("const startEasWorkflow = useCallback");
+    expect(src).toContain("await startEasWorkflow({");
+  });
 });
