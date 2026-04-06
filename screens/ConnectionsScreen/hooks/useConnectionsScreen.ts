@@ -494,8 +494,9 @@ export function useConnectionsScreen() {
       remove: () => Promise<void>;
       onRemoved?: () => Promise<void>;
     }) => {
-      if (params.value) {
-        await params.save(params.value);
+      const normalizedValue = params.value.trim();
+      if (normalizedValue) {
+        await params.save(normalizedValue);
         return;
       }
       await params.remove();
@@ -829,17 +830,9 @@ Scopes: ${scopes}` : ""}`);
 
   const persistSelectedEasProjectIdBestEffort = useCallback(
     async (projectId: string) => {
-      const persistence = resolveEasProjectIdPersistenceAction(projectId);
-      if (persistence.mode === "set") {
-        await runCleanupTask(
-          () => persistSelectedEasProjectId(persistence.value),
-          `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-        );
-        return;
-      }
       await runCleanupTask(
-        () => persistSelectedEasProjectId(""),
-        `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+        () => persistSelectedEasProjectId(projectId),
+        `[ConnectionsScreen] persist/remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
       );
     },
     [persistSelectedEasProjectId],
