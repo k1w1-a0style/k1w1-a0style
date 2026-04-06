@@ -1,6 +1,7 @@
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { logger } from "../../../lib/logger";
 import { runCleanupTask } from "../../../lib/safeCleanup";
+import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
 export type ExpoProjectResponse = {
   data?: {
@@ -179,6 +180,22 @@ export const resolveEasLinkWorkflowStartMessage = (projectId: string): string =>
   return projectId
     ? "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link)."
     : "Keine EAS ID vorhanden. Init+Link Workflow gestartet (erstellt eine neue Project ID).\n\nNach Abschluss: Sync drücken, damit die App die neue ID aus dem Repo übernimmt.";
+};
+
+export const resolveEasLinkPostStartState = (projectId: string): {
+  state: VerificationContractState;
+  writes: PersistableEntry[];
+  removes: string[];
+} => {
+  const state: VerificationContractState = projectId ? "stale" : "missing";
+  return {
+    state,
+    writes: [
+      [STORAGE_KEYS.CONN_EAS_OK, "false"],
+      [STORAGE_KEYS.CONN_EAS_STATE, state],
+    ],
+    removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+  };
 };
 
 export type ConnectionsAlertNoticeKey =

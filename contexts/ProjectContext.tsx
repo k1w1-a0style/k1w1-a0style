@@ -232,6 +232,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [],
   );
 
+  const replaceProjectData = useCallback(
+    async (nextProject: ProjectData) => {
+      await runWithProjectLock(async () => {
+        setProjectData(nextProject);
+        await saveProjectToStorage(nextProject);
+      });
+    },
+    [runWithProjectLock],
+  );
+
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
       await updateProject((prev) => {
@@ -316,7 +326,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               setIsLoading(true);
               const currentProjectData = projectDataRef.current;
-              const mode = (currentProjectData?.templateId as TemplateId) || "auto";
+              const templateCandidate = currentProjectData?.templateId;
+              const mode: TemplateId =
+                typeof templateCandidate === "string" && templateCandidate.trim()
+                  ? (templateCandidate as TemplateId)
+                  : "auto";
               const { effective } = resolveEffectiveTemplateId(
                 mode,
                 currentProjectData?.files || [],
@@ -334,10 +348,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 lastPreview: null,
               };
 
-              await runWithProjectLock(async () => {
-                setProjectData(newProject);
-                await saveProjectToStorage(newProject);
-              });
+              await replaceProjectData(newProject);
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
               logger.info("✅ Neues Projekt erstellt und gespeichert.");
@@ -353,7 +364,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, []);
+  }, [replaceProjectData]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -417,10 +428,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               
               const normalizedProject = normalizeLoadedProjectData(result.project);
 
-              await runWithProjectLock(async () => {
-                setProjectData(normalizedProject);
-                await saveProjectToStorage(normalizedProject);
-              });
+              await replaceProjectData(normalizedProject);
 
               Alert.alert(
                 "Import erfolgreich",
@@ -438,7 +446,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, [runWithProjectLock]);
+  }, [replaceProjectData]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {

@@ -199,11 +199,17 @@ export function getPreviewRemoteUrlStatus(url: string | null | undefined): Previ
 }
 
 function getPreviewEdgeErrorCode(error: unknown): PreviewEdgeErrorCode | null {
-  const directCode = (error as { code?: unknown } | null)?.code;
+  const readCode = (value: unknown): unknown => {
+    if (!value || typeof value !== "object") return null;
+    return (value as { code?: unknown }).code;
+  };
+
+  const directCode = readCode(error);
   if (isPreviewEdgeErrorCode(directCode)) return directCode;
 
   if (error && typeof error === "object") {
-    const nestedCode = (error as { response?: { code?: unknown } }).response?.code;
+    const response = (error as { response?: unknown }).response;
+    const nestedCode = readCode(response);
     if (isPreviewEdgeErrorCode(nestedCode)) return nestedCode;
   }
 

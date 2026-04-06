@@ -9,6 +9,7 @@ import {
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
+  resolveEasLinkPostStartState,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveLinkExistingSelectionPrecheck,
@@ -206,6 +207,26 @@ describe("useConnectionsScreenHelpers", () => {
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("derives EAS post-start persistence contract deterministically", () => {
+    expect(resolveEasLinkPostStartState("project-id")).toEqual({
+      state: "stale",
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "stale"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
+
+    expect(resolveEasLinkPostStartState("")).toEqual({
+      state: "missing",
+      writes: [
+        [STORAGE_KEYS.CONN_EAS_OK, "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
+      ],
+      removes: [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT],
+    });
   });
 
   it("maps connections alert notices deterministically", () => {

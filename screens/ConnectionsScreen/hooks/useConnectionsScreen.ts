@@ -52,6 +52,7 @@ import {
   removeEntriesWithFallback,
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
+  resolveEasLinkPostStartState,
   resolveLinkExistingSelectionPrecheck,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
@@ -700,14 +701,12 @@ Scopes: ${scopes}` : ""}`);
         Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        const postStartState = resolveEasLinkPostStartState(projectId);
         setEasOk(false);
-        setEasState(projectId ? "stale" : "missing");
+        setEasState(postStartState.state);
         setEasLastVerifiedAt(null);
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_EAS_OK, "false"],
-          [STORAGE_KEYS.CONN_EAS_STATE, projectId ? "stale" : "missing"],
-        ]);
-        await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
+        await persistConnLights(postStartState.writes);
+        await removeConnLights(postStartState.removes);
 
         if (repoSlug) {
           setRepoOk(true);
