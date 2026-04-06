@@ -45,6 +45,7 @@ import {
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
+  isCiLiteRunContextActive,
   hasCiLiteLookupTimedOut,
   resolveCiLiteLookupFailureLabel,
   resolveCiLiteDispatchSelection,
@@ -272,12 +273,13 @@ export function useCiLiteWorkflow() {
 
   // ---- Logs ----
   const trackedRunId = runId;
-  const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
-  const hasLookupOrDispatchActivity =
-    dispatching ||
-    locatingRun ||
-    chainWaiting ||
-    trackedRunId != null;
+  const hasActiveRunContext = isCiLiteRunContextActive({
+    dispatching,
+    locatingRun,
+    chainWaiting,
+    runId: trackedRunId,
+  });
+  const hasLookupOrDispatchActivity = hasActiveRunContext;
 
   const {
     logs,

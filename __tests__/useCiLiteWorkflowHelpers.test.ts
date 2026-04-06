@@ -7,6 +7,7 @@ import {
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteArtifactRequest,
   resolveCiLiteBusyState,
+  isCiLiteRunContextActive,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteLookupTimeoutMs,
   hasCiLiteLookupTimedOut,
@@ -295,6 +296,37 @@ describe("useCiLiteWorkflowHelpers", () => {
           workflowStatus: "completed",
         }),
       ).toBe(false);
+    });
+  });
+
+  describe("isCiLiteRunContextActive", () => {
+    it("treats dispatch/lookup/chain/run-id as active context markers", () => {
+      expect(
+        isCiLiteRunContextActive({
+          dispatching: false,
+          locatingRun: false,
+          chainWaiting: false,
+          runId: null,
+        }),
+      ).toBe(false);
+
+      expect(
+        isCiLiteRunContextActive({
+          dispatching: true,
+          locatingRun: false,
+          chainWaiting: false,
+          runId: null,
+        }),
+      ).toBe(true);
+
+      expect(
+        isCiLiteRunContextActive({
+          dispatching: false,
+          locatingRun: false,
+          chainWaiting: false,
+          runId: 42,
+        }),
+      ).toBe(true);
     });
   });
 

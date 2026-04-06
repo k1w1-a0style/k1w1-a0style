@@ -126,6 +126,20 @@ export const resolveCiLiteBusyState = (params: {
   );
 };
 
+export const isCiLiteRunContextActive = (params: {
+  dispatching: boolean;
+  locatingRun: boolean;
+  chainWaiting: boolean;
+  runId: number | null | undefined;
+}): boolean => {
+  return (
+    params.dispatching ||
+    params.locatingRun ||
+    params.chainWaiting ||
+    params.runId != null
+  );
+};
+
 const AUTOFIX_CHAIN_SKIP_REASON_RULES: Array<{ pattern: RegExp; reason: string }> = [
   {
     pattern: /No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i,

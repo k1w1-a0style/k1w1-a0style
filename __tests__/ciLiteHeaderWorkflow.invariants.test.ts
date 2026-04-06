@@ -12,11 +12,14 @@ describe("CI Lite Header workflow invariants", () => {
 
   it("keeps busy/tracking/header-running active while run lookup is still in progress", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const helperSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers.ts");
     const statusHelper = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowStatusHelpers.ts");
 
-    expect(src).toContain("const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;");
+    expect(src).toContain("const hasActiveRunContext = isCiLiteRunContextActive({");
+    expect(helperSrc).toContain("params.dispatching ||");
+    expect(helperSrc).toContain("params.locatingRun ||");
+    expect(helperSrc).toContain("params.chainWaiting ||");
     expect(src).toContain("const isTrackingRun = dispatching || locatingRun || chainWaiting || (trackedRunId != null && !runCompleted);");
-    expect(src).toContain("dispatching ||\n    locatingRun ||\n    chainWaiting ||");
     expect(src).toContain("deriveCiLiteHeaderState({");
     expect(statusHelper).toContain("if (dispatching || locatingRun || chainWaiting) {");
     expect(statusHelper).toContain('return "running";');
