@@ -89,6 +89,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildHistoryWarningMessage,
   resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
@@ -688,6 +689,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => () => clearPendingSave(), [clearPendingSave]);
 
   const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
+  const runBuildHistoryBestEffort = useCallback(
+    (
+      mode: "update" | "insert",
+      operation: () => Promise<void>,
+    ) => {
+      operation().catch((historyError: unknown) => {
+        logger.warn(resolveBuildHistoryWarningMessage(mode), { error: historyError });
+      });
+    },
+    [],
+  );
 
   // Keep ProjectContext.currentBuild in sync with centralized polling hook
   useEffect(() => {
@@ -720,26 +732,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!nextHistoryUpdate || !activeJobId || !pollDetails) return;
 
-    const historySelection = resolveHistoryBuildSelection({
-      activeJobId,
-      snapshot: activeBuildSelectionRef.current,
-      currentBuild: currentBuildRef.current,
-    });
-
     lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
 
-    updateBuildInHistory(activeJobId, {
-      status: nextHistoryUpdate.update.status,
-      branch: historySelection.branch,
-      buildProfile: historySelection.buildProfile,
-      repoName: historySelection.repoName,
-      htmlUrl: pollDetails.urls?.html ?? null,
-      artifactUrl: pollDetails.urls?.artifacts ?? null,
-      sourceCommitSha: pollDetails.sourceCommitSha ?? null,
-    }).catch((historyError: unknown) => {
-      logger.warn("⚠️ Build-Historie konnte nicht aktualisiert werden", { error: historyError });
-    });
-  }, [activeJobId, buildPoll.details, buildPoll.status]);
+    runBuildHistoryBestEffort("update", () =>
+      updateBuildInHistory(activeJobId, nextHistoryUpdate.update),
+    );
+  }, [activeJobId, buildPoll.details, buildPoll.status, runBuildHistoryBestEffort]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -797,8 +795,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           }),
         );
 
-        try {
-          await addBuildToHistory({
+        runBuildHistoryBestEffort("insert", () =>
+          addBuildToHistory({
             id: uuidv4(),
             jobId,
             repoName: githubRepoResolved,
@@ -806,10 +804,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             status: "queued",
             startedAt,
             buildProfile: profile,
-          });
-        } catch (historyError: unknown) {
-          logger.warn("⚠️ Build-Historie konnte nicht gespeichert werden", { error: historyError });
-        }
+          }),
+        );
 
       } catch (e: unknown) {
         setCurrentBuild(
@@ -821,7 +817,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         throw e;
       }
     },
-    [projectData],
+    [projectData, runBuildHistoryBestEffort],
   );
 
 

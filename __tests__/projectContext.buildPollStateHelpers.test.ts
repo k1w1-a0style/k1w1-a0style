@@ -11,6 +11,7 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildHistoryWarningMessage,
   resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
@@ -261,6 +262,15 @@ describe("projectContextBuildHelpers orchestration guards", () => {
     expect(resolveBuildStartErrorMessage(new Error("dispatch failed"))).toBe("dispatch failed");
     expect(resolveBuildStartErrorMessage("network down")).toBe("network down");
     expect(resolveBuildStartErrorMessage({ detail: "opaque" })).toBe("Build konnte nicht gestartet werden.");
+  });
+
+  it("maps build history warning messages by operation mode", () => {
+    expect(resolveBuildHistoryWarningMessage("update")).toBe(
+      "⚠️ Build-Historie konnte nicht aktualisiert werden",
+    );
+    expect(resolveBuildHistoryWarningMessage("insert")).toBe(
+      "⚠️ Build-Historie konnte nicht gespeichert werden",
+    );
   });
 
   it("guards poll sync/history updates with explicit predicates", () => {

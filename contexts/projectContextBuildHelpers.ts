@@ -80,6 +80,14 @@ export const resolveBuildStartErrorMessage = (
   return fallback;
 };
 
+export const resolveBuildHistoryWarningMessage = (
+  mode: "update" | "insert",
+): string => {
+  return mode === "update"
+    ? "⚠️ Build-Historie konnte nicht aktualisiert werden"
+    : "⚠️ Build-Historie konnte nicht gespeichert werden";
+};
+
 export const resolveBuildStartContext = (params: {
   project: ProjectData | null;
   requestedBuildProfile?: string;
