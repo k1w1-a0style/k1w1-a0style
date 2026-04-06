@@ -487,6 +487,48 @@ export function useConnectionsScreen() {
     if (d.url) setSupabaseUrl(d.url);
   }, [supabaseRaw]);
 
+  const persistOptionalSecret = useCallback(
+    async (params: {
+      value: string;
+      save: (value: string) => Promise<void>;
+      remove: () => Promise<void>;
+      onRemoved?: () => Promise<void>;
+    }) => {
+      if (params.value) {
+        await params.save(params.value);
+        return;
+      }
+      await params.remove();
+      if (params.onRemoved) {
+        await params.onRemoved();
+      }
+    },
+    [],
+  );
+
+  const persistSelectedEasProjectId = useCallback(async (projectId: string) => {
+    const persistence = resolveEasProjectIdPersistenceAction(projectId);
+    if (persistence.mode === "set") {
+      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value);
+      return;
+    }
+    await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+  }, []);
+
+  const persistSupabaseSavePlan = useCallback(
+    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
+      const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
+      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
+      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
+      await persistOptionalSecret({
+        value: plan.supabaseAnonKey,
+        save: saveSupabaseAnonKey,
+        remove: deleteSupabaseAnonKey,
+      });
+    },
+    [persistOptionalSecret],
+  );
+
   const saveAll = useCallback(async () => {
     if (!hydrated) return;
     const v = validateBeforeSave({
@@ -517,43 +559,32 @@ export function useConnectionsScreen() {
           easProjectId,
         });
 
-        if (plan.githubToken) await saveGitHubToken(plan.githubToken);
-        else {
-          await deleteGitHubToken();
-          await clearGithubConnectionState();
-        }
-
-        if (plan.expoToken) {
-          await saveExpoToken(plan.expoToken);
-        } else {
-          await deleteExpoToken();
-          await clearExpoConnectionState();
-        }
-
-        if (plan.workflowAdminKey) await saveWorkflowAdminKey(plan.workflowAdminKey);
-        else await deleteWorkflowAdminKey();
-
-        if (plan.androidKeystoreExportAdminKey) {
-          await saveAndroidKeystoreExportAdminKey(plan.androidKeystoreExportAdminKey);
-        }
-        else await deleteAndroidKeystoreExportAdminKey();
+        await persistOptionalSecret({
+          value: plan.githubToken,
+          save: saveGitHubToken,
+          remove: deleteGitHubToken,
+          onRemoved: clearGithubConnectionState,
+        });
+        await persistOptionalSecret({
+          value: plan.expoToken,
+          save: saveExpoToken,
+          remove: deleteExpoToken,
+          onRemoved: clearExpoConnectionState,
+        });
+        await persistOptionalSecret({
+          value: plan.workflowAdminKey,
+          save: saveWorkflowAdminKey,
+          remove: deleteWorkflowAdminKey,
+        });
+        await persistOptionalSecret({
+          value: plan.androidKeystoreExportAdminKey,
+          save: saveAndroidKeystoreExportAdminKey,
+          remove: deleteAndroidKeystoreExportAdminKey,
+        });
 
         await deleteLegacyEdgeAdminKey();
-
-        const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
-        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-        await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
-        if (plan.supabaseAnonKey) {
-          await saveSupabaseAnonKey(plan.supabaseAnonKey);
-        } else {
-          await deleteSupabaseAnonKey();
-        }
-
-        if (plan.easProjectId) {
-          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, plan.easProjectId);
-        } else {
-          await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
-        }
+        await persistSupabaseSavePlan(plan);
+        await persistSelectedEasProjectId(plan.easProjectId);
 
         if (plan.shouldClearEasConnection) {
           await clearEasConnectionState();
@@ -577,6 +608,9 @@ export function useConnectionsScreen() {
     supabaseAnonKey,
     easProjectId,
     runGuardedAction,
+    persistOptionalSecret,
+    persistSupabaseSavePlan,
+    persistSelectedEasProjectId,
     clearGithubConnectionState,
     clearExpoConnectionState,
     clearEasConnectionState,
@@ -793,20 +827,23 @@ Scopes: ${scopes}` : ""}`);
 
   const githubConnected = !!githubToken.trim();
 
-  const persistSelectedEasProjectIdBestEffort = useCallback(async (projectId: string) => {
-    const persistence = resolveEasProjectIdPersistenceAction(projectId);
-    if (persistence.mode === "set") {
+  const persistSelectedEasProjectIdBestEffort = useCallback(
+    async (projectId: string) => {
+      const persistence = resolveEasProjectIdPersistenceAction(projectId);
+      if (persistence.mode === "set") {
+        await runCleanupTask(
+          () => persistSelectedEasProjectId(persistence.value),
+          `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+        );
+        return;
+      }
       await runCleanupTask(
-        () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
-        `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+        () => persistSelectedEasProjectId(""),
+        `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
       );
-      return;
-    }
-    await runCleanupTask(
-      () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
-      `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-    );
-  }, []);
+    },
+    [persistSelectedEasProjectId],
+  );
 
   const runEasLinkWorkflowStart = useCallback(
     async (params: {
