@@ -341,9 +341,11 @@ export function useAppInfoScreen() {
         `AI-/Provider-Konfiguration wurde geladen. API-Keys bleiben aus Sicherheitsgründen unverändert (${totalKeysImported} vorhandene Keys auf diesem Gerät). Projektdateien und ZIP-Inhalte wurden nicht verändert.\n\nBackup-Datum: ${exportDate}`,
       );
     } catch (error: unknown) {
-      if (!isAbortLikeError(error)) {
-        Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
+      if (isAbortLikeError(error)) {
+        logger.info("[useAppInfoScreen] API-Config-Import wurde abgebrochen.");
+        return;
       }
+      Alert.alert("Fehler beim Import", getErrorMessage(error, "Import fehlgeschlagen"));
     }
   }, [config, setConfig]);
 
@@ -459,7 +461,9 @@ export function useAppInfoScreen() {
 
         setSecureBackupRequest(null);
       } catch (error: unknown) {
-        if (!isAbortLikeError(error)) {
+        if (isAbortLikeError(error)) {
+          logger.info("[useAppInfoScreen] Secure-Backup-Flow wurde abgebrochen.");
+        } else {
           Alert.alert("Fehler beim gesicherten Backup", getErrorMessage(error, "Backup fehlgeschlagen"));
         }
       } finally {
