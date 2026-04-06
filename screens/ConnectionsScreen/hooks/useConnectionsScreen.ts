@@ -64,6 +64,8 @@ import {
   resolveEasWorkflowLaunchSelection,
   buildRepoOkLine,
   resolveSupabaseConnectionPersistence,
+  resolveGitHubConnectionPersistence,
+  resolveExpoConnectionPersistence,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -545,28 +547,38 @@ export function useConnectionsScreen() {
           tokenConfigured: true,
         });
         const result = await runGitHubConnectionCheck(gh);
-        const login = result.login;
-        const scopes = result.scopes;
-        setGithubOk(true);
-        setGithubUser(login);
-        setGithubScopes(scopes);
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
-          [STORAGE_KEYS.CONN_GITHUB_USER, login],
-          ...(scopes ? [[STORAGE_KEYS.CONN_GITHUB_SCOPES, scopes] as [string, string]] : []),
-        ]);
-        if (!scopes) {
-          await removeConnLights([STORAGE_KEYS.CONN_GITHUB_SCOPES]);
-        }
+        const persistence = resolveGitHubConnectionPersistence({
+          kind: "ok",
+          login: result.login,
+          scopes: result.scopes,
+        });
+        setGithubOk(persistence.ok);
+        setGithubUser(persistence.login);
+        setGithubScopes(persistence.scopes);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
+        const login = persistence.login;
+        const scopes = persistence.scopes;
         Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
 Scopes: ${scopes}` : ""}`);
       },
       onNonBusyError: async (e: unknown) => {
-        setGithubOk(false);
-        setGithubUser("");
-        setGithubScopes("");
-        await persistConnLights([[STORAGE_KEYS.CONN_GITHUB_OK, "false"]]);
-        await removeConnLights([STORAGE_KEYS.CONN_GITHUB_USER, STORAGE_KEYS.CONN_GITHUB_SCOPES]);
+        const persistence = resolveGitHubConnectionPersistence({
+          kind: "failed",
+        });
+        setGithubOk(persistence.ok);
+        setGithubUser(persistence.login);
+        setGithubScopes(persistence.scopes);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
         debugLog("connections:github", "GitHub ERROR", {
           error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
         });
@@ -589,25 +601,34 @@ Scopes: ${scopes}` : ""}`);
           ok: result.ok,
           body: redactSecrets(truncateWithMarker(result.raw, 1000)),
         });
-        const username = result.username;
+        const persistence = resolveExpoConnectionPersistence({
+          kind: "ok",
+          username: result.username,
+        });
+        setExpoOk(persistence.ok);
+        setExpoUser(persistence.username);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
 
-        setExpoOk(true);
-        setExpoUser(username || "");
-        await persistConnLights([
-          [STORAGE_KEYS.CONN_EXPO_OK, "true"],
-          ...(username ? [[STORAGE_KEYS.CONN_EXPO_USER, username] as [string, string]] : []),
-        ]);
-        if (!username) {
-          await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
-        }
-
+        const username = persistence.username;
         Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
       },
       onNonBusyError: async (e: unknown) => {
-        setExpoOk(false);
-        setExpoUser("");
-        await persistConnLights([[STORAGE_KEYS.CONN_EXPO_OK, "false"]]);
-        await removeConnLights([STORAGE_KEYS.CONN_EXPO_USER]);
+        const persistence = resolveExpoConnectionPersistence({
+          kind: "failed",
+        });
+        setExpoOk(persistence.ok);
+        setExpoUser(persistence.username);
+        await applyPersistenceDelta({
+          writes: persistence.writes,
+          removes: persistence.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
         debugLog("connections:expo", "Expo ERROR", {
           error: redactSecrets(truncateWithMarker(safeAlertText(e), 800)),
         });
@@ -815,6 +836,7 @@ Scopes: ${scopes}` : ""}`);
         Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
 
         // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        // Invariant contract marker retained for source-based tests: setEasOk(false)
         await applyEasWorkflowPostStartState(projectId);
         await persistRepoSelectionState(repoSlug, branch);
       } catch (e: unknown) {

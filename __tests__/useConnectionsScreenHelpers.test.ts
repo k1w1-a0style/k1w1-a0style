@@ -20,6 +20,8 @@ import {
   applyPersistenceDelta,
   resolveEasWorkflowLaunchSelection,
   resolveSupabaseConnectionPersistence,
+  resolveGitHubConnectionPersistence,
+  resolveExpoConnectionPersistence,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -444,6 +446,95 @@ describe("useConnectionsScreenHelpers", () => {
       ref: "",
       writes: [[STORAGE_KEYS.CONN_SUPABASE_OK, "false"]],
       removes: [STORAGE_KEYS.CONN_SUPABASE_REF],
+    });
+  });
+
+  it("resolves github persistence deltas for ok/failure paths", () => {
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "ok",
+        login: " octocat ",
+        scopes: " repo,workflow ",
+      }),
+    ).toEqual({
+      ok: true,
+      login: "octocat",
+      scopes: "repo,workflow",
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+        [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
+        [STORAGE_KEYS.CONN_GITHUB_SCOPES, "repo,workflow"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "ok",
+        login: "octocat",
+        scopes: " ",
+      }),
+    ).toEqual({
+      ok: true,
+      login: "octocat",
+      scopes: "",
+      writes: [
+        [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
+        [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
+      ],
+      removes: [STORAGE_KEYS.CONN_GITHUB_SCOPES],
+    });
+
+    expect(
+      resolveGitHubConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      login: "",
+      scopes: "",
+      writes: [[STORAGE_KEYS.CONN_GITHUB_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_GITHUB_USER, STORAGE_KEYS.CONN_GITHUB_SCOPES],
+    });
+  });
+
+  it("resolves expo persistence deltas for ok/failure paths", () => {
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "ok",
+        username: " expo-user ",
+      }),
+    ).toEqual({
+      ok: true,
+      username: "expo-user",
+      writes: [
+        [STORAGE_KEYS.CONN_EXPO_OK, "true"],
+        [STORAGE_KEYS.CONN_EXPO_USER, "expo-user"],
+      ],
+      removes: [],
+    });
+
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "ok",
+        username: " ",
+      }),
+    ).toEqual({
+      ok: true,
+      username: "",
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "true"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
+    });
+
+    expect(
+      resolveExpoConnectionPersistence({
+        kind: "failed",
+      }),
+    ).toEqual({
+      ok: false,
+      username: "",
+      writes: [[STORAGE_KEYS.CONN_EXPO_OK, "false"]],
+      removes: [STORAGE_KEYS.CONN_EXPO_USER],
     });
   });
 
