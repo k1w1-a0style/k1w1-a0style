@@ -1,16 +1,18 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
+Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: zentrale Checks liefen lokal; der Security-SoT-Nachzug in Patch 732 schliesst die neu bestaetigten fail-open Repo-Guards.
+> Letzter Voll-Gate im aktuellen Durchlauf: Der reale Release-Pfad war initial reproduzierbar rot (`check_workflow_edge_contracts` scheiterte auf fehlendem CI-Lite build_admin-Contract-Marker), wurde im selben Durchlauf behoben und danach mit `check_release_readiness` wieder lokal gruen bestaetigt.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
 ### Ergebnis
 
+- Release-/Trust-Drift im CI-Lite-Operatorpfad ehrlich reproduziert und behoben: `check_workflow_edge_contracts.sh` war lokal rot wegen fehlendem Pflicht-Marker in `useCiLiteWorkflow.ts` (`JWT role=build_admin (oder service_role fuer Server-Caller)`), nach Marker-Nachzug wieder gruen.
+- Workflow-Writeback im manuellen `eas-link`-Pfad gehaertet: Top-Level-Permissions auf read-default reduziert, Write nur job-scoped; Commit-Push erfolgt nur noch fuer explizite, sichere Remote-Branches (kein SHA/detached/unsafe Ref, kein stilles `|| true` beim Push).
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
 - Preview-Secret-Transport ist repo-seitig minimal gehaertet: neue Links nutzen Fragment-Handoff statt Query-Secret (`save_preview` -> `preview_page?transport=fragment#secret=...`), bei erhaltener Legacy-Kompatibilitaet fuer bestehende `?secret=`-Links.
 - Externe Live-/Supabase-Themen sind fuer den aktuellen Abschluss neu bewertet: keine technisch kritischen High-Priority-Restpunkte; verbleibend sind bewusst geparkte Produkt-/Hygienepunkte (siehe `docs/TODO.md`).

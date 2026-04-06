@@ -58,7 +58,7 @@ import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
 
 const BUILD_ADMIN_FAIL_CLOSED_NOTE =
   "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
-const BUILD_ADMIN_SERVER_CALLER_NOTE = "service_role fuer Server-Caller";
+const BUILD_ADMIN_SERVER_CALLER_NOTE = "JWT role=build_admin (oder service_role fuer Server-Caller)";
 const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
 
 async function readOperatorJwt(): Promise<string | null> {

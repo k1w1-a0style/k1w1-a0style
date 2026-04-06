@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
+Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
 
-Zuletzt abgeschlossen: **Patch 743**
+Zuletzt abgeschlossen: **Patch 744**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
