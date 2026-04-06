@@ -1,5 +1,6 @@
 import type { BuildStatus, BuildStatusDetails } from "../shared/types/build";
 import type { ChatMessage } from "../shared/types/chat";
+import type { TemplateId } from "../shared/types/project";
 import { trimChatHistory } from "../infra/storage/persistenceHelpers";
 import type { ProjectContextProps } from "./projectTypes";
 
@@ -19,6 +20,13 @@ export const sanitizeChatRetentionLimit = (limit: number): number => {
 export const shouldApplyHydratedRetention = (
   didSetRuntimeRetention: boolean,
 ): boolean => !didSetRuntimeRetention;
+
+export const resolveTemplateMode = (
+  templateId: string | null | undefined,
+): TemplateId => {
+  const value = String(templateId ?? "").trim();
+  return value ? (value as TemplateId) : "auto";
+};
 
 const isBuildProfile = (
   profile: unknown,

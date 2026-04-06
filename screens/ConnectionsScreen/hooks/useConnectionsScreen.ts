@@ -53,11 +53,11 @@ import {
   resolveConnectionsStatusFlags,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
-  resolveLinkExistingSelectionPrecheck,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
+  resolveEasWorkflowSelectionPrecheck,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -649,14 +649,16 @@ Scopes: ${scopes}` : ""}`);
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const token = githubToken.trim();
-    const repoSlug = (effectiveRepo || "").trim();
-    const branch = (effectiveBranch || "").trim();
-    const linkPrecheck = resolveLinkExistingSelectionPrecheck({ githubToken: token, repoSlug, branch });
-    if (!linkPrecheck.ok) {
-      Alert.alert(linkPrecheck.alertTitle || "Fehler", linkPrecheck.alertMessage || "Ungültige Auswahl.");
+    const precheck = resolveEasWorkflowSelectionPrecheck({
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
+    });
+    if (!precheck.ok) {
+      Alert.alert(precheck.notice.title, precheck.notice.message);
       return;
     }
+    const { githubToken: token, repoSlug, branch } = precheck.selection;
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {
@@ -752,27 +754,16 @@ Scopes: ${scopes}` : ""}`);
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const token = githubToken.trim();
-    if (!token) {
-      const notice = resolveConnectionsAlertNotice("missing_github_token");
-      Alert.alert(notice.title, notice.message);
+    const precheck = resolveEasWorkflowSelectionPrecheck({
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
+    });
+    if (!precheck.ok) {
+      Alert.alert(precheck.notice.title, precheck.notice.message);
       return;
     }
-
-    const repoSlug = (effectiveRepo || "").trim();
-    if (!repoSlug) {
-      const notice = resolveConnectionsAlertNotice("missing_repo_selection");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
-
-    const branch = (effectiveBranch || "").trim();
-    if (!branch) {
-      // Invariant contract: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
-      const notice = resolveConnectionsAlertNotice("missing_branch_selection");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
+    const { githubToken: token, repoSlug, branch } = precheck.selection;
 
     const parsed = parseOwnerRepo(repoSlug);
     if (!parsed) {

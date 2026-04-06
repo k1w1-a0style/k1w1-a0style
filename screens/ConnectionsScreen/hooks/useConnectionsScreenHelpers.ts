@@ -205,6 +205,20 @@ export type ConnectionsAlertNoticeKey =
   | "invalid_repo_format"
   | "create_link_workflow_started";
 
+export type EasWorkflowSelectionPrecheckResult =
+  | {
+      ok: true;
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+      };
+    }
+  | {
+      ok: false;
+      notice: { title: string; message: string };
+    };
+
 export const resolveConnectionsAlertNotice = (
   key: ConnectionsAlertNoticeKey,
 ): { title: string; message: string } => {
@@ -228,6 +242,45 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
+};
+
+export const resolveEasWorkflowSelectionPrecheck = (params: {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+}): EasWorkflowSelectionPrecheckResult => {
+  const githubToken = params.githubToken.trim();
+  if (!githubToken) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_github_token"),
+    };
+  }
+
+  const repoSlug = params.repoSlug.trim();
+  if (!repoSlug) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_repo_selection"),
+    };
+  }
+
+  const branch = params.branch.trim();
+  if (!branch) {
+    return {
+      ok: false,
+      notice: resolveConnectionsAlertNotice("missing_branch_selection"),
+    };
+  }
+
+  return {
+    ok: true,
+    selection: {
+      githubToken,
+      repoSlug,
+      branch,
+    },
+  };
 };
 
 

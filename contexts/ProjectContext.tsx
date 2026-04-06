@@ -75,6 +75,7 @@ import {
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
   resolveHistoryBuildSelection,
+  resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
   shouldUpdateBuildHistoryStatus,
@@ -117,6 +118,7 @@ export {
   appendChatMessageWithRetention,
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
+  resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
   shouldApplyHydratedRetention,
@@ -326,11 +328,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             try {
               setIsLoading(true);
               const currentProjectData = projectDataRef.current;
-              const templateCandidate = currentProjectData?.templateId;
-              const mode: TemplateId =
-                typeof templateCandidate === "string" && templateCandidate.trim()
-                  ? (templateCandidate as TemplateId)
-                  : "auto";
+              const mode = resolveTemplateMode(currentProjectData?.templateId);
               const { effective } = resolveEffectiveTemplateId(
                 mode,
                 currentProjectData?.files || [],

@@ -13,6 +13,7 @@ import {
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveLinkExistingSelectionPrecheck,
+  resolveEasWorkflowSelectionPrecheck,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -201,6 +202,65 @@ describe("useConnectionsScreenHelpers", () => {
       ok: true,
       alertTitle: null,
       alertMessage: null,
+    });
+  });
+
+  it("resolves shared EAS workflow selection precheck deterministically", () => {
+    expect(
+      resolveEasWorkflowSelectionPrecheck({
+        githubToken: "",
+        repoSlug: "owner/repo",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      notice: {
+        title: "Fehler",
+        message: "GitHub Token fehlt (oder ist leer).",
+      },
+    });
+
+    expect(
+      resolveEasWorkflowSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "",
+        branch: "main",
+      }),
+    ).toEqual({
+      ok: false,
+      notice: {
+        title: "Fehler",
+        message: "Kein Repo ausgewählt.",
+      },
+    });
+
+    expect(
+      resolveEasWorkflowSelectionPrecheck({
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "",
+      }),
+    ).toEqual({
+      ok: false,
+      notice: {
+        title: "Fehler",
+        message: "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.",
+      },
+    });
+
+    expect(
+      resolveEasWorkflowSelectionPrecheck({
+        githubToken: " token ",
+        repoSlug: " owner/repo ",
+        branch: " main ",
+      }),
+    ).toEqual({
+      ok: true,
+      selection: {
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+      },
     });
   });
 
