@@ -7,6 +7,7 @@ import {
   flushPendingProjectSave,
   hydrateChatRetentionLimit,
   initializeProjectData,
+  runWithProjectLoading,
   scheduleDebouncedProjectSave,
   shouldFlushProjectSaveOnAppState,
 } from "../contexts/projectContextPersistenceHelpers";
@@ -301,6 +302,37 @@ describe("projectContextPersistenceHelpers", () => {
         didSetRuntimeRetention: false,
       });
       expect(value).toBe(CHAT_HISTORY_RETENTION_FALLBACK);
+    });
+  });
+
+  describe("runWithProjectLoading", () => {
+    it("toggles loading around successful tasks", async () => {
+      const calls: boolean[] = [];
+      const task = jest.fn(async () => undefined);
+
+      await runWithProjectLoading({
+        setLoading: (loading) => calls.push(loading),
+        task,
+      });
+
+      expect(task).toHaveBeenCalledTimes(1);
+      expect(calls).toEqual([true, false]);
+    });
+
+    it("resets loading even when task fails", async () => {
+      const calls: boolean[] = [];
+      const error = new Error("boom");
+
+      await expect(
+        runWithProjectLoading({
+          setLoading: (loading) => calls.push(loading),
+          task: async () => {
+            throw error;
+          },
+        }),
+      ).rejects.toThrow("boom");
+
+      expect(calls).toEqual([true, false]);
     });
   });
 });

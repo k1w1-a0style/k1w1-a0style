@@ -67,6 +67,7 @@ import {
   createProjectSaveScheduler,
   hydrateChatRetentionLimit,
   initializeProjectData,
+  runWithProjectLoading,
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
@@ -182,18 +183,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     if (!isMountedRef.current) return;
     setIsLoading(nextValue);
   }, []);
-
-  const runWithLoading = useCallback(
-    async (task: () => Promise<void>) => {
-      setIsLoadingSafe(true);
-      try {
-        await task();
-      } finally {
-        setIsLoadingSafe(false);
-      }
-    },
-    [setIsLoadingSafe],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -349,41 +338,46 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           text: "Neu erstellen",
           style: "destructive",
           onPress: async () => {
-            await runWithLoading(async () => {
-              const currentProjectData = projectDataRef.current;
-              const mode = resolveTemplateMode(currentProjectData?.templateId);
-              const { effective } = resolveEffectiveTemplateId(
-                mode,
-                currentProjectData?.files || [],
-              );
-              const templateFiles = await loadTemplateFromFile(effective);
-              const newProject: ProjectData = {
-                ...buildProjectForCreation({
-                  id: uuidv4(),
-                  files: templateFiles,
-                  templateId: mode,
-                  effectiveTemplateId: effective,
-                  preferredPreviewMode:
-                    currentProjectData?.preferredPreviewMode ?? "supabase",
-                }),
-                lastPreview: null,
-              };
+            try {
+              await runWithProjectLoading({
+                setLoading: setIsLoadingSafe,
+                task: async () => {
+                  const currentProjectData = projectDataRef.current;
+                  const mode = resolveTemplateMode(currentProjectData?.templateId);
+                  const { effective } = resolveEffectiveTemplateId(
+                    mode,
+                    currentProjectData?.files || [],
+                  );
+                  const templateFiles = await loadTemplateFromFile(effective);
+                  const newProject: ProjectData = {
+                    ...buildProjectForCreation({
+                      id: uuidv4(),
+                      files: templateFiles,
+                      templateId: mode,
+                      effectiveTemplateId: effective,
+                      preferredPreviewMode:
+                        currentProjectData?.preferredPreviewMode ?? "supabase",
+                    }),
+                    lastPreview: null,
+                  };
 
-              await replaceProjectData(newProject);
+                  await replaceProjectData(newProject);
 
-              Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
-              logger.info("✅ Neues Projekt erstellt und gespeichert.");
-            }).catch((error: unknown) => {
+                  Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
+                  logger.info("✅ Neues Projekt erstellt und gespeichert.");
+                },
+              });
+            } catch (error: unknown) {
               Alert.alert(
                 "Fehler",
                 getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
               );
-            });
+            }
           },
         },
       ],
     );
-  }, [replaceProjectData, runWithLoading]);
+  }, [replaceProjectData, setIsLoadingSafe]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -441,31 +435,36 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         {
           text: "Auswählen",
           onPress: async () => {
-            await runWithLoading(async () => {
-              const result = await importProjectZip();
+            try {
+              await runWithProjectLoading({
+                setLoading: setIsLoadingSafe,
+                task: async () => {
+                  const result = await importProjectZip();
 
-              const normalizedProject = normalizeLoadedProjectData(result.project);
-              // Invariant contract markers retained for source-based tests:
-              // setProjectData(normalizedProject);
-              // await saveProjectToStorage(normalizedProject);
+                  const normalizedProject = normalizeLoadedProjectData(result.project);
+                  // Invariant contract markers retained for source-based tests:
+                  // setProjectData(normalizedProject);
+                  // await saveProjectToStorage(normalizedProject);
 
-              await replaceProjectData(normalizedProject);
+                  await replaceProjectData(normalizedProject);
 
-              Alert.alert(
-                "Import erfolgreich",
-                `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
-              );
-            }).catch((error: unknown) => {
+                  Alert.alert(
+                    "Import erfolgreich",
+                    `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
+                  );
+                },
+              });
+            } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
                 getErrorMessage(error, "Fehler beim Importieren"),
               );
-            });
+            }
           },
         },
       ],
     );
-  }, [replaceProjectData, runWithLoading]);
+  }, [replaceProjectData, setIsLoadingSafe]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {
