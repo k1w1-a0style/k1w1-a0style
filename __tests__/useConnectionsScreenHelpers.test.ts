@@ -14,6 +14,8 @@ import {
   resolveConnectionsActionAlert,
   resolveLinkExistingSelectionPrecheck,
   resolveEasWorkflowSelectionPrecheck,
+  resolveEasProjectIdPersistenceAction,
+  resolveEasLinkWorkflowTriggerInputs,
   removeEntriesWithFallback,
   resolvePersistedEasState,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
@@ -267,6 +269,41 @@ describe("useConnectionsScreenHelpers", () => {
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("derives EAS project-id persistence action deterministically", () => {
+    expect(resolveEasProjectIdPersistenceAction("project-id")).toEqual({
+      mode: "set",
+      value: "project-id",
+    });
+    expect(resolveEasProjectIdPersistenceAction(" project-id ")).toEqual({
+      mode: "set",
+      value: "project-id",
+    });
+    expect(resolveEasProjectIdPersistenceAction("")).toEqual({
+      mode: "remove",
+    });
+  });
+
+  it("builds EAS workflow trigger inputs without empty project ids", () => {
+    expect(
+      resolveEasLinkWorkflowTriggerInputs({
+        branch: " main ",
+        projectId: " project-id ",
+      }),
+    ).toEqual({
+      ref: "main",
+      eas_project_id: "project-id",
+    });
+
+    expect(
+      resolveEasLinkWorkflowTriggerInputs({
+        branch: " main ",
+        projectId: " ",
+      }),
+    ).toEqual({
+      ref: "main",
+    });
   });
 
   it("derives EAS post-start persistence contract deterministically", () => {

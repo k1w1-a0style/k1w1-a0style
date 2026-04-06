@@ -198,6 +198,31 @@ export const resolveEasLinkPostStartState = (projectId: string): {
   };
 };
 
+export const resolveEasProjectIdPersistenceAction = (
+  projectId: string,
+): { mode: "set"; value: string } | { mode: "remove" } => {
+  const trimmed = projectId.trim();
+  if (trimmed) {
+    return { mode: "set", value: trimmed };
+  }
+  return { mode: "remove" };
+};
+
+export const resolveEasLinkWorkflowTriggerInputs = (params: {
+  branch: string;
+  projectId: string;
+}): { ref: string; eas_project_id?: string } => {
+  const ref = params.branch.trim();
+  const projectId = params.projectId.trim();
+  if (!projectId) {
+    return { ref };
+  }
+  return {
+    ref,
+    eas_project_id: projectId,
+  };
+};
+
 export type ConnectionsAlertNoticeKey =
   | "missing_github_token"
   | "missing_repo_selection"

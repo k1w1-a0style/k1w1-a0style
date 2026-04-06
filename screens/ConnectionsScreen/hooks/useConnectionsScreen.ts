@@ -58,6 +58,8 @@ import {
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveEasWorkflowSelectionPrecheck,
+  resolveEasLinkWorkflowTriggerInputs,
+  resolveEasProjectIdPersistenceAction,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -645,6 +647,40 @@ Scopes: ${scopes}` : ""}`);
 
   const githubConnected = !!githubToken.trim();
 
+  const runEasLinkWorkflowStart = useCallback(
+    async (params: {
+      token: string;
+      owner: string;
+      repo: string;
+      branch: string;
+      projectId: string;
+      persistProjectIdSelection: boolean;
+    }) => {
+      const { token, owner, repo, branch, projectId, persistProjectIdSelection } = params;
+      await saveGitHubToken(token);
+
+      if (persistProjectIdSelection) {
+        const persistence = resolveEasProjectIdPersistenceAction(projectId);
+        if (persistence.mode === "set") {
+          await runCleanupTask(
+            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value),
+            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
+        } else {
+          await runCleanupTask(
+            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
+            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+          );
+        }
+      }
+
+      await autoFixCIWorkflows({ owner, repo, branch });
+      const workflowInputs = resolveEasLinkWorkflowTriggerInputs({ branch, projectId });
+      await triggerWorkflow(owner, repo, "eas-link.yml", branch, workflowInputs);
+    },
+    [],
+  );
+
   const onLinkExisting = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
@@ -677,27 +713,13 @@ Scopes: ${scopes}` : ""}`);
     const runLink = async (projectId: string) => {
       setIsEasInitRunning(true);
       try {
-        // Persist token + (optional) EAS id so andere Teile der App die gleichen Werte nutzen
-        await saveGitHubToken(token);
-        if (projectId) {
-          await runCleanupTask(
-            () => AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId),
-            `[ConnectionsScreen] persist EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        } else {
-          // We are creating a new EAS Project ID in the workflow.
-          // The generated id will be committed to eas-project.json in the repo.
-          await runCleanupTask(
-            () => AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID),
-            `[ConnectionsScreen] remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
-          );
-        }
-
-        await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
-
-        await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
-          ref: branch,
-          eas_project_id: projectId,
+        await runEasLinkWorkflowStart({
+          token,
+          owner: parsed.owner,
+          repo: parsed.repo,
+          branch,
+          projectId,
+          persistProjectIdSelection: true,
         });
 
         Alert.alert("OK", resolveEasLinkWorkflowStartMessage(projectId));
@@ -748,6 +770,7 @@ Scopes: ${scopes}` : ""}`);
     easProjectId,
     persistConnLights,
     removeConnLights,
+    runEasLinkWorkflowStart,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
@@ -774,13 +797,13 @@ Scopes: ${scopes}` : ""}`);
 
     setIsEasInitRunning(true);
     try {
-      await saveGitHubToken(token);
-
-      await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });
-
-      // eas_project_id leer => Workflow macht 'eas init' und erzeugt eine neue Project ID
-      await triggerWorkflow(parsed.owner, parsed.repo, "eas-link.yml", branch, {
-        ref: branch,
+      await runEasLinkWorkflowStart({
+        token,
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch,
+        projectId: "",
+        persistProjectIdSelection: false,
       });
 
       const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
@@ -790,7 +813,14 @@ Scopes: ${scopes}` : ""}`);
     } finally {
       setIsEasInitRunning(false);
     }
-  }, [hydrated, isEasInitRunning, githubToken, effectiveRepo, effectiveBranch]);
+  }, [
+    hydrated,
+    isEasInitRunning,
+    githubToken,
+    effectiveRepo,
+    effectiveBranch,
+    runEasLinkWorkflowStart,
+  ]);
 
 
   return {
