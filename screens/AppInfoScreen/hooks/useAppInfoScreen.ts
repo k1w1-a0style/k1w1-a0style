@@ -95,11 +95,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 function isAbortLikeError(error: unknown): boolean {
-  if (isImportExportAborted(error)) {
-    return true;
-  }
-  const message = getErrorMessage(error, "").toLowerCase();
-  return message.includes("abgebrochen");
+  return isImportExportAborted(error);
 }
 
 async function removeLegacyClientServiceRoleKeys(): Promise<void> {

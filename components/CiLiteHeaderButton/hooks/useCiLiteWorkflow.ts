@@ -215,7 +215,11 @@ export function useCiLiteWorkflow() {
 
   const stopLookupWithError = useCallback(
     (error: unknown, options?: { chainWaiting?: boolean }) => {
-      setLocalError(getCiLiteWorkflowErrorMessage(error, String(error)));
+      const fallbackMessage =
+        error instanceof Error && typeof error.message === "string" && error.message.trim()
+          ? error.message
+          : "Workflow-Lookup fehlgeschlagen. Bitte erneut versuchen.";
+      setLocalError(getCiLiteWorkflowErrorMessage(error, fallbackMessage));
       if (options?.chainWaiting) {
         setChainWaiting(false);
       }

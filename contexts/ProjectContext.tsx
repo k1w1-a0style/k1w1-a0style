@@ -183,6 +183,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(nextValue);
   }, []);
 
+  const runWithLoading = useCallback(
+    async (task: () => Promise<void>) => {
+      setIsLoadingSafe(true);
+      try {
+        await task();
+      } finally {
+        setIsLoadingSafe(false);
+      }
+    },
+    [setIsLoadingSafe],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -337,8 +349,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           text: "Neu erstellen",
           style: "destructive",
           onPress: async () => {
-            try {
-              setIsLoading(true);
+            await runWithLoading(async () => {
               const currentProjectData = projectDataRef.current;
               const mode = resolveTemplateMode(currentProjectData?.templateId);
               const { effective } = resolveEffectiveTemplateId(
@@ -362,19 +373,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
               logger.info("✅ Neues Projekt erstellt und gespeichert.");
-            } catch (error: unknown) {
+            }).catch((error: unknown) => {
               Alert.alert(
                 "Fehler",
                 getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
               );
-            } finally {
-              setIsLoadingSafe(false);
-            }
+            });
           },
         },
       ],
     );
-  }, [replaceProjectData, setIsLoadingSafe]);
+  }, [replaceProjectData, runWithLoading]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -432,10 +441,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         {
           text: "Auswählen",
           onPress: async () => {
-            setIsLoading(true);
-            try {
+            await runWithLoading(async () => {
               const result = await importProjectZip();
-              
+
               const normalizedProject = normalizeLoadedProjectData(result.project);
               // Invariant contract markers retained for source-based tests:
               // setProjectData(normalizedProject);
@@ -447,19 +455,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 "Import erfolgreich",
                 `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
               );
-            } catch (error: unknown) {
+            }).catch((error: unknown) => {
               Alert.alert(
                 "Import fehlgeschlagen",
                 getErrorMessage(error, "Fehler beim Importieren"),
               );
-            } finally {
-              setIsLoadingSafe(false);
-            }
+            });
           },
         },
       ],
     );
-  }, [replaceProjectData, setIsLoadingSafe]);
+  }, [replaceProjectData, runWithLoading]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {
