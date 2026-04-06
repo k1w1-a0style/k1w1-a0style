@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-03 (Patch 743, Secret-Hotfixes AppInfo Import/Export/Backup)**
+Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
