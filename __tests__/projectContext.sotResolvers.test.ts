@@ -2,6 +2,7 @@ import {
   resolveBuildProfileForStart,
   resolveHistoryBuildSelection,
   resolveLinkedBranchForRepoSelection,
+  resolveProjectContextErrorMessage,
   resolveTemplateMode,
 } from "../contexts/ProjectContext";
 
@@ -93,6 +94,18 @@ describe("ProjectContext SoT resolvers", () => {
 
     it("returns trimmed template id when present", () => {
       expect(resolveTemplateMode(" blank ")).toBe("blank");
+    });
+  });
+
+  describe("resolveProjectContextErrorMessage", () => {
+    it("prefers known error text over fallback", () => {
+      expect(
+        resolveProjectContextErrorMessage(new Error("boom"), "fallback"),
+      ).toBe("boom");
+      expect(
+        resolveProjectContextErrorMessage("  direct  ", "fallback"),
+      ).toBe("  direct  ");
+      expect(resolveProjectContextErrorMessage(null, "fallback")).toBe("fallback");
     });
   });
 });

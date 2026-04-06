@@ -58,9 +58,10 @@ import {
   resolveEasProjectVerification,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
-  resolveEasWorkflowSelectionPrecheck,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
+  applyPersistenceDelta,
+  resolveEasWorkflowLaunchSelection,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -215,16 +216,24 @@ export function useConnectionsScreen() {
     setEasState("missing");
     setEasLastVerifiedAt(null);
     const persisted = githubClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearExpoConnectionState = useCallback(async () => {
     setExpoOk(false);
     setExpoUser("");
     const persisted = expoClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearEasConnectionState = useCallback(async () => {
@@ -232,16 +241,24 @@ export function useConnectionsScreen() {
     setEasState("missing");
     setEasLastVerifiedAt(null);
     const persisted = easClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
     setSupabaseOk(false);
     setSupabaseRef("");
     const persisted = supabaseClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const testEas = useCallback(async () => {
@@ -693,35 +710,23 @@ Scopes: ${scopes}` : ""}`);
     [],
   );
 
-  const parseSelectedRepoOrAlert = useCallback((repoSlug: string) => {
-    const parsed = parseOwnerRepo(repoSlug);
-    if (parsed) {
-      return parsed;
-    }
-    const notice = resolveConnectionsAlertNotice("invalid_repo_format");
-    Alert.alert(notice.title, notice.message);
-    return null;
-  }, []);
-
   const onLinkExisting = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const precheck = resolveEasWorkflowSelectionPrecheck({
+    const launchSelection = resolveEasWorkflowLaunchSelection({
       githubToken,
       repoSlug: effectiveRepo || "",
       branch: effectiveBranch || "",
+      parseOwnerRepo,
     });
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
-    if (!precheck.ok) {
-      Alert.alert(precheck.notice.title, precheck.notice.message);
+    if (!launchSelection.ok) {
+      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
     }
-    const { githubToken: token, repoSlug, branch } = precheck.selection;
-
-    const parsed = parseSelectedRepoOrAlert(repoSlug);
-    if (!parsed) return;
+    const { githubToken: token, repoSlug, branch, owner, repo } = launchSelection.selection;
 
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
@@ -735,8 +740,8 @@ Scopes: ${scopes}` : ""}`);
       try {
         await runEasLinkWorkflowStart({
           token,
-          owner: parsed.owner,
-          repo: parsed.repo,
+          owner,
+          repo,
           branch,
           projectId,
           persistProjectIdSelection: true,
@@ -749,8 +754,12 @@ Scopes: ${scopes}` : ""}`);
         setEasOk(false);
         setEasState(postStartState.state);
         setEasLastVerifiedAt(null);
-        await persistConnLights(postStartState.writes);
-        await removeConnLights(postStartState.removes);
+        await applyPersistenceDelta({
+          writes: postStartState.writes,
+          removes: postStartState.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
 
         if (repoSlug) {
           setRepoOk(true);
@@ -791,33 +800,30 @@ Scopes: ${scopes}` : ""}`);
     persistConnLights,
     removeConnLights,
     runEasLinkWorkflowStart,
-    parseSelectedRepoOrAlert,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const precheck = resolveEasWorkflowSelectionPrecheck({
+    const launchSelection = resolveEasWorkflowLaunchSelection({
       githubToken,
       repoSlug: effectiveRepo || "",
       branch: effectiveBranch || "",
+      parseOwnerRepo,
     });
-    if (!precheck.ok) {
-      Alert.alert(precheck.notice.title, precheck.notice.message);
+    if (!launchSelection.ok) {
+      Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
     }
-    const { githubToken: token, repoSlug, branch } = precheck.selection;
-
-    const parsed = parseSelectedRepoOrAlert(repoSlug);
-    if (!parsed) return;
+    const { githubToken: token, branch, owner, repo } = launchSelection.selection;
 
     setIsEasInitRunning(true);
     try {
       await runEasLinkWorkflowStart({
         token,
-        owner: parsed.owner,
-        repo: parsed.repo,
+        owner,
+        repo,
         branch,
         projectId: "",
         persistProjectIdSelection: false,
@@ -837,7 +843,6 @@ Scopes: ${scopes}` : ""}`);
     effectiveRepo,
     effectiveBranch,
     runEasLinkWorkflowStart,
-    parseSelectedRepoOrAlert,
   ]);
 
 

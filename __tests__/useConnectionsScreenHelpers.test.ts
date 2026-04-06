@@ -17,6 +17,8 @@ import {
   resolveEasLinkWorkflowTriggerInputs,
   removeEntriesWithFallback,
   resolvePersistedEasState,
+  applyPersistenceDelta,
+  resolveEasWorkflowLaunchSelection,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -215,6 +217,47 @@ describe("useConnectionsScreenHelpers", () => {
     });
   });
 
+  it("resolves EAS workflow launch selection including owner/repo parsing", () => {
+    const parseOwnerRepo = (repoSlug: string) => {
+      const [owner, repo] = repoSlug.split("/");
+      if (!owner || !repo) return null;
+      return { owner, repo };
+    };
+
+    expect(
+      resolveEasWorkflowLaunchSelection({
+        githubToken: " token ",
+        repoSlug: " owner/repo ",
+        branch: " main ",
+        parseOwnerRepo,
+      }),
+    ).toEqual({
+      ok: true,
+      selection: {
+        githubToken: "token",
+        repoSlug: "owner/repo",
+        branch: "main",
+        owner: "owner",
+        repo: "repo",
+      },
+    });
+
+    expect(
+      resolveEasWorkflowLaunchSelection({
+        githubToken: "token",
+        repoSlug: "owner-only",
+        branch: "main",
+        parseOwnerRepo,
+      }),
+    ).toEqual({
+      ok: false,
+      notice: {
+        title: "Fehler",
+        message: "Repo-Format ist ungültig. Erwartet: owner/repo",
+      },
+    });
+  });
+
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
@@ -331,6 +374,32 @@ describe("useConnectionsScreenHelpers", () => {
       title: "GitHub Test",
       message: "Unbekannter Fehler",
     });
+  });
+
+  it("applies persistence deltas only for present writes/removes", async () => {
+    const persist = jest.fn(async () => {});
+    const remove = jest.fn(async () => {});
+
+    await applyPersistenceDelta({
+      writes: [["k1", "v1"]],
+      removes: ["k2"],
+      persist,
+      remove,
+    });
+    expect(persist).toHaveBeenCalledWith([["k1", "v1"]]);
+    expect(remove).toHaveBeenCalledWith(["k2"]);
+
+    persist.mockClear();
+    remove.mockClear();
+
+    await applyPersistenceDelta({
+      writes: [],
+      removes: [],
+      persist,
+      remove,
+    });
+    expect(persist).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("derives supabase project ref only from supabase hosts", () => {

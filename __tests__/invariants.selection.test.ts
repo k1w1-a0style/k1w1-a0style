@@ -113,8 +113,10 @@ describe("Invariants: repo/branch selection is source of truth", () => {
 
   it("does not keep a default-branch fallback in CI-Lite header dispatch", () => {
     const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const helper = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers.ts");
 
-    expect(src).toContain("CI Lite blockiert: Kein Branch verknüpft.");
+    expect(src).toContain("resolveCiLiteDispatchSelection");
+    expect(helper).toContain("CI Lite blockiert: Kein Branch verknüpft.");
     expect(src).not.toContain("getDefaultBranch");
     expect(src).not.toContain('targetBranch = "main"');
   });

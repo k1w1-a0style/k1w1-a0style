@@ -126,6 +126,20 @@ export const resolveCiLiteBusyState = (params: {
   );
 };
 
+export const isCiLiteRunContextActive = (params: {
+  dispatching: boolean;
+  locatingRun: boolean;
+  chainWaiting: boolean;
+  runId: number | null | undefined;
+}): boolean => {
+  return (
+    params.dispatching ||
+    params.locatingRun ||
+    params.chainWaiting ||
+    params.runId != null
+  );
+};
+
 const AUTOFIX_CHAIN_SKIP_REASON_RULES: Array<{ pattern: RegExp; reason: string }> = [
   {
     pattern: /No\s+TARGET_BRANCH.*skipping\s+CI\s*Lite\s+chain-?run/i,
@@ -305,6 +319,60 @@ export const resolveCiLiteTargetRef = (params: {
     String(params.hydratedBranch ?? "").trim() ||
     String(params.branch ?? "").trim();
   return resolved || null;
+};
+
+export type CiLiteDispatchSelectionResult =
+  | {
+      ok: true;
+      selection: {
+        owner: string;
+        repo: string;
+        branch: string;
+      };
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+export const resolveCiLiteDispatchSelection = (params: {
+  githubRepo: string;
+  branch: string;
+}): CiLiteDispatchSelectionResult => {
+  const repoParts = splitRepoFullName(params.githubRepo);
+  if (!repoParts) {
+    return {
+      ok: false,
+      message: "Kein gültiges Repo (owner/repo) ausgewählt.",
+    };
+  }
+
+  const targetBranch = params.branch.trim();
+  if (!targetBranch) {
+    return {
+      ok: false,
+      message: "CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.",
+    };
+  }
+
+  return {
+    ok: true,
+    selection: {
+      owner: repoParts.owner,
+      repo: repoParts.repo,
+      branch: targetBranch,
+    },
+  };
+};
+
+export const resolveCiLiteSyncStateError = (
+  syncState: "in_sync" | "out_of_sync" | "unknown",
+): string | null => {
+  if (syncState === "in_sync") return null;
+  if (syncState === "out_of_sync") {
+    return "CI Lite blockiert: Lokale Änderungen sind noch nicht im gewählten Repo/Branch. Bitte zuerst pushen.";
+  }
+  return "CI Lite blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.";
 };
 
 export const resolveCiLiteMissingJwtMessage = (

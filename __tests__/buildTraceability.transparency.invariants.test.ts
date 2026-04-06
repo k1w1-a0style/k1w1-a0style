@@ -11,10 +11,8 @@ describe("Build traceability transparency invariants", () => {
 
     expect(src).toContain("const buildBranch = (pd.linkedBranch ?? \"\").trim();");
     expect(src).toContain("branch: branchResolved");
-    expect(src).toContain("const historySelection = resolveHistoryBuildSelection");
-    expect(src).toContain("branch: historySelection.branch");
-    expect(src).toContain("buildProfile: historySelection.buildProfile");
-    expect(src).toContain("repoName: historySelection.repoName");
+    expect(src).toContain("const nextHistoryUpdate = resolveBuildHistoryPollUpdate");
+    expect(src).toContain("updateBuildInHistory(activeJobId, nextHistoryUpdate.update)");
   });
 
   it("shows effective repo/branch/profile in build status card", () => {

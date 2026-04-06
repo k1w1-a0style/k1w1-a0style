@@ -74,6 +74,7 @@ import {
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
+  resolveProjectContextErrorMessage,
   resolveBuildHistoryPollUpdate,
   resolveHistoryBuildSelection,
   resolveTemplateMode,
@@ -88,18 +89,13 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildHistoryWarningMessage,
   resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
 } from "./projectContextBuildHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
-
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "string" && error.trim()) return error;
-  return fallback;
-};
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
@@ -120,6 +116,7 @@ export {
   resolveHistoryBuildSelection,
   resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
+  resolveProjectContextErrorMessage,
   sanitizeChatRetentionLimit,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
@@ -372,7 +369,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             } catch (error: unknown) {
               Alert.alert(
                 "Fehler",
-                getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
+                resolveProjectContextErrorMessage(
+                  error,
+                  "Projekt konnte nicht erstellt werden",
+                ),
               );
             }
           },
@@ -399,7 +399,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       logger.error("[ProjectContext] ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
+        resolveProjectContextErrorMessage(
+          error,
+          "Ein unbekannter Fehler ist aufgetreten.",
+        ),
       );
     }
   }, [projectData]);
@@ -423,7 +426,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       logger.error("[ProjectContext] Text-ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
+        resolveProjectContextErrorMessage(
+          error,
+          "Ein unbekannter Fehler ist aufgetreten.",
+        ),
       );
     }
   }, [projectData]);
@@ -459,7 +465,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
-                getErrorMessage(error, "Fehler beim Importieren"),
+                resolveProjectContextErrorMessage(
+                  error,
+                  "Fehler beim Importieren",
+                ),
               );
             }
           },
@@ -680,6 +689,17 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => () => clearPendingSave(), [clearPendingSave]);
 
   const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
+  const runBuildHistoryBestEffort = useCallback(
+    (
+      mode: "update" | "insert",
+      operation: () => Promise<void>,
+    ) => {
+      operation().catch((historyError: unknown) => {
+        logger.warn(resolveBuildHistoryWarningMessage(mode), { error: historyError });
+      });
+    },
+    [],
+  );
 
   // Keep ProjectContext.currentBuild in sync with centralized polling hook
   useEffect(() => {
@@ -712,26 +732,12 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     });
     if (!nextHistoryUpdate || !activeJobId || !pollDetails) return;
 
-    const historySelection = resolveHistoryBuildSelection({
-      activeJobId,
-      snapshot: activeBuildSelectionRef.current,
-      currentBuild: currentBuildRef.current,
-    });
-
     lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
 
-    updateBuildInHistory(activeJobId, {
-      status: nextHistoryUpdate.update.status,
-      branch: historySelection.branch,
-      buildProfile: historySelection.buildProfile,
-      repoName: historySelection.repoName,
-      htmlUrl: pollDetails.urls?.html ?? null,
-      artifactUrl: pollDetails.urls?.artifacts ?? null,
-      sourceCommitSha: pollDetails.sourceCommitSha ?? null,
-    }).catch((historyError: unknown) => {
-      logger.warn("⚠️ Build-Historie konnte nicht aktualisiert werden", { error: historyError });
-    });
-  }, [activeJobId, buildPoll.details, buildPoll.status]);
+    runBuildHistoryBestEffort("update", () =>
+      updateBuildInHistory(activeJobId, nextHistoryUpdate.update),
+    );
+  }, [activeJobId, buildPoll.details, buildPoll.status, runBuildHistoryBestEffort]);
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
@@ -789,8 +795,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           }),
         );
 
-        try {
-          await addBuildToHistory({
+        runBuildHistoryBestEffort("insert", () =>
+          addBuildToHistory({
             id: uuidv4(),
             jobId,
             repoName: githubRepoResolved,
@@ -798,10 +804,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             status: "queued",
             startedAt,
             buildProfile: profile,
-          });
-        } catch (historyError: unknown) {
-          logger.warn("⚠️ Build-Historie konnte nicht gespeichert werden", { error: historyError });
-        }
+          }),
+        );
 
       } catch (e: unknown) {
         setCurrentBuild(
@@ -813,7 +817,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         throw e;
       }
     },
-    [projectData],
+    [projectData, runBuildHistoryBestEffort],
   );
 
 

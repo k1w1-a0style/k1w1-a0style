@@ -45,9 +45,11 @@ import {
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
+  isCiLiteRunContextActive,
   hasCiLiteLookupTimedOut,
   resolveCiLiteLookupFailureLabel,
-  splitRepoFullName,
+  resolveCiLiteDispatchSelection,
+  resolveCiLiteSyncStateError,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
@@ -232,6 +234,31 @@ export function useCiLiteWorkflow() {
     [],
   );
 
+  const resolveOperatorAccess = useCallback(
+    async (context: "artifact" | "dispatch") => {
+      const adminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedAdminKey = String(adminKey ?? "").trim();
+      if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
+        const normalized = normalizeCiLiteWorkflowError({
+          context,
+          adminKey,
+        });
+        throw new Error(normalized.userMessage);
+      }
+
+      const userJwt = await readOperatorJwt(context);
+      if (!userJwt) {
+        throw new Error(resolveCiLiteMissingJwtMessage(context));
+      }
+
+      return {
+        adminKey: trimmedAdminKey,
+        userJwt,
+      };
+    },
+    [],
+  );
+
   const stopLookupWithError = useCallback(
     (error: unknown, options?: { chainWaiting?: boolean }) => {
       const fallbackMessage = resolveCiLiteWorkflowErrorFallback(error);
@@ -246,12 +273,13 @@ export function useCiLiteWorkflow() {
 
   // ---- Logs ----
   const trackedRunId = runId;
-  const hasActiveRunContext = dispatching || locatingRun || chainWaiting || trackedRunId != null;
-  const hasLookupOrDispatchActivity =
-    dispatching ||
-    locatingRun ||
-    chainWaiting ||
-    trackedRunId != null;
+  const hasActiveRunContext = isCiLiteRunContextActive({
+    dispatching,
+    locatingRun,
+    chainWaiting,
+    runId: trackedRunId,
+  });
+  const hasLookupOrDispatchActivity = hasActiveRunContext;
 
   const {
     logs,
@@ -331,19 +359,7 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedAdminKey = String(adminKey ?? "").trim();
-        const userJwt = await readOperatorJwt("artifact");
-        if (!userJwt) {
-          throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
-        }
-        if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "artifact",
-            adminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
+        const operatorAccess = await resolveOperatorAccess("artifact");
 
         const { artifactName, filePath } = resolveCiLiteArtifactRequest(workflowId);
 
@@ -353,8 +369,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedAdminKey,
+            Authorization: `Bearer ${operatorAccess.userJwt}`,
+            "x-k1w1-admin-key": operatorAccess.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -368,7 +384,7 @@ export function useCiLiteWorkflow() {
         if (!resp.ok) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
-            adminKey: trimmedAdminKey,
+            adminKey: operatorAccess.adminKey,
             statusCode: resp.status,
             statusText: resp.statusText,
             payload: data,
@@ -402,6 +418,7 @@ export function useCiLiteWorkflow() {
     workflowId,
     workflowRun?.id,
     workflowRun?.status,
+    resolveOperatorAccess,
   ]);
 
   // Clear artifact state when we switch to a new tracked run context.
@@ -706,11 +723,15 @@ export function useCiLiteWorkflow() {
   const dispatchWorkflow = useCallback(
     async (workflowFile: string) => {
       if (dispatching) return;
-      const repoParts = splitRepoFullName(githubRepo);
-      if (!repoParts) {
-        Alert.alert("CI Lite", "Kein gültiges Repo (owner/repo) ausgewählt.");
+      const dispatchSelection = resolveCiLiteDispatchSelection({
+        githubRepo,
+        branch,
+      });
+      if (!dispatchSelection.ok) {
+        Alert.alert("CI Lite", dispatchSelection.message);
         return;
       }
+      const { owner, repo, branch: targetBranch } = dispatchSelection.selection;
 
       setLocalError(null);
       setVisible(true);
@@ -726,44 +747,24 @@ export function useCiLiteWorkflow() {
       setJobId(newJobId);
 
       try {
-        const targetBranch = branch.trim();
-        if (!targetBranch) {
-          throw new Error("CI Lite blockiert: Kein Branch verknüpft. Bitte im Repo-Screen einen Branch auswählen.");
-        }
-
         const syncState = await getRepoSyncState({
           linkedRepo: githubRepo,
           linkedBranch: targetBranch,
           files: projectData?.files ?? [],
         });
-        if (syncState !== "in_sync") {
-          throw new Error(
-            syncState === "out_of_sync"
-              ? "CI Lite blockiert: Lokale Änderungen sind noch nicht im gewählten Repo/Branch. Bitte zuerst pushen."
-              : "CI Lite blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen.",
-          );
+        const syncStateError = resolveCiLiteSyncStateError(syncState);
+        if (syncStateError) {
+          throw new Error(syncStateError);
         }
         setTargetRef(targetBranch);
 
         const sourceHeadSha = await getBranchHeadSha(
-          repoParts.owner,
-          repoParts.repo,
+          owner,
+          repo,
           targetBranch,
         ).catch(() => null);
 
-        const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-        if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "dispatch",
-            adminKey: workflowAdminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
-        const userJwt = await readOperatorJwt("dispatch");
-        if (!userJwt) {
-          throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
-        }
+        const operatorAccess = await resolveOperatorAccess("dispatch");
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
@@ -772,8 +773,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedWorkflowAdminKey,
+            Authorization: `Bearer ${operatorAccess.userJwt}`,
+            "x-k1w1-admin-key": operatorAccess.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -790,7 +791,7 @@ export function useCiLiteWorkflow() {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: trimmedWorkflowAdminKey,
+            adminKey: operatorAccess.adminKey,
             statusCode: r.status,
             statusText: r.statusText,
             payload,
@@ -804,7 +805,7 @@ export function useCiLiteWorkflow() {
           branch: targetBranch,
           jobId: newJobId,
           workflow: workflowFile,
-          userJwt,
+          userJwt: operatorAccess.userJwt,
           expectedEvent: "workflow_dispatch",
           sourceHeadSha,
           mode: "default",
@@ -815,7 +816,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [branch, dispatching, githubRepo, projectData?.files, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
+    [branch, dispatching, githubRepo, projectData?.files, resolveOperatorAccess, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
   );
 
 
