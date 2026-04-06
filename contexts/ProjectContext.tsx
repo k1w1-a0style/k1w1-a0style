@@ -71,15 +71,14 @@ import {
 } from "./projectContextPersistenceHelpers";
 import {
   appendChatMessageWithRetention,
-  createBuildHistoryStatusSnapshot,
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
+  resolveBuildHistoryPollUpdate,
   resolveHistoryBuildSelection,
   resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
   sanitizeChatRetentionLimit,
-  shouldUpdateBuildHistoryStatus,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
 import { composeProjectContextValue, deriveProjectContextMessages } from "./projectContextValueHelpers";
@@ -89,9 +88,9 @@ import {
   createBuildPollingAbortState,
   createBuildQueuedStateAfterStart,
   createBuildQueuedStateForStart,
+  resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
-  shouldUpdateHistoryFromPoll,
 } from "./projectContextBuildHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -192,6 +191,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         loadChatHistorySettings,
         shouldApplyHydratedRetention,
         didSetRuntimeRetention: didSetRuntimeRetentionRef.current,
+        onHydrationError: (error) => {
+          logger.warn("[ProjectContext] chat retention hydration failed; using fallback", { error });
+        },
       });
       if (!cancelled && hydratedLimit !== null) {
         chatRetentionLimitRef.current = hydratedLimit;
@@ -700,31 +702,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   // Update build history as statuses arrive (best-effort)
   useEffect(() => {
     const pollDetails = buildPoll.details;
-    if (
-      !shouldUpdateHistoryFromPoll({
-        activeJobId,
-        details: pollDetails,
-        status: buildPoll.status,
-      }) ||
-      !activeJobId ||
-      !pollDetails
-    ) {
-      return;
-    }
-
-    const status = buildPoll.status;
-    if (!shouldUpdateBuildHistoryStatus({
+    const nextHistoryUpdate = resolveBuildHistoryPollUpdate({
+      activeJobId,
+      details: pollDetails,
+      status: buildPoll.status,
       lastSnapshot: lastHistoryStatusRef.current,
-      activeJobId,
-      status,
-    })) {
-      return;
-    }
-
-    lastHistoryStatusRef.current = createBuildHistoryStatusSnapshot({
-      activeJobId,
-      status,
+      selectionSnapshot: activeBuildSelectionRef.current,
+      currentBuild: currentBuildRef.current,
     });
+    if (!nextHistoryUpdate || !activeJobId || !pollDetails) return;
 
     const historySelection = resolveHistoryBuildSelection({
       activeJobId,
@@ -732,8 +718,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       currentBuild: currentBuildRef.current,
     });
 
+    lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
+
     updateBuildInHistory(activeJobId, {
-      status,
+      status: nextHistoryUpdate.update.status,
       branch: historySelection.branch,
       buildProfile: historySelection.buildProfile,
       repoName: historySelection.repoName,
@@ -818,7 +806,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       } catch (e: unknown) {
         setCurrentBuild(
           createBuildErrorState({
-            message: getErrorMessage(e, String(e)),
+            message: resolveBuildStartErrorMessage(e),
             nowIso: new Date().toISOString(),
           }),
         );

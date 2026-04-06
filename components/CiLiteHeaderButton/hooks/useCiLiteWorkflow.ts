@@ -52,6 +52,7 @@ import {
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
   readCiLiteArtifactPayloadCandidate,
+  resolveCiLiteMatchedRun,
 } from "./useCiLiteWorkflowHelpers";
 import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
@@ -61,9 +62,17 @@ const BUILD_ADMIN_FAIL_CLOSED_NOTE =
 const BUILD_ADMIN_SERVER_CALLER_NOTE = "JWT role=build_admin (oder service_role fuer Server-Caller)";
 const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
 
-async function readOperatorJwt(): Promise<string | null> {
-  const supabase = await ensureSupabaseClient().catch(() => null);
-  const session = await supabase?.auth.getSession().catch(() => null);
+async function readOperatorJwt(context: "artifact" | "lookup" | "dispatch"): Promise<string | null> {
+  const supabase = await ensureSupabaseClient().catch((error: unknown) => {
+    logger.warn("[CiLiteWorkflow] ensureSupabaseClient failed while reading operator jwt", { context, error });
+    return null;
+  });
+  if (!supabase) return null;
+
+  const session = await supabase.auth.getSession().catch((error: unknown) => {
+    logger.warn("[CiLiteWorkflow] auth.getSession failed while reading operator jwt", { context, error });
+    return null;
+  });
   const jwt = String(session?.data?.session?.access_token ?? "").trim();
   return jwt || null;
 }
@@ -324,7 +333,7 @@ export function useCiLiteWorkflow() {
         const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
-        const userJwt = await readOperatorJwt();
+        const userJwt = await readOperatorJwt("artifact");
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
         }
@@ -409,6 +418,78 @@ export function useCiLiteWorkflow() {
       workflowLabel: params.workflowLabel,
     });
   }, []);
+
+  const startLookupTracking = useCallback(
+    async (params: {
+      githubRepo: string;
+      branch: string;
+      jobId: string;
+      workflow: string;
+      userJwt: string;
+      expectedEvent: "repository_dispatch" | "workflow_dispatch";
+      sourceHeadSha?: string | null;
+      mode: "chain" | "default";
+      onMatch?: () => void;
+      stopLookupOptions?: { chainWaiting?: boolean };
+    }) => {
+      const lookupGeneration = startRunLookup();
+      const start = Date.now();
+
+      const poll = async () => {
+        try {
+          const lookup = await findMatchingRun({
+            githubRepo: params.githubRepo,
+            branch: params.branch,
+            jobId: params.jobId,
+            workflow: params.workflow,
+            userJwt: params.userJwt,
+            expectedEvent: params.expectedEvent,
+            startedAtMs: start,
+            sourceHeadSha: params.sourceHeadSha,
+            requireJobIdMarker: true,
+          });
+          if (!isLookupGenerationActive(lookupGeneration)) return true;
+          updateLookupDiagnosis(lookup.diagnosis);
+          const matchedRun = resolveCiLiteMatchedRun(lookup.candidate);
+          if (matchedRun) {
+            setRunId(matchedRun.runId);
+            setRunUrl(matchedRun.runUrl);
+            params.onMatch?.();
+            stopRunLookup();
+            return true;
+          }
+        } catch (e: unknown) {
+          stopLookupWithError(e, params.stopLookupOptions);
+          return true;
+        }
+
+        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: params.mode })) {
+          stopLookupWithError(
+            buildLookupFailureMessage({
+              workflowLabel: resolveCiLiteLookupFailureLabel(params.mode),
+            }),
+            params.stopLookupOptions,
+          );
+          return true;
+        }
+        return false;
+      };
+
+      const lookupFinished = await poll();
+      if (!lookupFinished) {
+        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
+      }
+    },
+    [
+      buildLookupFailureMessage,
+      findMatchingRun,
+      isLookupGenerationActive,
+      scheduleLookupPoll,
+      startRunLookup,
+      stopLookupWithError,
+      updateLookupDiagnosis,
+    ],
+  );
 
   const hydratedDisplaySnapshot = resolveCiLiteDisplaySnapshot({
     hasActiveRunContext,
@@ -524,13 +605,12 @@ export function useCiLiteWorkflow() {
     }
 
     setChainWaiting(true);
-    const lookupGeneration = startRunLookup();
     setWorkflowId(WORKFLOW_CI_LITE);
     setRunId(null);
     setRunUrl(null);
 
     void (async () => {
-      const userJwt = await readOperatorJwt();
+      const userJwt = await readOperatorJwt("lookup");
       if (!userJwt) {
         setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
         setChainWaiting(false);
@@ -538,50 +618,24 @@ export function useCiLiteWorkflow() {
         return;
       }
 
-      const start = Date.now();
-      const poll = async () => {
-        try {
-          const lookup = await findMatchingRun({
-            githubRepo,
-            branch: b,
-            jobId,
-            workflow: WORKFLOW_CI_LITE,
-            userJwt,
-            expectedEvent: "repository_dispatch",
-            startedAtMs: start,
-            sourceHeadSha: workflowRun.head_sha ?? null,
-            requireJobIdMarker: true,
-          });
-          if (!isLookupGenerationActive(lookupGeneration)) return true;
-          updateLookupDiagnosis(lookup.diagnosis);
-          if (lookup.candidate?.id) {
-            setRunId(Number(lookup.candidate.id));
-            setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
-            setChainWaiting(false);
-            stopRunLookup();
-            return true;
-          }
-        } catch (e: unknown) {
-          stopLookupWithError(e, { chainWaiting: true });
-          return true;
-        }
-        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "chain" })) {
-          // Invariant contract marker retained for source-based tests:
-          // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
-          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("chain") }), {
-            chainWaiting: true,
-          });
-          return true;
-        }
-        return false;
-      };
-
-      const lookupFinished = await poll();
-      if (!lookupFinished) {
-        scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
-      }
+      // Invariant contract marker retained for source-based tests:
+      // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
+      await startLookupTracking({
+        githubRepo,
+        branch: b,
+        jobId,
+        workflow: WORKFLOW_CI_LITE,
+        userJwt,
+        expectedEvent: "repository_dispatch",
+        sourceHeadSha: workflowRun.head_sha ?? null,
+        mode: "chain",
+        onMatch: () => {
+          setChainWaiting(false);
+        },
+        stopLookupOptions: { chainWaiting: true },
+      });
     })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, startRunLookup, findMatchingRun, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError]);
+  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startLookupTracking]);
 
   // ---- Header state lamp ----
   useEffect(() => {
@@ -706,7 +760,7 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
-        const userJwt = await readOperatorJwt();
+        const userJwt = await readOperatorJwt("dispatch");
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
         }
@@ -745,51 +799,23 @@ export function useCiLiteWorkflow() {
           throw new Error(normalized.userMessage);
         }
 
-        const start = Date.now();
-        const poll = async () => {
-          try {
-            const lookup = await findMatchingRun({
-              githubRepo,
-              branch: targetBranch,
-              jobId: newJobId,
-              workflow: workflowFile,
-              userJwt,
-              expectedEvent: "workflow_dispatch",
-              startedAtMs: start,
-              sourceHeadSha,
-              requireJobIdMarker: true,
-            });
-            if (!isLookupGenerationActive(lookupGeneration)) return true;
-            updateLookupDiagnosis(lookup.diagnosis);
-            if (lookup.candidate?.id) {
-              setRunId(Number(lookup.candidate.id));
-              setRunUrl(typeof lookup.candidate?.html_url === "string" ? lookup.candidate.html_url : null);
-              stopRunLookup();
-              return true;
-            }
-          } catch (e: unknown) {
-            stopLookupWithError(e);
-            return true;
-          }
-          if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "default" })) {
-            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("default") }));
-            return true;
-          }
-          return false;
-        };
-
-        const lookupGeneration = startRunLookup();
-        const lookupFinished = await poll();
-        if (!lookupFinished) {
-          scheduleLookupPoll({ generation: lookupGeneration, attempt: 0, poll });
-        }
+        await startLookupTracking({
+          githubRepo,
+          branch: targetBranch,
+          jobId: newJobId,
+          workflow: workflowFile,
+          userJwt,
+          expectedEvent: "workflow_dispatch",
+          sourceHeadSha,
+          mode: "default",
+        });
       } catch (e: unknown) {
         stopLookupWithError(e);
       } finally {
         setDispatching(false);
       }
     },
-    [dispatching, githubRepo, branch, startRunLookup, findMatchingRun, projectData?.files, buildLookupFailureMessage, updateLookupDiagnosis, scheduleLookupPoll, isLookupGenerationActive, stopLookupWithError],
+    [branch, dispatching, githubRepo, projectData?.files, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
   );
 
 

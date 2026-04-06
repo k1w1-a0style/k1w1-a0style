@@ -294,14 +294,17 @@ describe("projectContextPersistenceHelpers", () => {
     });
 
     it("falls back to retention fallback on read errors", async () => {
+      const onHydrationError = jest.fn();
       const value = await hydrateChatRetentionLimit({
         loadChatHistorySettings: async () => {
           throw new Error("storage down");
         },
         shouldApplyHydratedRetention: () => true,
         didSetRuntimeRetention: false,
+        onHydrationError,
       });
       expect(value).toBe(CHAT_HISTORY_RETENTION_FALLBACK);
+      expect(onHydrationError).toHaveBeenCalledTimes(1);
     });
   });
 

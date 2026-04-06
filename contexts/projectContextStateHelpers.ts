@@ -127,6 +127,70 @@ export const createBuildHistoryStatusSnapshot = (params: {
   status: params.status,
 });
 
+export const resolveBuildHistoryPollUpdate = (params: {
+  activeJobId: string | null;
+  details: BuildStatusDetails | null;
+  status: BuildStatus;
+  lastSnapshot: BuildHistoryStatusSnapshot | null;
+  selectionSnapshot?: BuildSelectionSnapshot | null;
+  currentBuild?: {
+    githubRepo?: string | null;
+    branch?: string | null;
+    buildProfile?: string | null;
+  } | null;
+}):
+  | {
+      nextSnapshot: BuildHistoryStatusSnapshot;
+      update: {
+        jobId: string;
+        status: BuildStatus;
+        branch: string | undefined;
+        buildProfile: string | undefined;
+        repoName: string | undefined;
+        htmlUrl: string | null;
+        artifactUrl: string | null;
+        sourceCommitSha: string | null;
+      };
+    }
+  | null => {
+  if (!params.activeJobId || !params.details) {
+    return null;
+  }
+
+  if (
+    !shouldUpdateBuildHistoryStatus({
+      lastSnapshot: params.lastSnapshot,
+      activeJobId: params.activeJobId,
+      status: params.status,
+    })
+  ) {
+    return null;
+  }
+
+  const selection = resolveHistoryBuildSelection({
+    activeJobId: params.activeJobId,
+    snapshot: params.selectionSnapshot,
+    currentBuild: params.currentBuild,
+  });
+
+  return {
+    nextSnapshot: createBuildHistoryStatusSnapshot({
+      activeJobId: params.activeJobId,
+      status: params.status,
+    }),
+    update: {
+      jobId: params.activeJobId,
+      status: params.status,
+      branch: selection.branch,
+      buildProfile: selection.buildProfile,
+      repoName: selection.repoName,
+      htmlUrl: params.details.urls?.html ?? null,
+      artifactUrl: params.details.urls?.artifacts ?? null,
+      sourceCommitSha: params.details.sourceCommitSha ?? null,
+    },
+  };
+};
+
 export const getValidContextMessages = (
   history: ChatMessage[] | null | undefined,
 ): ChatMessage[] => {
