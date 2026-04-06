@@ -220,6 +220,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     [debouncedSave],
   );
 
+  const runWithProjectLock = useCallback(
+    async (task: () => Promise<void>) => {
+      const release = await mutexRef.current.acquire();
+      try {
+        await task();
+      } finally {
+        release();
+      }
+    },
+    [],
+  );
+
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
       await updateProject((prev) => {
@@ -322,13 +334,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
                 lastPreview: null,
               };
 
-              const release = await mutexRef.current.acquire();
-              try {
+              await runWithProjectLock(async () => {
                 setProjectData(newProject);
                 await saveProjectToStorage(newProject);
-              } finally {
-                release();
-              }
+              });
 
               Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
               logger.info("✅ Neues Projekt erstellt und gespeichert.");
@@ -408,13 +417,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               
               const normalizedProject = normalizeLoadedProjectData(result.project);
 
-              const release = await mutexRef.current.acquire();
-              try {
+              await runWithProjectLock(async () => {
                 setProjectData(normalizedProject);
                 await saveProjectToStorage(normalizedProject);
-              } finally {
-                release();
-              }
+              });
 
               Alert.alert(
                 "Import erfolgreich",
@@ -432,7 +438,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, []);
+  }, [runWithProjectLock]);
 
   const createFile = useCallback(
     async (path: string, content: string) => {

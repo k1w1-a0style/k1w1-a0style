@@ -199,6 +199,19 @@ export const parseCiLiteArtifactJson = (payload: unknown): CiLiteArtifactJson =>
   };
 };
 
+export const readCiLiteArtifactPayloadCandidate = (payload: unknown): unknown => {
+  const parsed = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+  if (!parsed) return null;
+  const inlineJson = parsed.json;
+  if (inlineJson && typeof inlineJson === "object") {
+    return inlineJson;
+  }
+  if (typeof parsed.text === "string") {
+    return JSON.parse(parsed.text);
+  }
+  return null;
+};
+
 export const mergeWorkflowRunLookupDiagnosis = (
   previous: WorkflowRunLookupDiagnosis | null,
   next: WorkflowRunLookupDiagnosis | null,

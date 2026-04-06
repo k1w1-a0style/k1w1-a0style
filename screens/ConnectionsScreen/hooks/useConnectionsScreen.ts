@@ -85,14 +85,14 @@ export function useConnectionsScreen() {
   const [githubUser, setGithubUser] = useState("");
   const [githubScopes, setGithubScopes] = useState("");
   const [supabaseOk, setSupabaseOk] = useState(false);
-  const [supabaseRef, setSupabaseRef] = useState("" );
+  const [supabaseRef, setSupabaseRef] = useState("");
   const [expoOk, setExpoOk] = useState(false);
-  const [expoUser, setExpoUser] = useState("" );
+  const [expoUser, setExpoUser] = useState("");
   const [easOk, setEasOk] = useState(false);
   const [easState, setEasState] = useState<VerificationContractState>("missing");
   const [easLastVerifiedAt, setEasLastVerifiedAt] = useState<string | null>(null);
   const [repoOk, setRepoOk] = useState(false);
-  const [repoOkLine, setRepoOkLine] = useState("" );
+  const [repoOkLine, setRepoOkLine] = useState("");
 
   // Tokens
   const [githubToken, setGithubToken] = useState("");
@@ -136,28 +136,31 @@ export function useConnectionsScreen() {
     [],
   );
 
-  const saveConnEasStatus = useCallback(async (params: {
-    ok: boolean;
-    state: VerificationContractState;
-    verifiedAt?: string | null;
-  }) => {
-    const { ok, state } = params;
-    const verifiedAt = params.verifiedAt ?? null;
-    setEasOk(ok);
-    setEasState(state);
-    setEasLastVerifiedAt(verifiedAt);
-    await persistEntriesWithFallback(AsyncStorage, [
-      [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
-      [STORAGE_KEYS.CONN_EAS_STATE, state],
-    ]);
-    if (verifiedAt) {
+  const saveConnEasStatus = useCallback(
+    async (params: {
+      ok: boolean;
+      state: VerificationContractState;
+      verifiedAt?: string | null;
+    }) => {
+      const { ok, state } = params;
+      const verifiedAt = params.verifiedAt ?? null;
+      setEasOk(ok);
+      setEasState(state);
+      setEasLastVerifiedAt(verifiedAt);
       await persistEntriesWithFallback(AsyncStorage, [
-        [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt],
+        [STORAGE_KEYS.CONN_EAS_OK, ok ? "true" : "false"],
+        [STORAGE_KEYS.CONN_EAS_STATE, state],
       ]);
-    } else {
-      await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
-    }
-  }, []);
+      if (verifiedAt) {
+        await persistEntriesWithFallback(AsyncStorage, [
+          [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, verifiedAt],
+        ]);
+      } else {
+        await removeEntriesWithFallback(AsyncStorage, [STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
+      }
+    },
+    [],
+  );
 
   const clearGithubConnectionState = useCallback(async () => {
     setGithubOk(false);
@@ -465,8 +468,6 @@ export function useConnectionsScreen() {
     supabaseAnonKey,
     easProjectId,
     withBusyGuard,
-    persistConnLights,
-    removeConnLights,
     clearGithubConnectionState,
     clearExpoConnectionState,
     clearEasConnectionState,

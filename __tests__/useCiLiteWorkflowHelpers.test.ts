@@ -15,6 +15,7 @@ import {
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
   resolveCiLiteMissingJwtMessage,
+  readCiLiteArtifactPayloadCandidate,
 } from "../components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers";
 
 describe("useCiLiteWorkflowHelpers", () => {
@@ -315,6 +316,28 @@ describe("useCiLiteWorkflowHelpers", () => {
 
     it("throws for non-object payloads", () => {
       expect(() => parseCiLiteArtifactJson(null)).toThrow("Artifact JSON missing or invalid");
+    });
+  });
+
+  describe("readCiLiteArtifactPayloadCandidate", () => {
+    it("prefers inline json and falls back to parsing text payload", () => {
+      expect(
+        readCiLiteArtifactPayloadCandidate({
+          json: { ok: true, eslint_exit: 0 },
+          text: "{\"ok\":false}",
+        }),
+      ).toEqual({ ok: true, eslint_exit: 0 });
+
+      expect(
+        readCiLiteArtifactPayloadCandidate({
+          text: "{\"ok\":false,\"tsc_exit\":1}",
+        }),
+      ).toEqual({ ok: false, tsc_exit: 1 });
+    });
+
+    it("returns null for unsupported payload shapes", () => {
+      expect(readCiLiteArtifactPayloadCandidate(null)).toBeNull();
+      expect(readCiLiteArtifactPayloadCandidate({ text: 42 })).toBeNull();
     });
   });
 
