@@ -2,7 +2,11 @@ import { githubApiUrl } from "../../../shared/constants/github";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { readJsonRecordSafe, readStringField } from "../../../infra/github/githubResponseHelpers";
 import { parseExpoGraphQLUsername } from "../utils/expoGraphql";
-import { deriveSupabaseRefFromUrl, type ExpoProjectResponse } from "./useConnectionsScreenHelpers";
+import {
+  deriveSupabaseRefFromUrl,
+  parseExpoProjectResponse,
+  type ExpoProjectResponse,
+} from "./useConnectionsScreenHelpers";
 
 export type GitHubConnectionCheckResult = {
   login: string;
@@ -109,6 +113,6 @@ export const runEasProjectCheck = async (
   return {
     ok: resp.ok,
     status: resp.status,
-    json: ((await resp.json().catch(() => null)) as ExpoProjectResponse | null) ?? null,
+    json: parseExpoProjectResponse(await resp.json().catch(() => null)),
   };
 };

@@ -15,6 +15,42 @@ export type ExpoProjectResponse = {
   };
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const readNestedRecord = (value: unknown, key: string): Record<string, unknown> | null => {
+  if (!isRecord(value)) return null;
+  const nested = value[key];
+  return isRecord(nested) ? nested : null;
+};
+
+const readStringValue = (value: unknown, key: string): string | undefined => {
+  if (!isRecord(value)) return undefined;
+  const field = value[key];
+  return typeof field === "string" ? field : undefined;
+};
+
+export const parseExpoProjectResponse = (value: unknown): ExpoProjectResponse | null => {
+  if (!isRecord(value)) return null;
+  const data = readNestedRecord(value, "data");
+  if (!data) return null;
+  const project = readNestedRecord(data, "project");
+
+  return {
+    data: {
+      id: readStringValue(data, "id"),
+      slug: readStringValue(data, "slug"),
+      name: readStringValue(data, "name"),
+      project: project
+        ? {
+            id: readStringValue(project, "id"),
+            slug: readStringValue(project, "slug"),
+          }
+        : undefined,
+    },
+  };
+};
+
 const EAS_STATES: VerificationContractState[] = [
   "verified",
   "missing",
@@ -639,21 +675,4 @@ export const applyPersistenceDelta = async (params: {
   if (removes.length) {
     await params.remove(removes);
   }
-};
-
-export const runConnectionProviderTest = async (params: {
-  defaultTitle: string;
-  runGuardedAction: (args: {
-    defaultTitle: string;
-    task: () => Promise<void>;
-    onNonBusyError?: (error: unknown) => Promise<void> | void;
-  }) => Promise<void>;
-  task: () => Promise<void>;
-  onFailure: (error: unknown) => Promise<void>;
-}): Promise<void> => {
-  await params.runGuardedAction({
-    defaultTitle: params.defaultTitle,
-    task: params.task,
-    onNonBusyError: params.onFailure,
-  });
 };

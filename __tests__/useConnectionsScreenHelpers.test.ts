@@ -25,7 +25,7 @@ import {
   resolveSupabaseConnectionPersistence,
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
-  runConnectionProviderTest,
+  parseExpoProjectResponse,
 } from "../screens/ConnectionsScreen/hooks/useConnectionsScreenHelpers";
 import {
   easClearedPersistence,
@@ -480,23 +480,35 @@ describe("useConnectionsScreenHelpers", () => {
     });
   });
 
-  it("delegates provider tests through guarded action wiring", async () => {
-    const runGuardedAction = jest.fn(async () => undefined);
-    const task = jest.fn(async () => undefined);
-    const onFailure = jest.fn(async () => undefined);
-
-    await runConnectionProviderTest({
-      defaultTitle: "GitHub Test",
-      runGuardedAction,
-      task,
-      onFailure,
+  it("parses expo project response fail-safe from unknown payloads", () => {
+    expect(
+      parseExpoProjectResponse({
+        data: {
+          id: "project-id",
+          slug: "slug",
+          name: "Project",
+          project: { id: "nested-id", slug: "nested-slug" },
+        },
+      }),
+    ).toEqual({
+      data: {
+        id: "project-id",
+        slug: "slug",
+        name: "Project",
+        project: { id: "nested-id", slug: "nested-slug" },
+      },
     });
 
-    expect(runGuardedAction).toHaveBeenCalledWith({
-      defaultTitle: "GitHub Test",
-      task,
-      onNonBusyError: onFailure,
+    expect(parseExpoProjectResponse({ data: { id: 123 } })).toEqual({
+      data: {
+        id: undefined,
+        slug: undefined,
+        name: undefined,
+        project: undefined,
+      },
     });
+
+    expect(parseExpoProjectResponse(null)).toBeNull();
   });
 
   it("applies persistence deltas only for present writes/removes", async () => {
