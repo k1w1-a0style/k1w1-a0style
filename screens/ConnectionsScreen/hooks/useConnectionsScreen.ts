@@ -203,11 +203,34 @@ export function useConnectionsScreen() {
     [persistConnLights, removeConnLights],
   );
 
-  const logConnectionFailure = useCallback((channel: string, error: unknown): void => {
-    debugLog(channel, `${channel.split(":").pop() || "connection"} ERROR`, {
-      error: redactSecrets(truncateWithMarker(safeAlertText(error), 800)),
+  const logConnectionFailure = useCallback((params: {
+    channel: string;
+    message: string;
+    error: unknown;
+  }): void => {
+    debugLog(params.channel, params.message, {
+      error: redactSecrets(truncateWithMarker(safeAlertText(params.error), 800)),
     });
   }, []);
+
+  const applyClearedConnectionState = useCallback(
+    async (params: {
+      resetState: () => void;
+      persistence: {
+        writes: Array<[string, string]>;
+        removes: string[];
+      };
+    }): Promise<void> => {
+      params.resetState();
+      await applyPersistenceDelta({
+        writes: params.persistence.writes,
+        removes: params.persistence.removes,
+        persist: persistConnLights,
+        remove: removeConnLights,
+      });
+    },
+    [persistConnLights, removeConnLights],
+  );
 
   const saveConnEasStatus = useCallback(
     async (params: {
@@ -236,59 +259,51 @@ export function useConnectionsScreen() {
   );
 
   const clearGithubConnectionState = useCallback(async () => {
-    setGithubOk(false);
-    setGithubUser("");
-    setGithubScopes("");
-    setRepoOk(false);
-    setRepoOkLine("");
-    setEasOk(false);
-    setEasState("missing");
-    setEasLastVerifiedAt(null);
-    const persisted = githubClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setGithubOk(false);
+        setGithubUser("");
+        setGithubScopes("");
+        setRepoOk(false);
+        setRepoOkLine("");
+        setEasOk(false);
+        setEasState("missing");
+        setEasLastVerifiedAt(null);
+      },
+      persistence: githubClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearExpoConnectionState = useCallback(async () => {
-    setExpoOk(false);
-    setExpoUser("");
-    const persisted = expoClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setExpoOk(false);
+        setExpoUser("");
+      },
+      persistence: expoClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearEasConnectionState = useCallback(async () => {
-    setEasOk(false);
-    setEasState("missing");
-    setEasLastVerifiedAt(null);
-    const persisted = easClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setEasOk(false);
+        setEasState("missing");
+        setEasLastVerifiedAt(null);
+      },
+      persistence: easClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
-    setSupabaseOk(false);
-    setSupabaseRef("");
-    const persisted = supabaseClearedPersistence();
-    await applyPersistenceDelta({
-      writes: persisted.writes,
-      removes: persisted.removes,
-      persist: persistConnLights,
-      remove: removeConnLights,
+    await applyClearedConnectionState({
+      resetState: () => {
+        setSupabaseOk(false);
+        setSupabaseRef("");
+      },
+      persistence: supabaseClearedPersistence(),
     });
-  }, [persistConnLights, removeConnLights]);
+  }, [applyClearedConnectionState]);
 
   const testEas = useCallback(async () => {
     if (!hydrated) return;
@@ -602,7 +617,11 @@ Scopes: ${scopes}` : ""}`);
             setGithubScopes(persistence.scopes);
           },
         });
-        logConnectionFailure("connections:github", e);
+        logConnectionFailure({
+          channel: "connections:github",
+          message: "GitHub ERROR",
+          error: e,
+        });
       },
     });
   }, [githubToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
@@ -648,7 +667,11 @@ Scopes: ${scopes}` : ""}`);
             setExpoUser(persistence.username);
           },
         });
-        logConnectionFailure("connections:expo", e);
+        logConnectionFailure({
+          channel: "connections:expo",
+          message: "Expo ERROR",
+          error: e,
+        });
       },
     });
   }, [expoToken, hydrated, runGuardedAction, applyConnectionPersistence, logConnectionFailure]);
@@ -705,7 +728,11 @@ Scopes: ${scopes}` : ""}`);
             setSupabaseRef(persistence.ref);
           },
         });
-        logConnectionFailure("connections:supabase", e);
+        logConnectionFailure({
+          channel: "connections:supabase",
+          message: "Supabase ERROR",
+          error: e,
+        });
       },
     });
   }, [
@@ -808,6 +835,15 @@ Scopes: ${scopes}` : ""}`);
     [persistConnLights],
   );
 
+  const resolveCurrentEasLaunchSelection = useCallback(() => {
+    return resolveEasWorkflowLaunchSelection({
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
+      parseOwnerRepo,
+    });
+  }, [githubToken, effectiveRepo, effectiveBranch]);
+
   const startEasWorkflow = useCallback(
     async (params: {
       selection: {
@@ -847,12 +883,7 @@ Scopes: ${scopes}` : ""}`);
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const launchSelection = resolveEasWorkflowLaunchSelection({
-      githubToken,
-      repoSlug: effectiveRepo || "",
-      branch: effectiveBranch || "",
-      parseOwnerRepo,
-    });
+    const launchSelection = resolveCurrentEasLaunchSelection();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
     if (!launchSelection.ok) {
@@ -896,9 +927,7 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    githubToken,
-    effectiveRepo,
-    effectiveBranch,
+    resolveCurrentEasLaunchSelection,
     easProjectId,
     startEasWorkflow,
   ]);
@@ -907,12 +936,7 @@ Scopes: ${scopes}` : ""}`);
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
 
-    const launchSelection = resolveEasWorkflowLaunchSelection({
-      githubToken,
-      repoSlug: effectiveRepo || "",
-      branch: effectiveBranch || "",
-      parseOwnerRepo,
-    });
+    const launchSelection = resolveCurrentEasLaunchSelection();
     if (!launchSelection.ok) {
       Alert.alert(launchSelection.notice.title, launchSelection.notice.message);
       return;
@@ -927,9 +951,7 @@ Scopes: ${scopes}` : ""}`);
   }, [
     hydrated,
     isEasInitRunning,
-    githubToken,
-    effectiveRepo,
-    effectiveBranch,
+    resolveCurrentEasLaunchSelection,
     startEasWorkflow,
   ]);
 
