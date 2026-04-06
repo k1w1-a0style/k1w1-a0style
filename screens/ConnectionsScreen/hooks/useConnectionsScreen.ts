@@ -61,6 +61,7 @@ import {
   resolveEasWorkflowSelectionPrecheck,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
+  applyPersistenceDelta,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -215,16 +216,24 @@ export function useConnectionsScreen() {
     setEasState("missing");
     setEasLastVerifiedAt(null);
     const persisted = githubClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearExpoConnectionState = useCallback(async () => {
     setExpoOk(false);
     setExpoUser("");
     const persisted = expoClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearEasConnectionState = useCallback(async () => {
@@ -232,16 +241,24 @@ export function useConnectionsScreen() {
     setEasState("missing");
     setEasLastVerifiedAt(null);
     const persisted = easClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
     setSupabaseOk(false);
     setSupabaseRef("");
     const persisted = supabaseClearedPersistence();
-    await persistConnLights(persisted.writes);
-    await removeConnLights(persisted.removes);
+    await applyPersistenceDelta({
+      writes: persisted.writes,
+      removes: persisted.removes,
+      persist: persistConnLights,
+      remove: removeConnLights,
+    });
   }, [persistConnLights, removeConnLights]);
 
   const testEas = useCallback(async () => {
@@ -749,8 +766,12 @@ Scopes: ${scopes}` : ""}`);
         setEasOk(false);
         setEasState(postStartState.state);
         setEasLastVerifiedAt(null);
-        await persistConnLights(postStartState.writes);
-        await removeConnLights(postStartState.removes);
+        await applyPersistenceDelta({
+          writes: postStartState.writes,
+          removes: postStartState.removes,
+          persist: persistConnLights,
+          remove: removeConnLights,
+        });
 
         if (repoSlug) {
           setRepoOk(true);

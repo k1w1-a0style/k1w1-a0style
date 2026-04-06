@@ -232,6 +232,31 @@ export function useCiLiteWorkflow() {
     [],
   );
 
+  const resolveOperatorAccess = useCallback(
+    async (context: "artifact" | "dispatch") => {
+      const adminKey = await getWorkflowAdminKey().catch(() => null);
+      const trimmedAdminKey = String(adminKey ?? "").trim();
+      if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
+        const normalized = normalizeCiLiteWorkflowError({
+          context,
+          adminKey,
+        });
+        throw new Error(normalized.userMessage);
+      }
+
+      const userJwt = await readOperatorJwt(context);
+      if (!userJwt) {
+        throw new Error(resolveCiLiteMissingJwtMessage(context));
+      }
+
+      return {
+        adminKey: trimmedAdminKey,
+        userJwt,
+      };
+    },
+    [],
+  );
+
   const stopLookupWithError = useCallback(
     (error: unknown, options?: { chainWaiting?: boolean }) => {
       const fallbackMessage = resolveCiLiteWorkflowErrorFallback(error);
@@ -331,19 +356,7 @@ export function useCiLiteWorkflow() {
         setArtifactLoading(true);
 
         const edgeUrl = await requireSupabaseEdgeUrl();
-        const adminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedAdminKey = String(adminKey ?? "").trim();
-        const userJwt = await readOperatorJwt("artifact");
-        if (!userJwt) {
-          throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
-        }
-        if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "artifact",
-            adminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
+        const operatorAccess = await resolveOperatorAccess("artifact");
 
         const { artifactName, filePath } = resolveCiLiteArtifactRequest(workflowId);
 
@@ -353,8 +366,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedAdminKey,
+            Authorization: `Bearer ${operatorAccess.userJwt}`,
+            "x-k1w1-admin-key": operatorAccess.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -368,7 +381,7 @@ export function useCiLiteWorkflow() {
         if (!resp.ok) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
-            adminKey: trimmedAdminKey,
+            adminKey: operatorAccess.adminKey,
             statusCode: resp.status,
             statusText: resp.statusText,
             payload: data,
@@ -402,6 +415,7 @@ export function useCiLiteWorkflow() {
     workflowId,
     workflowRun?.id,
     workflowRun?.status,
+    resolveOperatorAccess,
   ]);
 
   // Clear artifact state when we switch to a new tracked run context.
@@ -751,19 +765,7 @@ export function useCiLiteWorkflow() {
           targetBranch,
         ).catch(() => null);
 
-        const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
-        const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-        if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
-          const normalized = normalizeCiLiteWorkflowError({
-            context: "dispatch",
-            adminKey: workflowAdminKey,
-          });
-          throw new Error(normalized.userMessage);
-        }
-        const userJwt = await readOperatorJwt("dispatch");
-        if (!userJwt) {
-          throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
-        }
+        const operatorAccess = await resolveOperatorAccess("dispatch");
 
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
@@ -772,8 +774,8 @@ export function useCiLiteWorkflow() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedWorkflowAdminKey,
+            Authorization: `Bearer ${operatorAccess.userJwt}`,
+            "x-k1w1-admin-key": operatorAccess.adminKey,
           },
           body: JSON.stringify({
             githubRepo,
@@ -790,7 +792,7 @@ export function useCiLiteWorkflow() {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
-            adminKey: trimmedWorkflowAdminKey,
+            adminKey: operatorAccess.adminKey,
             statusCode: r.status,
             statusText: r.statusText,
             payload,
@@ -804,7 +806,7 @@ export function useCiLiteWorkflow() {
           branch: targetBranch,
           jobId: newJobId,
           workflow: workflowFile,
-          userJwt,
+          userJwt: operatorAccess.userJwt,
           expectedEvent: "workflow_dispatch",
           sourceHeadSha,
           mode: "default",
@@ -815,7 +817,7 @@ export function useCiLiteWorkflow() {
         setDispatching(false);
       }
     },
-    [branch, dispatching, githubRepo, projectData?.files, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
+    [branch, dispatching, githubRepo, projectData?.files, resolveOperatorAccess, startLookupTracking, stopLookupWithError, stopRunLookup, updateLookupDiagnosis],
   );
 
 

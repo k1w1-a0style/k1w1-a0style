@@ -376,3 +376,19 @@ export const removeEntriesWithFallback = async (
     singleFailureLog: (key) => `[ConnectionsScreen] storage removeItem failed for key=${key}`,
   });
 };
+
+export const applyPersistenceDelta = async (params: {
+  writes?: PersistableEntry[];
+  removes?: string[];
+  persist: (entries: PersistableEntry[]) => Promise<void>;
+  remove: (keys: string[]) => Promise<void>;
+}): Promise<void> => {
+  const writes = params.writes ?? [];
+  const removes = params.removes ?? [];
+  if (writes.length) {
+    await params.persist(writes);
+  }
+  if (removes.length) {
+    await params.remove(removes);
+  }
+};

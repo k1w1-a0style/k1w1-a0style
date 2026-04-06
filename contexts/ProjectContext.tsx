@@ -74,6 +74,7 @@ import {
   CHAT_HISTORY_RETENTION_FALLBACK,
   CurrentBuildState,
   mergeBuildPollIntoCurrentBuild,
+  resolveProjectContextErrorMessage,
   resolveBuildHistoryPollUpdate,
   resolveHistoryBuildSelection,
   resolveTemplateMode,
@@ -95,12 +96,6 @@ import {
 
 const SAVE_DEBOUNCE_MS = 500;
 
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "string" && error.trim()) return error;
-  return fallback;
-};
-
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
@@ -120,6 +115,7 @@ export {
   resolveHistoryBuildSelection,
   resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
+  resolveProjectContextErrorMessage,
   sanitizeChatRetentionLimit,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
@@ -372,7 +368,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             } catch (error: unknown) {
               Alert.alert(
                 "Fehler",
-                getErrorMessage(error, "Projekt konnte nicht erstellt werden"),
+                resolveProjectContextErrorMessage(
+                  error,
+                  "Projekt konnte nicht erstellt werden",
+                ),
               );
             }
           },
@@ -399,7 +398,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       logger.error("[ProjectContext] ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
+        resolveProjectContextErrorMessage(
+          error,
+          "Ein unbekannter Fehler ist aufgetreten.",
+        ),
       );
     }
   }, [projectData]);
@@ -423,7 +425,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       logger.error("[ProjectContext] Text-ZIP-Export fehlgeschlagen", { error });
       Alert.alert(
         "Export Fehlgeschlagen",
-        getErrorMessage(error, "Ein unbekannter Fehler ist aufgetreten."),
+        resolveProjectContextErrorMessage(
+          error,
+          "Ein unbekannter Fehler ist aufgetreten.",
+        ),
       );
     }
   }, [projectData]);
@@ -459,7 +464,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
-                getErrorMessage(error, "Fehler beim Importieren"),
+                resolveProjectContextErrorMessage(
+                  error,
+                  "Fehler beim Importieren",
+                ),
               );
             }
           },
