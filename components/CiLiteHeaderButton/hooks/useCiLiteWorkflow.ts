@@ -62,9 +62,15 @@ const BUILD_ADMIN_FAIL_CLOSED_NOTE =
 const BUILD_ADMIN_SERVER_CALLER_NOTE = "JWT role=build_admin (oder service_role fuer Server-Caller)";
 const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supabase-User-Claim vergeben";
 
-async function readOperatorJwt(): Promise<string | null> {
-  const supabase = await ensureSupabaseClient().catch(() => null);
-  const session = await supabase?.auth.getSession().catch(() => null);
+async function readOperatorJwt(context: "artifact" | "lookup" | "dispatch"): Promise<string | null> {
+  const supabase = await ensureSupabaseClient().catch((error: unknown) => {
+    logger.warn("[CiLiteWorkflow] ensureSupabaseClient failed while reading operator jwt", { context, error });
+    return null;
+  });
+  const session = await supabase?.auth.getSession().catch((error: unknown) => {
+    logger.warn("[CiLiteWorkflow] auth.getSession failed while reading operator jwt", { context, error });
+    return null;
+  });
   const jwt = String(session?.data?.session?.access_token ?? "").trim();
   return jwt || null;
 }
@@ -325,7 +331,7 @@ export function useCiLiteWorkflow() {
         const edgeUrl = await requireSupabaseEdgeUrl();
         const adminKey = await getWorkflowAdminKey().catch(() => null);
         const trimmedAdminKey = String(adminKey ?? "").trim();
-        const userJwt = await readOperatorJwt();
+        const userJwt = await readOperatorJwt("artifact");
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("artifact"));
         }
@@ -602,7 +608,7 @@ export function useCiLiteWorkflow() {
     setRunUrl(null);
 
     void (async () => {
-      const userJwt = await readOperatorJwt();
+      const userJwt = await readOperatorJwt("lookup");
       if (!userJwt) {
         setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
         setChainWaiting(false);
@@ -752,7 +758,7 @@ export function useCiLiteWorkflow() {
           });
           throw new Error(normalized.userMessage);
         }
-        const userJwt = await readOperatorJwt();
+        const userJwt = await readOperatorJwt("dispatch");
         if (!userJwt) {
           throw new Error(resolveCiLiteMissingJwtMessage("dispatch"));
         }

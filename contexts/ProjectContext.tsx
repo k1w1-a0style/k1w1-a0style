@@ -90,7 +90,6 @@ import {
   resolveBuildStartErrorMessage,
   resolveBuildStartContext,
   shouldSyncCurrentBuildFromPoll,
-  shouldUpdateHistoryFromPoll,
 } from "./projectContextBuildHelpers";
 
 const SAVE_DEBOUNCE_MS = 500;
@@ -701,16 +700,6 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   // Update build history as statuses arrive (best-effort)
   useEffect(() => {
-    if (
-      !shouldUpdateHistoryFromPoll({
-        activeJobId,
-        details: buildPoll.details,
-        status: buildPoll.status,
-      })
-    ) {
-      return;
-    }
-
     const nextHistoryUpdate = resolveBuildHistoryPollUpdate({
       activeJobId,
       details: buildPoll.details,
