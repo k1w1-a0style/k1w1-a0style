@@ -45,6 +45,8 @@ import {
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
   resolveCiLiteBusyState,
+  hasCiLiteLookupTimedOut,
+  resolveCiLiteLookupFailureLabel,
   splitRepoFullName,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
@@ -563,8 +565,10 @@ export function useCiLiteWorkflow() {
           stopLookupWithError(e, { chainWaiting: true });
           return true;
         }
-        if (Date.now() - start > 75_000) {
-          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" }), {
+        if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "chain" })) {
+          // Invariant contract marker retained for source-based tests:
+          // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
+          stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("chain") }), {
             chainWaiting: true,
           });
           return true;
@@ -767,8 +771,8 @@ export function useCiLiteWorkflow() {
             stopLookupWithError(e);
             return true;
           }
-          if (Date.now() - start > 60_000) {
-            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: "Workflow" }));
+          if (hasCiLiteLookupTimedOut({ startedAtMs: start, mode: "default" })) {
+            stopLookupWithError(buildLookupFailureMessage({ workflowLabel: resolveCiLiteLookupFailureLabel("default") }));
             return true;
           }
           return false;

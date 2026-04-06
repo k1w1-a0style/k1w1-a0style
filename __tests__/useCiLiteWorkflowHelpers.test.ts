@@ -8,6 +8,8 @@ import {
   resolveCiLiteArtifactRequest,
   resolveCiLiteBusyState,
   resolveCiLiteCompletionErrorText,
+  resolveCiLiteLookupTimeoutMs,
+  hasCiLiteLookupTimedOut,
   resolveHydratedCiLiteStepInfo,
   resolveCiLiteLookupFailureLabel,
   resolveCiLiteLookupFailureMessage,
@@ -194,6 +196,20 @@ describe("useCiLiteWorkflowHelpers", () => {
     it("maps chain/default contexts to stable workflow labels", () => {
       expect(resolveCiLiteLookupFailureLabel("chain")).toBe("Autofix-Chain → CI Lite");
       expect(resolveCiLiteLookupFailureLabel("default")).toBe("Workflow");
+    });
+  });
+
+  describe("lookup timeout helpers", () => {
+    it("maps lookup mode to deterministic timeout windows", () => {
+      expect(resolveCiLiteLookupTimeoutMs("chain")).toBe(75_000);
+      expect(resolveCiLiteLookupTimeoutMs("default")).toBe(60_000);
+    });
+
+    it("detects lookup timeout against the mode-specific timeout", () => {
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "default", nowMs: 61_001 })).toBe(true);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "default", nowMs: 60_000 })).toBe(false);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "chain", nowMs: 76_100 })).toBe(true);
+      expect(hasCiLiteLookupTimedOut({ startedAtMs: 1_000, mode: "chain", nowMs: 75_000 })).toBe(false);
     });
   });
 
