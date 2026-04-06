@@ -214,6 +214,25 @@ export const resolveEasLinkPostStartState = (projectId: string): {
   };
 };
 
+export const resolveRepoSelectionPersistence = (params: {
+  repoSlug: string;
+  branch: string;
+}): {
+  repoOkLine: string;
+  writes: PersistableEntry[];
+} => {
+  const repoSlug = params.repoSlug.trim();
+  const branch = params.branch.trim();
+  return {
+    repoOkLine: buildRepoOkLine(repoSlug, branch),
+    writes: [
+      [STORAGE_KEYS.CONN_REPO_OK, "true"],
+      [STORAGE_KEYS.CONN_REPO_SLUG, repoSlug],
+      [STORAGE_KEYS.CONN_REPO_BRANCH, branch],
+    ],
+  };
+};
+
 export const resolveEasStatusPersistence = (params: {
   ok: boolean;
   state: VerificationContractState;

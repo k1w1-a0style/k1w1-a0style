@@ -11,6 +11,7 @@ import {
   resolveConnectionsSavePlan,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
+  resolveRepoSelectionPersistence,
   resolveEasStatusPersistence,
   resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
@@ -316,6 +317,22 @@ describe("useConnectionsScreenHelpers", () => {
   it("maps EAS link workflow start messages deterministically", () => {
     expect(resolveEasLinkWorkflowStartMessage("project-id")).toContain("EAS Link-Workflow gestartet");
     expect(resolveEasLinkWorkflowStartMessage("")).toContain("Keine EAS ID vorhanden");
+  });
+
+  it("builds repo selection persistence payload with normalized values", () => {
+    expect(
+      resolveRepoSelectionPersistence({
+        repoSlug: " owner/repo ",
+        branch: " main ",
+      }),
+    ).toEqual({
+      repoOkLine: "owner/repo (main)",
+      writes: [
+        [STORAGE_KEYS.CONN_REPO_OK, "true"],
+        [STORAGE_KEYS.CONN_REPO_SLUG, "owner/repo"],
+        [STORAGE_KEYS.CONN_REPO_BRANCH, "main"],
+      ],
+    });
   });
 
   it("derives EAS project-id persistence action deterministically", () => {
