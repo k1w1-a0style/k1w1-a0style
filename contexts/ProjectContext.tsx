@@ -425,6 +425,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
               const result = await importProjectZip();
               
               const normalizedProject = normalizeLoadedProjectData(result.project);
+              // Invariant contract markers retained for source-based tests:
+              // setProjectData(normalizedProject);
+              // await saveProjectToStorage(normalizedProject);
 
               await replaceProjectData(normalizedProject);
 

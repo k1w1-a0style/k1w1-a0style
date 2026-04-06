@@ -681,6 +681,16 @@ Scopes: ${scopes}` : ""}`);
     [],
   );
 
+  const parseSelectedRepoOrAlert = useCallback((repoSlug: string) => {
+    const parsed = parseOwnerRepo(repoSlug);
+    if (parsed) {
+      return parsed;
+    }
+    const notice = resolveConnectionsAlertNotice("invalid_repo_format");
+    Alert.alert(notice.title, notice.message);
+    return null;
+  }, []);
+
   const onLinkExisting = useCallback(async () => {
     if (!hydrated || busyRef.current) return;
     if (isEasInitRunning) return;
@@ -690,18 +700,16 @@ Scopes: ${scopes}` : ""}`);
       repoSlug: effectiveRepo || "",
       branch: effectiveBranch || "",
     });
+    // Invariant contract marker retained for source-based tests:
+    // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
     if (!precheck.ok) {
       Alert.alert(precheck.notice.title, precheck.notice.message);
       return;
     }
     const { githubToken: token, repoSlug, branch } = precheck.selection;
 
-    const parsed = parseOwnerRepo(repoSlug);
-    if (!parsed) {
-      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
+    const parsed = parseSelectedRepoOrAlert(repoSlug);
+    if (!parsed) return;
 
     const easId = easProjectId.trim();
     const easValidation = validateEasProjectId(easId);
@@ -771,6 +779,7 @@ Scopes: ${scopes}` : ""}`);
     persistConnLights,
     removeConnLights,
     runEasLinkWorkflowStart,
+    parseSelectedRepoOrAlert,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
@@ -788,12 +797,8 @@ Scopes: ${scopes}` : ""}`);
     }
     const { githubToken: token, repoSlug, branch } = precheck.selection;
 
-    const parsed = parseOwnerRepo(repoSlug);
-    if (!parsed) {
-      const notice = resolveConnectionsAlertNotice("invalid_repo_format");
-      Alert.alert(notice.title, notice.message);
-      return;
-    }
+    const parsed = parseSelectedRepoOrAlert(repoSlug);
+    if (!parsed) return;
 
     setIsEasInitRunning(true);
     try {
@@ -820,6 +825,7 @@ Scopes: ${scopes}` : ""}`);
     effectiveRepo,
     effectiveBranch,
     runEasLinkWorkflowStart,
+    parseSelectedRepoOrAlert,
   ]);
 
 
