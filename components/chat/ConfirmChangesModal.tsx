@@ -178,7 +178,9 @@ const ConfirmChangesModal: React.FC<Props> = ({
     const signature = createGuardAuditSignature(guardWarnings);
     if (lastGuardAuditSignatureRef.current === signature) return;
     lastGuardAuditSignatureRef.current = signature;
-    void recordGuardAuditEvent(guardWarnings).catch(() => {});
+    void recordGuardAuditEvent(guardWarnings).catch((error) => {
+      console.warn("[ConfirmChangesModal] guard audit telemetry failed", error);
+    });
   }, [guardWarnings, visible]);
 
   return (

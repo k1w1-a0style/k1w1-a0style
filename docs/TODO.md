@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follow-up)**
+Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -37,6 +37,13 @@ Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follo
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 - [x] RateLimit-Degradation fuer Preview-Routen geschaerft (Patch 751): `save_preview`/`preview_page` setzen `enforceDurable: true`; bei durable-Ausfall jetzt `503 rate_limit_unavailable` statt lokaler Scheinsicherheit.
 - [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
+
+
+- [x] DocsSyncGap (Patch 758): `check_patch_docs_sync.sh` prueft jetzt den echten Kern-SoT-Scope (README/CHECKLOG/PATCHLOG + TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT/EDGE_FUNCTIONS_STATUS) auf denselben Patch-Stand.
+- [x] LegacyCryptoSurface (Patch 758): Legacy-SHA/AES-CBC-Helfer sind explizit als read-only Compat benannt; neue Writes bleiben strikt auf v3 (PBKDF2 + AES-GCM).
+- [x] PreviewEvalTradeoff (Patch 758): Tradeoff bleibt bewusst bestehen (`unsafe-eval`, `https://esm.sh`), aber Flags/Kommentare/Status sind konsistent und klar abschaltbar dokumentiert.
+- [x] SilentCatchLeftovers (Patch 758): verbleibende stille Catchs in `WebCodeEditor` und `ConfirmChangesModal` melden jetzt sichtbare Warnungen ohne den Fail-safe Ablauf zu brechen.
+- [x] ReleasePartial (Patch 758): Release-SoT bleibt explizit getrennt (`OK_WITH_SKIPS` = partial/local evidence, `OK_FULL` = Vollnachweis).
 
 ## 2) Externer Live-Status: ehrliche Restpunktbewertung (read-only dokumentiert)
 
