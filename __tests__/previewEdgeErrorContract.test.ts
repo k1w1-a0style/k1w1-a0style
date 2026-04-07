@@ -75,8 +75,8 @@ describe("preview edge error contract", () => {
 
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeGreaterThan(-1);
     expect(fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl")).toBeGreaterThan(-1);
-    expect(fetchPreviewRecordSource).toContain("const secretCandidates = await buildPreviewSecretCandidates(secret);");
-    expect(fetchPreviewRecordSource).toContain("for (const candidate of secretCandidates)");
+    expect(fetchPreviewRecordSource).toContain("findFirstByPreviewSecretCandidates<PreviewRecord[]>");
+    expect(fetchPreviewRecordSource).toContain("async (candidate) => {");
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeLessThan(
       fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl"),
     );
@@ -104,8 +104,8 @@ describe("preview edge error contract", () => {
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(savePreviewSource).toContain("hashPreviewSecret(secret)");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
-    expect(previewPageSource).toContain("buildPreviewSecretCandidates(secret)");
-    expect(previewPageSource).toContain("for (const candidate of secretCandidates)");
+    expect(previewPageSource).toContain("findFirstByPreviewSecretCandidates<PreviewRecord[]>");
+    expect(previewPageSource).toContain("deleteByPreviewSecretCandidates(secret");
     expect(previewPageSource).not.toContain("const querySecret =");
     expect(previewPageSource).not.toContain("renderLegacyQuerySecretBridgePage");
     expect(previewPageSource).not.toContain('current.searchParams.delete("secret")');
@@ -136,8 +136,8 @@ describe("preview edge error contract", () => {
       previewPageSource.indexOf("function isExpired"),
     );
 
-    expect(deleteSource).toContain("buildPreviewSecretCandidates(secret)");
-    expect(deleteSource).toContain("for (const candidate of secretCandidates)");
+    expect(deleteSource).toContain("deleteByPreviewSecretCandidates(secret");
+    expect(deleteSource).toContain("async (candidate) =>");
     expect(deleteSource).toContain("secret=eq.${encodeURIComponent(candidate)}");
   });
 

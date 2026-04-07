@@ -6,7 +6,7 @@ import {
   escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
   getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
-  classifyPreviewPageUnexpectedError, previewPageErrorResponse, buildPreviewSecretCandidates,
+  classifyPreviewPageUnexpectedError, previewPageErrorResponse, deleteByPreviewSecretCandidates, findFirstByPreviewSecretCandidates,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -58,23 +58,14 @@ async function fetchPreviewRecord(
       return parsed as PreviewRecord[];
     };
 
-    const secretCandidates = await buildPreviewSecretCandidates(secret);
-    let arr: PreviewRecord[] | null = null;
-    for (const candidate of secretCandidates) {
-      try {
-        arr = await parseRecords(await fetchBySecret(candidate));
-      } catch (e) {
-        const msg = sanitizeErrorText(e instanceof Error ? e.message : String(e));
-        if (msg.startsWith("http:")) {
-          return { ok: false, code: classifyPreviewRecordLookupFailure({ status: Number(msg.slice(5)) }) };
-        }
-        if (msg.startsWith("content-type:")) {
-          return { ok: false, code: classifyPreviewRecordLookupFailure({ contentType: msg.slice("content-type:".length) }) };
-        }
-        return { ok: false, code: classifyPreviewRecordLookupFailure({ parseFailed: true, error: e }) };
-      }
-      if (Array.isArray(arr) && arr.length > 0) break;
-    }
+    const arr = await findFirstByPreviewSecretCandidates<PreviewRecord[]>(
+      secret,
+      async (candidate) => {
+        const records = await parseRecords(await fetchBySecret(candidate));
+        if (!Array.isArray(records) || records.length === 0) return null;
+        return records;
+      },
+    );
 
     if (!Array.isArray(arr) || arr.length === 0) return { ok: true, record: null };
     const record = arr[0] as PreviewRecord;
@@ -84,19 +75,25 @@ async function fetchPreviewRecord(
     }
     return { ok: true, record };
   } catch (e) {
+    const msg = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    if (msg.startsWith("http:")) {
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ status: Number(msg.slice(5)) }) };
+    }
+    if (msg.startsWith("content-type:")) {
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ contentType: msg.slice("content-type:".length) }) };
+    }
     console.error(
       "fetchPreviewRecord error:",
-      sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+      msg,
     );
-    return { ok: false, code: classifyPreviewRecordLookupFailure({ error: e }) };
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ parseFailed: true, error: e }) };
   }
 }
 
 async function deletePreviewRecord(secret: string): Promise<void> {
   const base = getSupabaseBaseUrl();
   if (!base) return;
-  const secretCandidates = await buildPreviewSecretCandidates(secret);
-  for (const candidate of secretCandidates) {
+  await deleteByPreviewSecretCandidates(secret, async (candidate) => {
     const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(candidate)}`;
     try {
       await fetchWithTimeout(restUrl, {
@@ -111,7 +108,7 @@ async function deletePreviewRecord(secret: string): Promise<void> {
         sanitizeErrorText(e instanceof Error ? e.message : String(e)),
       );
     }
-  }
+  });
 }
 
 function isExpired(expiresAtIso: string | null | undefined): boolean {

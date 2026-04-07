@@ -74,7 +74,9 @@ export function useDiagnosticUpload(opts: {
       setCooldownNow(now);
       if (uploadCooldownUntil <= now) {
         setUploadCooldownUntil(0);
-        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch(() => {});
+        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to clear expired upload cooldown", error);
+        });
       }
     };
     tick();
@@ -167,7 +169,9 @@ export function useDiagnosticUpload(opts: {
         const until = Date.now() + UPLOAD_COOLDOWN_MS;
         setUploadCooldownUntil(until);
         setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(() => {});
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to persist upload cooldown", error);
+        });
       }
 
       Alert.alert("■ Upload OK", `ID: ${id.id}`);
@@ -176,7 +180,9 @@ export function useDiagnosticUpload(opts: {
         const until = Date.now() + UPLOAD_RETRY_DELAY_MS;
         setUploadCooldownUntil(until);
         setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(() => {});
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to persist retry cooldown", error);
+        });
       }
       Alert.alert("Upload fehlgeschlagen", getDiagnosticUiErrorMessage(e));
     } finally {

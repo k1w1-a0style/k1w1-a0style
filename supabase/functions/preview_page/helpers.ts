@@ -161,6 +161,28 @@ export async function buildPreviewSecretCandidates(secret: string): Promise<stri
   return [hashed, raw];
 }
 
+export async function findFirstByPreviewSecretCandidates<T>(
+  secret: string,
+  lookup: (candidate: string) => Promise<T | null>,
+): Promise<T | null> {
+  const candidates = await buildPreviewSecretCandidates(secret);
+  for (const candidate of candidates) {
+    const result = await lookup(candidate);
+    if (result != null) return result;
+  }
+  return null;
+}
+
+export async function deleteByPreviewSecretCandidates(
+  secret: string,
+  remove: (candidate: string) => Promise<void>,
+): Promise<void> {
+  const candidates = await buildPreviewSecretCandidates(secret);
+  for (const candidate of candidates) {
+    await remove(candidate);
+  }
+}
+
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =

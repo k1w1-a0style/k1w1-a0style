@@ -139,12 +139,16 @@ export function useBuildPreconditions(
   }, [branchName, buildProfile, projectData?.id, projectData?.files, repoFullName]);
 
   useEffect(() => {
-    refreshPreconditions().catch(() => {});
+    refreshPreconditions().catch((error) => {
+      console.warn("[useBuildPreconditions] initial refresh failed", error);
+    });
   }, [refreshPreconditions]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshPreconditions().catch(() => {});
+      refreshPreconditions().catch((error) => {
+        console.warn("[useBuildPreconditions] focus refresh failed", error);
+      });
       return undefined;
     }, [refreshPreconditions]),
   );
