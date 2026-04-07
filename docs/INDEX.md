@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
+Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

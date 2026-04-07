@@ -518,17 +518,11 @@ export function formatPreviewExpiry(expiresAt: string | null, now = new Date()):
 }
 
 export function getPreviewChannelLabel(source: "supabase" | "local" | null): string {
-  if (source === "supabase") return "Primäre Remote-Preview (Supabase / Browser / QR)";
+  if (source === "supabase") return "Primäre Remote-Preview (Supabase / Browser)";
   if (source === "local") return "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)";
   return "Noch keine Preview aktiv";
 }
 
 export function getPreviewMixedContentMode(): "never" {
   return "never";
-}
-
-export function buildQrImageUrl(previewUrl: string): string {
-  const normalized = String(previewUrl ?? "").trim();
-  const encoded = encodeURIComponent(normalized);
-  return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encoded}`;
 }

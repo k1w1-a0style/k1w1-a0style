@@ -1,6 +1,6 @@
 # 08 — Test Coverage Matrix
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-07 (Patch 750 Contract-/Release-Truth Sync)**
 
 Diese Matrix beschreibt **den heute relevanten Testfokus**. Sie ist keine historische Lueckenliste alter Scanlaeufe mehr.
 
@@ -16,7 +16,7 @@ Diese Matrix beschreibt **den heute relevanten Testfokus**. Sie ist keine histor
 | E2E-Smoke | optional gruen | `npm run test:e2e:smoke` |
 | Doku-Lint | gruen | `npm run docs:lint` |
 | Doku-Contracts | gruen | `npm run docs:check:contracts` |
-| Release-Verify | gruen | `npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)` |
+| Release-Verify | gruen mit Live-Env, sonst ehrlich `OK_WITH_SKIPS` | `npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)` |
 
 ## 2) Kritische fachliche Vertragsanwaerter
 

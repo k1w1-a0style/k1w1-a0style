@@ -449,7 +449,7 @@ Deno.serve(async (req) => {
 
     if (!isValidPreviewSecret(secret)) {
       return htmlPreviewError({
-        code: "preview_invalid_payload",
+        code: "preview_payload_invalid",
         nonce,
         title: "Invalid preview token",
         message: "Preview token has an invalid format.",

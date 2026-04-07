@@ -31,4 +31,13 @@ describe("release readiness contract", () => {
     const readinessScript = read("scripts/check_edge_live_env_readiness.sh");
     expect(readinessScript).toContain("Live-edge env readiness: SKIP");
   });
+
+  it("distinguishes full-green from env-skipped release runs in script output contract", () => {
+    const script = read("scripts/check_release_readiness.sh");
+
+    expect(script).toContain("[verify:release] OK_WITH_SKIPS");
+    expect(script).toContain("not full release-green");
+    expect(script).toContain("[verify:release] OK_FULL");
+    expect(script).toContain("SKIP_COUNT=$((SKIP_COUNT + 1))");
+  });
 });

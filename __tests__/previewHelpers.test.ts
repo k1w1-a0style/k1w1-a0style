@@ -1,5 +1,4 @@
 import {
-  buildQrImageUrl,
   getPreviewMixedContentMode,
   formatPreviewExpiry,
   getPreviewChannelLabel,
@@ -36,7 +35,7 @@ describe("previewHelpers", () => {
 
   test("labels communicate primary supabase path and fallback", () => {
     expect(getPreviewChannelLabel("supabase")).toBe(
-      "Primäre Remote-Preview (Supabase / Browser / QR)",
+      "Primäre Remote-Preview (Supabase / Browser)",
     );
     expect(getPreviewChannelLabel("local")).toBe(
       "Lokaler HTML-/Eval-Fallback (nur Dev/Best-Effort, nur solange App aktiv ist)",
@@ -53,13 +52,6 @@ describe("previewHelpers", () => {
     expect(isPreviewExpired("invalid", now)).toBe(false);
     expect(isPreviewExpired("2026-03-14T09:59:00.000Z", now)).toBe(true);
     expect(isPreviewExpired("2026-03-14T10:20:00.000Z", now)).toBe(false);
-  });
-
-  test("buildQrImageUrl encodes preview URL", () => {
-    const url = "https://example.com/preview?a=1&b=2";
-    expect(buildQrImageUrl(url)).toContain(
-      "data=https%3A%2F%2Fexample.com%2Fpreview%3Fa%3D1%26b%3D2",
-    );
   });
 
   test("distinguishes remote ready, local fallback and unavailable preview states", () => {

@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
+Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 
-Zuletzt abgeschlossen: **Patch 749**
+Zuletzt abgeschlossen: **Patch 750**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
