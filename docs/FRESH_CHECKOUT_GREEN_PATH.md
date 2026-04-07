@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
+Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
@@ -32,7 +32,7 @@ npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfi
 - alle Commands enden mit Exit-Code `0`
 - keine TS-/ESLint-Fehler
 - keine rote Jest-Suite
-- `verify:release` bleibt ohne Drift-/Contract-Fund gruen
+- `verify:release` ist nur dann `OK_FULL`, wenn zusaetzlich Live-Edge-Env gesetzt ist (`EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`); ohne Live-Env ist der erwartete ehrliche Status `OK_WITH_SKIPS`
 
 ## Bekannter externer Warn-Noise
 

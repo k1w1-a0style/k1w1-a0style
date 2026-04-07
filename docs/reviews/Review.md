@@ -1,11 +1,11 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
+Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: Der reale Release-Pfad war initial reproduzierbar rot (`check_workflow_edge_contracts` scheiterte auf fehlendem CI-Lite build_admin-Contract-Marker), wurde im selben Durchlauf behoben und danach mit `check_release_readiness` wieder lokal gruen bestaetigt.
+> Letzter Voll-Gate im aktuellen Durchlauf: Der reale Release-Pfad war initial reproduzierbar rot (`typecheck:edge` brach auf `preview_invalid_payload` vs. `preview_payload_invalid`), wurde im selben Durchlauf behoben und danach mit `check_release_readiness` wieder lokal belastbar bestaetigt (`OK_WITH_SKIPS` wegen fehlender Live-Edge-Env-Variablen fuer Vertrags-Smokes).
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
@@ -16,6 +16,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
 - Preview-Secret-Transport ist repo-seitig final gehaertet: neue Links nutzen Fragment-Handoff (`save_preview` -> `preview_page?transport=fragment#secret=...`) und `preview_page` akzeptiert Secrets nur noch ueber Header-Handoff (`x-k1w1-preview-secret`).
 - Legacy-Query-Secret wurde bewusst vollstaendig entfernt: kein `?secret=`-Pfad, keine Bridge, kein funktionierender Altbestand als Kompatibilitaetsziel; Preview laeuft ausschliesslich ueber Fragment-Handoff + Header-Secret.
+- Preview-QR-Exfiltration wurde fail-safe geschlossen: kein externer QR-Dienst mehr im produktiven Preview-Pfad, damit keine Secret-URL an Drittanbieter.
 - Persistenz-/Recovery-Muss-Punkte aus PR-572-Follow-up wurden repo-seitig nachgezogen (NoRekeyOnRead, NoDelayedOverwrite-Guard, Corrupt-Plaintext-Recoverypfad); verbleibende externe Themen bleiben getrennt in `docs/TODO.md` dokumentiert.
 - AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
 - `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
@@ -62,6 +63,7 @@ Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 - `bash scripts/check_edge_helper_visibility.sh`
 - `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
+- Ergebnis `check_release_readiness`: `OK_WITH_SKIPS` (Live-Contract-Smokes nur mit gesetztem `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`; ohne diese Variablen kein behauptetes Full-Live-Green).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 

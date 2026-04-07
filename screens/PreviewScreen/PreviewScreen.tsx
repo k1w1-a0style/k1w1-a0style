@@ -31,6 +31,7 @@ export default function PreviewScreen() {
     state,
     previewSource,
     previewUrl,
+    previewUrlDisplay,
     previewExpiryText,
     canOpenFullscreen,
     previewChannelLabel,
@@ -185,9 +186,9 @@ export default function PreviewScreen() {
                   <View style={s.urlCard}>
                     <View style={s.urlCardHeader}>
                       <Ionicons name="link-outline" size={15} color={theme.palette.primary} />
-                      <Text style={s.urlCardTitle}>Preview-Link (Browser & QR)</Text>
+                      <Text style={s.urlCardTitle}>Preview-Link (Browser, Secret-maskiert)</Text>
                     </View>
-                    <Text style={s.urlText} numberOfLines={2}>{previewUrl}</Text>
+                    <Text style={s.urlText} numberOfLines={2}>{previewUrlDisplay ?? previewUrl}</Text>
                     <View style={s.urlActions}>
                       <Pressable style={s.urlBtn} onPress={handleCopy}>
                         <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />

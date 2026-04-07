@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
+Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

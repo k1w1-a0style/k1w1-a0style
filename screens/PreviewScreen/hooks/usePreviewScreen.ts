@@ -11,7 +11,6 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useProject } from '../../../contexts/ProjectContext';
 import { usePreview } from '../../../hooks/usePreview';
 import {
-  buildQrImageUrl,
   formatPreviewExpiry,
   getPreviewChannelLabel,
   getPreviewRemoteUrlStatus,
@@ -96,6 +95,17 @@ export function usePreviewScreen() {
         : null,
     [previewKind, remoteUrlStatus, hasExpiredSupabaseUrl, lastPreview?.url],
   );
+  const previewUrlDisplay = useMemo(() => {
+    if (!previewUrl) return null;
+    try {
+      const parsed = new URL(previewUrl);
+      const host = parsed.host;
+      const path = parsed.pathname || '/';
+      return `${host}${path}#secret=••••`;
+    } catch {
+      return 'Preview-Link mit Secret (aus Sicherheitsgruenden ausgeblendet)';
+    }
+  }, [previewUrl]);
   const previewExpiryText = useMemo(
     () => formatPreviewExpiry(lastPreview?.expiresAt ?? null),
     [lastPreview?.expiresAt],
@@ -140,10 +150,7 @@ export function usePreviewScreen() {
     }
     return getPreviewChannelLabel(previewKind);
   }, [displayState.kind, previewKind]);
-  const qrImageUrl = useMemo(() => {
-    if (!previewUrl || !isHttpUrl(previewUrl)) return null;
-    return buildQrImageUrl(previewUrl);
-  }, [previewUrl]);
+  const qrImageUrl = useMemo(() => null, []);
   const runtimeHint = useMemo(() => {
     const sourceKind = previewKind ?? 'none';
     const sourceType = previewSource?.type ?? 'none';
@@ -283,10 +290,8 @@ export function usePreviewScreen() {
   }, [previewUrl]);
 
   const handleCopyQrLink = useCallback(async () => {
-    if (!qrImageUrl) return;
-    await Clipboard.setStringAsync(qrImageUrl);
-    Alert.alert('Kopiert', 'QR-Link in Zwischenablage.');
-  }, [qrImageUrl]);
+    Alert.alert('Deaktiviert', 'QR-Link ist deaktiviert, um Preview-Secrets nicht an Drittanbieter zu senden.');
+  }, []);
 
   const handleOpenExternal = useCallback(async () => {
     if (previewUrl) {
@@ -299,13 +304,8 @@ export function usePreviewScreen() {
   }, [previewUrl]);
 
   const handleOpenQr = useCallback(async () => {
-    if (!qrImageUrl) return;
-    try {
-      await Linking.openURL(qrImageUrl);
-    } catch {
-      Alert.alert('Fehler', 'QR-Ansicht konnte nicht geoeffnet werden.');
-    }
-  }, [qrImageUrl]);
+    Alert.alert('Deaktiviert', 'QR-Link ist deaktiviert, um Preview-Secrets nicht an Drittanbieter zu senden.');
+  }, []);
 
   const canOpenFullscreen = Boolean(previewSource);
 
@@ -326,6 +326,7 @@ export function usePreviewScreen() {
     previewSource,
     previewKind,
     previewUrl,
+    previewUrlDisplay,
     previewExpiryText,
     canOpenFullscreen,
     previewChannelLabel,

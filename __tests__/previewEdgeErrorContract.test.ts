@@ -107,6 +107,8 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).toContain("function isValidPreviewSecret(secret: string)");
     expect(previewPageSource).toContain("if (!isValidPreviewSecret(secret)) {");
     expect(previewPageSource).toContain("Missing preview secret header.");
+    expect(previewPageSource).toContain('code: "preview_payload_invalid"');
+    expect(previewPageSource).not.toContain("preview_invalid_payload");
   });
 
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {
