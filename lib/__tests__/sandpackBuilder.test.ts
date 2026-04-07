@@ -48,3 +48,23 @@ it("disables eval/cdn runtime when local unsafe fallback is not explicitly allow
   expect(html).not.toContain("@babel/standalone");
   expect(html).not.toContain("new Function(");
 });
+
+it("keeps local eval fallback disabled in production even with explicit opt-in", () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const html = buildSandpackHtml({
+      title: "Preview",
+      files: {
+        "/App.tsx": "export default function App() { return <div>Hello</div>; }",
+      },
+      allowUnsafeLocalEval: true,
+    });
+
+    expect(html).toContain("Lokaler HTML-/Eval-Fallback deaktiviert");
+    expect(html).not.toContain("@babel/standalone");
+    expect(html).not.toContain("new Function(");
+  } finally {
+    process.env.NODE_ENV = prevNodeEnv;
+  }
+});

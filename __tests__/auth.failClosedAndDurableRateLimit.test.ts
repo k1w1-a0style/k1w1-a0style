@@ -183,6 +183,29 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(result).toBeNull();
   });
 
+  it("fails closed when durable rate limiting is required but durable secrets are missing", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: undefined,
+        SUPABASE_SERVICE_ROLE_KEY: undefined,
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "preview_page",
+        subject: "1.2.3.4",
+        max: 60,
+        windowMs: 60_000,
+        enforceDurable: true,
+      }),
+    );
+
+    expect(result?.status).toBe(503);
+    await expect(result?.text()).resolves.toContain("rate_limit_unavailable");
+  });
+
   it("falls back to the local limiter when the durable store is temporarily unavailable", async () => {
     const req = new Request("http://localhost/edge", {
       headers: { "x-forwarded-for": "1.2.3.4" },

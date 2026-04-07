@@ -74,6 +74,8 @@ describe("preview edge error contract", () => {
 
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeGreaterThan(-1);
     expect(fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl")).toBeGreaterThan(-1);
+    expect(fetchPreviewRecordSource).toContain("const hashedSecret = await hashPreviewSecret(secret);");
+    expect(fetchPreviewRecordSource).toContain("arr = await parseRecords(await fetchBySecret(secret));");
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeLessThan(
       fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl"),
     );
@@ -99,11 +101,14 @@ describe("preview edge error contract", () => {
 
     expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
+    expect(savePreviewSource).toContain("hashPreviewSecret(secret)");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
+    expect(previewPageSource).toContain("hashPreviewSecret(secret)");
     expect(previewPageSource).not.toContain("const querySecret =");
     expect(previewPageSource).not.toContain("renderLegacyQuerySecretBridgePage");
     expect(previewPageSource).not.toContain('current.searchParams.delete("secret")');
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
+    expect(previewPageSource).toContain('if (req.method !== "GET" && req.method !== "HEAD")');
     expect(previewPageSource).toContain("function isValidPreviewSecret(secret: string)");
     expect(previewPageSource).toContain("if (!isValidPreviewSecret(secret)) {");
     expect(previewPageSource).toContain("Missing preview secret header.");

@@ -139,6 +139,20 @@ export function randomNonce(len = 16): string {
   return btoa(String.fromCharCode(...bytes)).replace(/=+$/g, "");
 }
 
+const PREVIEW_SECRET_HASH_PREFIX = "psh_v1_";
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+export async function hashPreviewSecret(secret: string): Promise<string> {
+  const input = new TextEncoder().encode(secret.trim());
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return PREVIEW_SECRET_HASH_PREFIX + bytesToBase64Url(new Uint8Array(digest));
+}
+
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =

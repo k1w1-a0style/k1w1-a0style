@@ -10,6 +10,7 @@ describe("edge durable rate-limit coverage for sensitive routes", () => {
     expect(src).toContain('requireVerifiedJwt(req, "save_preview")');
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "save_preview"');
+    expect(src).toContain("enforceDurable: true");
     expect(src).toContain('rateLimit(req, "save_preview")');
   });
 

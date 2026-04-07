@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
+Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -39,8 +39,10 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Build-/Diagnostics-Gates fail-closed und repo/branch-scoped
 - Projektpersistenz verschluesselt
 - Edge-Routen byte-genauere Body-/Payload-Limits, durable Rate Limits mit lokalem Fallback
+- Preview-sensitive Routen (`save_preview`, `preview_page`) verlangen nun durable Rate-Limits fail-closed; lokale In-Memory-Degradation bleibt nur fuer weniger sensible Routen aktiv.
 - Legacy-/Compat-Oberflaeche deutlich reduziert
 - `create_codesandbox` deaktiviert
+- verbleibende disabled Legacy-Edges bleiben bewusst als 410-Stubs + `verify_jwt=true` bestehen (kleinste Restoberflaeche, keine unkontrollierte Reaktivierung).
 - Doku-/Review-/TODO-Landschaft auf eine kleine kanonische Menge reduziert
 
 ## Was bewusst **kein offener Repo-Fehler** ist

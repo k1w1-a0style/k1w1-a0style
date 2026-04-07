@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
+Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening)**
 
-Zuletzt abgeschlossen: **Patch 750**
+Zuletzt abgeschlossen: **Patch 751**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
