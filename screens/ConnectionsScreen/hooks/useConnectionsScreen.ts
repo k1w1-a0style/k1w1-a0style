@@ -85,6 +85,58 @@ import {
   supabaseClearedPersistence,
 } from "./useConnectionsScreenState";
 
+type ConnectionPersistenceDelta = {
+  writes: Array<[string, string]>;
+  removes: string[];
+};
+
+type EasLaunchSelection = {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+  owner: string;
+  repo: string;
+};
+
+type ConnectionCheckParams<T> = {
+  defaultTitle: string;
+  requirements?: ConnectionRequirement[];
+  runCheck: () => Promise<T>;
+  onSuccess: (result: T) => Promise<void>;
+  onFailure: (error: unknown) => Promise<void>;
+  failureLog?: {
+    channel: string;
+    message: string;
+  };
+};
+
+type ConnectionRequirement = { value: string; message: string };
+
+type GuardedActionParams = {
+  defaultTitle: string;
+  task: () => Promise<void>;
+  onNonBusyError?: (error: unknown) => Promise<void> | void;
+};
+
+type ProviderTestParams = {
+  defaultTitle: string;
+  task: () => Promise<void>;
+  onFailure: (error: unknown) => Promise<void>;
+};
+
+type OptionalSecretPersistenceParams = {
+  value: string;
+  save: (value: string) => Promise<void>;
+  remove: () => Promise<void>;
+  onRemoved?: () => Promise<void>;
+};
+
+type EasConnectionStatusPayload = {
+  ok: boolean;
+  state: VerificationContractState;
+  verifiedAt: string | null;
+};
+
 export function useConnectionsScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const { activeRepo, activeBranch } = useGitHub();
@@ -148,11 +200,7 @@ export function useConnectionsScreen() {
   );
 
   const runGuardedAction = useCallback(
-    async (params: {
-      defaultTitle: string;
-      task: () => Promise<void>;
-      onNonBusyError?: (error: unknown) => Promise<void> | void;
-    }): Promise<void> => {
+    async (params: GuardedActionParams): Promise<void> => {
       try {
         await withBusyGuard(params.task);
       } catch (error: unknown) {
@@ -173,6 +221,12 @@ export function useConnectionsScreen() {
     [showActionError, withBusyGuard],
   );
 
+  const applyEasConnectionState = useCallback((status: EasConnectionStatusPayload): void => {
+    setEasOk(status.ok);
+    setEasState(status.state);
+    setEasLastVerifiedAt(status.verifiedAt);
+  }, []);
+
   const persistConnLights = useCallback(
     async (entries: Array<[string, string]>): Promise<void> => {
       await persistEntriesWithFallback(AsyncStorage, entries);
@@ -189,10 +243,7 @@ export function useConnectionsScreen() {
 
   const applyConnectionPersistence = useCallback(
     async (params: {
-      persistence: {
-        writes: Array<[string, string]>;
-        removes: string[];
-      };
+      persistence: ConnectionPersistenceDelta;
       applyState: () => void;
     }): Promise<void> => {
       params.applyState();
@@ -219,10 +270,7 @@ export function useConnectionsScreen() {
   const applyClearedConnectionState = useCallback(
     async (params: {
       resetState: () => void;
-      persistence: {
-        writes: Array<[string, string]>;
-        removes: string[];
-      };
+      persistence: ConnectionPersistenceDelta;
     }): Promise<void> => {
       params.resetState();
       await applyPersistenceDelta({
@@ -243,9 +291,7 @@ export function useConnectionsScreen() {
     }) => {
       const { ok, state } = params;
       const verifiedAt = params.verifiedAt ?? null;
-      setEasOk(ok);
-      setEasState(state);
-      setEasLastVerifiedAt(verifiedAt);
+      applyEasConnectionState({ ok, state, verifiedAt });
       const persistence = resolveEasStatusPersistence({ ok, state, verifiedAt });
       await applyPersistenceDelta({
         writes: persistence.writes,
@@ -254,7 +300,7 @@ export function useConnectionsScreen() {
         remove: removeConnLights,
       });
     },
-    [persistConnLights, removeConnLights],
+    [applyEasConnectionState, persistConnLights, removeConnLights],
   );
 
   const clearGithubConnectionState = useCallback(async () => {
@@ -265,13 +311,15 @@ export function useConnectionsScreen() {
         setGithubScopes("");
         setRepoOk(false);
         setRepoOkLine("");
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
+        applyEasConnectionState({
+          ok: false,
+          state: "missing",
+          verifiedAt: null,
+        });
       },
       persistence: githubClearedPersistence(),
     });
-  }, [applyClearedConnectionState]);
+  }, [applyClearedConnectionState, applyEasConnectionState]);
 
   const clearExpoConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
@@ -286,13 +334,15 @@ export function useConnectionsScreen() {
   const clearEasConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
       resetState: () => {
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
+        applyEasConnectionState({
+          ok: false,
+          state: "missing",
+          verifiedAt: null,
+        });
       },
       persistence: easClearedPersistence(),
     });
-  }, [applyClearedConnectionState]);
+  }, [applyClearedConnectionState, applyEasConnectionState]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
@@ -426,14 +476,16 @@ export function useConnectionsScreen() {
       setSupabaseRef(restored.supabaseRef);
       setExpoOk(restored.expoOk);
       setExpoUser(restored.expoUser);
-      setEasOk(restored.easOk);
-      if (restored.easState) setEasState(restored.easState);
-      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      applyEasConnectionState({
+        ok: restored.easOk,
+        state: restored.easState ?? "missing",
+        verifiedAt: restored.easLastVerifiedAt,
+      });
       setRepoOk(restored.repoOk);
       setRepoOkLine(restored.repoOkLine);
       setHydrated(true);
     },
-    [],
+    [applyEasConnectionState],
   );
 
   // Load stored settings on mount
@@ -489,12 +541,7 @@ export function useConnectionsScreen() {
   }, [supabaseRaw]);
 
   const persistOptionalSecret = useCallback(
-    async (params: {
-      value: string;
-      save: (value: string) => Promise<void>;
-      remove: () => Promise<void>;
-      onRemoved?: () => Promise<void>;
-    }) => {
+    async (params: OptionalSecretPersistenceParams) => {
       const normalizedValue = params.value.trim();
       if (normalizedValue) {
         await params.save(normalizedValue);
@@ -668,11 +715,7 @@ export function useConnectionsScreen() {
   );
 
   const runProviderTest = useCallback(
-    async (params: {
-      defaultTitle: string;
-      task: () => Promise<void>;
-      onFailure: (error: unknown) => Promise<void>;
-    }) => {
+    async (params: ProviderTestParams) => {
       await runGuardedAction({
         defaultTitle: params.defaultTitle,
         task: params.task,
@@ -682,22 +725,10 @@ export function useConnectionsScreen() {
     [runGuardedAction],
   );
 
-  type ConnectionCheckParams<T> = {
-    defaultTitle: string;
-    requirements?: Array<{ value: string; message: string }>;
-    runCheck: () => Promise<T>;
-    onSuccess: (result: T) => Promise<void>;
-    onFailure: (error: unknown) => Promise<void>;
-    failureLog?: {
-      channel: string;
-      message: string;
-    };
-  };
-
   const runConnectionCheck = useCallback(
     async <T,>(params: ConnectionCheckParams<T>) => {
       if (!hydrated) return;
-      const missingRequirement = resolveMissingConnectionRequirements(params.requirements || []);
+      const missingRequirement = resolveMissingConnectionRequirements(params.requirements ?? []);
       if (missingRequirement) {
         Alert.alert("Fehlt", missingRequirement);
         return;
@@ -903,9 +934,11 @@ Scopes: ${scopes}` : ""}`);
   const applyEasWorkflowPostStartState = useCallback(
     async (projectId: string) => {
       const postStartState = resolveEasLinkPostStartState(projectId);
-      setEasOk(false);
-      setEasState(postStartState.state);
-      setEasLastVerifiedAt(null);
+      applyEasConnectionState({
+        ok: false,
+        state: postStartState.state,
+        verifiedAt: null,
+      });
       await applyPersistenceDelta({
         writes: postStartState.writes,
         removes: postStartState.removes,
@@ -913,7 +946,7 @@ Scopes: ${scopes}` : ""}`);
         remove: removeConnLights,
       });
     },
-    [persistConnLights, removeConnLights],
+    [applyEasConnectionState, persistConnLights, removeConnLights],
   );
 
   const persistRepoSelectionState = useCallback(
@@ -955,13 +988,7 @@ Scopes: ${scopes}` : ""}`);
 
   const startEasWorkflow = useCallback(
     async (params: {
-      selection: {
-        githubToken: string;
-        repoSlug: string;
-        branch: string;
-        owner: string;
-        repo: string;
-      };
+      selection: EasLaunchSelection;
       projectId: string;
       persistProjectIdSelection: boolean;
       startedNotice: { title: string; message: string };
@@ -990,13 +1017,7 @@ Scopes: ${scopes}` : ""}`);
 
   const executeEasLaunchPlan = useCallback(
     async (params: {
-      selection: {
-        githubToken: string;
-        repoSlug: string;
-        branch: string;
-        owner: string;
-        repo: string;
-      };
+      selection: EasLaunchSelection;
       mode: "link_existing" | "create_and_link";
       easProjectId: string;
     }) => {
