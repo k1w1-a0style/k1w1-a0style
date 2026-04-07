@@ -55,7 +55,7 @@ npm run edge:check:live
 
 ## 5) Erwartete Resultate
 
-- [ ] `verify:release` insgesamt `OK`.
+- [ ] `verify:release` zeigt fuer vollständiges Sign-off `OK_FULL`; `OK_WITH_SKIPS` ist nur partial/local evidence und **kein** Voll-Sign-off.
 - [ ] Live-Checks laufen nicht mehr im SKIP-Pfad (ENV gesetzt).
 - [ ] Read-only Vertragsantworten entsprechen Runbook-Erwartung.
 - [ ] `verify_jwt` fuer `save_preview` und `k1w1-handler` im Zielprojekt aktiv bestaetigt (`true`).

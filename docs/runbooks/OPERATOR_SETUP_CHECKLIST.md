@@ -81,6 +81,6 @@ Wenn stattdessen `401`/`403` kommt:
 
 ## 7) Done-Kriterium
 - User hat frischen JWT mit `build_admin`
-- `npm run verify:release` ist gruen
+- `npm run verify:release` ist fuer Voll-Freigabe `OK_FULL` (nicht nur `OK_WITH_SKIPS`)
 - read-only Live-Contracts antworten wie erwartet
 - erst danach echte Operator-Flows (Dispatch / Build / Logs / Keystore) testen

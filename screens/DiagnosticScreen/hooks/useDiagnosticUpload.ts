@@ -18,6 +18,18 @@ const DEVICE_ID_KEY = "k1w1_device_id";
 const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;
 const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
+let bestEffortDeviceIdCounter = 0;
+let bestEffortClientRequestCounter = 0;
+
+function createBestEffortClientRequestId(): string {
+  try {
+    return uuidv4();
+  } catch (error) {
+    console.warn("[useDiagnosticUpload] uuid client-request-id fallback engaged", error);
+  }
+  bestEffortClientRequestCounter = (bestEffortClientRequestCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `req_${Date.now().toString(16)}_${bestEffortClientRequestCounter.toString(16)}`;
+}
 
 function createBestEffortDeviceIdSuffix(): string {
   try {
@@ -29,10 +41,16 @@ function createBestEffortDeviceIdSuffix(): string {
         .join("");
     }
   } catch (error) {
-    console.warn("[useDiagnosticUpload] global crypto fallback failed; using uuid fallback", error);
+    console.warn("[useDiagnosticUpload] global crypto fallback failed; trying uuid fallback", error);
   }
-  // Non-crypto fallback: still unique enough for correlation, not for security decisions.
-  return `${uuidv4().replace(/-/g, "")}${Date.now().toString(16)}`;
+  try {
+    return uuidv4().replace(/-/g, "");
+  } catch (error) {
+    console.warn("[useDiagnosticUpload] uuid fallback failed; using non-crypto best-effort fallback", error);
+  }
+  // Last-resort non-crypto fallback: best-effort correlation only (never for security decisions).
+  bestEffortDeviceIdCounter = (bestEffortDeviceIdCounter + 1) % Number.MAX_SAFE_INTEGER;
+  return `ts${Date.now().toString(16)}c${bestEffortDeviceIdCounter.toString(16)}`;
 }
 
 export function useDiagnosticUpload(opts: {
@@ -113,7 +131,7 @@ export function useDiagnosticUpload(opts: {
     const cur = uploadClientRequestIdRef.current;
     const exp = uploadClientRequestIdExpiresAtRef.current;
     if (cur && exp && now < exp) return cur;
-    const next = uuidv4();
+    const next = createBestEffortClientRequestId();
     uploadClientRequestIdRef.current = next;
     uploadClientRequestIdExpiresAtRef.current = now + 30_000; // 30s window
     return next;
