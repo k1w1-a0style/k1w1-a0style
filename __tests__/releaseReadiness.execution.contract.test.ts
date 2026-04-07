@@ -120,7 +120,9 @@ describe("release readiness execution contract", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("skip app typecheck");
     expect(result.stdout).toContain("skip live edge contracts");
-    expect(result.stdout).toContain("[verify:release] OK_WITH_SKIPS (2 checks skipped; not full release-green)");
+    expect(result.stdout).toContain(
+      "[verify:release] OK_WITH_SKIPS (2 checks skipped; partial/local evidence only, not full release sign-off)",
+    );
   });
 
   it("reports OK_FULL when no check is skipped", () => {

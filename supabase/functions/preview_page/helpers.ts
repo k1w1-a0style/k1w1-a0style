@@ -191,10 +191,12 @@ export function isValidPreviewSecretFormat(secret: string): boolean {
 }
 
 export function buildCsp(nonce: string): string {
-  // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
-  const strict =
-    (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
-  const evalPart = strict ? "" : " 'unsafe-eval'";
+  // Sandpack runtime currently needs eval in many environments.
+  // We keep this explicit and optionally switch it off for hardened test/dev runs.
+  const strictMode = (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
+  const unsafeEvalExplicitlyDisabled = (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "false";
+  const allowUnsafeEval = !strictMode && !unsafeEvalExplicitlyDisabled;
+  const evalPart = allowUnsafeEval ? " 'unsafe-eval'" : "";
 
   return [
     "default-src 'self' data: blob:",
