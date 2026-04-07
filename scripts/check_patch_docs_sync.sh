@@ -59,6 +59,22 @@ if [ -n "${patch_id:-}" ]; then
     echo "PATCHLOG_ROOT.md top patch (${patchlog_top:-<none>}) does not match README patch ${patch_id}" >&2
     exit 1
   }
+
+  core_patch_docs=(
+    "docs/TODO.md"
+    "docs/reviews/Review.md"
+    "docs/INDEX.md"
+    "docs/TESTING_GUIDE.md"
+    "docs/FRESH_CHECKOUT_GREEN_PATH.md"
+  )
+
+  for doc in "${core_patch_docs[@]}"; do
+    require_regex "$doc" "Stand: \\*\\*[^*]*Patch ${patch_id}[^*]*\\*\\*"
+  done
+
+  # EDGE_FUNCTIONS_STATUS.md ist aktive SoT und darf daher nicht still auf aelterem Patch-Stand liegen.
+  require_regex docs/EDGE_FUNCTIONS_STATUS.md "Stand: \\*\\*[^*]*Patch ${patch_id}[^*]*\\*\\*"
+
 elif [ -n "${stand_line:-}" ]; then
   require_fixed docs/INDEX.md "$stand_line"
   require_fixed docs/TESTING_GUIDE.md "$stand_line"

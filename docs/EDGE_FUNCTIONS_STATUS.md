@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
 
 ## Aktiv und workflow-relevant
 

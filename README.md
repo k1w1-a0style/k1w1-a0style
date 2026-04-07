@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 757, PreviewEvalTradeoff/PreviewSecretGate consistency close)**
+Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
 
-Zuletzt abgeschlossen: **Patch 757**
+Zuletzt abgeschlossen: **Patch 758**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

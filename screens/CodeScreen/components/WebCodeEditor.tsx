@@ -148,7 +148,7 @@ export const WebCodeEditor = ({
         function post(obj) {
           try {
             window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(obj));
-          } catch (e) {}
+          } catch (e) { console.warn("[WebCodeEditor] postMessage failed", e); }
         }
 
         function setValue(v) {
@@ -157,7 +157,7 @@ export const WebCodeEditor = ({
           var start = ta.selectionStart;
           var end = ta.selectionEnd;
           ta.value = v;
-          try { ta.setSelectionRange(start, end); } catch (e) {}
+          try { ta.setSelectionRange(start, end); } catch (e) { console.warn("[WebCodeEditor] setSelectionRange failed", e); }
         }
 
         function scheduleSend() {

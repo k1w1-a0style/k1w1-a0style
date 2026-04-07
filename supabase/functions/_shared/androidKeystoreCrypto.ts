@@ -37,7 +37,11 @@ function decodeBase64(input: string): Uint8Array {
   return binaryStringToBytes(atob(input));
 }
 
-async function deriveAesKeyBytes(masterKey: string): Promise<Uint8Array> {
+/**
+ * Legacy compatibility KDF (SHA-256 only).
+ * Strictly for legacy read/decrypt compatibility and migration fixtures.
+ */
+async function deriveLegacyCompatAesKeyBytesSha256(masterKey: string): Promise<Uint8Array> {
   const input = new TextEncoder().encode(masterKey);
   const hash = await crypto.subtle.digest("SHA-256", input);
   return new Uint8Array(hash);
@@ -68,7 +72,7 @@ export function isVersionedKeystoreEnvelope(value: string): boolean {
  * Never use this for new writes.
  */
 export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, masterKey: string): Promise<string> {
-  const keyBytes = await deriveAesKeyBytes(masterKey);
+  const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
   const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
     "raw",
@@ -87,13 +91,13 @@ export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, m
   return encodeBase64(out);
 }
 
-async function decryptWithAesCbcLegacy(payload: string, masterKey: string): Promise<string> {
+async function decryptWithAesCbcLegacyCompatOnly(payload: string, masterKey: string): Promise<string> {
   const bytes = decodeBase64(payload);
   if (bytes.length < 17) throw new Error("Encrypted blob too small");
   const iv = bytes.slice(0, 16);
   const enc = bytes.slice(16);
 
-  const keyBytes = await deriveAesKeyBytes(masterKey);
+  const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
   const key = await crypto.subtle.importKey(
     "raw",
     keyBytes as unknown as BufferSource,
@@ -183,7 +187,7 @@ async function decryptKeystorePayloadV2(payload: string, masterKey: string): Pro
       throw new Error("invalid sizes");
     }
 
-    const keyBytes = await deriveAesKeyBytes(masterKey);
+    const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
     const key = await crypto.subtle.importKey(
       "raw",
       keyBytes as unknown as BufferSource,
@@ -236,5 +240,6 @@ export async function decryptKeystorePayload(payload: string, masterKey: string)
   }
 
   // Legacy fallback for older AES-CBC records stored before v2 envelope rollout.
-  return decryptWithAesCbcLegacy(payload, masterKey);
+  // NOTE: read-only compatibility path; all new writes stay on v3 (PBKDF2 + AES-GCM).
+  return decryptWithAesCbcLegacyCompatOnly(payload, masterKey);
 }
