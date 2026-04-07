@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { __resetDerivedStatusAfterSecretImportForTests } from "../screens/AppInfoScreen/hooks/useAppInfoScreen";
+import { resetDerivedStatusAfterSecretImport } from "../screens/AppInfoScreen/hooks/secretImportStatusReset";
 import { STORAGE_KEYS } from "../lib/storageKeys";
 
 type MockAsyncStorage = typeof AsyncStorage & {
@@ -24,7 +24,7 @@ describe("secret import derived status reset", () => {
       keep_me: "1",
     });
 
-    await __resetDerivedStatusAfterSecretImportForTests();
+    await resetDerivedStatusAfterSecretImport();
 
     expect(await AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK)).toBeNull();
     expect(await AsyncStorage.getItem(`${STORAGE_KEYS.CRED_KEY_EXISTS_DEV}::project%3Aabc`)).toBeNull();
