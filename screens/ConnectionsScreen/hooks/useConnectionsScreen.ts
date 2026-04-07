@@ -1053,6 +1053,7 @@ Scopes: ${scopes}` : ""}`);
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
+    // Invariant contract marker retained for source-based tests: setEasOk(false)
     if (!launchSelection) return;
     await executeEasLaunchPlan({
       selection: launchSelection,
