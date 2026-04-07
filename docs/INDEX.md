@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
+Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

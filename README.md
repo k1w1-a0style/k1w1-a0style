@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
+Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
 
-Zuletzt abgeschlossen: **Patch 758**
+Zuletzt abgeschlossen: **Patch 759**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

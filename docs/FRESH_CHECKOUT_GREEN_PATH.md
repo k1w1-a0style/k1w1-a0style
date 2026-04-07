@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 758, DocsSync/CryptoLegacy/PreviewTradeoff/SilentCatch/ReleasePartial close)**
+Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
