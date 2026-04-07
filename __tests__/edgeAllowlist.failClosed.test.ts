@@ -47,11 +47,11 @@ describe("edge allowlist fail-closed invariants", () => {
   it("keeps trigger/dispatch ref allowlist fail-closed when regex env is missing", () => {
     const trigger = read("supabase/functions/trigger-eas-build/index.ts");
     const dispatch = read("supabase/functions/github-workflow-dispatch/index.ts");
+    const shared = read("supabase/functions/_shared/github.ts");
 
-    expect(trigger).toContain('const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();');
-    expect(dispatch).toContain('const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();');
-
-    expect(trigger).toContain("if (!regexStr) return false;");
-    expect(dispatch).toContain("if (!regexStr) return false;");
+    expect(trigger).toContain("isAllowedGitRef");
+    expect(dispatch).toContain("isAllowedGitRef");
+    expect(shared).toContain('const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();');
+    expect(shared).toContain("if (!regexStr) return false;");
   });
 });
