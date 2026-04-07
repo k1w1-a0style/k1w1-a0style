@@ -520,8 +520,12 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
  * key: a logical bucket e.g. "android-keystore-generate"
  * max: allowed calls within windowMs for an IP
  */
-const rl = new Map<string, { t: number; c: number }>();
+const rl = new Map<string, { t: number; c: number; windowMs: number }>();
 let rlLastPruneAt = 0;
+export function __resetLocalRateLimitForTests(): void {
+  rl.clear();
+  rlLastPruneAt = 0;
+}
 export function rateLimit(
   req: Request,
   key: string,
@@ -534,7 +538,7 @@ export function rateLimit(
   if (now - rlLastPruneAt > Math.max(windowMs, 10_000) || rl.size > 5_000) {
     rlLastPruneAt = now;
     for (const [entryKey, entryValue] of rl) {
-      if (now - entryValue.t > windowMs * 2) {
+      if (now - entryValue.t > entryValue.windowMs * 2) {
         rl.delete(entryKey);
       }
     }
@@ -549,9 +553,10 @@ export function rateLimit(
   }
   const v = rl.get(k);
   if (!v || now - v.t > windowMs) {
-    rl.set(k, { t: now, c: 1 });
+    rl.set(k, { t: now, c: 1, windowMs });
     return null;
   }
+  v.windowMs = windowMs;
   v.c += 1;
   if (v.c > max) {
     return errorResponse("rate_limited", req, 429, { windowMs, max, mode: "local_best_effort" });
