@@ -23,6 +23,10 @@ jest.mock("expo-clipboard", () => ({
   setStringAsync: jest.fn(async () => undefined),
 }));
 
+jest.mock("uuid", () => ({
+  v4: jest.fn(),
+}));
+
 jest.mock("../lib/diagnostics/diagnosticUploader", () => ({
   formatDiagnosticUpload: jest.fn((input) => input),
   uploadDiagnosticToSupabase: jest.fn(async () => ({ id: "u1" })),
@@ -56,14 +60,40 @@ function Harness() {
 }
 
 describe("useDiagnosticUpload silent catch follow-up", () => {
-  it("logs persisted-cooldown and device-id fallback errors visibly", async () => {
+  const originalCrypto = globalThis.crypto;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    const AsyncStorage = jest.requireMock("@react-native-async-storage/async-storage");
+    AsyncStorage.getItem.mockResolvedValue(null);
+    const uuid = jest.requireMock("uuid");
+    uuid.v4.mockReturnValue("11111111-1111-4111-8111-111111111111");
+    globalThis.crypto = originalCrypto;
+  });
+
+  afterAll(() => {
+    globalThis.crypto = originalCrypto;
+  });
+
+  it("keeps copy flow usable when crypto + webcrypto + uuid all fail", async () => {
     const AsyncStorage = jest.requireMock("@react-native-async-storage/async-storage");
     const SecureStore = jest.requireMock("expo-secure-store");
     const Crypto = jest.requireMock("expo-crypto");
+    const Clipboard = jest.requireMock("expo-clipboard");
+    const { formatDiagnosticUpload } = jest.requireMock("../lib/diagnostics/diagnosticUploader");
+    const uuid = jest.requireMock("uuid");
 
     AsyncStorage.getItem.mockRejectedValueOnce(new Error("storage offline"));
     SecureStore.getItemAsync.mockRejectedValueOnce(new Error("securestore read failed"));
     Crypto.getRandomBytesAsync.mockRejectedValueOnce(new Error("rng failed"));
+    globalThis.crypto = {
+      getRandomValues: () => {
+        throw new Error("webcrypto broken");
+      },
+    } as any;
+    uuid.v4.mockImplementation(() => {
+      throw new Error("uuid rng unavailable");
+    });
     SecureStore.setItemAsync.mockRejectedValueOnce(new Error("securestore write failed"));
 
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -80,6 +110,12 @@ describe("useDiagnosticUpload silent catch follow-up", () => {
     fireEvent.press(screen.getByTestId("copy"));
 
     await waitFor(() => {
+      expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
+      expect(formatDiagnosticUpload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deviceId: expect.stringMatching(/^dev_/),
+        }),
+      );
       expect(warnSpy).toHaveBeenCalledWith(
         "[useDiagnosticUpload] failed to read persisted device ID",
         expect.any(Error),
@@ -89,8 +125,37 @@ describe("useDiagnosticUpload silent catch follow-up", () => {
         expect.any(Error),
       );
       expect(warnSpy).toHaveBeenCalledWith(
+        "[useDiagnosticUpload] global crypto fallback failed; trying uuid fallback",
+        expect.any(Error),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[useDiagnosticUpload] uuid fallback failed; using non-crypto best-effort fallback",
+        expect.any(Error),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
         "[useDiagnosticUpload] failed to persist generated device ID",
         expect.any(Error),
+      );
+    });
+  });
+
+  it("uses uuid fallback when expo-crypto fails and webcrypto is unavailable", async () => {
+    const SecureStore = jest.requireMock("expo-secure-store");
+    const Crypto = jest.requireMock("expo-crypto");
+    const { formatDiagnosticUpload } = jest.requireMock("../lib/diagnostics/diagnosticUploader");
+
+    SecureStore.getItemAsync.mockResolvedValueOnce(null);
+    Crypto.getRandomBytesAsync.mockRejectedValueOnce(new Error("rng failed"));
+    globalThis.crypto = undefined as any;
+
+    const screen = render(<Harness />);
+    fireEvent.press(screen.getByTestId("copy"));
+
+    await waitFor(() => {
+      expect(formatDiagnosticUpload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          deviceId: "dev_11111111111141118111111111111111",
+        }),
       );
     });
   });

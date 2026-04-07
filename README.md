@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follow-up)**
+Stand: **2026-04-07 (Patch 756, Diagnostic Upload non-throwing ID fallback hardening)**
 
-Zuletzt abgeschlossen: **Patch 755**
+Zuletzt abgeschlossen: **Patch 756**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
