@@ -183,6 +183,17 @@ export const resolveConnectionsStatusFlags = (params: {
   return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
 };
 
+export const resolveMissingConnectionRequirements = (
+  requirements: Array<{ value: string; message: string }>,
+): string | null => {
+  for (const requirement of requirements) {
+    if (!requirement.value.trim()) {
+      return requirement.message;
+    }
+  }
+  return null;
+};
+
 export type ConnectionsSavePlan = {
   githubToken: string;
   expoToken: string;
@@ -323,6 +334,19 @@ export type ConnectionsAlertNoticeKey =
   | "invalid_repo_format"
   | "create_link_workflow_started";
 
+export type EasLaunchPlan =
+  | {
+      kind: "start";
+      projectId: string;
+      persistProjectIdSelection: boolean;
+      notice: { title: string; message: string };
+    }
+  | {
+      kind: "confirm_create";
+      title: string;
+      message: string;
+    };
+
 export type EasWorkflowSelectionPrecheckResult =
   | {
       ok: true;
@@ -360,6 +384,39 @@ export const resolveConnectionsAlertNotice = (
     default:
       return { title: "Hinweis", message: "Unbekannter Verbindungsstatus." };
   }
+};
+
+export const resolveEasLaunchPlan = (params: {
+  mode: "link_existing" | "create_and_link";
+  easProjectId: string;
+}): EasLaunchPlan => {
+  if (params.mode === "create_and_link") {
+    return {
+      kind: "start",
+      projectId: "",
+      persistProjectIdSelection: false,
+      notice: resolveConnectionsAlertNotice("create_link_workflow_started"),
+    };
+  }
+
+  const projectId = params.easProjectId.trim();
+  if (!projectId) {
+    return {
+      kind: "confirm_create",
+      title: "Keine EAS ID vorhanden!",
+      message: "Soll eine erstellt werden?",
+    };
+  }
+
+  return {
+    kind: "start",
+    projectId,
+    persistProjectIdSelection: true,
+    notice: {
+      title: "OK",
+      message: resolveEasLinkWorkflowStartMessage(projectId),
+    },
+  };
 };
 
 export const resolveEasWorkflowSelectionPrecheck = (params: {

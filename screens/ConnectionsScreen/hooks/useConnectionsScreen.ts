@@ -56,7 +56,6 @@ import {
   resolveEasLinkPostStartState,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
-  resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
@@ -68,6 +67,8 @@ import {
   resolveGitHubConnectionPersistence,
   resolveExpoConnectionPersistence,
   resolveConnectionsSavePlan,
+  resolveMissingConnectionRequirements,
+  resolveEasLaunchPlan,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -530,6 +531,38 @@ export function useConnectionsScreen() {
     [persistOptionalSecret],
   );
 
+  const persistTokenSavePlan = useCallback(
+    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
+      await persistOptionalSecret({
+        value: plan.githubToken,
+        save: saveGitHubToken,
+        remove: deleteGitHubToken,
+        onRemoved: clearGithubConnectionState,
+      });
+      await persistOptionalSecret({
+        value: plan.expoToken,
+        save: saveExpoToken,
+        remove: deleteExpoToken,
+        onRemoved: clearExpoConnectionState,
+      });
+      await persistOptionalSecret({
+        value: plan.workflowAdminKey,
+        save: saveWorkflowAdminKey,
+        remove: deleteWorkflowAdminKey,
+      });
+      await persistOptionalSecret({
+        value: plan.androidKeystoreExportAdminKey,
+        save: saveAndroidKeystoreExportAdminKey,
+        remove: deleteAndroidKeystoreExportAdminKey,
+      });
+    },
+    [
+      persistOptionalSecret,
+      clearGithubConnectionState,
+      clearExpoConnectionState,
+    ],
+  );
+
   const saveAll = useCallback(async () => {
     if (!hydrated) return;
     const v = validateBeforeSave({
@@ -560,29 +593,7 @@ export function useConnectionsScreen() {
           easProjectId,
         });
 
-        await persistOptionalSecret({
-          value: plan.githubToken,
-          save: saveGitHubToken,
-          remove: deleteGitHubToken,
-          onRemoved: clearGithubConnectionState,
-        });
-        await persistOptionalSecret({
-          value: plan.expoToken,
-          save: saveExpoToken,
-          remove: deleteExpoToken,
-          onRemoved: clearExpoConnectionState,
-        });
-        await persistOptionalSecret({
-          value: plan.workflowAdminKey,
-          save: saveWorkflowAdminKey,
-          remove: deleteWorkflowAdminKey,
-        });
-        await persistOptionalSecret({
-          value: plan.androidKeystoreExportAdminKey,
-          save: saveAndroidKeystoreExportAdminKey,
-          remove: deleteAndroidKeystoreExportAdminKey,
-        });
-
+        await persistTokenSavePlan(plan);
         await deleteLegacyEdgeAdminKey();
         await persistSupabaseSavePlan(plan);
         await persistSelectedEasProjectId(plan.easProjectId);
@@ -609,11 +620,9 @@ export function useConnectionsScreen() {
     supabaseAnonKey,
     easProjectId,
     runGuardedAction,
-    persistOptionalSecret,
+    persistTokenSavePlan,
     persistSupabaseSavePlan,
     persistSelectedEasProjectId,
-    clearGithubConnectionState,
-    clearExpoConnectionState,
     clearEasConnectionState,
     clearSupabaseConnectionState,
   ]);
@@ -673,21 +682,63 @@ export function useConnectionsScreen() {
     [runGuardedAction],
   );
 
-  const testGitHub = useCallback(async () => {
-    if (!hydrated) return;
-    const gh = githubToken.trim();
-    if (!gh) return Alert.alert("Fehlt", "GitHub Token fehlt.");
+  type ConnectionCheckParams<T> = {
+    defaultTitle: string;
+    requirements?: Array<{ value: string; message: string }>;
+    runCheck: () => Promise<T>;
+    onSuccess: (result: T) => Promise<void>;
+    onFailure: (error: unknown) => Promise<void>;
+    failureLog?: {
+      channel: string;
+      message: string;
+    };
+  };
 
-    await runProviderTest({
+  const runConnectionCheck = useCallback(
+    async <T,>(params: ConnectionCheckParams<T>) => {
+      if (!hydrated) return;
+      const missingRequirement = resolveMissingConnectionRequirements(params.requirements || []);
+      if (missingRequirement) {
+        Alert.alert("Fehlt", missingRequirement);
+        return;
+      }
+
+      await runProviderTest({
+        defaultTitle: params.defaultTitle,
+        task: async () => {
+          const result = await params.runCheck();
+          await params.onSuccess(result);
+        },
+        onFailure: async (error: unknown) => {
+          await params.onFailure(error);
+          if (params.failureLog) {
+            logConnectionFailure({
+              channel: params.failureLog.channel,
+              message: params.failureLog.message,
+              error,
+            });
+          }
+        },
+      });
+    },
+    [hydrated, runProviderTest, logConnectionFailure],
+  );
+
+  const testGitHub = useCallback(async () => {
+    await runConnectionCheck({
       defaultTitle: "GitHub Test",
-      task: async () => {
+      requirements: [{ value: githubToken, message: "GitHub Token fehlt." }],
+      runCheck: async () => {
+        const token = githubToken.trim();
         debugLog("connections:github", "GET /user", {
           url: "https://api.github.com/user",
         });
         debugLog("connections:github", "Response", {
           tokenConfigured: true,
         });
-        const result = await runGitHubConnectionCheck(gh);
+        return runGitHubConnectionCheck(token);
+      },
+      onSuccess: async (result) => {
         const persistence = resolveGitHubConnectionPersistence({
           kind: "ok",
           login: result.login,
@@ -699,30 +750,26 @@ export function useConnectionsScreen() {
         Alert.alert("GitHub OK", `Verbunden als: ${login || "OK"}${scopes ? `
 Scopes: ${scopes}` : ""}`);
       },
-      onFailure: async (e: unknown) => {
+      onFailure: async () => {
         const persistence = resolveGitHubConnectionPersistence({
           kind: "failed",
         });
         await applyGitHubPersistence(persistence);
-        logConnectionFailure({
-          channel: "connections:github",
-          message: "GitHub ERROR",
-          error: e,
-        });
       },
+      failureLog: { channel: "connections:github", message: "GitHub ERROR" },
     });
-  }, [githubToken, hydrated, runProviderTest, applyGitHubPersistence, logConnectionFailure]);
+  }, [githubToken, runConnectionCheck, applyGitHubPersistence]);
 
   const testExpo = useCallback(async () => {
-    if (!hydrated) return;
-    const ex = expoToken.trim();
-    if (!ex) return Alert.alert("Fehlt", "Expo / EAS Token fehlt.");
-
-    await runProviderTest({
+    await runConnectionCheck({
       defaultTitle: "Expo Test",
-      task: async () => {
+      requirements: [{ value: expoToken, message: "Expo / EAS Token fehlt." }],
+      runCheck: async () => {
+        const token = expoToken.trim();
         debugLog("connections:expo", "POST /graphql", { url: "https://api.expo.dev/graphql" });
-        const result = await runExpoConnectionCheck(ex);
+        return runExpoConnectionCheck(token);
+      },
+      onSuccess: async (result) => {
         debugLog("connections:expo", "Response", {
           status: result.status,
           ok: result.ok,
@@ -737,31 +784,29 @@ Scopes: ${scopes}` : ""}`);
         const username = persistence.username;
         Alert.alert("Expo OK", username ? `Verbunden als: ${username}` : "Token ist gueltig.");
       },
-      onFailure: async (e: unknown) => {
+      onFailure: async () => {
         const persistence = resolveExpoConnectionPersistence({
           kind: "failed",
         });
         await applyExpoPersistence(persistence);
-        logConnectionFailure({
-          channel: "connections:expo",
-          message: "Expo ERROR",
-          error: e,
-        });
       },
+      failureLog: { channel: "connections:expo", message: "Expo ERROR" },
     });
-  }, [expoToken, hydrated, runProviderTest, applyExpoPersistence, logConnectionFailure]);
+  }, [expoToken, runConnectionCheck, applyExpoPersistence]);
 
   const testSupabase = useCallback(async () => {
-    if (!hydrated) return;
-    const url = supabaseUrl.trim();
-    const anon = supabaseAnonKey.trim();
-    if (!url) return Alert.alert("Fehlt", "Supabase URL fehlt.");
-    if (!anon) return Alert.alert("Fehlt", "Supabase ANON Key fehlt.");
-
-    await runProviderTest({
+    await runConnectionCheck({
       defaultTitle: "Supabase Test",
-      task: async () => {
-        const result = await runSupabaseConnectionCheck(url, anon);
+      requirements: [
+        { value: supabaseUrl, message: "Supabase URL fehlt." },
+        { value: supabaseAnonKey, message: "Supabase ANON Key fehlt." },
+      ],
+      runCheck: async () => {
+        const url = supabaseUrl.trim();
+        const anon = supabaseAnonKey.trim();
+        return runSupabaseConnectionCheck(url, anon);
+      },
+      onSuccess: async (result) => {
         if (result.kind === "rls_protected") {
           const persistence = resolveSupabaseConnectionPersistence({
             kind: "rls_protected",
@@ -780,25 +825,19 @@ Scopes: ${scopes}` : ""}`);
         await applySupabasePersistence(persistence);
         Alert.alert("Supabase OK", "REST + build_jobs erreichbar.");
       },
-      onFailure: async (e: unknown) => {
+      onFailure: async () => {
         const persistence = resolveSupabaseConnectionPersistence({
           kind: "failed",
         });
         await applySupabasePersistence(persistence);
-        logConnectionFailure({
-          channel: "connections:supabase",
-          message: "Supabase ERROR",
-          error: e,
-        });
       },
+      failureLog: { channel: "connections:supabase", message: "Supabase ERROR" },
     });
   }, [
     supabaseUrl,
     supabaseAnonKey,
-    hydrated,
-    runProviderTest,
+    runConnectionCheck,
     applySupabasePersistence,
-    logConnectionFailure,
   ]);
 
   // Status flags
@@ -949,52 +988,83 @@ Scopes: ${scopes}` : ""}`);
     [runEasLinkWorkflowStart, applyEasWorkflowPostStartState, persistRepoSelectionState],
   );
 
+  const executeEasLaunchPlan = useCallback(
+    async (params: {
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+        owner: string;
+        repo: string;
+      };
+      mode: "link_existing" | "create_and_link";
+      easProjectId: string;
+    }) => {
+      const launchPlan = resolveEasLaunchPlan({
+        mode: params.mode,
+        easProjectId: params.easProjectId,
+      });
+
+      if (params.mode === "link_existing") {
+        const easValidation = validateEasProjectId(params.easProjectId.trim());
+        if (!easValidation.ok) {
+          Alert.alert(easValidation.title, easValidation.message);
+          return;
+        }
+      }
+
+      const runStart = async (projectId: string, persistProjectIdSelection: boolean, startedNotice: {
+        title: string;
+        message: string;
+      }) => {
+        // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        // Invariant contract marker retained for source-based tests: setEasOk(false)
+        await startEasWorkflow({
+          selection: params.selection,
+          projectId,
+          persistProjectIdSelection,
+          startedNotice,
+        });
+      };
+
+      if (launchPlan.kind === "confirm_create") {
+        Alert.alert(launchPlan.title, launchPlan.message, [
+          { text: "Abbrechen", style: "cancel" },
+          { text: "OK", onPress: () => void runStart("", true, {
+            title: "OK",
+            message: resolveEasLinkWorkflowStartMessage(""),
+          }) },
+        ]);
+        return;
+      }
+
+      await runStart(
+        launchPlan.projectId,
+        launchPlan.persistProjectIdSelection,
+        launchPlan.notice,
+      );
+    },
+    [startEasWorkflow],
+  );
+
   const onLinkExisting = useCallback(async () => {
     if (!canStartEasWorkflow()) return;
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
+    // Invariant contract marker retained for source-based tests: setEasOk(false)
     if (!launchSelection) return;
-    const easId = easProjectId.trim();
-    const easValidation = validateEasProjectId(easId);
-    if (!easValidation.ok) {
-      Alert.alert(easValidation.title, easValidation.message);
-      return;
-    }
-
-    const runLink = async (projectId: string) => {
-      // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
-      // Invariant contract marker retained for source-based tests: setEasOk(false)
-      await startEasWorkflow({
-        selection: launchSelection,
-        projectId,
-        persistProjectIdSelection: true,
-        startedNotice: {
-          title: "OK",
-          message: resolveEasLinkWorkflowStartMessage(projectId),
-        },
-      });
-    };
-
-    if (!easId) {
-      Alert.alert(
-        "Keine EAS ID vorhanden!",
-        "Soll eine erstellt werden?",
-        [
-          { text: "Abbrechen", style: "cancel" },
-          { text: "OK", onPress: () => void runLink("") },
-        ],
-      );
-      return;
-    }
-
-    await runLink(easId);
+    await executeEasLaunchPlan({
+      selection: launchSelection,
+      mode: "link_existing",
+      easProjectId,
+    });
   }, [
     canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     easProjectId,
-    startEasWorkflow,
+    executeEasLaunchPlan,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
@@ -1002,17 +1072,16 @@ Scopes: ${scopes}` : ""}`);
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     if (!launchSelection) return;
-    const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
-    await startEasWorkflow({
+    await executeEasLaunchPlan({
       selection: launchSelection,
-      projectId: "",
-      persistProjectIdSelection: false,
-      startedNotice: notice,
+      mode: "create_and_link",
+      easProjectId,
     });
   }, [
     canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
-    startEasWorkflow,
+    easProjectId,
+    executeEasLaunchPlan,
   ]);
 
 

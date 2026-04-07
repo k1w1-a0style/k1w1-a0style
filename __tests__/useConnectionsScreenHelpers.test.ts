@@ -9,6 +9,8 @@ import {
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
   resolveConnectionsSavePlan,
+  resolveMissingConnectionRequirements,
+  resolveEasLaunchPlan,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
   resolveRepoSelectionPersistence,
@@ -162,6 +164,67 @@ describe("useConnectionsScreenHelpers", () => {
       sbAnon: false,
       linked: true,
       eas: true,
+    });
+  });
+
+  it("resolves first missing provider requirement deterministically", () => {
+    expect(
+      resolveMissingConnectionRequirements([
+        { value: "token", message: "Token fehlt." },
+        { value: " ", message: "Branch fehlt." },
+        { value: "", message: "Repo fehlt." },
+      ]),
+    ).toBe("Branch fehlt.");
+
+    expect(
+      resolveMissingConnectionRequirements([
+        { value: "token", message: "Token fehlt." },
+        { value: "repo", message: "Repo fehlt." },
+      ]),
+    ).toBeNull();
+  });
+
+  it("resolves EAS launch plans for link/create modes deterministically", () => {
+    expect(
+      resolveEasLaunchPlan({
+        mode: "create_and_link",
+        easProjectId: "ignored",
+      }),
+    ).toEqual({
+      kind: "start",
+      projectId: "",
+      persistProjectIdSelection: false,
+      notice: {
+        title: "OK",
+        message:
+          "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+      },
+    });
+
+    expect(
+      resolveEasLaunchPlan({
+        mode: "link_existing",
+        easProjectId: " ",
+      }),
+    ).toEqual({
+      kind: "confirm_create",
+      title: "Keine EAS ID vorhanden!",
+      message: "Soll eine erstellt werden?",
+    });
+
+    expect(
+      resolveEasLaunchPlan({
+        mode: "link_existing",
+        easProjectId: " project-id ",
+      }),
+    ).toEqual({
+      kind: "start",
+      projectId: "project-id",
+      persistProjectIdSelection: true,
+      notice: {
+        title: "OK",
+        message: "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link).",
+      },
     });
   });
 
