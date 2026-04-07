@@ -287,7 +287,7 @@ jobs:
           PACKAGE_MANAGER: ${{ steps.lock.outputs.package_manager }}
           HAS_LOCKFILE: ${{ steps.lock.outputs.has_lockfile }}
           LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
-          ALLOWED_REF_REGEX: "^(work|codex|dev|develop|release/.+|feature/.+|hotfix/.+)$"
+          ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
         run: |
           set -euo pipefail
 

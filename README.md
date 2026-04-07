@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
+Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
 
-Zuletzt abgeschlossen: **Patch 746**
+Zuletzt abgeschlossen: **Patch 747**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
+Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
+Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -15,14 +15,16 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Workflow-Writeback im manuellen `eas-link`-Pfad gehaertet: Top-Level-Permissions auf read-default reduziert, Write nur job-scoped; Commit-Push erfolgt nur noch fuer explizite, sichere Remote-Branches (kein SHA/detached/unsafe Ref, kein stilles `|| true` beim Push).
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
 - Preview-Secret-Transport ist repo-seitig minimal gehaertet: neue Links nutzen Fragment-Handoff statt Query-Secret (`save_preview` -> `preview_page?transport=fragment#secret=...`), bei erhaltener Legacy-Kompatibilitaet fuer bestehende `?secret=`-Links.
+- Legacy-Risiko bleibt bewusst transparent: bestehende Altlinks mit `?secret=` werden weiter unterstuetzt, aber nur ueber einen minimierten Bridge-Pfad mit Format-Guard und sofortigem Handoff; fuer neue Links bleibt Fragment-Handoff der Standard.
 - Persistenz-/Recovery-Muss-Punkte aus PR-572-Follow-up wurden repo-seitig nachgezogen (NoRekeyOnRead, NoDelayedOverwrite-Guard, Corrupt-Plaintext-Recoverypfad); verbleibende externe Themen bleiben getrennt in `docs/TODO.md` dokumentiert.
 - AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
 - `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
 - Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403010000_search_path_followup.sql`).
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
+- Verbleibende offene Themen sind bewusst getrennt als Betriebs-/Produktentscheidungen dokumentiert; es wird kein „vollstaendig risikofrei“-Zustand behauptet.
 - Workflow-Hygiene klein und fail-safe nachgezogen: `k1w1-ci-lite-autofix` nutzt kein unnoetiges `actions: write` mehr; Writeback-/Dispatch-Pfad bleibt ueber `contents: write` unveraendert funktionsfaehig.
 - Secret-Hotfixes im AppInfo-Block nachgezogen: API-Config-Export redaktiert API-Keys fail-closed, Import-/Export-Flows raeumen temporaere Cache-Dateien idempotent auf, und Secure-Backup reduziert unnoetige Secret-Duplikation (`ciSecrets` nicht mehr als Export-Mirror aller Tokens).
-- Marker-Compatibility fuer Contract-Checks: **Keine offenen Repo-Muss-Punkte** gilt fuer den bereinigten Repo-Code; offene Themen sind externe Live-/Produktentscheidungen.
+- Marker-Compatibility fuer Contract-Checks (Legacy-Textmarker): **Keine offenen Repo-Muss-Punkte** bezieht sich hier ausschliesslich auf den abgegrenzten Repo-Code-Durchlauf; externe Live-/Produktentscheidungen bleiben weiterhin offen und separat dokumentiert.
 - Der externe Live-Check fuer `k1w1-handler` ist jetzt auth-seitig bestaetigt: mit gueltigem Bearer-JWT laeuft die Route bis `400 invalid_request_payload`, ohne Token liefert sie `401 Unauthorized`; damit ist fail-closed fuer den JWT-/Rollenpfad live nachgewiesen.
 - `save_preview` bleibt laut Live-Befund JWT-aligned und repo-konsistent; hier ist kein neuer kritischer Auth-Restpunkt offen.
 - Der operatorische `verify_jwt`-Flag-Audit ist fuer `save_preview` und `k1w1-handler` explizit bestaetigt (`true`), damit ist der zuvor offene Flag-Unsicherheitsblock fuer diesen Stand geschlossen.

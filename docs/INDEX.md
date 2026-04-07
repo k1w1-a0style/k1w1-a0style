@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
+Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 
