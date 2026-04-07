@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+SKIP_COUNT=0
 
 echo "[verify:release] docs lint"
 node scripts/docsLint.js
@@ -18,6 +19,7 @@ if [[ -f "node_modules/expo/tsconfig.base.json" ]]; then
   npm run -s typecheck
 else
   echo "[verify:release] skip app typecheck (node_modules/expo/tsconfig.base.json fehlt im aktuellen Workspace)"
+  SKIP_COUNT=$((SKIP_COUNT + 1))
 fi
 
 echo "[verify:release] strict typecheck"
@@ -71,6 +73,11 @@ if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then
   echo "[verify:release] reminder: verify_jwt live flags for save_preview + k1w1-handler require explicit operator audit (behavior checks alone are not sufficient)"
 else
   echo "[verify:release] skip live edge contracts (EDGE_BASE_URL / EDGE_OPERATOR_JWT not set)"
+  SKIP_COUNT=$((SKIP_COUNT + 1))
 fi
 
-echo "[verify:release] OK"
+if [[ "$SKIP_COUNT" -gt 0 ]]; then
+  echo "[verify:release] OK_WITH_SKIPS ($SKIP_COUNT checks skipped; not full release-green)"
+else
+  echo "[verify:release] OK_FULL"
+fi

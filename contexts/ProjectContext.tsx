@@ -1,4 +1,4 @@
-// contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
+// contexts/ProjectContext.tsx
 import React, {
   createContext,
   useContext,
@@ -128,6 +128,18 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const isMountedRef = useRef(true);
   const projectDataRef = useRef<ProjectData | null>(null);
   projectDataRef.current = projectData;
+  const persistenceWriteBlockedRef = useRef(false);
+  const persistProjectToStorage = async (
+    project: ProjectData,
+    options?: { force?: boolean },
+  ): Promise<void> => {
+    if (!options?.force && persistenceWriteBlockedRef.current) {
+      logger.warn("[ProjectContext] Storage write blocked due to recovery mode; skipping save.");
+      return;
+    }
+    await saveProjectToStorage(project);
+  };
+
   const [isLoading, setIsLoading] = useState(true);
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
     null,
@@ -156,10 +168,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       clearTimeoutFn: clearTimeout,
       setTimeoutFn: setTimeout,
       debounceMs: SAVE_DEBOUNCE_MS,
-      saveProjectToStorage,
+      saveProjectToStorage: (project) => persistProjectToStorage(project),
       onSaveError: (error) => {
         logger.error("[ProjectContext] Save error", { error });
       },
+      canPersist: () => !persistenceWriteBlockedRef.current,
     }),
   );
 
@@ -222,7 +235,11 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
             ...updated,
             lastModified: new Date().toISOString(),
           };
-          debouncedSave(finalProject);
+          if (!persistenceWriteBlockedRef.current) {
+            debouncedSave(finalProject);
+          } else {
+            logger.warn("[ProjectContext] Recovery mode active: in-memory update without persistence.");
+          }
           return finalProject;
         });
       } catch (error) {
@@ -249,8 +266,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const replaceProjectData = useCallback(
     async (nextProject: ProjectData) => {
       await runWithProjectLock(async () => {
+        persistenceSchedulerRef.current.invalidatePendingSnapshot();
+        persistenceWriteBlockedRef.current = false;
         setProjectData(nextProject);
-        await saveProjectToStorage(nextProject);
+        await persistProjectToStorage(nextProject, { force: true });
       });
     },
     [runWithProjectLock],
@@ -639,7 +658,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const initializeProject = async () => {
       try {
-        logger.info("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
+        logger.info("APP START (ProjectContext)");
         const initialized = await initializeProjectData({
           loadProjectFromStorage,
           loadTemplateFromFile,
@@ -650,8 +669,20 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           setProjectData(initialized.project);
         }
         if (initialized.source === "storage") {
+          persistenceWriteBlockedRef.current = false;
           logger.info("📖 Projekt geladen:", initialized.project.name);
+        } else if (initialized.source === "recovery-template") {
+          persistenceWriteBlockedRef.current = true;
+          logger.error("[ProjectContext] Verschluesselten Storage-Stand nicht geladen; Recovery-Template aktiv.", {
+            reason: initialized.recoveryError ?? "unknown",
+          });
+          Alert.alert(
+            "Projekt-Wiederherstellung erforderlich",
+            initialized.recoveryError ??
+              "Gespeicherte verschluesselte Projektdaten konnten nicht geladen werden. Ein neues In-Memory-Template wurde geöffnet, ohne den vorhandenen Storage zu überschreiben.",
+          );
         } else {
+          persistenceWriteBlockedRef.current = false;
           logger.info("Kein Projekt gefunden, lade neues Template...");
           logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }

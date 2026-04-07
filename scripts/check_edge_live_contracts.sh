@@ -75,17 +75,17 @@ assert_body_contains "$TMP_DIR/k1w1-handler.body" '"code":"invalid_request_paylo
 
 echo "k1w1-handler live contract: OK (invalid JSON -> 400 invalid_request_payload)"
 
-preview_status="$(request GET "$EDGE_BASE_URL/preview_page?secret=live-contract-bogus-secret" "" "preview_page")"
-if [ "$preview_status" != "404" ]; then
-  echo "preview_page contract failed: expected HTTP 404 for bogus secret, got $preview_status" >&2
+preview_status="$(request GET "$EDGE_BASE_URL/preview_page" "" "preview_page")"
+if [ "$preview_status" != "400" ]; then
+  echo "preview_page contract failed: expected HTTP 400 when preview secret header is missing, got $preview_status" >&2
   echo "--- headers ---" >&2
   cat "$TMP_DIR/preview_page.headers" >&2 || true
   echo "--- body ---" >&2
   cat "$TMP_DIR/preview_page.body" >&2 || true
   exit 1
 fi
-assert_body_contains "$TMP_DIR/preview_page.body" 'Preview not found'
+assert_body_contains "$TMP_DIR/preview_page.body" 'Missing preview secret header.'
 
-echo "preview_page live contract: OK (bogus secret -> 404 not found HTML)"
+echo "preview_page live contract: OK (missing preview header -> 400 fail-closed)"
 
 echo "Live edge contracts: OK"

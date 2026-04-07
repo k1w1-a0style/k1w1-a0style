@@ -71,6 +71,8 @@ import {
   getSecureBackupExportSuccessMessage,
   getSecureBackupImportScopeText,
 } from "./appInfoSecureBackupUiHelpers";
+import { resetDerivedStatusAfterSecretImport } from "./secretImportStatusReset";
+import { resolveEasProjectIdImportDecision } from "./easProjectIdImportHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -272,14 +274,24 @@ export function useAppInfoScreen() {
   const persistImportedConnectionSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const c = payload.connections;
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
+    const easProjectIdDecision = resolveEasProjectIdImportDecision(c.easProjectId);
 
     await removeLegacyClientServiceRoleKeys();
-    await Promise.all([
+    const writes: Promise<unknown>[] = [
       AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw),
       AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl),
       saveSupabaseAnonKey(c.supabaseAnonKey),
-      AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId),
-    ]);
+    ];
+    if (easProjectIdDecision.mode === "set") {
+      writes.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectIdDecision.value));
+    } else if (easProjectIdDecision.mode === "clear") {
+      writes.push(AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID));
+    } else {
+      logger.warn("[useAppInfoScreen] Ignoriere ungueltige EAS Project ID aus Secret-Import.", {
+        easProjectIdPreview: easProjectIdDecision.value.slice(0, 8),
+      });
+    }
+    await Promise.all(writes);
   }, []);
 
   const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
@@ -308,7 +320,7 @@ export function useAppInfoScreen() {
     });
   }, [addRecentRepo, clearRecentRepos, setLinkedRepo]);
 
-  const applySecretBackupPayload = useCallback(
+  const applySecretBackupPayloadCore = useCallback(
     async (payload: SecretBackupPayloadV1) => {
       await persistImportedConnectionSecrets(payload);
       await persistImportedTokenSecrets(payload);
@@ -431,8 +443,17 @@ export function useAppInfoScreen() {
       const result = await importEncryptedScopedBackup(passphrase);
       const imported = result.data;
       const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
-
-      await applySecretBackupPayload(secretPayload);
+      const rollbackSecrets = await collectSecretBackupPayload();
+      try {
+        await applySecretBackupPayloadCore(secretPayload);
+        await resetDerivedStatusAfterSecretImport();
+      } catch (error) {
+        logger.error("[useAppInfoScreen] Secret-Import fehlgeschlagen, starte best-effort Rollback.", { error });
+        await applySecretBackupPayloadCore(rollbackSecrets).catch((rollbackError) => {
+          logger.error("[useAppInfoScreen] Secret-Import Rollback fehlgeschlagen.", { rollbackError });
+        });
+        throw error;
+      }
       if (imported.kind === "config-secret-snapshot") {
         setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
       }
@@ -444,7 +465,7 @@ export function useAppInfoScreen() {
         `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
       );
     },
-    [applySecretBackupPayload, setConfig, config],
+    [applySecretBackupPayloadCore, collectSecretBackupPayload, setConfig, config],
   );
 
   const handleSubmitSecureBackupPassphrase = useCallback(

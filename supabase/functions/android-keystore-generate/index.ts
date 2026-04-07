@@ -10,6 +10,14 @@ import {
 import type { Mode } from "./helpers.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
+function randomCertSerialHex(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[0] &= 0x7f;
+  let out = "";
+  for (const b of bytes) out += b.toString(16).padStart(2, "0");
+  return out.replace(/^0+/, "") || "1";
+}
+
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -111,7 +119,7 @@ Deno.serve(async (req) => {
 
   const cert = forge.pki.createCertificate();
   cert.publicKey = publicKey;
-  cert.serialNumber = String(Math.floor(Math.random() * 1e16));
+  cert.serialNumber = randomCertSerialHex();
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
   cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 25);

@@ -21,6 +21,7 @@ beforeAll(() => {
 
 type SecureStoreMock = typeof SecureStore & {
   __resetMockStorage?: () => void;
+  __setMockStorage?: (next: Record<string, string>) => void;
 };
 
 function resetMockSecureStore() {
@@ -83,5 +84,48 @@ describe("project persistence encryption", () => {
     const migrated = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
     expect(migrated).toContain('"type":"k1w1-project-storage"');
     expect(migrated).not.toContain("Legacy Plaintext");
+  });
+
+  it("throws an explicit recovery error for encrypted payloads with wrong decrypt key", async () => {
+    const project = makeProjectData({
+      name: "Encrypted Recovery",
+      files: [makeProjectFile("src/recovery.ts", "export const x = 1;")],
+      chatHistory: [],
+    });
+
+    await saveProjectToStorage(project);
+    resetMockSecureStore();
+    jest.clearAllMocks();
+
+    await expect(loadProjectFromStorage()).rejects.toThrow(
+      /Verschluesseltes Projekt konnte nicht entschluesselt werden/i,
+    );
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("does not rekey on read when secure store key is malformed", async () => {
+    const project = makeProjectData({
+      name: "No Rekey On Read",
+      files: [makeProjectFile("src/rekey.ts", "export const guard = true;")],
+      chatHistory: [],
+    });
+
+    await saveProjectToStorage(project);
+    const secureStore = SecureStore as SecureStoreMock;
+    secureStore.__setMockStorage?.({
+      k1w1_project_storage_key_v1: "broken-key",
+    });
+    jest.clearAllMocks();
+
+    await expect(loadProjectFromStorage()).rejects.toThrow(/entschluesselt werden/i);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("treats corrupt plaintext payload as recovery error instead of empty storage", async () => {
+    seedMockAsyncStorage({
+      [PROJECT_STORAGE_KEY]: "{invalid-json",
+    });
+
+    await expect(loadProjectFromStorage()).rejects.toThrow(/unverschluesselter Projektstand ist beschaedigt/i);
   });
 });

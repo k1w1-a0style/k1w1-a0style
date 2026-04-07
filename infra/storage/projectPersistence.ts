@@ -18,7 +18,11 @@ import { normalizePath, Validators, validateZipImport } from '../../lib/validato
 import { zip, unzip } from 'react-native-zip-archive';
 import { logger } from "../../lib/logger";
 import { inspectZipArchiveFromUri } from "./zipInspection";
-import { deserializeProjectStoragePayload, encryptProjectStoragePayload } from "./projectStorageCrypto";
+import {
+  deserializeProjectStoragePayload,
+  encryptProjectStoragePayload,
+  looksLikeEncryptedProjectStoragePayload,
+} from "./projectStorageCrypto";
 
 import {
   PROJECT_STORAGE_KEY, CACHE_DIR, BINARY_EXTENSIONS,
@@ -59,14 +63,16 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
 };
 
 export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
+  let rawStoragePayload: string | null = null;
   try {
-    const projectString = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
-    if (!projectString) {
+    rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    if (!rawStoragePayload) {
       logger.info('📂 Kein gespeichertes Projekt gefunden');
       return null;
     }
 
-    const { projectString: persistedProjectString, migratedFromPlaintext } = await deserializeProjectStoragePayload(projectString);
+    const { projectString: persistedProjectString, migratedFromPlaintext } =
+      await deserializeProjectStoragePayload(rawStoragePayload);
     const project = JSON.parse(persistedProjectString);
     logger.info('📖 Projekt geladen:', project.name);
 
@@ -103,6 +109,16 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     return project;
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Laden", { err: error });
+    if (rawStoragePayload && looksLikeEncryptedProjectStoragePayload(rawStoragePayload)) {
+      throw new Error(
+        "Verschluesseltes Projekt konnte nicht entschluesselt werden (Key/Decrypt-Fehler). Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
+      );
+    }
+    if (rawStoragePayload) {
+      throw new Error(
+        "Gespeicherter unverschluesselter Projektstand ist beschaedigt oder unlesbar. Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
+      );
+    }
     return null;
   }
 };

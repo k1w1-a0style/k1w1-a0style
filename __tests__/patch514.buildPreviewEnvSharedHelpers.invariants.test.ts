@@ -63,14 +63,13 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(checkIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(read(checkIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
 
-    expect(read(triggerIndex)).toContain(
-      'const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();',
-    );
+    expect(read(triggerIndex)).toContain("isAllowedGitRef");
     expect(read(triggerIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(read(triggerIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
     expect(read(triggerIndex)).toContain("const GITHUB_TOKEN = getGithubToken();");
 
     expect(read(sharedGithub)).toContain('import { getRuntimeEnv } from "./auth.ts";');
+    expect(read(sharedGithub)).toContain("export function isAllowedGitRef(");
     expect(read(sharedGithub)).toContain('getRuntimeEnv("GITHUB_TOKEN")');
     expect(read(sharedGithub)).toContain('getRuntimeEnv("GH_TOKEN")');
     expect(read(sharedGithub)).toContain('getRuntimeEnv("GITHUB_API_TOKEN")');

@@ -150,15 +150,14 @@ describe('Smoke Tests - Basic Setup', () => {
       expect(AsyncStorage.getItem).toBeDefined();
     });
 
-    // Skip: Mock-Tests für AsyncStorage (funktionieren in Unit-Tests der Module)
-    it.skip('sollte Werte in AsyncStorage speichern können', async () => {
+    it('sollte Werte in AsyncStorage speichern können', async () => {
       await AsyncStorage.setItem('test-key', 'test-value');
       const value = await AsyncStorage.getItem('test-key');
       
       expect(value).toBe('test-value');
     });
 
-    it.skip('sollte AsyncStorage clearen können', async () => {
+    it('sollte AsyncStorage clearen können', async () => {
       await AsyncStorage.setItem('key1', 'value1');
       await AsyncStorage.setItem('key2', 'value2');
       
@@ -190,8 +189,7 @@ describe('Smoke Tests - Basic Setup', () => {
       expect(SecureStore.getItemAsync).toBeDefined();
     });
 
-    // Skip: Mock-Tests für SecureStore (funktionieren in Unit-Tests der Module)
-    it.skip('sollte Werte in SecureStore speichern können', async () => {
+    it('sollte Werte in SecureStore speichern können', async () => {
       await SecureStore.setItemAsync('secure-key', 'secure-value');
       const value = await SecureStore.getItemAsync('secure-key');
       

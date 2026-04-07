@@ -61,6 +61,22 @@ describe("projectContextPersistenceHelpers", () => {
       expect(result.project.files).toEqual(templateFiles);
       expect(saveProjectToStorage).toHaveBeenCalledWith(result.project);
     });
+
+    it("falls back to in-memory recovery template on storage decrypt errors without auto-save", async () => {
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const result = await initializeProjectData({
+        loadProjectFromStorage: async () => {
+          throw new Error("decrypt failed");
+        },
+        loadTemplateFromFile: async () => [{ path: "app.json", content: "{}" }],
+        saveProjectToStorage,
+        createProjectId: () => "recovery-id",
+      });
+
+      expect(result.source).toBe("recovery-template");
+      expect(result.recoveryError).toMatch(/decrypt failed/i);
+      expect(saveProjectToStorage).not.toHaveBeenCalled();
+    });
   });
 
   describe("background flush helpers", () => {
@@ -172,6 +188,25 @@ describe("projectContextPersistenceHelpers", () => {
       expect(saveProjectToStorage).toHaveBeenCalledWith(project);
     });
 
+    it("does not flush to storage when persistence is blocked", async () => {
+      const clearPendingSave = jest.fn();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const project = buildProject();
+
+      const blockedSave = await flushProjectSaveForAppState({
+        nextState: "background",
+        saveTimeout: {} as ReturnType<typeof setTimeout>,
+        clearPendingSave,
+        projectData: project,
+        saveProjectToStorage,
+        canPersist: () => false,
+      });
+
+      expect(blockedSave).toBe(false);
+      expect(clearPendingSave).toHaveBeenCalledTimes(1);
+      expect(saveProjectToStorage).not.toHaveBeenCalled();
+    });
+
     it("uses scheduler to debounce and flush app state saves with shared timeout state", async () => {
       jest.useFakeTimers();
       const saveProjectToStorage = jest.fn(async () => undefined);
@@ -206,6 +241,45 @@ describe("projectContextPersistenceHelpers", () => {
       expect(onSaveError).not.toHaveBeenCalled();
       expect(scheduler.getPendingTimeout()).toBeNull();
 
+      jest.useRealTimers();
+    });
+
+    it("invalidates stale queued snapshots before debounce fires", () => {
+      jest.useFakeTimers();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const scheduler = createProjectSaveScheduler({
+        clearTimeoutFn: clearTimeout,
+        setTimeoutFn: setTimeout,
+        debounceMs: 250,
+        saveProjectToStorage,
+        onSaveError: jest.fn(),
+      });
+
+      scheduler.queueSave(buildProject({ name: "stale" }));
+      scheduler.invalidatePendingSnapshot();
+      scheduler.queueSave(buildProject({ name: "fresh" }));
+      jest.advanceTimersByTime(250);
+
+      expect(saveProjectToStorage).toHaveBeenCalledTimes(1);
+      expect(saveProjectToStorage).toHaveBeenCalledWith(expect.objectContaining({ name: "fresh" }));
+      jest.useRealTimers();
+    });
+
+    it("skips debounced persistence when scheduler is in blocked recovery mode", () => {
+      jest.useFakeTimers();
+      const saveProjectToStorage = jest.fn(async () => undefined);
+      const scheduler = createProjectSaveScheduler({
+        clearTimeoutFn: clearTimeout,
+        setTimeoutFn: setTimeout,
+        debounceMs: 100,
+        saveProjectToStorage,
+        onSaveError: jest.fn(),
+        canPersist: () => false,
+      });
+
+      scheduler.queueSave(buildProject({ name: "blocked" }));
+      jest.advanceTimersByTime(100);
+      expect(saveProjectToStorage).not.toHaveBeenCalled();
       jest.useRealTimers();
     });
   });

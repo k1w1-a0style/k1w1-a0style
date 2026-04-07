@@ -1,13 +1,18 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
-  getRuntimeEnv,
   getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { githubHeaders, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
+import {
+  githubHeaders,
+  getGithubToken,
+  GITHUB_API_BASE,
+  isAllowedGitRef,
+  isAllowedGithubRepo,
+} from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
@@ -50,21 +55,6 @@ async function findWorkflowIdByPath(
   return null;
 }
 
-function isAllowedRef(ref: string): boolean {
-  const r = (ref ?? "").trim();
-  if (!r) return true;
-  if (r.startsWith("refs/")) return false;
-  if (/^[0-9a-f]{40}$/i.test(r)) return false;
-
-  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
-  if (!regexStr) return false;
-  try {
-    const re = new RegExp(regexStr);
-    return re.test(r);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Dispatches a GitHub Actions workflow via workflow_dispatch.
@@ -127,7 +117,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!isAllowedRef(ref)) {
+    if (!isAllowedGitRef(ref)) {
       return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
     }
 

@@ -23,9 +23,9 @@ describe("android keystore crypto contract", () => {
     expect(decrypted).toBe(payload);
   });
 
-  it("fails hard on v2 payload integrity tampering", async () => {
+  it("fails hard on versioned payload integrity tampering", async () => {
     const encrypted = await encryptKeystorePayload("{\"s\":1}", masterKey);
-    const prefix = "k1w1-ak:v2:";
+    const prefix = "k1w1-ak:v3:";
     const envelopeB64 = encrypted.slice(prefix.length);
     const envelope = JSON.parse(atob(envelopeB64)) as { v: number; alg: string; iv: string; ct: string };
 

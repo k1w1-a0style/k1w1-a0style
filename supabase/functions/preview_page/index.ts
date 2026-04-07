@@ -115,6 +115,13 @@ function parseToggleParam(value: string | null): boolean {
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
+function isValidPreviewSecret(secret: string): boolean {
+  const trimmed = secret.trim();
+  if (!trimmed) return false;
+  if (trimmed.length < 16 || trimmed.length > 128) return false;
+  return /^[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
 function withToggleUrl(params: {
   baseUrl: URL;
   showRawLogs: boolean;
@@ -422,9 +429,8 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const querySecret = url.searchParams.get("secret") ?? "";
     const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? "";
-    const secret = querySecret || headerSecret;
+    const secret = headerSecret;
     const showRawLogs = parseToggleParam(url.searchParams.get("logs"));
     const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"));
     const transport = (url.searchParams.get("transport") ?? "").trim().toLowerCase();
@@ -435,10 +441,19 @@ Deno.serve(async (req) => {
         return html(renderFragmentBootstrapPage({ nonce }), nonce, 200);
       }
       return html(
-        `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing ?secret=...</pre>`,
+        `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing preview secret header.</pre>`,
         nonce,
         400,
       );
+    }
+
+    if (!isValidPreviewSecret(secret)) {
+      return htmlPreviewError({
+        code: "preview_invalid_payload",
+        nonce,
+        title: "Invalid preview token",
+        message: "Preview token has an invalid format.",
+      });
     }
 
     const recordResult = await fetchPreviewRecord(secret);
@@ -497,13 +512,13 @@ Deno.serve(async (req) => {
       baseUrl: url,
       showRawLogs: !showRawLogs,
       showRuntimeErrors,
-      secretHash: !querySecret && headerSecret ? secret : undefined,
+      secretHash: headerSecret ? secret : undefined,
     });
     const runtimeErrorsToggleUrl = withToggleUrl({
       baseUrl: url,
       showRawLogs,
       showRuntimeErrors: !showRuntimeErrors,
-      secretHash: !querySecret && headerSecret ? secret : undefined,
+      secretHash: headerSecret ? secret : undefined,
     });
 
     const page = renderPage({

@@ -69,7 +69,7 @@ entrypoint = "./functions/preview_page/index.ts"
 
 [functions.create_codesandbox]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/create_codesandbox/index.ts"
 
@@ -81,37 +81,37 @@ entrypoint = "./functions/k1w1-handler/index.ts"
 
 [functions.trigger-lint]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/trigger-lint/index.ts"
 
 [functions.check-lint]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/check-lint/index.ts"
 
 [functions.trigger-native-sync]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/trigger-native-sync/index.ts"
 
 [functions.check-native-sync]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/check-native-sync/index.ts"
 
 [functions.native-sync-report]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/native-sync-report/index.ts"
 
 [functions.native-sync-report-ingest]
 enabled = false
-verify_jwt = false
+verify_jwt = true
 import_map = "./import_map.json"
 entrypoint = "./functions/native-sync-report-ingest/index.ts"
 

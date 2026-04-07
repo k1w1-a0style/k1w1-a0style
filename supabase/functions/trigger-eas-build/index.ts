@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
-  getRuntimeEnv,
   getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
@@ -15,24 +14,14 @@ import {
   parseJsonBody,
   validateTriggerBuildRequest,
 } from "../_shared/validation.ts";
-import { githubFetch, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
+import {
+  githubFetch,
+  getGithubToken,
+  GITHUB_API_BASE,
+  isAllowedGitRef,
+  isAllowedGithubRepo,
+} from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-
-function isAllowedRef(ref: string | null | undefined): boolean {
-  const r = (ref ?? "").trim();
-  if (!r) return false;
-  if (r.startsWith("refs/")) return false;
-  if (/^[0-9a-f]{40}$/i.test(r)) return false;
-
-  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
-  if (!regexStr) return false;
-  try {
-    const re = new RegExp(regexStr);
-    return re.test(r);
-  } catch {
-    return false;
-  }
-}
 
 function isTriggerValidationError(
   result: ReturnType<typeof validateTriggerBuildRequest>,
@@ -104,7 +93,7 @@ Deno.serve(async (req) => {
       return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
     }
 
-    if (!isAllowedRef(branch)) {
+    if (!isAllowedGitRef(branch)) {
       return errorResponse("branch/ref not allowed", req, 403, { branch });
     }
 
