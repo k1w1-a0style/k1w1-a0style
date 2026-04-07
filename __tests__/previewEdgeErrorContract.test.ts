@@ -100,6 +100,8 @@ describe("preview edge error contract", () => {
     expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
+    expect(previewPageSource).toContain("if (querySecret && !headerSecret) {");
+    expect(previewPageSource).toContain('redirectUrl.searchParams.set("transport", "fragment")');
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
   });
 

@@ -441,6 +441,20 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (querySecret && !headerSecret) {
+      const redirectUrl = new URL(req.url);
+      redirectUrl.searchParams.delete("secret");
+      redirectUrl.searchParams.set("transport", "fragment");
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: `${redirectUrl.toString()}#secret=${encodeURIComponent(querySecret)}`,
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+
     const recordResult = await fetchPreviewRecord(secret);
     if (!recordResult.ok) {
       const code = (recordResult as { ok: false; code: Parameters<typeof previewPageErrorResponse>[0]["code"] }).code;

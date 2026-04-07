@@ -14,9 +14,10 @@
 
 ## Kurzfazit
 - Der lokale Vertragsstand ist stark test-/script-gesichert und überwiegend fail-closed.
-- Zwei bewusst offene Risikopunkte bleiben relevant:
-  - `K1W1_ALLOWED_GITHUB_REPOS` ist bei leerer Allowlist default-open.
-  - `K1W1_ALLOWED_REF_REGEX` ist bei leerem Regex default-open (rollout mode).
+- Historischer Befund vom 2026-04-03: Allowlist/Ref-Regel waren damals als Risikopunkte dokumentiert.
+- **Aktualisierung 2026-04-07 (Repo-Stand):**
+  - `K1W1_ALLOWED_GITHUB_REPOS` ist fail-closed (leer => deny).
+  - `K1W1_ALLOWED_REF_REGEX` ist fail-closed (leer => deny) und wird zentral über `_shared/github.ts:isAllowedGitRef(...)` geprüft.
 - Live-Contract-Checks konnten ohne `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` nicht gegen echte Supabase-Live-Endpunkte verifiziert werden.
 
 ## Ausgeführter Prüfpfad
@@ -33,21 +34,19 @@ Alle Kommandos liefen grün; `verify:release` hat Live-Contracts mangels Env sau
 
 ## Priorisierte Findings (Top 5)
 1. **[HIGH] Repo-Allowlist default-open**
-   - `isAllowedGithubRepo(...)` lässt alle Repos zu, wenn `K1W1_ALLOWED_GITHUB_REPOS` leer ist.
+   - **Status 2026-04-07:** geschlossen; `isAllowedGithubRepo(...)` ist fail-closed.
 2. **[HIGH] Ref-Regel default-open**
-   - `isAllowedRef(...)` erlaubt alle nicht-leeren/format-validen Refs, wenn `K1W1_ALLOWED_REF_REGEX` leer ist.
+   - **Status 2026-04-07:** geschlossen; Ref-Validierung ist zentral fail-closed (`isAllowedGitRef(...)`).
 3. **[MEDIUM] Live-Contract nicht praktisch verifiziert**
    - Die geforderten Live-Checks (`k1w1-handler` invalid JSON, `preview_page` bogus secret) sind nur scriptseitig belegbar, nicht gegen echtes Projekt ausgeführt.
 4. **[MEDIUM] Preview-Secret weiterhin Query-Param**
-   - `save_preview` generiert `preview_page?secret=...`; das ist bewusstes Design, aber URL-Leak-Risiko bleibt operativ relevant.
+   - **Status 2026-04-07:** Standardpfad nutzt Fragment-Handoff (`?transport=fragment#secret=...`); `preview_page` leitet Legacy-`?secret=` auf Fragment um, sodass Query-Secrets nicht im Laufzeitpfad verbleiben.
 5. **[LOW-MEDIUM] upload-artifact SHA-Pins nicht einheitlich**
    - Mehrere unterschiedliche Pins (`ea165f...`, `4cec3d...`) im Repo; kein unmittelbarer Defekt, aber Drift-/Wartungsrisiko.
 
 ## Klassifizierung
 
 ### Echte Sicherheits-/Vertragsprobleme
-- Default-open bei `K1W1_ALLOWED_GITHUB_REPOS`.
-- Default-open bei `K1W1_ALLOWED_REF_REGEX`.
 - Nicht verifizierte Live-Contracts (nur lokal/script-theoretisch geprüft).
 
 ### Hygiene-/Wartungsthemen
@@ -57,9 +56,7 @@ Alle Kommandos liefen grün; `verify:release` hat Live-Contracts mangels Env sau
 ## Empfehlungen
 
 ### Sofort fixen
-1. `K1W1_ALLOWED_GITHUB_REPOS` fail-closed machen (leer => deny).
-2. `K1W1_ALLOWED_REF_REGEX` fail-closed machen (leer => deny oder enges Default-Pattern).
-3. Einen CI-Job/Runbook-Schritt etablieren, der mit kurzlebigem `EDGE_OPERATOR_JWT` den Live-Contract-Check regelmäßig wirklich ausführt.
+1. Einen CI-Job/Runbook-Schritt etablieren, der mit kurzlebigem `EDGE_OPERATOR_JWT` den Live-Contract-Check regelmäßig wirklich ausführt.
 
 ### Separat refactoren
 1. Einheitlichen `upload-artifact`-Pin zentralisieren (Template-SoT + Drift-Check auf exakt einen Pin).
