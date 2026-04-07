@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
+Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
 
-Zuletzt abgeschlossen: **Patch 748**
+Zuletzt abgeschlossen: **Patch 749**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

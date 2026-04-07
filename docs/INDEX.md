@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
+Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

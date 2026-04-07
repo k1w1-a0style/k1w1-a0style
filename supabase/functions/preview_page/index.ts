@@ -412,37 +412,6 @@ function renderFragmentBootstrapPage(params: { nonce: string }): string {
 </html>`;
 }
 
-function renderLegacyQuerySecretBridgePage(params: { nonce: string }): string {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Preview secret handoff</title>
-</head>
-<body>
-  <div>Preparing secure preview handoff…</div>
-  <script nonce="${params.nonce}">
-    (() => {
-      try {
-        const current = new URL(window.location.href);
-        const secret = current.searchParams.get("secret") || "";
-        if (!secret) {
-          document.body.textContent = "Missing preview secret.";
-          return;
-        }
-        current.searchParams.delete("secret");
-        current.searchParams.set("transport", "fragment");
-        window.location.replace(current.toString() + "#secret=" + encodeURIComponent(secret));
-      } catch {
-        document.body.textContent = "Unable to prepare preview handoff.";
-      }
-    })();
-  </script>
-</body>
-</html>`;
-}
-
 Deno.serve(async (req) => {
   const durableRl = await requireDurableRateLimit(req, {
     scope: "preview_page",
@@ -460,9 +429,8 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const querySecret = url.searchParams.get("secret") ?? "";
     const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? "";
-    const secret = querySecret || headerSecret;
+    const secret = headerSecret;
     const showRawLogs = parseToggleParam(url.searchParams.get("logs"));
     const showRuntimeErrors = parseToggleParam(url.searchParams.get("runtime_errors"));
     const transport = (url.searchParams.get("transport") ?? "").trim().toLowerCase();
@@ -473,7 +441,7 @@ Deno.serve(async (req) => {
         return html(renderFragmentBootstrapPage({ nonce }), nonce, 200);
       }
       return html(
-        `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing ?secret=...</pre>`,
+        `<!doctype html><meta charset="utf-8"><title>Missing secret</title><pre>Missing preview secret header.</pre>`,
         nonce,
         400,
       );
@@ -486,10 +454,6 @@ Deno.serve(async (req) => {
         title: "Invalid preview token",
         message: "Preview token has an invalid format.",
       });
-    }
-
-    if (querySecret && !headerSecret) {
-      return html(renderLegacyQuerySecretBridgePage({ nonce }), nonce, 200);
     }
 
     const recordResult = await fetchPreviewRecord(secret);
@@ -548,13 +512,13 @@ Deno.serve(async (req) => {
       baseUrl: url,
       showRawLogs: !showRawLogs,
       showRuntimeErrors,
-      secretHash: !querySecret && headerSecret ? secret : undefined,
+      secretHash: headerSecret ? secret : undefined,
     });
     const runtimeErrorsToggleUrl = withToggleUrl({
       baseUrl: url,
       showRawLogs,
       showRuntimeErrors: !showRuntimeErrors,
-      secretHash: !querySecret && headerSecret ? secret : undefined,
+      secretHash: headerSecret ? secret : undefined,
     });
 
     const page = renderPage({

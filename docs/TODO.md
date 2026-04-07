@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
+Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -9,8 +9,7 @@ Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pf
 
 - [x] Persistenz-Recovery-Guardrails (Patch 746): Kein stilles Re-Keying im Read-/Decrypt-Pfad mehr, kaputte verschluesselte/Plaintext-Payloads fuehren in klaren Recovery-Fehler statt Null/Leerpfad, und Recovery-Mode blockiert normale Hintergrund-/Debounce-Speicherwrites bis zu einer expliziten Nutzeraktion (z. B. Import/Neues Projekt).
 - [x] Secret-Import-Haertung (Patch 746): `EAS_PROJECT_ID` wird nur noch gesetzt, wenn der Wert UUID-valide ist; leer fuehrt zu Clear, invalide Werte werden nicht blind geschrieben.
-- [x] Preview-Legacy-Follow-up (Patch 746): Preview-Token-Format wird serverseitig validiert; Legacy-`?secret=` bleibt nur als minimierter Bridge-Pfad erhalten.
-- [x] Preview-Legacy-Dokumentation (Patch 747): Legacy-`?secret=` bleibt bewusst nur als Kompatibilitaets-Bruecke fuer Altlinks aktiv; Guardrails: striktes Token-Format, sofortiges Query->Fragment-Handoff, Header-basiertes Nachladen und keine neue Default-Generierung von Query-Secrets.
+- [x] Preview-Legacy-Removal (Patch 749): Query-Secret-Compat (`?secret=`) und Bridge sind vollstaendig entfernt; Preview akzeptiert Secrets nur noch ueber Fragment-Start + Header-Handoff.
 - [x] Writeback-Scope weiter verengt (Patch 748): EAS-Build-Autofix **und** EAS-Link-Writeback erlauben nur noch `work|codex|dev|develop` (kein `main`, keine pauschalen `feature/*`, `hotfix/*`, `release/*`).
 - [x] Disabled-Edge-Defaults (Patch 746): deaktivierte Legacy-Functions in `supabase/config.toml` auf `verify_jwt = true` vereinheitlicht (fail-safe Defaults trotz `enabled = false`).
 - [x] AppInfo Secret-Import Status-Reset (Patch 745) aus `useAppInfoScreen` in `screens/AppInfoScreen/hooks/secretImportStatusReset.ts` entkoppelt; test-only Export im Hook entfernt und Test auf direkten Helper-Import umgestellt.
@@ -53,13 +52,12 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
-1. Legacy-Preview-Links mit `?secret=...` weiterhin operativ beobachten/rotieren (neue Links nutzen jetzt Fragment-Handoff)
-2. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
-3. Stille `.catch(() => {})` reduzieren
-4. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
-5. `console.log` in Produktivpfaden weiter abbauen
-6. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen
-7. Workflow-Hygiene-Nachzug nur mit engem Scope:
+1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
+2. Stille `.catch(() => {})` reduzieren
+3. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
+4. `console.log` in Produktivpfaden weiter abbauen
+5. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen
+6. Workflow-Hygiene-Nachzug nur mit engem Scope:
    - `npm install`-Fallback in produktnahen Pfaden weiter reduzieren, ohne dev-Bootstrap kaputtzumachen
    - Repo-Writebacks/persisted Credentials weiter punktuell pruefen; CI-Lite-Autofix-Permission-Scope ist bereits auf `contents: write` reduziert
 

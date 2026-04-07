@@ -100,12 +100,13 @@ describe("preview edge error contract", () => {
     expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
-    expect(previewPageSource).toContain("if (querySecret && !headerSecret) {");
-    expect(previewPageSource).toContain("renderLegacyQuerySecretBridgePage");
-    expect(previewPageSource).toContain('current.searchParams.delete("secret")');
+    expect(previewPageSource).not.toContain("const querySecret =");
+    expect(previewPageSource).not.toContain("renderLegacyQuerySecretBridgePage");
+    expect(previewPageSource).not.toContain('current.searchParams.delete("secret")');
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
     expect(previewPageSource).toContain("function isValidPreviewSecret(secret: string)");
     expect(previewPageSource).toContain("if (!isValidPreviewSecret(secret)) {");
+    expect(previewPageSource).toContain("Missing preview secret header.");
   });
 
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {
