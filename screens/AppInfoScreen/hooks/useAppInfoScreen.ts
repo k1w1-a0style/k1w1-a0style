@@ -72,6 +72,7 @@ import {
   getSecureBackupImportScopeText,
 } from "./appInfoSecureBackupUiHelpers";
 import { resetDerivedStatusAfterSecretImport } from "./secretImportStatusReset";
+import { resolveEasProjectIdImportDecision } from "./easProjectIdImportHelpers";
 
 type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
@@ -273,14 +274,24 @@ export function useAppInfoScreen() {
   const persistImportedConnectionSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const c = payload.connections;
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
+    const easProjectIdDecision = resolveEasProjectIdImportDecision(c.easProjectId);
 
     await removeLegacyClientServiceRoleKeys();
-    await Promise.all([
+    const writes: Promise<unknown>[] = [
       AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw),
       AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl),
       saveSupabaseAnonKey(c.supabaseAnonKey),
-      AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId),
-    ]);
+    ];
+    if (easProjectIdDecision.mode === "set") {
+      writes.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectIdDecision.value));
+    } else if (easProjectIdDecision.mode === "clear") {
+      writes.push(AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID));
+    } else {
+      logger.warn("[useAppInfoScreen] Ignoriere ungueltige EAS Project ID aus Secret-Import.", {
+        easProjectIdPreview: easProjectIdDecision.value.slice(0, 8),
+      });
+    }
+    await Promise.all(writes);
   }, []);
 
   const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {

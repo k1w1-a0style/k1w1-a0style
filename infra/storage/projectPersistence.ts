@@ -114,6 +114,11 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
         "Verschluesseltes Projekt konnte nicht entschluesselt werden (Key/Decrypt-Fehler). Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
       );
     }
+    if (rawStoragePayload) {
+      throw new Error(
+        "Gespeicherter unverschluesselter Projektstand ist beschaedigt oder unlesbar. Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
+      );
+    }
     return null;
   }
 };

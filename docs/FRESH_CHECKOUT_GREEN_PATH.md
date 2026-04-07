@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 745, AppInfo Secret-Import Status-Reset als dedizierter Helper entkoppelt)**
+Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

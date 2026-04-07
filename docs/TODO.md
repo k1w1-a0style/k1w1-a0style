@@ -1,12 +1,16 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 745, AppInfo Secret-Import Status-Reset als dedizierter Helper entkoppelt)**
+Stand: **2026-04-07 (Patch 746, Persistenz-Recovery Guards + Secret/Preview/Edge-Defaults nachgezogen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] Persistenz-Recovery-Guardrails (Patch 746): Kein stilles Re-Keying im Read-/Decrypt-Pfad mehr, kaputte verschluesselte/Plaintext-Payloads fuehren in klaren Recovery-Fehler statt Null/Leerpfad, und Recovery-Mode blockiert normale Hintergrund-/Debounce-Speicherwrites bis zu einer expliziten Nutzeraktion (z. B. Import/Neues Projekt).
+- [x] Secret-Import-Haertung (Patch 746): `EAS_PROJECT_ID` wird nur noch gesetzt, wenn der Wert UUID-valide ist; leer fuehrt zu Clear, invalide Werte werden nicht blind geschrieben.
+- [x] Preview-Legacy-Follow-up (Patch 746): Preview-Token-Format wird serverseitig validiert; Legacy-`?secret=` bleibt nur als minimierter Bridge-Pfad erhalten.
+- [x] Disabled-Edge-Defaults (Patch 746): deaktivierte Legacy-Functions in `supabase/config.toml` auf `verify_jwt = true` vereinheitlicht (fail-safe Defaults trotz `enabled = false`).
 - [x] AppInfo Secret-Import Status-Reset (Patch 745) aus `useAppInfoScreen` in `screens/AppInfoScreen/hooks/secretImportStatusReset.ts` entkoppelt; test-only Export im Hook entfernt und Test auf direkten Helper-Import umgestellt.
 - [x] Release-/Workflow-Trust-Drift (Patch 744): `check_workflow_edge_contracts.sh` war lokal reproduzierbar rot wegen fehlendem build_admin-Contract-Marker in `useCiLiteWorkflow.ts`; Marker wurde auf den geforderten Wortlaut nachgezogen und der Gate-Pfad (`check_release_readiness.sh`) anschliessend wieder lokal gruen bestaetigt.
 - [x] Manueller `eas-link`-Workflow Writeback gehaertet: read-default auf Workflow-Ebene, job-scoped `contents: write`, plus explizite sichere Branch-Guards (kein SHA/unsafe/detached Ref, kein stilles Push-`|| true`).

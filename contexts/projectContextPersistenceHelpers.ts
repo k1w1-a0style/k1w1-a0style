@@ -64,12 +64,16 @@ export const scheduleDebouncedProjectSave = (params: {
   project: ProjectData;
   saveProjectToStorage: (project: ProjectData) => Promise<void>;
   onSaveError: (error: unknown) => void;
+  canPersist?: () => boolean;
 }): SaveTimeout => {
   if (params.saveTimeout) {
     params.clearTimeoutFn(params.saveTimeout);
   }
 
   return params.setTimeoutFn(() => {
+    if (params.canPersist && !params.canPersist()) {
+      return;
+    }
     params.saveProjectToStorage(params.project).catch(params.onSaveError);
   }, params.debounceMs);
 };
@@ -91,12 +95,16 @@ export const flushPendingProjectSave = async (params: {
   clearPendingSave: () => void;
   projectData: ProjectData | null;
   saveProjectToStorage: (project: ProjectData) => Promise<void>;
+  canPersist?: () => boolean;
 }): Promise<boolean> => {
   if (params.saveTimeout) {
     params.clearPendingSave();
   }
 
   if (!params.projectData) {
+    return false;
+  }
+  if (params.canPersist && !params.canPersist()) {
     return false;
   }
 
@@ -110,6 +118,7 @@ export const flushProjectSaveForAppState = async (params: {
   clearPendingSave: () => void;
   projectData: ProjectData | null;
   saveProjectToStorage: (project: ProjectData) => Promise<void>;
+  canPersist?: () => boolean;
 }): Promise<boolean> => {
   if (!shouldFlushProjectSaveOnAppState(params.nextState)) {
     return false;
@@ -120,6 +129,7 @@ export const flushProjectSaveForAppState = async (params: {
     clearPendingSave: params.clearPendingSave,
     projectData: params.projectData,
     saveProjectToStorage: params.saveProjectToStorage,
+    canPersist: params.canPersist,
   });
 };
 
@@ -159,6 +169,7 @@ export const createProjectSaveScheduler = (params: {
   debounceMs: number;
   saveProjectToStorage: (project: ProjectData) => Promise<void>;
   onSaveError: (error: unknown) => void;
+  canPersist?: () => boolean;
 }): ProjectSaveScheduler => {
   let saveTimeout: SaveTimeout | null = null;
   let saveGeneration = 0;
@@ -182,9 +193,11 @@ export const createProjectSaveScheduler = (params: {
         project,
         saveProjectToStorage: async (queuedProject) => {
           if (generation !== saveGeneration) return;
+          if (params.canPersist && !params.canPersist()) return;
           await params.saveProjectToStorage(queuedProject);
         },
         onSaveError: params.onSaveError,
+        canPersist: params.canPersist,
       });
     },
     clearPendingSave,
@@ -198,6 +211,7 @@ export const createProjectSaveScheduler = (params: {
         clearPendingSave,
         projectData,
         saveProjectToStorage: params.saveProjectToStorage,
+        canPersist: params.canPersist,
       });
     },
     getPendingTimeout() {

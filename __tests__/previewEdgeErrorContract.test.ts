@@ -104,6 +104,8 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).toContain("renderLegacyQuerySecretBridgePage");
     expect(previewPageSource).toContain('current.searchParams.delete("secret")');
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
+    expect(previewPageSource).toContain("function isValidPreviewSecret(secret: string)");
+    expect(previewPageSource).toContain("if (!isValidPreviewSecret(secret)) {");
   });
 
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {
