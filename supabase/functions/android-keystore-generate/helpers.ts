@@ -7,7 +7,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
   encryptKeystorePayload,
-  encryptWithAesCbcLegacy,
 } from "../_shared/androidKeystoreCrypto.ts";
 import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -159,7 +158,7 @@ export function bytesToBinaryString(bytes: Uint8Array): string {
 }
 
 export async function encryptText(text: string, masterKey: string): Promise<string> {
-  return encryptWithAesCbcLegacy(text, masterKey);
+  return encryptKeystorePayload(text, masterKey);
 }
 
 export async function ensureBucketExists(
