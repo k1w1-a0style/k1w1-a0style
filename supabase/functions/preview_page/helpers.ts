@@ -191,12 +191,24 @@ export function isValidPreviewSecretFormat(secret: string): boolean {
 }
 
 export function buildCsp(nonce: string): string {
-  // Sandpack runtime currently needs eval in many environments.
-  // We keep this explicit and optionally switch it off for hardened test/dev runs.
-  const strictMode = (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true";
-  const unsafeEvalExplicitlyDisabled = (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "false";
+  // Preview-/Sandbox-Tradeoff:
+  // - Sandpack benötigt in der Praxis weiterhin `unsafe-eval` für stabile Ausführung.
+  // - Module werden bewusst über `https://esm.sh` geladen.
+  // => Das ist kein "voll strikt geschlossener" CSP-Pfad.
+  // Härtungshebel (ohne Default-Break):
+  // - TEST_STRICT_CSP=true oder PREVIEW_STRICT_CSP=true => `unsafe-eval` aus
+  // - PREVIEW_ALLOW_UNSAFE_EVAL=false => `unsafe-eval` aus
+  // - PREVIEW_ALLOW_ESM_SH_CDN=false => `https://esm.sh` aus script-src entfernen
+  const strictMode =
+    (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true" ||
+    (getRuntimeEnv("PREVIEW_STRICT_CSP") ?? "").toLowerCase() === "true";
+  const unsafeEvalExplicitlyDisabled =
+    (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "false";
+  const esmShExplicitlyDisabled =
+    (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() === "false";
   const allowUnsafeEval = !strictMode && !unsafeEvalExplicitlyDisabled;
   const evalPart = allowUnsafeEval ? " 'unsafe-eval'" : "";
+  const esmShPart = esmShExplicitlyDisabled ? "" : " https://esm.sh";
 
   return [
     "default-src 'self' data: blob:",
@@ -204,7 +216,7 @@ export function buildCsp(nonce: string): string {
     "media-src 'self' https: data: blob:",
     "font-src 'self' https: data: blob:",
     "style-src 'self' 'unsafe-inline' https: data: blob:",
-    `script-src 'self' 'nonce-${nonce}'${evalPart} https://esm.sh`,
+    `script-src 'self' 'nonce-${nonce}'${evalPart}${esmShPart}`,
     "connect-src 'self' https: wss: data: blob:",
     "frame-src 'self' https: data: blob:",
     "base-uri 'self'",
