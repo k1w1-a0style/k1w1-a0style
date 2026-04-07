@@ -160,6 +160,8 @@ export const WebCodeEditor = ({
         var READONLY = ${readOnly ? "true" : "false"};
         var lastSent = '';
         var timer = null;
+        var didWarnInboundParse = false;
+        var didWarnInboundSchema = false;
 
         function post(obj) {
           try {
@@ -209,8 +211,20 @@ export const WebCodeEditor = ({
         function handleMessage(data) {
           if (!data) return;
           var msg = null;
-          try { msg = JSON.parse(data); } catch (e) { return; }
-          if (!msg || !msg.t) return;
+          try { msg = JSON.parse(data); } catch (e) {
+            if (!didWarnInboundParse) {
+              didWarnInboundParse = true;
+              console.warn("[WebCodeEditor] dropped malformed inbound postMessage payload");
+            }
+            return;
+          }
+          if (!msg || !msg.t) {
+            if (!didWarnInboundSchema) {
+              didWarnInboundSchema = true;
+              console.warn("[WebCodeEditor] dropped inbound postMessage with missing type");
+            }
+            return;
+          }
 
           if (msg.t === 'set') {
             setValue(String(msg.value || ''));

@@ -64,7 +64,8 @@ entrypoint = "./functions/save_preview/index.ts"
 [functions.preview_page]
 enabled = true
 # bewusst Secret-Gate-Sonderpfad (verify_jwt=false): Zugriff nur via kurzlebigem Preview-Secret
-# (Fragment-Link -> Header-Handoff), strict Secret-Format, TTL/Expiry-Delete und durable Rate-Limit.
+# (Fragment-Link -> Header-Handoff), strict Secret-Format, hash-only Lookup (kein Raw-Secret-DB-Fallback),
+# TTL/Expiry-Delete und durable Rate-Limit.
 # Kein normaler Supabase-User/JWT-Endpunkt: AuthN erfolgt hier absichtlich nur ueber das Preview-Secret.
 verify_jwt = false
 import_map = "./import_map.json"

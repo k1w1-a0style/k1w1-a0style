@@ -157,8 +157,7 @@ export async function buildPreviewSecretCandidates(secret: string): Promise<stri
   const raw = secret.trim();
   if (!raw) return [];
   const hashed = await hashPreviewSecret(raw);
-  if (hashed === raw) return [raw];
-  return [hashed, raw];
+  return [hashed];
 }
 
 export async function findFirstByPreviewSecretCandidates<T>(
@@ -191,24 +190,15 @@ export function isValidPreviewSecretFormat(secret: string): boolean {
 }
 
 export function buildCsp(nonce: string): string {
-  // Preview-/Sandbox-Tradeoff:
-  // - Sandpack benötigt in der Praxis weiterhin `unsafe-eval` für stabile Ausführung.
-  // - Module werden bewusst über `https://esm.sh` geladen.
-  // => Das ist kein "voll strikt geschlossener" CSP-Pfad.
-  // Härtungshebel (ohne Default-Break):
-  // - TEST_STRICT_CSP=true oder PREVIEW_STRICT_CSP=true => `unsafe-eval` aus
-  // - PREVIEW_ALLOW_UNSAFE_EVAL=false => `unsafe-eval` aus
-  // - PREVIEW_ALLOW_ESM_SH_CDN=false => `https://esm.sh` aus script-src entfernen
-  // - strictMode schaltet zusaetzlich `unsafe-eval` und `https://esm.sh` zusammen aus
-  const strictMode =
-    (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true" ||
-    (getRuntimeEnv("PREVIEW_STRICT_CSP") ?? "").toLowerCase() === "true";
-  const unsafeEvalExplicitlyDisabled =
-    (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "false";
-  const esmShExplicitlyDisabled =
-    (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() === "false";
-  const allowUnsafeEval = !strictMode && !unsafeEvalExplicitlyDisabled;
-  const allowEsmShCdn = !strictMode && !esmShExplicitlyDisabled;
+  // Preview-Default ist jetzt enger:
+  // - `unsafe-eval` ist standardmäßig AUS und muss explizit eingeschaltet werden
+  //   (`PREVIEW_ALLOW_UNSAFE_EVAL=true`) für den Sandpack-Tradeoff.
+  // - esm.sh bleibt Standardquelle für Modul-Imports; kann aber bewusst deaktiviert werden
+  //   (`PREVIEW_ALLOW_ESM_SH_CDN=false`) falls ein alternativer Loader genutzt wird.
+  const allowUnsafeEval =
+    (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "true";
+  const allowEsmShCdn =
+    (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() !== "false";
   const evalPart = allowUnsafeEval ? " 'unsafe-eval'" : "";
   const esmShPart = allowEsmShCdn ? " https://esm.sh" : "";
 

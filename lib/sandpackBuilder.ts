@@ -15,10 +15,7 @@ import {
 export type { SandpackOptions } from "./sandpackHelpers";
 
 function isUnsafeLocalEvalAllowed(opts: SandpackOptions): boolean {
-  if (process.env.NODE_ENV === "production") return false;
   if (opts.allowUnsafeLocalEval === true) return true;
-  if (opts.allowUnsafeLocalEval === false) return false;
-  if (process.env.NODE_ENV === "test") return true;
   return false;
 }
 
@@ -43,7 +40,7 @@ function buildDisabledProductionFallbackHtml(title: string, fileCount: number): 
   <div class="wrap">
     <div class="card">
       <h1>Lokaler HTML-/Eval-Fallback deaktiviert</h1>
-      <p>Production-/Release-Kontext: lokaler Eval-/Babel-/CDN-Pfad ist absichtlich gesperrt (${fileCount} Dateien). Bitte Remote-Preview ueber Supabase verwenden oder explizit Dev-Modus aktivieren.</p>
+      <p>Lokaler Eval-/Babel-/CDN-Pfad ist standardmaessig gesperrt (${fileCount} Dateien). Bitte Remote-Preview ueber Supabase verwenden oder den Fallback nur explizit pro Aufruf erlauben.</p>
     </div>
   </div>
 </body>
