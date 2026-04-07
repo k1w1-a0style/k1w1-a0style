@@ -56,7 +56,6 @@ import {
   resolveEasLinkPostStartState,
   resolveEasTestPrecheck,
   resolveEasProjectVerification,
-  resolveConnectionsAlertNotice,
   resolveConnectionsActionAlert,
   resolveEasLinkWorkflowTriggerInputs,
   resolveEasProjectIdPersistenceAction,
@@ -69,6 +68,7 @@ import {
   resolveExpoConnectionPersistence,
   resolveConnectionsSavePlan,
   resolveMissingConnectionRequirements,
+  resolveEasLaunchPlan,
 } from "./useConnectionsScreenHelpers";
 import {
   runEasProjectCheck,
@@ -531,6 +531,38 @@ export function useConnectionsScreen() {
     [persistOptionalSecret],
   );
 
+  const persistTokenSavePlan = useCallback(
+    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
+      await persistOptionalSecret({
+        value: plan.githubToken,
+        save: saveGitHubToken,
+        remove: deleteGitHubToken,
+        onRemoved: clearGithubConnectionState,
+      });
+      await persistOptionalSecret({
+        value: plan.expoToken,
+        save: saveExpoToken,
+        remove: deleteExpoToken,
+        onRemoved: clearExpoConnectionState,
+      });
+      await persistOptionalSecret({
+        value: plan.workflowAdminKey,
+        save: saveWorkflowAdminKey,
+        remove: deleteWorkflowAdminKey,
+      });
+      await persistOptionalSecret({
+        value: plan.androidKeystoreExportAdminKey,
+        save: saveAndroidKeystoreExportAdminKey,
+        remove: deleteAndroidKeystoreExportAdminKey,
+      });
+    },
+    [
+      persistOptionalSecret,
+      clearGithubConnectionState,
+      clearExpoConnectionState,
+    ],
+  );
+
   const saveAll = useCallback(async () => {
     if (!hydrated) return;
     const v = validateBeforeSave({
@@ -561,29 +593,7 @@ export function useConnectionsScreen() {
           easProjectId,
         });
 
-        await persistOptionalSecret({
-          value: plan.githubToken,
-          save: saveGitHubToken,
-          remove: deleteGitHubToken,
-          onRemoved: clearGithubConnectionState,
-        });
-        await persistOptionalSecret({
-          value: plan.expoToken,
-          save: saveExpoToken,
-          remove: deleteExpoToken,
-          onRemoved: clearExpoConnectionState,
-        });
-        await persistOptionalSecret({
-          value: plan.workflowAdminKey,
-          save: saveWorkflowAdminKey,
-          remove: deleteWorkflowAdminKey,
-        });
-        await persistOptionalSecret({
-          value: plan.androidKeystoreExportAdminKey,
-          save: saveAndroidKeystoreExportAdminKey,
-          remove: deleteAndroidKeystoreExportAdminKey,
-        });
-
+        await persistTokenSavePlan(plan);
         await deleteLegacyEdgeAdminKey();
         await persistSupabaseSavePlan(plan);
         await persistSelectedEasProjectId(plan.easProjectId);
@@ -610,11 +620,9 @@ export function useConnectionsScreen() {
     supabaseAnonKey,
     easProjectId,
     runGuardedAction,
-    persistOptionalSecret,
+    persistTokenSavePlan,
     persistSupabaseSavePlan,
     persistSelectedEasProjectId,
-    clearGithubConnectionState,
-    clearExpoConnectionState,
     clearEasConnectionState,
     clearSupabaseConnectionState,
   ]);
@@ -980,6 +988,65 @@ Scopes: ${scopes}` : ""}`);
     [runEasLinkWorkflowStart, applyEasWorkflowPostStartState, persistRepoSelectionState],
   );
 
+  const executeEasLaunchPlan = useCallback(
+    async (params: {
+      selection: {
+        githubToken: string;
+        repoSlug: string;
+        branch: string;
+        owner: string;
+        repo: string;
+      };
+      mode: "link_existing" | "create_and_link";
+      easProjectId: string;
+    }) => {
+      const launchPlan = resolveEasLaunchPlan({
+        mode: params.mode,
+        easProjectId: params.easProjectId,
+      });
+
+      if (params.mode === "link_existing") {
+        const easValidation = validateEasProjectId(params.easProjectId.trim());
+        if (!easValidation.ok) {
+          Alert.alert(easValidation.title, easValidation.message);
+          return;
+        }
+      }
+
+      const runStart = async (projectId: string, persistProjectIdSelection: boolean, startedNotice: {
+        title: string;
+        message: string;
+      }) => {
+        // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
+        // Invariant contract marker retained for source-based tests: setEasOk(false)
+        await startEasWorkflow({
+          selection: params.selection,
+          projectId,
+          persistProjectIdSelection,
+          startedNotice,
+        });
+      };
+
+      if (launchPlan.kind === "confirm_create") {
+        Alert.alert(launchPlan.title, launchPlan.message, [
+          { text: "Abbrechen", style: "cancel" },
+          { text: "OK", onPress: () => void runStart("", true, {
+            title: "OK",
+            message: resolveEasLinkWorkflowStartMessage(""),
+          }) },
+        ]);
+        return;
+      }
+
+      await runStart(
+        launchPlan.projectId,
+        launchPlan.persistProjectIdSelection,
+        launchPlan.notice,
+      );
+    },
+    [startEasWorkflow],
+  );
+
   const onLinkExisting = useCallback(async () => {
     if (!canStartEasWorkflow()) return;
 
@@ -987,45 +1054,16 @@ Scopes: ${scopes}` : ""}`);
     // Invariant contract marker retained for source-based tests:
     // "Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen."
     if (!launchSelection) return;
-    const easId = easProjectId.trim();
-    const easValidation = validateEasProjectId(easId);
-    if (!easValidation.ok) {
-      Alert.alert(easValidation.title, easValidation.message);
-      return;
-    }
-
-    const runLink = async (projectId: string) => {
-      // Workflow wurde nur gestartet; EAS-Verification bleibt bis zum echten Test neutral/false.
-      // Invariant contract marker retained for source-based tests: setEasOk(false)
-      await startEasWorkflow({
-        selection: launchSelection,
-        projectId,
-        persistProjectIdSelection: true,
-        startedNotice: {
-          title: "OK",
-          message: resolveEasLinkWorkflowStartMessage(projectId),
-        },
-      });
-    };
-
-    if (!easId) {
-      Alert.alert(
-        "Keine EAS ID vorhanden!",
-        "Soll eine erstellt werden?",
-        [
-          { text: "Abbrechen", style: "cancel" },
-          { text: "OK", onPress: () => void runLink("") },
-        ],
-      );
-      return;
-    }
-
-    await runLink(easId);
+    await executeEasLaunchPlan({
+      selection: launchSelection,
+      mode: "link_existing",
+      easProjectId,
+    });
   }, [
     canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
     easProjectId,
-    startEasWorkflow,
+    executeEasLaunchPlan,
   ]);
 
   const onCreateAndLink = useCallback(async () => {
@@ -1033,17 +1071,16 @@ Scopes: ${scopes}` : ""}`);
 
     const launchSelection = resolveEasLaunchSelectionOrAlert();
     if (!launchSelection) return;
-    const notice = resolveConnectionsAlertNotice("create_link_workflow_started");
-    await startEasWorkflow({
+    await executeEasLaunchPlan({
       selection: launchSelection,
-      projectId: "",
-      persistProjectIdSelection: false,
-      startedNotice: notice,
+      mode: "create_and_link",
+      easProjectId,
     });
   }, [
     canStartEasWorkflow,
     resolveEasLaunchSelectionOrAlert,
-    startEasWorkflow,
+    easProjectId,
+    executeEasLaunchPlan,
   ]);
 
 

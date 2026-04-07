@@ -10,6 +10,7 @@ import {
   resolveConnectionsStatusFlags,
   resolveConnectionsSavePlan,
   resolveMissingConnectionRequirements,
+  resolveEasLaunchPlan,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
   resolveRepoSelectionPersistence,
@@ -181,6 +182,50 @@ describe("useConnectionsScreenHelpers", () => {
         { value: "repo", message: "Repo fehlt." },
       ]),
     ).toBeNull();
+  });
+
+  it("resolves EAS launch plans for link/create modes deterministically", () => {
+    expect(
+      resolveEasLaunchPlan({
+        mode: "create_and_link",
+        easProjectId: "ignored",
+      }),
+    ).toEqual({
+      kind: "start",
+      projectId: "",
+      persistProjectIdSelection: false,
+      notice: {
+        title: "OK",
+        message:
+          "EAS Create+Link Workflow gestartet. Check GitHub Actions (eas-link) und danach Repo commit/push abwarten.",
+      },
+    });
+
+    expect(
+      resolveEasLaunchPlan({
+        mode: "link_existing",
+        easProjectId: " ",
+      }),
+    ).toEqual({
+      kind: "confirm_create",
+      title: "Keine EAS ID vorhanden!",
+      message: "Soll eine erstellt werden?",
+    });
+
+    expect(
+      resolveEasLaunchPlan({
+        mode: "link_existing",
+        easProjectId: " project-id ",
+      }),
+    ).toEqual({
+      kind: "start",
+      projectId: "project-id",
+      persistProjectIdSelection: true,
+      notice: {
+        title: "OK",
+        message: "EAS Link-Workflow gestartet. Check GitHub Actions (eas-link).",
+      },
+    });
   });
 
   it("builds a trimmed save plan with clear-flags for dependent lights", () => {
