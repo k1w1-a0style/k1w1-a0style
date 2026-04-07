@@ -119,7 +119,8 @@ export function useBuildPreconditions(
         setRepoSyncState(syncState);
         setRepoSyncReason(syncReason);
       });
-    } catch {
+    } catch (error) {
+      console.warn("[useBuildPreconditions] refresh failed; applying fail-closed defaults", error);
       applyIfCurrent(() => {
         setHasSigningKey(false);
         setSigningKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Signing Key erneut prüfen");
