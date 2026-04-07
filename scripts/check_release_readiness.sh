@@ -77,7 +77,7 @@ else
 fi
 
 if [[ "$SKIP_COUNT" -gt 0 ]]; then
-  echo "[verify:release] OK_WITH_SKIPS ($SKIP_COUNT checks skipped; not full release-green)"
+  echo "[verify:release] OK_WITH_SKIPS ($SKIP_COUNT checks skipped; partial/local evidence only, not full release sign-off)"
 else
   echo "[verify:release] OK_FULL"
 fi

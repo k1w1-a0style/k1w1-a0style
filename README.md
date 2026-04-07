@@ -33,6 +33,8 @@ npm run test:silent
 npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
 ```
 
+Hinweis: `OK_WITH_SKIPS` bedeutet bewusst **kein** voller Release-Nachweis (nur partial/local evidence).
+
 Optional mit read-only Live-Edge-Checks:
 
 ```bash

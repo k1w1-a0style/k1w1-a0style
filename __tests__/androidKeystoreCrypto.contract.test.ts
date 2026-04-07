@@ -1,7 +1,7 @@
 import {
+  __unsafeEncryptWithAesCbcLegacyForTests,
   decryptKeystorePayload,
   encryptKeystorePayload,
-  encryptWithAesCbcLegacy,
   isVersionedKeystoreEnvelope,
 } from "../supabase/functions/_shared/androidKeystoreCrypto";
 
@@ -39,7 +39,7 @@ describe("android keystore crypto contract", () => {
 
   it("keeps legacy AES-CBC payloads readable via fallback", async () => {
     const payload = JSON.stringify({ legacy: true, alias: "upload" });
-    const legacy = await encryptWithAesCbcLegacy(payload, masterKey);
+    const legacy = await __unsafeEncryptWithAesCbcLegacyForTests(payload, masterKey);
 
     const decrypted = await decryptKeystorePayload(legacy, masterKey);
     expect(decrypted).toBe(payload);

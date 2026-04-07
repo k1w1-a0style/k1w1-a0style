@@ -325,6 +325,11 @@ export const importProjectFromZipFile = async (): Promise<{
 
     throw new Error('ZIP-Import fehlgeschlagen');
   } finally {
-    await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }).catch(() => {});
+    await FileSystem.deleteAsync(CACHE_DIR, { idempotent: true }).catch((cleanupError: unknown) => {
+      logger.warn("[projectStorage] Konnte temporäres ZIP-Verzeichnis nicht bereinigen", {
+        cacheDir: CACHE_DIR,
+        err: cleanupError,
+      });
+    });
   }
 };

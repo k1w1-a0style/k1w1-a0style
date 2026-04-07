@@ -63,6 +63,8 @@ entrypoint = "./functions/save_preview/index.ts"
 
 [functions.preview_page]
 enabled = true
+# bewusst Secret-Gate-Sonderpfad (verify_jwt=false): Zugriff nur via kurzlebigem Preview-Secret
+# (Fragment-Link -> Header-Handoff), strict Secret-Format, TTL/Expiry-Delete und durable Rate-Limit.
 verify_jwt = false
 import_map = "./import_map.json"
 entrypoint = "./functions/preview_page/index.ts"

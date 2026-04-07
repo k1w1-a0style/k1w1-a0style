@@ -37,7 +37,7 @@ function decodeBase64(input: string): Uint8Array {
   return binaryStringToBytes(atob(input));
 }
 
-export async function deriveAesKeyBytes(masterKey: string): Promise<Uint8Array> {
+async function deriveAesKeyBytes(masterKey: string): Promise<Uint8Array> {
   const input = new TextEncoder().encode(masterKey);
   const hash = await crypto.subtle.digest("SHA-256", input);
   return new Uint8Array(hash);
@@ -63,7 +63,11 @@ export function isVersionedKeystoreEnvelope(value: string): boolean {
   return value.startsWith(KEYSTORE_ENVELOPE_PREFIX_V2) || value.startsWith(KEYSTORE_ENVELOPE_PREFIX_V3);
 }
 
-export async function encryptWithAesCbcLegacy(payload: string, masterKey: string): Promise<string> {
+/**
+ * @deprecated Legacy compatibility helper for tests/migration fixtures only.
+ * Never use this for new writes.
+ */
+export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, masterKey: string): Promise<string> {
   const keyBytes = await deriveAesKeyBytes(masterKey);
   const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(

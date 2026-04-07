@@ -36,7 +36,7 @@ describe("release readiness contract", () => {
     const script = read("scripts/check_release_readiness.sh");
 
     expect(script).toContain("[verify:release] OK_WITH_SKIPS");
-    expect(script).toContain("not full release-green");
+    expect(script).toContain("partial/local evidence only, not full release sign-off");
     expect(script).toContain("[verify:release] OK_FULL");
     expect(script).toContain("SKIP_COUNT=$((SKIP_COUNT + 1))");
   });

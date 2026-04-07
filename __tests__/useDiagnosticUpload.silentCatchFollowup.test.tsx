@@ -85,7 +85,7 @@ describe("useDiagnosticUpload silent catch follow-up", () => {
         expect.any(Error),
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        "[useDiagnosticUpload] failed to read crypto random bytes; using fallback",
+        "[useDiagnosticUpload] failed to read crypto random bytes; using non-crypto fallback",
         expect.any(Error),
       );
       expect(warnSpy).toHaveBeenCalledWith(

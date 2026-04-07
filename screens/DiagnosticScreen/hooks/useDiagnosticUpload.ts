@@ -19,6 +19,22 @@ const UPLOAD_COOLDOWN_MS = 30_000;
 const UPLOAD_RETRY_DELAY_MS = 3_000;
 const UPLOAD_COOLDOWN_KEY = "k1w1_upload_cooldown_until";
 
+function createBestEffortDeviceIdSuffix(): string {
+  try {
+    const webCrypto = globalThis.crypto;
+    if (webCrypto?.getRandomValues) {
+      const bytes = webCrypto.getRandomValues(new Uint8Array(16));
+      return Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
+  } catch (error) {
+    console.warn("[useDiagnosticUpload] global crypto fallback failed; using uuid fallback", error);
+  }
+  // Non-crypto fallback: still unique enough for correlation, not for security decisions.
+  return `${uuidv4().replace(/-/g, "")}${Date.now().toString(16)}`;
+}
+
 export function useDiagnosticUpload(opts: {
   projectRef: MutableRefObject<ProjectData | null>;
   mountedRef: MutableRefObject<boolean>;
@@ -122,8 +138,8 @@ export function useDiagnosticUpload(opts: {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     } catch (error) {
-      console.warn("[useDiagnosticUpload] failed to read crypto random bytes; using fallback", error);
-      rand = Math.random().toString(16).slice(2);
+      console.warn("[useDiagnosticUpload] failed to read crypto random bytes; using non-crypto fallback", error);
+      rand = createBestEffortDeviceIdSuffix();
     }
     const id = `dev_${rand}`;
     try {
