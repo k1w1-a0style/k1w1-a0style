@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 754, SilentCatch Follow-up + Preview Format Runtime Guard)**
+Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follow-up)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -30,6 +30,8 @@ Stand: **2026-04-07 (Patch 754, SilentCatch Follow-up + Preview Format Runtime G
 - [x] MaxRuntimeHardening nachgezogen (Patch 753): neue runtime-nahe Tests fuer Preview-Secret-Candidate-Vertrag (`findFirst...`/`delete...`), Release-Execution-Contract bleibt aktiv, und kritische Silent-Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbares Warn-Logging umgestellt.
 - [x] SilentCatchDebt Follow-up (Patch 754): weiterer stummer Catch im PreviewFullscreen-URL-Guard auf sichtbares Warn-Logging umgestellt; Device-ID-Fallback im Diagnostic-Upload dokumentiert jetzt Fehler sichtbar statt still zu schlucken.
 - [x] Preview boundary/runtime guard runtime-nah ergaenzt (Patch 754): `isValidPreviewSecretFormat(...)` als shared Runtime-Guard extrahiert und mit ausfuehrbaren Tests gegen missing/invalid/valid Secret-Formate abgesichert.
+- [x] DiagnosticUploadSilentCatchMismatch geschlossen (Patch 755): der noch stumme Catch im Persisted-Cooldown-Load (`useDiagnosticUpload`) loggt jetzt sichtbar; neuer Hook-Runtime-Test deckt Persisted-Cooldown- und Device-ID-/RNG-/Persist-Fallback-Warnpfade ausfuehrbar ab.
+- [x] DisabledLegacyEdgesRemoval execution-nah nachgeschaerft (Patch 755): neuer Execution-Contract-Test fuer `scripts/check_legacy_disabled_edges.sh` prueft pass/fail-Verhalten in isolierter Fixture statt nur Source-Strings.
 - [x] HistoricalChecklogDrift transparent relativiert (Patch 753): `PROJECT_CHECKLOG.md` enthaelt jetzt einen expliziten Hinweis, dass der Checklog append-only Historie und nicht alleinige Release-Wahrheit ist.
 - [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.

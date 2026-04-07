@@ -56,8 +56,8 @@ export function useDiagnosticUpload(opts: {
         if (cancelled) return;
         setUploadCooldownUntil(until);
         setCooldownNow(now);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.warn("[useDiagnosticUpload] failed to load persisted upload cooldown", error);
       }
     })();
     return () => {
