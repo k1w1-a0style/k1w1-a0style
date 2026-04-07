@@ -85,6 +85,31 @@ import {
   supabaseClearedPersistence,
 } from "./useConnectionsScreenState";
 
+type ConnectionPersistenceDelta = {
+  writes: Array<[string, string]>;
+  removes: string[];
+};
+
+type EasLaunchSelection = {
+  githubToken: string;
+  repoSlug: string;
+  branch: string;
+  owner: string;
+  repo: string;
+};
+
+type ConnectionCheckParams<T> = {
+  defaultTitle: string;
+  requirements?: Array<{ value: string; message: string }>;
+  runCheck: () => Promise<T>;
+  onSuccess: (result: T) => Promise<void>;
+  onFailure: (error: unknown) => Promise<void>;
+  failureLog?: {
+    channel: string;
+    message: string;
+  };
+};
+
 export function useConnectionsScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const { activeRepo, activeBranch } = useGitHub();
@@ -189,10 +214,7 @@ export function useConnectionsScreen() {
 
   const applyConnectionPersistence = useCallback(
     async (params: {
-      persistence: {
-        writes: Array<[string, string]>;
-        removes: string[];
-      };
+      persistence: ConnectionPersistenceDelta;
       applyState: () => void;
     }): Promise<void> => {
       params.applyState();
@@ -219,10 +241,7 @@ export function useConnectionsScreen() {
   const applyClearedConnectionState = useCallback(
     async (params: {
       resetState: () => void;
-      persistence: {
-        writes: Array<[string, string]>;
-        removes: string[];
-      };
+      persistence: ConnectionPersistenceDelta;
     }): Promise<void> => {
       params.resetState();
       await applyPersistenceDelta({
@@ -427,8 +446,8 @@ export function useConnectionsScreen() {
       setExpoOk(restored.expoOk);
       setExpoUser(restored.expoUser);
       setEasOk(restored.easOk);
-      if (restored.easState) setEasState(restored.easState);
-      if (restored.easLastVerifiedAt) setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      setEasState(restored.easState ?? "missing");
+      setEasLastVerifiedAt(restored.easLastVerifiedAt);
       setRepoOk(restored.repoOk);
       setRepoOkLine(restored.repoOkLine);
       setHydrated(true);
@@ -682,22 +701,10 @@ export function useConnectionsScreen() {
     [runGuardedAction],
   );
 
-  type ConnectionCheckParams<T> = {
-    defaultTitle: string;
-    requirements?: Array<{ value: string; message: string }>;
-    runCheck: () => Promise<T>;
-    onSuccess: (result: T) => Promise<void>;
-    onFailure: (error: unknown) => Promise<void>;
-    failureLog?: {
-      channel: string;
-      message: string;
-    };
-  };
-
   const runConnectionCheck = useCallback(
     async <T,>(params: ConnectionCheckParams<T>) => {
       if (!hydrated) return;
-      const missingRequirement = resolveMissingConnectionRequirements(params.requirements || []);
+      const missingRequirement = resolveMissingConnectionRequirements(params.requirements ?? []);
       if (missingRequirement) {
         Alert.alert("Fehlt", missingRequirement);
         return;
@@ -955,13 +962,7 @@ Scopes: ${scopes}` : ""}`);
 
   const startEasWorkflow = useCallback(
     async (params: {
-      selection: {
-        githubToken: string;
-        repoSlug: string;
-        branch: string;
-        owner: string;
-        repo: string;
-      };
+      selection: EasLaunchSelection;
       projectId: string;
       persistProjectIdSelection: boolean;
       startedNotice: { title: string; message: string };
@@ -990,13 +991,7 @@ Scopes: ${scopes}` : ""}`);
 
   const executeEasLaunchPlan = useCallback(
     async (params: {
-      selection: {
-        githubToken: string;
-        repoSlug: string;
-        branch: string;
-        owner: string;
-        repo: string;
-      };
+      selection: EasLaunchSelection;
       mode: "link_existing" | "create_and_link";
       easProjectId: string;
     }) => {
