@@ -180,7 +180,7 @@ jobs:
       contents: read
 
     env:
-      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop)$"
+      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -471,7 +471,7 @@ jobs:
     env:
       JOB_ID: \${{ inputs.job_id }}
       TARGET_BRANCH: \${{ inputs.ref }}
-      ALLOWED_REF_REGEX: "^(work|codex|main|dev|develop)$"
+      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:

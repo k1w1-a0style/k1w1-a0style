@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
+Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

@@ -238,7 +238,7 @@ jobs:
             echo "::warning::Unsafe ref ($TARGET_REF). Skipping writeback."
             exit 0
           fi
-          if ! echo "$TARGET_REF" | grep -qE '^(work|codex|main|dev|develop)$'; then
+          if ! echo "$TARGET_REF" | grep -qE '^(work|codex|dev|develop)$'; then
             echo "::warning::Writeback disabled for ref '$TARGET_REF' (policy regex)."
             exit 0
           fi

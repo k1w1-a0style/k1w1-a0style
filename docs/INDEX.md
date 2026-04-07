@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-07 (Patch 747, Docs-Honesty + Preview-Legacy-Risiko-Doku + Writeback-Scope-Tightening)**
+Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 
