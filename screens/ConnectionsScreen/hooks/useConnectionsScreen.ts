@@ -311,13 +311,15 @@ export function useConnectionsScreen() {
         setGithubScopes("");
         setRepoOk(false);
         setRepoOkLine("");
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
+        applyEasConnectionState({
+          ok: false,
+          state: "missing",
+          verifiedAt: null,
+        });
       },
       persistence: githubClearedPersistence(),
     });
-  }, [applyClearedConnectionState]);
+  }, [applyClearedConnectionState, applyEasConnectionState]);
 
   const clearExpoConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
@@ -332,13 +334,15 @@ export function useConnectionsScreen() {
   const clearEasConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
       resetState: () => {
-        setEasOk(false);
-        setEasState("missing");
-        setEasLastVerifiedAt(null);
+        applyEasConnectionState({
+          ok: false,
+          state: "missing",
+          verifiedAt: null,
+        });
       },
       persistence: easClearedPersistence(),
     });
-  }, [applyClearedConnectionState]);
+  }, [applyClearedConnectionState, applyEasConnectionState]);
 
   const clearSupabaseConnectionState = useCallback(async () => {
     await applyClearedConnectionState({
@@ -472,14 +476,16 @@ export function useConnectionsScreen() {
       setSupabaseRef(restored.supabaseRef);
       setExpoOk(restored.expoOk);
       setExpoUser(restored.expoUser);
-      setEasOk(restored.easOk);
-      setEasState(restored.easState ?? "missing");
-      setEasLastVerifiedAt(restored.easLastVerifiedAt);
+      applyEasConnectionState({
+        ok: restored.easOk,
+        state: restored.easState ?? "missing",
+        verifiedAt: restored.easLastVerifiedAt,
+      });
       setRepoOk(restored.repoOk);
       setRepoOkLine(restored.repoOkLine);
       setHydrated(true);
     },
-    [],
+    [applyEasConnectionState],
   );
 
   // Load stored settings on mount
