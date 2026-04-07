@@ -405,6 +405,37 @@ function renderFragmentBootstrapPage(params: { nonce: string }): string {
 </html>`;
 }
 
+function renderLegacyQuerySecretBridgePage(params: { nonce: string }): string {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Preview secret handoff</title>
+</head>
+<body>
+  <div>Preparing secure preview handoff…</div>
+  <script nonce="${params.nonce}">
+    (() => {
+      try {
+        const current = new URL(window.location.href);
+        const secret = current.searchParams.get("secret") || "";
+        if (!secret) {
+          document.body.textContent = "Missing preview secret.";
+          return;
+        }
+        current.searchParams.delete("secret");
+        current.searchParams.set("transport", "fragment");
+        window.location.replace(current.toString() + "#secret=" + encodeURIComponent(secret));
+      } catch {
+        document.body.textContent = "Unable to prepare preview handoff.";
+      }
+    })();
+  </script>
+</body>
+</html>`;
+}
+
 Deno.serve(async (req) => {
   const durableRl = await requireDurableRateLimit(req, {
     scope: "preview_page",
@@ -442,17 +473,7 @@ Deno.serve(async (req) => {
     }
 
     if (querySecret && !headerSecret) {
-      const redirectUrl = new URL(req.url);
-      redirectUrl.searchParams.delete("secret");
-      redirectUrl.searchParams.set("transport", "fragment");
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: `${redirectUrl.toString()}#secret=${encodeURIComponent(querySecret)}`,
-          "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Referrer-Policy": "no-referrer",
-        },
-      });
+      return html(renderLegacyQuerySecretBridgePage({ nonce }), nonce, 200);
     }
 
     const recordResult = await fetchPreviewRecord(secret);

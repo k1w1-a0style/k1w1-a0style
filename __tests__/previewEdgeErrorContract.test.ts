@@ -101,7 +101,8 @@ describe("preview edge error contract", () => {
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
     expect(previewPageSource).toContain("if (querySecret && !headerSecret) {");
-    expect(previewPageSource).toContain('redirectUrl.searchParams.set("transport", "fragment")');
+    expect(previewPageSource).toContain("renderLegacyQuerySecretBridgePage");
+    expect(previewPageSource).toContain('current.searchParams.delete("secret")');
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
   });
 
