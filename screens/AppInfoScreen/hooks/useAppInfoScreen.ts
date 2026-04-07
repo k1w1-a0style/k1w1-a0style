@@ -154,6 +154,8 @@ async function resetDerivedStatusAfterSecretImport(): Promise<void> {
   await AsyncStorage.multiRemove([...new Set([...staticKeys, ...scopedStatusKeys, ...dynamicKeys])]);
 }
 
+export const __resetDerivedStatusAfterSecretImportForTests = resetDerivedStatusAfterSecretImport;
+
 function useAppMetadataState(projectName: string | undefined, projectFiles: ReturnType<typeof toProjectFiles>) {
   const [appName, setAppName] = useState("");
   const [packageName, setPackageNameState] = useState("");
