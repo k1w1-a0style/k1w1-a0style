@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
+Stand: **2026-04-07 (Patch 745, AppInfo Secret-Import Status-Reset als dedizierter Helper entkoppelt)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] AppInfo Secret-Import Status-Reset (Patch 745) aus `useAppInfoScreen` in `screens/AppInfoScreen/hooks/secretImportStatusReset.ts` entkoppelt; test-only Export im Hook entfernt und Test auf direkten Helper-Import umgestellt.
 - [x] Release-/Workflow-Trust-Drift (Patch 744): `check_workflow_edge_contracts.sh` war lokal reproduzierbar rot wegen fehlendem build_admin-Contract-Marker in `useCiLiteWorkflow.ts`; Marker wurde auf den geforderten Wortlaut nachgezogen und der Gate-Pfad (`check_release_readiness.sh`) anschliessend wieder lokal gruen bestaetigt.
 - [x] Manueller `eas-link`-Workflow Writeback gehaertet: read-default auf Workflow-Ebene, job-scoped `contents: write`, plus explizite sichere Branch-Guards (kein SHA/unsafe/detached Ref, kein stilles Push-`|| true`).
 - [x] AppInfo-Secret-Hotfixes (Patch 743): API-Config-Export redaktiert API-Keys fail-closed (kein Klartextpfad), API-Config-/Encrypted-Scoped-Backup-Import/Export raeumt temporäre Cache-Dateien idempotent auf, und Secure-Backup exportiert keine unnoetige Token-Duplikation mehr ueber `ciSecrets`.

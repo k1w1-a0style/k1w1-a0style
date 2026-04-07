@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
+Stand: **2026-04-07 (Patch 745, AppInfo Secret-Import Status-Reset als dedizierter Helper entkoppelt)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -16,6 +16,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
 - Preview-Secret-Transport ist repo-seitig minimal gehaertet: neue Links nutzen Fragment-Handoff statt Query-Secret (`save_preview` -> `preview_page?transport=fragment#secret=...`), bei erhaltener Legacy-Kompatibilitaet fuer bestehende `?secret=`-Links.
 - Externe Live-/Supabase-Themen sind fuer den aktuellen Abschluss neu bewertet: keine technisch kritischen High-Priority-Restpunkte; verbleibend sind bewusst geparkte Produkt-/Hygienepunkte (siehe `docs/TODO.md`).
+- AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
 - `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
 - Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403010000_search_path_followup.sql`).
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.

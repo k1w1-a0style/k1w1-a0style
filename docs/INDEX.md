@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-06 (Patch 744, Release-/Workflow-Trust-Drift: CI-Lite Contract + EAS-Link Writeback-Haertung)**
+Stand: **2026-04-07 (Patch 745, AppInfo Secret-Import Status-Reset als dedizierter Helper entkoppelt)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 
