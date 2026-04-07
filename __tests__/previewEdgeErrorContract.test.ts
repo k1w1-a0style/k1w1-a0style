@@ -117,14 +117,13 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).not.toContain("preview_invalid_payload");
   });
 
-  it("builds secret candidates as hash-first with raw-secret fallback for legacy compatibility", async () => {
+  it("builds secret candidates as hash-only for strict preview secret gating", async () => {
     const candidates = await buildPreviewSecretCandidates("abc123-preview-secret");
-    expect(candidates).toHaveLength(2);
+    expect(candidates).toHaveLength(1);
     expect(candidates[0]).toMatch(/^psh_v1_/);
-    expect(candidates[1]).toBe("abc123-preview-secret");
   });
 
-  it("keeps expiry cleanup compatible with hashed and legacy raw preview rows", () => {
+  it("keeps expiry cleanup aligned with hash-only preview rows", () => {
     const previewPageSource = fs.readFileSync(
       path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
       "utf8",

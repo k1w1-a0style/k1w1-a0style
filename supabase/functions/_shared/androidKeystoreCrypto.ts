@@ -1,6 +1,7 @@
 const KEYSTORE_ENVELOPE_PREFIX_V2 = "k1w1-ak:v2:";
 const KEYSTORE_ENVELOPE_PREFIX_V3 = "k1w1-ak:v3:";
 const PBKDF2_ITERATIONS = 210_000;
+const LEGACY_COMPAT_MAX_PAYLOAD_CHARS = 24_000;
 
 type KeystoreEnvelopeV2 = {
   v: 2;
@@ -69,6 +70,17 @@ async function deriveAesKeyBytesPbkdf2(masterKey: string, salt: Uint8Array, iter
   return new Uint8Array(bits);
 }
 
+function getRuntimeEnvVar(name: string): string | undefined {
+  const maybeDeno = (globalThis as { Deno?: { env?: { get?: (key: string) => string | undefined } } }).Deno;
+  const denoGet = maybeDeno?.env?.get;
+  if (typeof denoGet === "function") {
+    return denoGet(name);
+  }
+
+  const maybeProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
+  return maybeProcess?.env?.[name];
+}
+
 export function isVersionedKeystoreEnvelope(value: string): boolean {
   return value.startsWith(KEYSTORE_ENVELOPE_PREFIX_V2) || value.startsWith(KEYSTORE_ENVELOPE_PREFIX_V3);
 }
@@ -78,13 +90,8 @@ export function isVersionedKeystoreEnvelope(value: string): boolean {
  * Never use this for new writes.
  */
 export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, masterKey: string): Promise<string> {
-  const maybeDeno = (globalThis as { Deno?: { env?: { get?: (name: string) => string | undefined } } }).Deno;
-  if (maybeDeno?.env?.get) {
-    const denoEnv = maybeDeno.env.get("DENO_ENV") ?? maybeDeno.env.get("NODE_ENV") ?? "";
-    if (denoEnv && denoEnv !== "test") {
-      throw new Error("Legacy AES-CBC test helper may only run in test environment");
-    }
-  } else if (typeof process !== "undefined" && process.env.NODE_ENV && process.env.NODE_ENV !== "test") {
+  const runtimeEnv = getRuntimeEnvVar("DENO_ENV") ?? getRuntimeEnvVar("NODE_ENV") ?? "";
+  if (runtimeEnv && runtimeEnv !== "test") {
     throw new Error("Legacy AES-CBC test helper may only run in test environment");
   }
 
@@ -108,6 +115,9 @@ export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, m
 }
 
 async function decryptWithAesCbcLegacyCompatOnly(payload: string, masterKey: string): Promise<string> {
+  if (payload.length > LEGACY_COMPAT_MAX_PAYLOAD_CHARS) {
+    throw new Error("Legacy ciphertext exceeds compatibility size limit");
+  }
   const bytes = decodeBase64(payload);
   if (bytes.length < 17) throw new Error("Encrypted blob too small");
   const iv = bytes.slice(0, 16);

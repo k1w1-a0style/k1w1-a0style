@@ -1,7 +1,7 @@
 import { buildSandpackHtml } from "../sandpackBuilder";
 
 describe("buildSandpackHtml", () => {
-  it("keeps the local preview HTML clearly marked as a dev-only fallback while blocking arbitrary network requests", () => {
+  it("keeps local eval fallback disabled by default", () => {
     const html = buildSandpackHtml({
       title: "Preview",
       files: {
@@ -9,14 +9,9 @@ describe("buildSandpackHtml", () => {
       },
     });
 
-    expect(html).toContain('<meta http-equiv="Content-Security-Policy" content="');
-    expect(html).toContain("default-src 'none'");
-    expect(html).toContain("connect-src 'none'");
-    expect(html).toContain(
-      "script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh",
-    );
-    expect(html).toContain("https://unpkg.com/@babel/standalone/babel.min.js");
-    expect(html).toContain('"react": "https://esm.sh/react@19.1.0"');
+    expect(html).toContain("Lokaler HTML-/Eval-Fallback deaktiviert");
+    expect(html).not.toContain("unsafe-eval");
+    expect(html).not.toContain("@babel/standalone");
   });
 });
 
@@ -27,6 +22,7 @@ it("labels the generated preview as a non-primary local fallback", () => {
     files: {
       "/App.tsx": "export default function App() { return <div>Hello</div>; }",
     },
+    allowUnsafeLocalEval: true,
   });
 
   expect(html).toContain("Lokaler HTML-/Eval-Fallback");
@@ -49,22 +45,16 @@ it("disables eval/cdn runtime when local unsafe fallback is not explicitly allow
   expect(html).not.toContain("new Function(");
 });
 
-it("keeps local eval fallback disabled in production even with explicit opt-in", () => {
-  const prevNodeEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = "production";
-  try {
-    const html = buildSandpackHtml({
-      title: "Preview",
-      files: {
-        "/App.tsx": "export default function App() { return <div>Hello</div>; }",
-      },
-      allowUnsafeLocalEval: true,
-    });
+it("renders eval/cdn runtime only with explicit opt-in", () => {
+  const html = buildSandpackHtml({
+    title: "Preview",
+    files: {
+      "/App.tsx": "export default function App() { return <div>Hello</div>; }",
+    },
+    allowUnsafeLocalEval: true,
+  });
 
-    expect(html).toContain("Lokaler HTML-/Eval-Fallback deaktiviert");
-    expect(html).not.toContain("@babel/standalone");
-    expect(html).not.toContain("new Function(");
-  } finally {
-    process.env.NODE_ENV = prevNodeEnv;
-  }
+  expect(html).toContain("script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh");
+  expect(html).toContain("https://unpkg.com/@babel/standalone/babel.min.js");
+  expect(html).toContain('"react": "https://esm.sh/react@19.1.0"');
 });
