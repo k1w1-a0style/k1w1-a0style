@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 756, Diagnostic Upload non-throwing ID fallback hardening)**
+Stand: **2026-04-07 (Patch 757, PreviewEvalTradeoff/PreviewSecretGate consistency close)**
 
-Zuletzt abgeschlossen: **Patch 756**
+Zuletzt abgeschlossen: **Patch 757**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
