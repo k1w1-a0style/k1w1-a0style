@@ -199,6 +199,7 @@ export function buildCsp(nonce: string): string {
   // - TEST_STRICT_CSP=true oder PREVIEW_STRICT_CSP=true => `unsafe-eval` aus
   // - PREVIEW_ALLOW_UNSAFE_EVAL=false => `unsafe-eval` aus
   // - PREVIEW_ALLOW_ESM_SH_CDN=false => `https://esm.sh` aus script-src entfernen
+  // - strictMode schaltet zusaetzlich `unsafe-eval` und `https://esm.sh` zusammen aus
   const strictMode =
     (getRuntimeEnv("TEST_STRICT_CSP") ?? "").toLowerCase() === "true" ||
     (getRuntimeEnv("PREVIEW_STRICT_CSP") ?? "").toLowerCase() === "true";
@@ -207,8 +208,9 @@ export function buildCsp(nonce: string): string {
   const esmShExplicitlyDisabled =
     (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() === "false";
   const allowUnsafeEval = !strictMode && !unsafeEvalExplicitlyDisabled;
+  const allowEsmShCdn = !strictMode && !esmShExplicitlyDisabled;
   const evalPart = allowUnsafeEval ? " 'unsafe-eval'" : "";
-  const esmShPart = esmShExplicitlyDisabled ? "" : " https://esm.sh";
+  const esmShPart = allowEsmShCdn ? " https://esm.sh" : "";
 
   return [
     "default-src 'self' data: blob:",

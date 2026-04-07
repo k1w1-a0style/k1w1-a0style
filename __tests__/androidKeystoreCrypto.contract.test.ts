@@ -44,4 +44,10 @@ describe("android keystore crypto contract", () => {
     const decrypted = await decryptKeystorePayload(legacy, masterKey);
     expect(decrypted).toBe(payload);
   });
+  it("does not route non-versioned non-ciphertext payloads into legacy AES-CBC decrypt", async () => {
+    await expect(decryptKeystorePayload("not-a-legacy-ciphertext", masterKey)).rejects.toThrow(
+      "Encrypted keystore payload contract mismatch",
+    );
+  });
+
 });
