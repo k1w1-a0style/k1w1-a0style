@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
+Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follow-up)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -24,8 +24,18 @@ Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
 - [x] Drift in eingebetteten Template-Workflow-Kopien geschlossen (`templates/expo-sdk54-base.json`, `templates/expo-sdk54-full.json` jetzt wieder baseline-aligned zu `.github/workflows/eas-build.yml` und `.github/workflows/release-build.yml`).
 - [x] `k1w1-ci-lite-autofix` Workflow-Permissions minimalisiert: unnoetiges `actions: write` entfernt; `contents: write` bleibt fuer guarded Writeback/Dispatch erhalten.
 - [x] Lokalen HTML-/Eval-/Babel-/CDN-Fallback in `lib/sandpackBuilder.ts` fuer Production-/Release-Kontext hart deaktiviert (Guard + expliziter Disabled-HTML-Pfad), Dev/Test bleibt explizit nutzbar.
+- [x] Preview-Secret-Modell gehaertet (Patch 751): `save_preview` speichert Secret nur noch gehasht, `preview_page` nutzt hash-first Lookup und fallbackt nur fuer bestehende Legacy-Klartextsaetze.
+- [x] Preview-Auth-Boundary klein nachgeschaerft (Patch 751): `preview_page` akzeptiert nur GET/HEAD; Secret bleibt Header-basiert (Fragment-Handoff), kein Query-Secret-Revival.
+- [x] Preview-Expiry-Cleanup nach Secret-Hashing repariert (Patch 752): Expiry-Delete nutzt dieselben Secret-Kandidaten (hash-first + legacy raw fallback) wie der Lookup, damit gehashte und alte raw Rows gleichermassen loeschbar bleiben.
+- [x] MaxRuntimeHardening nachgezogen (Patch 753): neue runtime-nahe Tests fuer Preview-Secret-Candidate-Vertrag (`findFirst...`/`delete...`), Release-Execution-Contract bleibt aktiv, und kritische Silent-Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbares Warn-Logging umgestellt.
+- [x] SilentCatchDebt Follow-up (Patch 754): weiterer stummer Catch im PreviewFullscreen-URL-Guard auf sichtbares Warn-Logging umgestellt; Device-ID-Fallback im Diagnostic-Upload dokumentiert jetzt Fehler sichtbar statt still zu schlucken.
+- [x] Preview boundary/runtime guard runtime-nah ergaenzt (Patch 754): `isValidPreviewSecretFormat(...)` als shared Runtime-Guard extrahiert und mit ausfuehrbaren Tests gegen missing/invalid/valid Secret-Formate abgesichert.
+- [x] DiagnosticUploadSilentCatchMismatch geschlossen (Patch 755): der noch stumme Catch im Persisted-Cooldown-Load (`useDiagnosticUpload`) loggt jetzt sichtbar; neuer Hook-Runtime-Test deckt Persisted-Cooldown- und Device-ID-/RNG-/Persist-Fallback-Warnpfade ausfuehrbar ab.
+- [x] DisabledLegacyEdgesRemoval execution-nah nachgeschaerft (Patch 755): neuer Execution-Contract-Test fuer `scripts/check_legacy_disabled_edges.sh` prueft pass/fail-Verhalten in isolierter Fixture statt nur Source-Strings.
+- [x] HistoricalChecklogDrift transparent relativiert (Patch 753): `PROJECT_CHECKLOG.md` enthaelt jetzt einen expliziten Hinweis, dass der Checklog append-only Historie und nicht alleinige Release-Wahrheit ist.
 - [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
+- [x] RateLimit-Degradation fuer Preview-Routen geschaerft (Patch 751): `save_preview`/`preview_page` setzen `enforceDurable: true`; bei durable-Ausfall jetzt `503 rate_limit_unavailable` statt lokaler Scheinsicherheit.
 - [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
 
 ## 2) Externer Live-Status: ehrliche Restpunktbewertung (read-only dokumentiert)
@@ -53,7 +63,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
-2. Stille `.catch(() => {})` reduzieren
+2. Stille `.catch(() => {})` weiter reduzieren (kritische Preview-/Build-/Upload-/Repo-Meta-Catches sind in Patch 753 und Chat-Privacy-Catches bereits auf Warn-Logging umgestellt)
 3. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
 4. `console.log` in Produktivpfaden weiter abbauen
 5. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen

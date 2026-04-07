@@ -569,6 +569,7 @@ export type DurableRateLimitConfig = {
   subject: string;
   max: number;
   windowMs: number;
+  enforceDurable?: boolean;
 };
 
 export async function requireDurableRateLimit(
@@ -582,13 +583,33 @@ export async function requireDurableRateLimit(
 
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();
+  const enforceDurable =
+    cfg.enforceDurable === true ||
+    (getRuntimeEnv("K1W1_STRICT_DURABLE_RATE_LIMIT_SCOPES") ?? "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .includes(cfg.scope);
+
+  const strictFailure = (reason: string, details?: Record<string, unknown>): Response | null => {
+    if (!enforceDurable) return null;
+    return errorResponse("rate_limit_unavailable", req, 503, {
+      scope: cfg.scope,
+      durable_required: true,
+      reason,
+      ...(details ?? {}),
+    });
+  };
+
   if (!supabaseUrl || !serviceKey) {
     console.warn("[durable-rate-limit] falling back to local limiter because durable store secrets are missing", {
       scope: cfg.scope,
       missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"],
       ...localFallbackRisk,
     });
-    return null;
+    return strictFailure("missing_durable_store_secrets", {
+      missing: ["K1W1_SUPABASE_URL|SUPABASE_URL", "K1W1_SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY"],
+    });
   }
 
   const nowIso = new Date().toISOString();
@@ -617,7 +638,7 @@ export async function requireDurableRateLimit(
         status: insertRes.status,
         ...localFallbackRisk,
       });
-      return null;
+      return strictFailure("durable_store_write_failed", { status: insertRes.status });
     }
 
     const countUrl = `${restBase}?scope=eq.${encodeURIComponent(cfg.scope)}&subject=eq.${encodeURIComponent(cfg.subject)}&created_at=gte.${encodeURIComponent(windowStartIso)}&select=id`;
@@ -637,7 +658,7 @@ export async function requireDurableRateLimit(
         status: countRes.status,
         ...localFallbackRisk,
       });
-      return null;
+      return strictFailure("durable_store_read_failed", { status: countRes.status });
     }
 
     const countHeader = countRes.headers.get("content-range") || "";
@@ -659,6 +680,8 @@ export async function requireDurableRateLimit(
       error: error instanceof Error ? error.message : String(error),
       ...localFallbackRisk,
     });
-    return null;
+    return strictFailure("durable_store_unavailable", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

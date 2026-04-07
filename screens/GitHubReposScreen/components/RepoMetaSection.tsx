@@ -13,7 +13,9 @@ export function RepoMetaSection(props: {
 
   const onOpenUser = useCallback(() => {
     if (!userLogin) return;
-    Linking.openURL(`https://github.com/${userLogin}`).catch(() => {});
+    Linking.openURL(`https://github.com/${userLogin}`).catch((error) => {
+      console.warn("[RepoMetaSection] failed to open GitHub user URL", { userLogin, error });
+    });
   }, [userLogin]);
 
   return (

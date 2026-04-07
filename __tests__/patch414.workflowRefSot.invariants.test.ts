@@ -155,7 +155,7 @@ const extractNamedTemplateLiteral = (src: string, workflowPath: string) => {
 };
 
 const GENERIC_SAFE_REF_REGEX = "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$";
-const CI_LITE_ALLOWED_REF_REGEX = "^(work|codex|main|dev|develop|release/.+|feature/.+|hotfix/.+)$";
+const CI_LITE_ALLOWED_REF_REGEX = "^(work|codex|dev|develop)$";
 
 const extractYamlInputDefault = (src: string, inputName: string) => {
   const header = `${inputName}:`;

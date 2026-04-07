@@ -89,11 +89,32 @@ export function useWebViewNavigation({
           truncateUrl(decision.url, 160),
           [
             { text: 'Abbrechen', style: 'cancel' },
-            { text: 'Öffnen', onPress: () => { void Linking.openURL(decision.url); } },
+            {
+              text: 'Öffnen',
+              onPress: () => {
+                Linking.openURL(decision.url).catch((error) => {
+                  console.warn('[useWebViewNavigation] failed to open external URL', { url: decision.url, error });
+                  Alert.alert(
+                    'Navigation blockiert',
+                    `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(decision.url, 90)}`,
+                    [{ text: 'OK' }],
+                  );
+                });
+              },
+            },
           ],
         );
       } else {
-        setTimeout(() => { Linking.openURL(decision.url).catch(() => {}); }, 0);
+        setTimeout(() => {
+          Linking.openURL(decision.url).catch((error) => {
+            console.warn('[useWebViewNavigation] failed to open external URL', { url: decision.url, error });
+            Alert.alert(
+              'Navigation blockiert',
+              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(decision.url, 90)}`,
+              [{ text: 'OK' }],
+            );
+          });
+        }, 0);
       }
       return false;
     },

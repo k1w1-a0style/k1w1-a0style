@@ -139,6 +139,57 @@ export function randomNonce(len = 16): string {
   return btoa(String.fromCharCode(...bytes)).replace(/=+$/g, "");
 }
 
+const PREVIEW_SECRET_HASH_PREFIX = "psh_v1_";
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+export async function hashPreviewSecret(secret: string): Promise<string> {
+  const input = new TextEncoder().encode(secret.trim());
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return PREVIEW_SECRET_HASH_PREFIX + bytesToBase64Url(new Uint8Array(digest));
+}
+
+export async function buildPreviewSecretCandidates(secret: string): Promise<string[]> {
+  const raw = secret.trim();
+  if (!raw) return [];
+  const hashed = await hashPreviewSecret(raw);
+  if (hashed === raw) return [raw];
+  return [hashed, raw];
+}
+
+export async function findFirstByPreviewSecretCandidates<T>(
+  secret: string,
+  lookup: (candidate: string) => Promise<T | null>,
+): Promise<T | null> {
+  const candidates = await buildPreviewSecretCandidates(secret);
+  for (const candidate of candidates) {
+    const result = await lookup(candidate);
+    if (result != null) return result;
+  }
+  return null;
+}
+
+export async function deleteByPreviewSecretCandidates(
+  secret: string,
+  remove: (candidate: string) => Promise<void>,
+): Promise<void> {
+  const candidates = await buildPreviewSecretCandidates(secret);
+  for (const candidate of candidates) {
+    await remove(candidate);
+  }
+}
+
+export function isValidPreviewSecretFormat(secret: string): boolean {
+  const trimmed = secret.trim();
+  if (!trimmed) return false;
+  if (trimmed.length < 16 || trimmed.length > 128) return false;
+  return /^[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =

@@ -26,6 +26,7 @@ import {
   MAX_PAYLOAD_BYTES,
   classifySavePreviewPayloadError,
   classifySavePreviewUnexpectedError,
+  hashPreviewSecret,
 } from "./helpers.ts";
 
 Deno.serve(async (req) => {
@@ -44,6 +45,7 @@ Deno.serve(async (req) => {
     subject: getRequestRateLimitSubject(req),
     max: 60,
     windowMs: 60_000,
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
@@ -133,8 +135,9 @@ Deno.serve(async (req) => {
   );
 
   try {
+    const storedSecret = await hashPreviewSecret(secret);
     const insertRow = {
-      secret,
+      secret: storedSecret,
       name: (body.name ?? "Preview").slice(0, 120),
       project_id,
       files,

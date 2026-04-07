@@ -6,7 +6,7 @@ import {
   escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
   getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
-  classifyPreviewPageUnexpectedError, previewPageErrorResponse,
+  classifyPreviewPageUnexpectedError, previewPageErrorResponse, deleteByPreviewSecretCandidates, findFirstByPreviewSecretCandidates, isValidPreviewSecretFormat,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -25,10 +25,6 @@ async function fetchPreviewRecord(
   const select =
     "name,secret,created_at,expires_at,project_id,files,dependencies,meta";
 
-  const restUrl =
-    `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}` +
-    `&select=${encodeURIComponent(select)}&limit=1`;
-
   let headers: Record<string, string>;
   try {
     headers = supabaseHeaders();
@@ -37,33 +33,39 @@ async function fetchPreviewRecord(
   }
 
   try {
-    const res = await fetchWithTimeout(restUrl, {
-      timeoutMs: 8000,
-      timeoutMessage: "preview_page lookup timed out after 8000ms",
-      method: "GET",
-      headers,
-    });
+    const fetchBySecret = async (lookupSecret: string) => {
+      const restUrl =
+        `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(lookupSecret)}` +
+        `&select=${encodeURIComponent(select)}&limit=1`;
+      return fetchWithTimeout(restUrl, {
+        timeoutMs: 8000,
+        timeoutMessage: "preview_page lookup timed out after 8000ms",
+        method: "GET",
+        headers,
+      });
+    };
 
-    if (!res.ok) {
-      return { ok: false, code: classifyPreviewRecordLookupFailure({ status: res.status }) };
-    }
+    const parseRecords = async (res: Response): Promise<PreviewRecord[] | null> => {
+      if (!res.ok) {
+        throw new Error(`http:${res.status}`);
+      }
+      const ctype = res.headers.get("content-type") ?? "";
+      if (!ctype.toLowerCase().includes("application/json")) {
+        throw new Error(`content-type:${ctype}`);
+      }
+      const parsed = await res.json();
+      if (!Array.isArray(parsed)) return null;
+      return parsed as PreviewRecord[];
+    };
 
-    const ctype = res.headers.get("content-type") ?? "";
-    if (!ctype.toLowerCase().includes("application/json")) {
-      console.error("preview_page: unexpected content-type:", ctype);
-      return { ok: false, code: classifyPreviewRecordLookupFailure({ contentType: ctype }) };
-    }
-
-    let arr: unknown = null;
-    try {
-      arr = await res.json();
-    } catch (e) {
-      console.error(
-        "preview_page: failed to parse JSON:",
-        sanitizeErrorText(e instanceof Error ? e.message : String(e)),
-      );
-      return { ok: false, code: classifyPreviewRecordLookupFailure({ parseFailed: true, error: e }) };
-    }
+    const arr = await findFirstByPreviewSecretCandidates<PreviewRecord[]>(
+      secret,
+      async (candidate) => {
+        const records = await parseRecords(await fetchBySecret(candidate));
+        if (!Array.isArray(records) || records.length === 0) return null;
+        return records;
+      },
+    );
 
     if (!Array.isArray(arr) || arr.length === 0) return { ok: true, record: null };
     const record = arr[0] as PreviewRecord;
@@ -73,33 +75,40 @@ async function fetchPreviewRecord(
     }
     return { ok: true, record };
   } catch (e) {
+    const msg = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    if (msg.startsWith("http:")) {
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ status: Number(msg.slice(5)) }) };
+    }
+    if (msg.startsWith("content-type:")) {
+      return { ok: false, code: classifyPreviewRecordLookupFailure({ contentType: msg.slice("content-type:".length) }) };
+    }
     console.error(
       "fetchPreviewRecord error:",
-      sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+      msg,
     );
-    return { ok: false, code: classifyPreviewRecordLookupFailure({ error: e }) };
+    return { ok: false, code: classifyPreviewRecordLookupFailure({ parseFailed: true, error: e }) };
   }
 }
 
 async function deletePreviewRecord(secret: string): Promise<void> {
   const base = getSupabaseBaseUrl();
   if (!base) return;
-
-  const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(secret)}`;
-
-  try {
-    await fetchWithTimeout(restUrl, {
-      timeoutMs: 6000,
-      timeoutMessage: "preview_page delete timed out after 6000ms",
-      method: "DELETE",
-      headers: supabaseHeaders(),
-    });
-  } catch (e) {
-    console.error(
-      "deletePreviewRecord error:",
-      sanitizeErrorText(e instanceof Error ? e.message : String(e)),
-    );
-  }
+  await deleteByPreviewSecretCandidates(secret, async (candidate) => {
+    const restUrl = `${base}/rest/v1/${TABLE}?secret=eq.${encodeURIComponent(candidate)}`;
+    try {
+      await fetchWithTimeout(restUrl, {
+        timeoutMs: 6000,
+        timeoutMessage: "preview_page delete timed out after 6000ms",
+        method: "DELETE",
+        headers: supabaseHeaders(),
+      });
+    } catch (e) {
+      console.error(
+        "deletePreviewRecord error:",
+        sanitizeErrorText(e instanceof Error ? e.message : String(e)),
+      );
+    }
+  });
 }
 
 function isExpired(expiresAtIso: string | null | undefined): boolean {
@@ -113,13 +122,6 @@ function parseToggleParam(value: string | null): boolean {
   if (!value) return false;
   const normalized = value.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
-function isValidPreviewSecret(secret: string): boolean {
-  const trimmed = secret.trim();
-  if (!trimmed) return false;
-  if (trimmed.length < 16 || trimmed.length > 128) return false;
-  return /^[A-Za-z0-9_-]+$/.test(trimmed);
 }
 
 function withToggleUrl(params: {
@@ -387,8 +389,8 @@ function renderFragmentBootstrapPage(params: { nonce: string }): string {
       current.hash = "";
       try {
         window.history.replaceState(null, "", current.pathname + current.search);
-      } catch {
-        // no-op: history updates can fail in restrictive contexts
+      } catch (err) {
+        console.warn("preview_page: history replace failed", err);
       }
 
       fetch(current.toString(), {
@@ -403,7 +405,8 @@ function renderFragmentBootstrapPage(params: { nonce: string }): string {
           document.write(page);
           document.close();
         })
-        .catch(() => {
+        .catch((err) => {
+          console.warn("preview_page: fragment bootstrap fetch failed", err);
           writeError("Preview could not be loaded.");
         });
     }
@@ -413,11 +416,22 @@ function renderFragmentBootstrapPage(params: { nonce: string }): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return previewPageErrorResponse({
+      code: "preview_payload_invalid",
+      nonce: randomNonce(),
+      title: "Method not allowed",
+      message: "Preview page accepts GET/HEAD only.",
+      status: 405,
+    });
+  }
+
   const durableRl = await requireDurableRateLimit(req, {
     scope: "preview_page",
     subject: getRequestClientIp(req),
     max: 60,
     windowMs: 60_000,
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
@@ -447,7 +461,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!isValidPreviewSecret(secret)) {
+    if (!isValidPreviewSecretFormat(secret)) {
       return htmlPreviewError({
         code: "preview_payload_invalid",
         nonce,

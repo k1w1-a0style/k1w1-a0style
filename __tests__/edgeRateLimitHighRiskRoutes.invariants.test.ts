@@ -15,6 +15,7 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     const src = read("supabase/functions/preview_page/index.ts");
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "preview_page"');
+    expect(src).toContain("enforceDurable: true");
     expect(src).toContain('rateLimit(req, "preview_page", 60, 60_000)');
   });
 });

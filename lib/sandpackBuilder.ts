@@ -15,6 +15,7 @@ import {
 export type { SandpackOptions } from "./sandpackHelpers";
 
 function isUnsafeLocalEvalAllowed(opts: SandpackOptions): boolean {
+  if (process.env.NODE_ENV === "production") return false;
   if (opts.allowUnsafeLocalEval === true) return true;
   if (opts.allowUnsafeLocalEval === false) return false;
   if (process.env.NODE_ENV === "test") return true;

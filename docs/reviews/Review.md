@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 750, Preview-Contract/Gate/Secret-Truth Sync)**
+Stand: **2026-04-07 (Patch 755, Diagnostic Upload Catch-Mismatch + Runtime Follow-up)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -39,8 +39,17 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Build-/Diagnostics-Gates fail-closed und repo/branch-scoped
 - Projektpersistenz verschluesselt
 - Edge-Routen byte-genauere Body-/Payload-Limits, durable Rate Limits mit lokalem Fallback
+- Preview-sensitive Routen (`save_preview`, `preview_page`) verlangen nun durable Rate-Limits fail-closed; lokale In-Memory-Degradation bleibt nur fuer weniger sensible Routen aktiv.
+- Preview-Expiry-Cleanup bleibt trotz Secret-Hashing funktionsfaehig: Lookup und Delete teilen jetzt denselben hash-first + legacy-raw Secret-Candidate-Pfad.
+- Kritische stille Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbare Warnpfade umgestellt; Fail-safe-Fallback-Verhalten bleibt erhalten.
+- Follow-up-SilentCatch in PreviewFullscreen + Diagnostic-Upload-Device-ID-Fallback ist ebenfalls sichtbar gemacht (warn statt stumm).
+- Der verbliebene stumme `useDiagnosticUpload`-Cooldown-Load-Catch ist ebenfalls entfernt (sichtbares warn-logging).
+- Disabled-Legacy-Edge-Vertrag ist neben Script-Run jetzt auch execution-nah per Fixture-Test abgesichert.
+- Preview-Secret-Format-Guard ist als shared Runtime-Helper extrahiert und testseitig ausfuehrbar abgesichert.
+- `PROJECT_CHECKLOG.md` ist explizit als append-only Historie relativiert und wird nicht als alleinige aktuelle Release-Wahrheit gelesen.
 - Legacy-/Compat-Oberflaeche deutlich reduziert
 - `create_codesandbox` deaktiviert
+- verbleibende disabled Legacy-Edges bleiben bewusst als 410-Stubs + `verify_jwt=true` bestehen (kleinste Restoberflaeche, keine unkontrollierte Reaktivierung).
 - Doku-/Review-/TODO-Landschaft auf eine kleine kanonische Menge reduziert
 
 ## Was bewusst **kein offener Repo-Fehler** ist

@@ -18,7 +18,8 @@ export async function getChatHistoryPersistence(): Promise<boolean> {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY);
     const parsed = parseBool(raw);
     return parsed ?? DEFAULT_PERSIST;
-  } catch {
+  } catch (error) {
+    console.warn("[chatPrivacySettings] failed to read persistence flag; using default", error);
     return DEFAULT_PERSIST;
   }
 }
@@ -26,8 +27,8 @@ export async function getChatHistoryPersistence(): Promise<boolean> {
 export async function setChatHistoryPersistence(enabled: boolean): Promise<void> {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.CHAT_PERSIST_HISTORY, enabled ? "1" : "0");
-  } catch {
-    // best-effort (privacy toggle should never crash)
+  } catch (error) {
+    console.warn("[chatPrivacySettings] failed to persist persistence flag", error);
   }
 }
 
@@ -42,7 +43,8 @@ export async function getChatHistoryRetentionLimit(): Promise<number> {
     const n = Number(trimmed);
     if (Number.isFinite(n) && n >= 0) return Math.floor(n);
     return DEFAULT_RETENTION;
-  } catch {
+  } catch (error) {
+    console.warn("[chatPrivacySettings] failed to read retention limit; using default", error);
     return DEFAULT_RETENTION;
   }
 }
@@ -52,7 +54,9 @@ export async function setChatHistoryRetentionLimit(limit: number): Promise<void>
     Number.isFinite(limit) && limit >= 0 ? Math.floor(limit) : DEFAULT_RETENTION;
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.CHAT_RETENTION_LIMIT, String(safeLimit));
-  } catch {}
+  } catch (error) {
+    console.warn("[chatPrivacySettings] failed to persist retention limit", error);
+  }
 }
 
 export async function loadChatHistorySettings(): Promise<{

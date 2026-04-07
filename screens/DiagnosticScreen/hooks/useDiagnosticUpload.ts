@@ -56,8 +56,8 @@ export function useDiagnosticUpload(opts: {
         if (cancelled) return;
         setUploadCooldownUntil(until);
         setCooldownNow(now);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.warn("[useDiagnosticUpload] failed to load persisted upload cooldown", error);
       }
     })();
     return () => {
@@ -74,7 +74,9 @@ export function useDiagnosticUpload(opts: {
       setCooldownNow(now);
       if (uploadCooldownUntil <= now) {
         setUploadCooldownUntil(0);
-        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch(() => {});
+        AsyncStorage.removeItem(UPLOAD_COOLDOWN_KEY).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to clear expired upload cooldown", error);
+        });
       }
     };
     tick();
@@ -110,8 +112,8 @@ export function useDiagnosticUpload(opts: {
     try {
       const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
       if (existing) return existing;
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to read persisted device ID", error);
     }
     let rand = "";
     try {
@@ -119,14 +121,15 @@ export function useDiagnosticUpload(opts: {
       rand = Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-    } catch {
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to read crypto random bytes; using fallback", error);
       rand = Math.random().toString(16).slice(2);
     }
     const id = `dev_${rand}`;
     try {
       await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to persist generated device ID", error);
     }
     return id;
   }, []);
@@ -167,7 +170,9 @@ export function useDiagnosticUpload(opts: {
         const until = Date.now() + UPLOAD_COOLDOWN_MS;
         setUploadCooldownUntil(until);
         setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(() => {});
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to persist upload cooldown", error);
+        });
       }
 
       Alert.alert("■ Upload OK", `ID: ${id.id}`);
@@ -176,7 +181,9 @@ export function useDiagnosticUpload(opts: {
         const until = Date.now() + UPLOAD_RETRY_DELAY_MS;
         setUploadCooldownUntil(until);
         setCooldownNow(Date.now());
-        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch(() => {});
+        AsyncStorage.setItem(UPLOAD_COOLDOWN_KEY, String(until)).catch((error) => {
+          console.warn("[useDiagnosticUpload] failed to persist retry cooldown", error);
+        });
       }
       Alert.alert("Upload fehlgeschlagen", getDiagnosticUiErrorMessage(e));
     } finally {

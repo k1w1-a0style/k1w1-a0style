@@ -119,7 +119,8 @@ export function useBuildPreconditions(
         setRepoSyncState(syncState);
         setRepoSyncReason(syncReason);
       });
-    } catch {
+    } catch (error) {
+      console.warn("[useBuildPreconditions] refresh failed; applying fail-closed defaults", error);
       applyIfCurrent(() => {
         setHasSigningKey(false);
         setSigningKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Signing Key erneut prüfen");
@@ -139,12 +140,16 @@ export function useBuildPreconditions(
   }, [branchName, buildProfile, projectData?.id, projectData?.files, repoFullName]);
 
   useEffect(() => {
-    refreshPreconditions().catch(() => {});
+    refreshPreconditions().catch((error) => {
+      console.warn("[useBuildPreconditions] initial refresh failed", error);
+    });
   }, [refreshPreconditions]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshPreconditions().catch(() => {});
+      refreshPreconditions().catch((error) => {
+        console.warn("[useBuildPreconditions] focus refresh failed", error);
+      });
       return undefined;
     }, [refreshPreconditions]),
   );

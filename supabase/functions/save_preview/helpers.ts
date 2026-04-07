@@ -146,6 +146,20 @@ export function randomSecret(lenBytes = 24): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+const PREVIEW_SECRET_HASH_PREFIX = "psh_v1_";
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+export async function hashPreviewSecret(secret: string): Promise<string> {
+  const input = new TextEncoder().encode(secret.trim());
+  const digest = await crypto.subtle.digest("SHA-256", input);
+  return PREVIEW_SECRET_HASH_PREFIX + bytesToBase64Url(new Uint8Array(digest));
+}
+
 export function approxSize(obj: unknown): number {
   try {
     return new TextEncoder().encode(JSON.stringify(obj)).length;

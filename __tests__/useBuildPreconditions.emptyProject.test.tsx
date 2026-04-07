@@ -93,12 +93,18 @@ describe("useBuildPreconditions empty project guard", () => {
     }
 
     const screen = render(<HarnessFailure />);
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
     await waitFor(() => {
       expect(screen.getByTestId("hasDiagOk").props.children).toBe("false");
       expect(String(screen.getByTestId("diagnosticReason").props.children)).toMatch(/nicht frisch geladen/i);
       expect(screen.getByTestId("repoSyncState").props.children).toBe("unknown");
     });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[useBuildPreconditions] refresh failed; applying fail-closed defaults",
+      expect.any(Error),
+    );
+    warnSpy.mockRestore();
   });
 
 });
