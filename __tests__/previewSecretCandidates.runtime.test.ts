@@ -2,6 +2,7 @@ import {
   buildPreviewSecretCandidates,
   deleteByPreviewSecretCandidates,
   findFirstByPreviewSecretCandidates,
+  isValidPreviewSecretFormat,
 } from "../supabase/functions/preview_page/helpers";
 
 describe("preview secret candidate runtime contract", () => {
@@ -46,5 +47,12 @@ describe("preview secret candidate runtime contract", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatch(/^psh_v1_/);
     expect(calls[1]).toBe("cleanup-secret");
+  });
+
+  it("enforces preview secret format fail-closed for missing/invalid cases", () => {
+    expect(isValidPreviewSecretFormat("")).toBe(false);
+    expect(isValidPreviewSecretFormat("short")).toBe(false);
+    expect(isValidPreviewSecretFormat("invalid secret with spaces")).toBe(false);
+    expect(isValidPreviewSecretFormat("valid_secret_token_123456")).toBe(true);
   });
 });

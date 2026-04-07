@@ -6,7 +6,7 @@ import {
   escapeHtml, safeJsonForScript, getSupabaseBaseUrl, supabaseHeaders,
   utf8Size, approxFilesPayloadSize, randomNonce, html, htmlPreviewError,
   getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText, classifyPreviewRecordLookupFailure, classifyPreviewRecordShape,
-  classifyPreviewPageUnexpectedError, previewPageErrorResponse, deleteByPreviewSecretCandidates, findFirstByPreviewSecretCandidates,
+  classifyPreviewPageUnexpectedError, previewPageErrorResponse, deleteByPreviewSecretCandidates, findFirstByPreviewSecretCandidates, isValidPreviewSecretFormat,
 } from "./helpers.ts";
 import type { SnackFiles, PreviewRecord } from "./helpers.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -122,13 +122,6 @@ function parseToggleParam(value: string | null): boolean {
   if (!value) return false;
   const normalized = value.trim().toLowerCase();
   return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
-function isValidPreviewSecret(secret: string): boolean {
-  const trimmed = secret.trim();
-  if (!trimmed) return false;
-  if (trimmed.length < 16 || trimmed.length > 128) return false;
-  return /^[A-Za-z0-9_-]+$/.test(trimmed);
 }
 
 function withToggleUrl(params: {
@@ -468,7 +461,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!isValidPreviewSecret(secret)) {
+    if (!isValidPreviewSecretFormat(secret)) {
       return htmlPreviewError({
         code: "preview_payload_invalid",
         nonce,

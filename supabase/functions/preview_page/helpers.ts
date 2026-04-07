@@ -183,6 +183,13 @@ export async function deleteByPreviewSecretCandidates(
   }
 }
 
+export function isValidPreviewSecretFormat(secret: string): boolean {
+  const trimmed = secret.trim();
+  if (!trimmed) return false;
+  if (trimmed.length < 16 || trimmed.length > 128) return false;
+  return /^[A-Za-z0-9_-]+$/.test(trimmed);
+}
+
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =

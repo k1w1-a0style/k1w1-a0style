@@ -112,8 +112,8 @@ export function useDiagnosticUpload(opts: {
     try {
       const existing = await SecureStore.getItemAsync(DEVICE_ID_KEY);
       if (existing) return existing;
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to read persisted device ID", error);
     }
     let rand = "";
     try {
@@ -121,14 +121,15 @@ export function useDiagnosticUpload(opts: {
       rand = Array.from(bytes)
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
-    } catch {
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to read crypto random bytes; using fallback", error);
       rand = Math.random().toString(16).slice(2);
     }
     const id = `dev_${rand}`;
     try {
       await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
-    } catch {
-      // ignore
+    } catch (error) {
+      console.warn("[useDiagnosticUpload] failed to persist generated device ID", error);
     }
     return id;
   }, []);

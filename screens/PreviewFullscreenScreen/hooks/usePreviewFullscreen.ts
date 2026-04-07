@@ -68,7 +68,13 @@ export function usePreviewFullscreen() {
   // Jetzt: hasUrlParseError wird an Komponente weitergegeben → korrekte Guards.
   const hasUrlParseError = useMemo<boolean>(() => {
     if (mode !== 'url' || !url) return false;
-    try { new URL(url); return false; } catch { return true; }
+    try {
+      new URL(url);
+      return false;
+    } catch (error) {
+      console.warn('[usePreviewFullscreen] invalid preview URL parsing failed', { url, error });
+      return true;
+    }
   }, [mode, url]);
 
   // ─── Shared WebView navigation ─────────────────────────────────────────────

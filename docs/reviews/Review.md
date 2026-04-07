@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 753, Runtime-Hardening + Checklog/SilentCatch Cleanup)**
+Stand: **2026-04-07 (Patch 754, SilentCatch Follow-up + Preview Format Runtime Guard)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -42,6 +42,8 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Preview-sensitive Routen (`save_preview`, `preview_page`) verlangen nun durable Rate-Limits fail-closed; lokale In-Memory-Degradation bleibt nur fuer weniger sensible Routen aktiv.
 - Preview-Expiry-Cleanup bleibt trotz Secret-Hashing funktionsfaehig: Lookup und Delete teilen jetzt denselben hash-first + legacy-raw Secret-Candidate-Pfad.
 - Kritische stille Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbare Warnpfade umgestellt; Fail-safe-Fallback-Verhalten bleibt erhalten.
+- Follow-up-SilentCatch in PreviewFullscreen + Diagnostic-Upload-Device-ID-Fallback ist ebenfalls sichtbar gemacht (warn statt stumm).
+- Preview-Secret-Format-Guard ist als shared Runtime-Helper extrahiert und testseitig ausfuehrbar abgesichert.
 - `PROJECT_CHECKLOG.md` ist explizit als append-only Historie relativiert und wird nicht als alleinige aktuelle Release-Wahrheit gelesen.
 - Legacy-/Compat-Oberflaeche deutlich reduziert
 - `create_codesandbox` deaktiviert

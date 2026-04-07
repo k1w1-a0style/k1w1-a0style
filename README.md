@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 753, Runtime-Hardening + Checklog/SilentCatch Cleanup)**
+Stand: **2026-04-07 (Patch 754, SilentCatch Follow-up + Preview Format Runtime Guard)**
 
-Zuletzt abgeschlossen: **Patch 753**
+Zuletzt abgeschlossen: **Patch 754**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

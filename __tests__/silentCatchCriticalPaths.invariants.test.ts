@@ -9,6 +9,7 @@ describe("critical-path silent catch debt", () => {
     "screens/GitHubReposScreen/components/RepoMetaSection.tsx",
     "screens/DiagnosticScreen/hooks/useDiagnosticUpload.ts",
     "screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts",
+    "screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts",
     "lib/chatPrivacySettings.ts",
   ];
 
