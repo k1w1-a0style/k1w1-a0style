@@ -39,8 +39,8 @@ Alle Kommandos liefen grün; `verify:release` hat Live-Contracts mangels Env sau
    - **Status 2026-04-07:** geschlossen; Ref-Validierung ist zentral fail-closed (`isAllowedGitRef(...)`).
 3. **[MEDIUM] Live-Contract nicht praktisch verifiziert**
    - Die geforderten Live-Checks (`k1w1-handler` invalid JSON, `preview_page` bogus secret) sind nur scriptseitig belegbar, nicht gegen echtes Projekt ausgeführt.
-4. **[MEDIUM] Preview-Secret weiterhin Query-Param**
-   - **Status 2026-04-07:** Standardpfad nutzt Fragment-Handoff (`?transport=fragment#secret=...`); `preview_page` leitet Legacy-`?secret=` auf Fragment um, sodass Query-Secrets nicht im Laufzeitpfad verbleiben.
+4. **[MEDIUM] Historischer Preview-Secret-URL-Pfad (inzwischen entfernt)**
+   - **Status 2026-04-07 (Patch 749):** Query-Secret-Compat in `preview_page` ist entfernt (kein `?secret=`-Pfad, keine Legacy-Bridge); Preview akzeptiert nur Fragment-Start + Header-Handoff (`x-k1w1-preview-secret`).
 5. **[LOW-MEDIUM] upload-artifact SHA-Pins nicht einheitlich**
    - Mehrere unterschiedliche Pins (`ea165f...`, `4cec3d...`) im Repo; kein unmittelbarer Defekt, aber Drift-/Wartungsrisiko.
 
@@ -51,7 +51,7 @@ Alle Kommandos liefen grün; `verify:release` hat Live-Contracts mangels Env sau
 
 ### Hygiene-/Wartungsthemen
 - Uneinheitliche `actions/upload-artifact`-Pins über Workflows.
-- Preview-Secret-in-URL als bekannter, operativ zu kontrollierender Restpunkt.
+- Historischer Preview-Secret-URL-Restpunkt ist repo-seitig geschlossen; bleibt nur als Altbefund im Auditverlauf dokumentiert.
 
 ## Empfehlungen
 

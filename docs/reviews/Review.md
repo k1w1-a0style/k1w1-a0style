@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 748, Mini-Finish: main aus verbleibenden Writeback-Pfaden entfernt)**
+Stand: **2026-04-07 (Patch 749, Preview-Legacy-Removal: Query-Secret-Bridge entfernt)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -14,8 +14,8 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Release-/Trust-Drift im CI-Lite-Operatorpfad ehrlich reproduziert und behoben: `check_workflow_edge_contracts.sh` war lokal rot wegen fehlendem Pflicht-Marker in `useCiLiteWorkflow.ts` (`JWT role=build_admin (oder service_role fuer Server-Caller)`), nach Marker-Nachzug wieder gruen.
 - Workflow-Writeback im manuellen `eas-link`-Pfad gehaertet: Top-Level-Permissions auf read-default reduziert, Write nur job-scoped; Commit-Push erfolgt nur noch fuer explizite, sichere Remote-Branches (kein SHA/detached/unsafe Ref, kein stilles `|| true` beim Push).
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
-- Preview-Secret-Transport ist repo-seitig minimal gehaertet: neue Links nutzen Fragment-Handoff statt Query-Secret (`save_preview` -> `preview_page?transport=fragment#secret=...`), bei erhaltener Legacy-Kompatibilitaet fuer bestehende `?secret=`-Links.
-- Legacy-Risiko bleibt bewusst transparent: bestehende Altlinks mit `?secret=` werden weiter unterstuetzt, aber nur ueber einen minimierten Bridge-Pfad mit Format-Guard und sofortigem Handoff; fuer neue Links bleibt Fragment-Handoff der Standard.
+- Preview-Secret-Transport ist repo-seitig final gehaertet: neue Links nutzen Fragment-Handoff (`save_preview` -> `preview_page?transport=fragment#secret=...`) und `preview_page` akzeptiert Secrets nur noch ueber Header-Handoff (`x-k1w1-preview-secret`).
+- Legacy-Query-Secret wurde bewusst vollstaendig entfernt: kein `?secret=`-Pfad, keine Bridge, kein funktionierender Altbestand als Kompatibilitaetsziel; Preview laeuft ausschliesslich ueber Fragment-Handoff + Header-Secret.
 - Persistenz-/Recovery-Muss-Punkte aus PR-572-Follow-up wurden repo-seitig nachgezogen (NoRekeyOnRead, NoDelayedOverwrite-Guard, Corrupt-Plaintext-Recoverypfad); verbleibende externe Themen bleiben getrennt in `docs/TODO.md` dokumentiert.
 - AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
 - `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
