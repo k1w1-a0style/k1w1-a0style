@@ -37,6 +37,12 @@ function decodeBase64(input: string): Uint8Array {
   return binaryStringToBytes(atob(input));
 }
 
+function looksLikeLegacyAesCbcPayload(payload: string): boolean {
+  const normalized = payload.trim();
+  if (normalized.length < 24 || normalized.length % 4 !== 0) return false;
+  return /^[A-Za-z0-9+/=]+$/.test(normalized);
+}
+
 /**
  * Legacy compatibility KDF (SHA-256 only).
  * Strictly for legacy read/decrypt compatibility and migration fixtures.
@@ -72,6 +78,16 @@ export function isVersionedKeystoreEnvelope(value: string): boolean {
  * Never use this for new writes.
  */
 export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, masterKey: string): Promise<string> {
+  const maybeDeno = (globalThis as { Deno?: { env?: { get?: (name: string) => string | undefined } } }).Deno;
+  if (maybeDeno?.env?.get) {
+    const denoEnv = maybeDeno.env.get("DENO_ENV") ?? maybeDeno.env.get("NODE_ENV") ?? "";
+    if (denoEnv && denoEnv !== "test") {
+      throw new Error("Legacy AES-CBC test helper may only run in test environment");
+    }
+  } else if (typeof process !== "undefined" && process.env.NODE_ENV && process.env.NODE_ENV !== "test") {
+    throw new Error("Legacy AES-CBC test helper may only run in test environment");
+  }
+
   const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
   const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
@@ -241,5 +257,9 @@ export async function decryptKeystorePayload(payload: string, masterKey: string)
 
   // Legacy fallback for older AES-CBC records stored before v2 envelope rollout.
   // NOTE: read-only compatibility path; all new writes stay on v3 (PBKDF2 + AES-GCM).
+  // Guardrail: only attempt AES-CBC fallback for payloads that actually look like legacy ciphertext.
+  if (!looksLikeLegacyAesCbcPayload(payload)) {
+    throw new Error("Encrypted keystore payload contract mismatch");
+  }
   return decryptWithAesCbcLegacyCompatOnly(payload, masterKey);
 }

@@ -33,6 +33,15 @@ type OutboundMsg =
 /** Maximum payload size (characters) we accept from the WebView to prevent memory bombs. */
 const MAX_BRIDGE_PAYLOAD = 5_000_000; // ~5MB
 
+const isDevBridgeDiagnostics = typeof __DEV__ !== "undefined" ? __DEV__ : process.env.NODE_ENV !== "production";
+let hasLoggedBridgeParseFailure = false;
+
+function logBridgeParseFailure(reason: string): void {
+  if (!isDevBridgeDiagnostics || hasLoggedBridgeParseFailure) return;
+  hasLoggedBridgeParseFailure = true;
+  console.warn("[WebCodeEditor] dropping malformed bridge message", { reason });
+}
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   if (v === null || typeof v !== "object") return false;
   const proto = Object.getPrototypeOf(v);
@@ -69,13 +78,20 @@ function sanitizeInboundMsg(v: InboundMsg): InboundMsg {
 
 function parseBridgeMessage(raw: unknown): InboundMsg | null {
   if (typeof raw !== "string" || !raw) return null;
-  if (raw.length > MAX_BRIDGE_PAYLOAD) return null;
+  if (raw.length > MAX_BRIDGE_PAYLOAD) {
+    logBridgeParseFailure("payload_too_large");
+    return null;
+  }
 
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!isInboundMsg(parsed)) return null;
+    if (!isInboundMsg(parsed)) {
+      logBridgeParseFailure("schema_mismatch");
+      return null;
+    }
     return sanitizeInboundMsg(parsed);
   } catch {
+    logBridgeParseFailure("invalid_json");
     return null;
   }
 }

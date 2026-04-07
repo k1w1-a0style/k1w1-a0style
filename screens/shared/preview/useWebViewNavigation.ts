@@ -36,7 +36,10 @@ export function useWebViewNavigation({
     try {
       const u = new URL(url);
       return `${u.protocol}//${u.host}`;
-    } catch {
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[useWebViewNavigation] invalid preview URL for url-mode origin guard', { url, error });
+      }
       return null;
     }
   }, [mode, url]);
