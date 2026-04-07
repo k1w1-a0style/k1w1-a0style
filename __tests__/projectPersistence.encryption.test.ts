@@ -84,4 +84,19 @@ describe("project persistence encryption", () => {
     expect(migrated).toContain('"type":"k1w1-project-storage"');
     expect(migrated).not.toContain("Legacy Plaintext");
   });
+
+  it("throws an explicit recovery error for encrypted payloads with wrong decrypt key", async () => {
+    const project = makeProjectData({
+      name: "Encrypted Recovery",
+      files: [makeProjectFile("src/recovery.ts", "export const x = 1;")],
+      chatHistory: [],
+    });
+
+    await saveProjectToStorage(project);
+    resetMockSecureStore();
+
+    await expect(loadProjectFromStorage()).rejects.toThrow(
+      /Verschluesseltes Projekt konnte nicht entschluesselt werden/i,
+    );
+  });
 });

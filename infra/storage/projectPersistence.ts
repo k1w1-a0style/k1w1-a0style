@@ -63,15 +63,16 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
 };
 
 export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
+  let rawStoragePayload: string | null = null;
   try {
-    const projectString = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
-    if (!projectString) {
+    rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    if (!rawStoragePayload) {
       logger.info('📂 Kein gespeichertes Projekt gefunden');
       return null;
     }
 
     const { projectString: persistedProjectString, migratedFromPlaintext } =
-      await deserializeProjectStoragePayload(projectString);
+      await deserializeProjectStoragePayload(rawStoragePayload);
     const project = JSON.parse(persistedProjectString);
     logger.info('📖 Projekt geladen:', project.name);
 
@@ -108,12 +109,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     return project;
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Laden", { err: error });
-    if (
-      typeof error === "object" &&
-      error &&
-      "message" in error &&
-      looksLikeEncryptedProjectStoragePayload(await AsyncStorage.getItem(PROJECT_STORAGE_KEY) ?? "")
-    ) {
+    if (rawStoragePayload && looksLikeEncryptedProjectStoragePayload(rawStoragePayload)) {
       throw new Error(
         "Verschluesseltes Projekt konnte nicht entschluesselt werden (Key/Decrypt-Fehler). Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
       );
