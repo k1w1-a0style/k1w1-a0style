@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-07 (Patch 758, EdgeTypecheck/PreviewGateTightening/LegacySurfaceClamp close)**
+Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
 
 ## Aktiv und workflow-relevant
 
