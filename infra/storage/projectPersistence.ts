@@ -18,7 +18,11 @@ import { normalizePath, Validators, validateZipImport } from '../../lib/validato
 import { zip, unzip } from 'react-native-zip-archive';
 import { logger } from "../../lib/logger";
 import { inspectZipArchiveFromUri } from "./zipInspection";
-import { deserializeProjectStoragePayload, encryptProjectStoragePayload } from "./projectStorageCrypto";
+import {
+  deserializeProjectStoragePayload,
+  encryptProjectStoragePayload,
+  looksLikeEncryptedProjectStoragePayload,
+} from "./projectStorageCrypto";
 
 import {
   PROJECT_STORAGE_KEY, CACHE_DIR, BINARY_EXTENSIONS,
@@ -66,7 +70,8 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
       return null;
     }
 
-    const { projectString: persistedProjectString, migratedFromPlaintext } = await deserializeProjectStoragePayload(projectString);
+    const { projectString: persistedProjectString, migratedFromPlaintext } =
+      await deserializeProjectStoragePayload(projectString);
     const project = JSON.parse(persistedProjectString);
     logger.info('📖 Projekt geladen:', project.name);
 
@@ -103,6 +108,16 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     return project;
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Laden", { err: error });
+    if (
+      typeof error === "object" &&
+      error &&
+      "message" in error &&
+      looksLikeEncryptedProjectStoragePayload(await AsyncStorage.getItem(PROJECT_STORAGE_KEY) ?? "")
+    ) {
+      throw new Error(
+        "Verschluesseltes Projekt konnte nicht entschluesselt werden (Key/Decrypt-Fehler). Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
+      );
+    }
     return null;
   }
 };

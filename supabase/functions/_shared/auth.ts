@@ -521,6 +521,7 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
  * max: allowed calls within windowMs for an IP
  */
 const rl = new Map<string, { t: number; c: number }>();
+let rlLastPruneAt = 0;
 export function rateLimit(
   req: Request,
   key: string,
@@ -530,10 +531,19 @@ export function rateLimit(
   const ip = getRequestClientIp(req);
   const k = `${key}:${ip}`;
   const now = Date.now();
-  if (rl.size > 5_000) {
+  if (now - rlLastPruneAt > Math.max(windowMs, 10_000) || rl.size > 5_000) {
+    rlLastPruneAt = now;
     for (const [entryKey, entryValue] of rl) {
       if (now - entryValue.t > windowMs * 2) {
         rl.delete(entryKey);
+      }
+    }
+    if (rl.size > 10_000) {
+      let removed = 0;
+      for (const [entryKey] of rl) {
+        rl.delete(entryKey);
+        removed += 1;
+        if (rl.size <= 8_000 || removed > 2_000) break;
       }
     }
   }

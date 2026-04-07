@@ -9,7 +9,8 @@ import { CHAT_HISTORY_RETENTION_FALLBACK } from "./projectContextStateHelpers";
 
 export type InitializeProjectDataResult = {
   project: ProjectData;
-  source: "storage" | "template";
+  source: "storage" | "template" | "recovery-template";
+  recoveryError?: string;
 };
 
 export const initializeProjectData = async (params: {
@@ -18,7 +19,13 @@ export const initializeProjectData = async (params: {
   saveProjectToStorage: (project: ProjectData) => Promise<void>;
   createProjectId: () => string;
 }): Promise<InitializeProjectDataResult> => {
-  const savedProject = await params.loadProjectFromStorage();
+  let savedProject: ProjectData | null = null;
+  let storageLoadError: unknown = null;
+  try {
+    savedProject = await params.loadProjectFromStorage();
+  } catch (error) {
+    storageLoadError = error;
+  }
 
   if (savedProject) {
     return {
@@ -32,11 +39,14 @@ export const initializeProjectData = async (params: {
     id: params.createProjectId(),
     files: templateFiles,
   });
-  await params.saveProjectToStorage(newProject);
+  if (!storageLoadError) {
+    await params.saveProjectToStorage(newProject);
+  }
 
   return {
     project: newProject,
-    source: "template",
+    source: storageLoadError ? "recovery-template" : "template",
+    recoveryError: storageLoadError instanceof Error ? storageLoadError.message : undefined,
   };
 };
 
@@ -138,6 +148,7 @@ export const createAppStateSaveHandler = (params: {
 export type ProjectSaveScheduler = {
   queueSave: (project: ProjectData) => void;
   clearPendingSave: () => void;
+  invalidatePendingSnapshot: () => void;
   flushForAppState: (nextState: AppStateStatus, projectData: ProjectData | null) => Promise<boolean>;
   getPendingTimeout: () => SaveTimeout | null;
 };
@@ -150,8 +161,10 @@ export const createProjectSaveScheduler = (params: {
   onSaveError: (error: unknown) => void;
 }): ProjectSaveScheduler => {
   let saveTimeout: SaveTimeout | null = null;
+  let saveGeneration = 0;
 
   const clearPendingSave = () => {
+    saveGeneration += 1;
     saveTimeout = clearPendingProjectSaveTimeout({
       saveTimeout,
       clearTimeoutFn: params.clearTimeoutFn,
@@ -160,17 +173,24 @@ export const createProjectSaveScheduler = (params: {
 
   return {
     queueSave(project) {
+      const generation = ++saveGeneration;
       saveTimeout = scheduleDebouncedProjectSave({
         saveTimeout,
         clearTimeoutFn: params.clearTimeoutFn,
         setTimeoutFn: params.setTimeoutFn,
         debounceMs: params.debounceMs,
         project,
-        saveProjectToStorage: params.saveProjectToStorage,
+        saveProjectToStorage: async (queuedProject) => {
+          if (generation !== saveGeneration) return;
+          await params.saveProjectToStorage(queuedProject);
+        },
         onSaveError: params.onSaveError,
       });
     },
     clearPendingSave,
+    invalidatePendingSnapshot() {
+      clearPendingSave();
+    },
     flushForAppState(nextState, projectData) {
       return flushProjectSaveForAppState({
         nextState,

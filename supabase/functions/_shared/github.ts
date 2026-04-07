@@ -34,6 +34,22 @@ export function isAllowedGithubRepo(repo: string): boolean {
   return allow.includes(repo);
 }
 
+export function isAllowedGitRef(ref: string | null | undefined): boolean {
+  const r = (ref ?? "").trim();
+  if (!r) return false;
+  if (r.startsWith("refs/")) return false;
+  if (/^[0-9a-f]{40}$/i.test(r)) return false;
+
+  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  if (!regexStr) return false;
+  try {
+    const re = new RegExp(regexStr);
+    return re.test(r);
+  } catch {
+    return false;
+  }
+}
+
 export function githubHeaders(
   token?: string,
   scheme: "Bearer" | "token" = "Bearer",

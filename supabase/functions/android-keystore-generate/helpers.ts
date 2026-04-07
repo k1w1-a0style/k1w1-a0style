@@ -6,7 +6,6 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
-  deriveAesKeyBytes,
   encryptKeystorePayload,
   encryptWithAesCbcLegacy,
 } from "../_shared/androidKeystoreCrypto.ts";
@@ -151,7 +150,7 @@ export function repoOk(repo: string): boolean {
   return isSafeGitHubRepoFullName(repo);
 }
 
-export { deriveAesKeyBytes, encryptKeystorePayload, encryptWithAesCbcLegacy };
+export { encryptKeystorePayload };
 
 export function bytesToBinaryString(bytes: Uint8Array): string {
   let out = "";

@@ -1,4 +1,4 @@
-// contexts/ProjectContext.tsx (V15 - ALL CRITICAL FIXES APPLIED)
+// contexts/ProjectContext.tsx
 import React, {
   createContext,
   useContext,
@@ -249,6 +249,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const replaceProjectData = useCallback(
     async (nextProject: ProjectData) => {
       await runWithProjectLock(async () => {
+        persistenceSchedulerRef.current.invalidatePendingSnapshot();
         setProjectData(nextProject);
         await saveProjectToStorage(nextProject);
       });
@@ -639,7 +640,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     const initializeProject = async () => {
       try {
-        logger.info("APP START (Context V15 - ALL CRITICAL FIXES APPLIED)");
+        logger.info("APP START (ProjectContext)");
         const initialized = await initializeProjectData({
           loadProjectFromStorage,
           loadTemplateFromFile,
@@ -651,6 +652,15 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         }
         if (initialized.source === "storage") {
           logger.info("📖 Projekt geladen:", initialized.project.name);
+        } else if (initialized.source === "recovery-template") {
+          logger.error("[ProjectContext] Verschluesselten Storage-Stand nicht geladen; Recovery-Template aktiv.", {
+            reason: initialized.recoveryError ?? "unknown",
+          });
+          Alert.alert(
+            "Projekt-Wiederherstellung erforderlich",
+            initialized.recoveryError ??
+              "Gespeicherte verschluesselte Projektdaten konnten nicht geladen werden. Ein neues In-Memory-Template wurde geöffnet, ohne den vorhandenen Storage zu überschreiben.",
+          );
         } else {
           logger.info("Kein Projekt gefunden, lade neues Template...");
           logger.info("Neues Template-Projekt erstellt und gespeichert.");

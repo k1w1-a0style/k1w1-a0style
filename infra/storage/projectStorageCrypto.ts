@@ -129,3 +129,12 @@ export async function deserializeProjectStoragePayload(serialized: string): Prom
     migratedFromPlaintext: true,
   };
 }
+
+export function looksLikeEncryptedProjectStoragePayload(serialized: string): boolean {
+  try {
+    const parsed = JSON.parse(serialized) as unknown;
+    return isEncryptedProjectStoragePayload(parsed);
+  } catch {
+    return false;
+  }
+}
