@@ -183,6 +183,17 @@ export const resolveConnectionsStatusFlags = (params: {
   return { gh, ex, edge, sbUrl, sbAnon, linked, eas };
 };
 
+export const resolveMissingConnectionRequirements = (
+  requirements: Array<{ value: string; message: string }>,
+): string | null => {
+  for (const requirement of requirements) {
+    if (!requirement.value.trim()) {
+      return requirement.message;
+    }
+  }
+  return null;
+};
+
 export type ConnectionsSavePlan = {
   githubToken: string;
   expoToken: string;

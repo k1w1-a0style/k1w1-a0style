@@ -9,6 +9,7 @@ import {
   runStorageMultiOpWithFallback,
   resolveConnectionsStatusFlags,
   resolveConnectionsSavePlan,
+  resolveMissingConnectionRequirements,
   resolveEasLinkWorkflowStartMessage,
   resolveEasLinkPostStartState,
   resolveRepoSelectionPersistence,
@@ -163,6 +164,23 @@ describe("useConnectionsScreenHelpers", () => {
       linked: true,
       eas: true,
     });
+  });
+
+  it("resolves first missing provider requirement deterministically", () => {
+    expect(
+      resolveMissingConnectionRequirements([
+        { value: "token", message: "Token fehlt." },
+        { value: " ", message: "Branch fehlt." },
+        { value: "", message: "Repo fehlt." },
+      ]),
+    ).toBe("Branch fehlt.");
+
+    expect(
+      resolveMissingConnectionRequirements([
+        { value: "token", message: "Token fehlt." },
+        { value: "repo", message: "Repo fehlt." },
+      ]),
+    ).toBeNull();
   });
 
   it("builds a trimmed save plan with clear-flags for dependent lights", () => {
