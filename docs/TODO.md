@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening)**
+Stand: **2026-04-07 (Patch 752, Preview-Expiry-Cleanup Hash/Legacy Fix)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -26,6 +26,7 @@ Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening
 - [x] Lokalen HTML-/Eval-/Babel-/CDN-Fallback in `lib/sandpackBuilder.ts` fuer Production-/Release-Kontext hart deaktiviert (Guard + expliziter Disabled-HTML-Pfad), Dev/Test bleibt explizit nutzbar.
 - [x] Preview-Secret-Modell gehaertet (Patch 751): `save_preview` speichert Secret nur noch gehasht, `preview_page` nutzt hash-first Lookup und fallbackt nur fuer bestehende Legacy-Klartextsaetze.
 - [x] Preview-Auth-Boundary klein nachgeschaerft (Patch 751): `preview_page` akzeptiert nur GET/HEAD; Secret bleibt Header-basiert (Fragment-Handoff), kein Query-Secret-Revival.
+- [x] Preview-Expiry-Cleanup nach Secret-Hashing repariert (Patch 752): Expiry-Delete nutzt dieselben Secret-Kandidaten (hash-first + legacy raw fallback) wie der Lookup, damit gehashte und alte raw Rows gleichermassen loeschbar bleiben.
 - [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 - [x] RateLimit-Degradation fuer Preview-Routen geschaerft (Patch 751): `save_preview`/`preview_page` setzen `enforceDurable: true`; bei durable-Ausfall jetzt `503 rate_limit_unavailable` statt lokaler Scheinsicherheit.

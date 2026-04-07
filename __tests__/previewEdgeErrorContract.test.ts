@@ -6,6 +6,7 @@ import {
   jsonPreviewError as jsonSavePreviewError,
 } from "../supabase/functions/save_preview/helpers";
 import {
+  buildPreviewSecretCandidates,
   classifyPreviewPageUnexpectedError,
   classifyPreviewRecordLookupFailure,
   htmlPreviewError,
@@ -74,8 +75,8 @@ describe("preview edge error contract", () => {
 
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeGreaterThan(-1);
     expect(fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl")).toBeGreaterThan(-1);
-    expect(fetchPreviewRecordSource).toContain("const hashedSecret = await hashPreviewSecret(secret);");
-    expect(fetchPreviewRecordSource).toContain("arr = await parseRecords(await fetchBySecret(secret));");
+    expect(fetchPreviewRecordSource).toContain("const secretCandidates = await buildPreviewSecretCandidates(secret);");
+    expect(fetchPreviewRecordSource).toContain("for (const candidate of secretCandidates)");
     expect(fetchPreviewRecordSource.indexOf("headers = supabaseHeaders();")).toBeLessThan(
       fetchPreviewRecordSource.indexOf("fetchWithTimeout(restUrl"),
     );
@@ -103,7 +104,8 @@ describe("preview edge error contract", () => {
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(savePreviewSource).toContain("hashPreviewSecret(secret)");
     expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
-    expect(previewPageSource).toContain("hashPreviewSecret(secret)");
+    expect(previewPageSource).toContain("buildPreviewSecretCandidates(secret)");
+    expect(previewPageSource).toContain("for (const candidate of secretCandidates)");
     expect(previewPageSource).not.toContain("const querySecret =");
     expect(previewPageSource).not.toContain("renderLegacyQuerySecretBridgePage");
     expect(previewPageSource).not.toContain('current.searchParams.delete("secret")');
@@ -114,6 +116,29 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).toContain("Missing preview secret header.");
     expect(previewPageSource).toContain('code: "preview_payload_invalid"');
     expect(previewPageSource).not.toContain("preview_invalid_payload");
+  });
+
+  it("builds secret candidates as hash-first with raw-secret fallback for legacy compatibility", async () => {
+    const candidates = await buildPreviewSecretCandidates("abc123-preview-secret");
+    expect(candidates).toHaveLength(2);
+    expect(candidates[0]).toMatch(/^psh_v1_/);
+    expect(candidates[1]).toBe("abc123-preview-secret");
+  });
+
+  it("keeps expiry cleanup compatible with hashed and legacy raw preview rows", () => {
+    const previewPageSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
+      "utf8",
+    );
+
+    const deleteSource = previewPageSource.slice(
+      previewPageSource.indexOf("async function deletePreviewRecord"),
+      previewPageSource.indexOf("function isExpired"),
+    );
+
+    expect(deleteSource).toContain("buildPreviewSecretCandidates(secret)");
+    expect(deleteSource).toContain("for (const candidate of secretCandidates)");
+    expect(deleteSource).toContain("secret=eq.${encodeURIComponent(candidate)}");
   });
 
   it("classifies preview_page runtime catch failures explicitly and keeps the response safe", async () => {

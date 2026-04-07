@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening)**
+Stand: **2026-04-07 (Patch 752, Preview-Expiry-Cleanup Hash/Legacy Fix)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -40,6 +40,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Projektpersistenz verschluesselt
 - Edge-Routen byte-genauere Body-/Payload-Limits, durable Rate Limits mit lokalem Fallback
 - Preview-sensitive Routen (`save_preview`, `preview_page`) verlangen nun durable Rate-Limits fail-closed; lokale In-Memory-Degradation bleibt nur fuer weniger sensible Routen aktiv.
+- Preview-Expiry-Cleanup bleibt trotz Secret-Hashing funktionsfaehig: Lookup und Delete teilen jetzt denselben hash-first + legacy-raw Secret-Candidate-Pfad.
 - Legacy-/Compat-Oberflaeche deutlich reduziert
 - `create_codesandbox` deaktiviert
 - verbleibende disabled Legacy-Edges bleiben bewusst als 410-Stubs + `verify_jwt=true` bestehen (kleinste Restoberflaeche, keine unkontrollierte Reaktivierung).

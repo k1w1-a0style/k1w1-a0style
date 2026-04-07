@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 751, Preview-Secret/RateLimit/Release-Depth Hardening)**
+Stand: **2026-04-07 (Patch 752, Preview-Expiry-Cleanup Hash/Legacy Fix)**
 
-Zuletzt abgeschlossen: **Patch 751**
+Zuletzt abgeschlossen: **Patch 752**
 
 Der aktuelle Stand bestaetigt:
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)

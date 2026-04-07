@@ -153,6 +153,14 @@ export async function hashPreviewSecret(secret: string): Promise<string> {
   return PREVIEW_SECRET_HASH_PREFIX + bytesToBase64Url(new Uint8Array(digest));
 }
 
+export async function buildPreviewSecretCandidates(secret: string): Promise<string[]> {
+  const raw = secret.trim();
+  if (!raw) return [];
+  const hashed = await hashPreviewSecret(raw);
+  if (hashed === raw) return [raw];
+  return [hashed, raw];
+}
+
 export function buildCsp(nonce: string): string {
   // Optional strict CSP test mode (disables eval; some sandpack/babel setups need eval)
   const strict =
