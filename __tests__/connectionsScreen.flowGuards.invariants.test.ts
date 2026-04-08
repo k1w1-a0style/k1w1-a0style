@@ -51,4 +51,11 @@ describe("connectionsScreen flow guards invariants", () => {
     expect(easLinkSrc).toContain("const resolveCurrentEasLaunchSelection = useCallback");
     expect(easLinkSrc).toContain("const launchSelection = resolveCurrentEasLaunchSelection();");
   });
+
+  it("keeps save and status derivation out of the thin orchestrator", () => {
+    expect(src).toContain("useConnectionsSaveActions");
+    expect(src).toContain("useConnectionsStatusModel");
+    expect(src).not.toContain("resolveConnectionsSavePlan");
+    expect(src).not.toContain("resolveConnectionsStatusFlags({");
+  });
 });

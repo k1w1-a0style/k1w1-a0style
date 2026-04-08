@@ -1,4 +1,5 @@
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
+import type { Dispatch, SetStateAction } from "react";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
 export type ConnectionRequirement = { value: string; message: string };
@@ -22,34 +23,7 @@ export type GuardedActionParams = {
   onNonBusyError?: (error: unknown) => Promise<void> | void;
 };
 
-export type ConnectionsSecretsState = {
-  githubToken: string;
-  setGithubToken: (value: string) => void;
-  expoToken: string;
-  setExpoToken: (value: string) => void;
-  workflowAdminKey: string;
-  setWorkflowAdminKey: (value: string) => void;
-  androidKeystoreExportAdminKey: string;
-  setAndroidKeystoreExportAdminKey: (value: string) => void;
-  showGitHub: boolean;
-  setShowGitHub: (value: boolean | ((prev: boolean) => boolean)) => void;
-  showExpo: boolean;
-  setShowExpo: (value: boolean | ((prev: boolean) => boolean)) => void;
-  showWorkflowAdmin: boolean;
-  setShowWorkflowAdmin: (value: boolean | ((prev: boolean) => boolean)) => void;
-  showKeystoreAdmin: boolean;
-  setShowKeystoreAdmin: (value: boolean | ((prev: boolean) => boolean)) => void;
-  showSupabaseAnon: boolean;
-  setShowSupabaseAnon: (value: boolean | ((prev: boolean) => boolean)) => void;
-  supabaseRaw: string;
-  setSupabaseRaw: (value: string) => void;
-  supabaseUrl: string;
-  setSupabaseUrl: (value: string) => void;
-  supabaseAnonKey: string;
-  setSupabaseAnonKey: (value: string) => void;
-  easProjectId: string;
-  setEasProjectId: (value: string) => void;
-};
+type StateSetter<T> = Dispatch<SetStateAction<T>>;
 
 export type UseConnectionsScreenReturn = {
   navigation: NavigationProp<ParamListBase>;
@@ -82,33 +56,33 @@ export type UseConnectionsScreenReturn = {
   selectionSource: "project" | "context" | "none";
   supabaseUrl: string;
   githubToken: string;
-  setGithubToken: (value: string) => void;
+  setGithubToken: StateSetter<string>;
   expoToken: string;
-  setExpoToken: (value: string) => void;
+  setExpoToken: StateSetter<string>;
   workflowAdminKey: string;
-  setWorkflowAdminKey: (value: string) => void;
+  setWorkflowAdminKey: StateSetter<string>;
   androidKeystoreExportAdminKey: string;
-  setAndroidKeystoreExportAdminKey: (value: string) => void;
+  setAndroidKeystoreExportAdminKey: StateSetter<string>;
   showGitHub: boolean;
-  setShowGitHub: (value: boolean | ((prev: boolean) => boolean)) => void;
+  setShowGitHub: StateSetter<boolean>;
   showExpo: boolean;
-  setShowExpo: (value: boolean | ((prev: boolean) => boolean)) => void;
+  setShowExpo: StateSetter<boolean>;
   showWorkflowAdmin: boolean;
-  setShowWorkflowAdmin: (value: boolean | ((prev: boolean) => boolean)) => void;
+  setShowWorkflowAdmin: StateSetter<boolean>;
   showKeystoreAdmin: boolean;
-  setShowKeystoreAdmin: (value: boolean | ((prev: boolean) => boolean)) => void;
+  setShowKeystoreAdmin: StateSetter<boolean>;
   showSupabaseAnon: boolean;
-  setShowSupabaseAnon: (value: boolean | ((prev: boolean) => boolean)) => void;
+  setShowSupabaseAnon: StateSetter<boolean>;
   supabaseRaw: string;
-  setSupabaseRaw: (value: string) => void;
-  setSupabaseUrl: (value: string) => void;
+  setSupabaseRaw: StateSetter<string>;
+  setSupabaseUrl: StateSetter<string>;
   supabaseAnonKey: string;
-  setSupabaseAnonKey: (value: string) => void;
+  setSupabaseAnonKey: StateSetter<string>;
   easOk: boolean;
   easState: VerificationContractState;
   easLastVerifiedAt: string | null;
   easProjectId: string;
-  setEasProjectId: (value: string) => void;
+  setEasProjectId: StateSetter<string>;
   saveAll: () => Promise<void>;
   testGitHub: () => Promise<void>;
   testSupabase: () => Promise<void>;
