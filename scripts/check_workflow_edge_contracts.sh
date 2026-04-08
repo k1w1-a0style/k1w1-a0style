@@ -54,6 +54,10 @@ EDGE_STATUS_DOC="docs/EDGE_FUNCTIONS_STATUS.md"
 BUILD_READINESS_DOC="docs/06-build-readiness.md"
 RISK_HOTSPOTS_DOC="docs/04-risk-hotspots.md"
 AUTH_SHARED="supabase/functions/_shared/auth.ts"
+AUTH_SHARED_JWT="supabase/functions/_shared/auth/jwt.ts"
+AUTH_SHARED_SCOPED="supabase/functions/_shared/auth/scoped.ts"
+AUTH_SHARED_RUNTIME="supabase/functions/_shared/auth/runtime.ts"
+AUTH_SHARED_ADMIN="supabase/functions/_shared/auth/admin.ts"
 WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
 SIGNING_GATE="screens/EnhancedBuildScreen/hooks/signingKeyGate.ts"
@@ -71,7 +75,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -221,21 +225,28 @@ awk '/^\[functions\.android-keystore-export\]/{flag=1; next} /^\[functions\./{fl
 [ ! -f "$KEYSTORE_GENERATE_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-generate ($KEYSTORE_GENERATE_LOCAL_CONFIG)"
 [ ! -f "$KEYSTORE_STATUS_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-status ($KEYSTORE_STATUS_LOCAL_CONFIG)"
 
-require_fixed "$AUTH_SHARED" 'export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {'
-require_fixed "$AUTH_SHARED" "export const WORKFLOW_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
-require_fixed "$AUTH_SHARED" "export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
-require_fixed "$AUTH_SHARED" "export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = [\"service_role\", \"build_admin\"] as const;"
-require_fixed "$AUTH_SHARED" "export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
-require_fixed "$AUTH_SHARED" 'const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));'
-require_fixed "$AUTH_SHARED" 'const payload = JSON.parse(new TextDecoder().decode(bytes));'
-require_fixed "$AUTH_SHARED" 'const getSigningAdminSecret = (): string | null =>'
-require_fixed "$AUTH_SHARED" "export function requireSigningAdminKey(req: Request): Response | null {"
-require_fixed "$AUTH_SHARED" 'missing: ["K1W1_EDGE_ADMIN_KEY"]'
-forbid_fixed "$AUTH_SHARED" "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"
-require_fixed "$AUTH_SHARED" '"Missing required auth secrets for this Edge Function."'
-require_fixed "$AUTH_SHARED" '"Unauthorized: send either admin key OR bearer token, not both."'
-require_fixed "$AUTH_SHARED" '"Unauthorized: missing authentication header."'
-require_fixed "$AUTH_SHARED" "export async function requireVerifiedJwt(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED" 'requireScopedEdgeAuth'
+require_fixed "$AUTH_SHARED" 'requireWorkflowOperatorJwtRole'
+require_fixed "$AUTH_SHARED" 'requirePrivilegedOperatorJwtRole'
+require_fixed "$AUTH_SHARED" 'requireVerifiedJwt'
+
+require_fixed "$AUTH_SHARED_JWT" 'export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;'
+require_fixed "$AUTH_SHARED_JWT" "export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED_JWT" 'export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;'
+require_fixed "$AUTH_SHARED_JWT" "export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
+require_fixed "$AUTH_SHARED_JWT" 'const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));'
+require_fixed "$AUTH_SHARED_JWT" 'const payload = JSON.parse(new TextDecoder().decode(bytes));'
+require_fixed "$AUTH_SHARED_JWT" "export async function requireVerifiedJwt(req: Request, scope: string): Promise<Response | null> {"
+
+require_fixed "$AUTH_SHARED_RUNTIME" 'const getSigningAdminSecret = (): string | null =>'
+forbid_fixed "$AUTH_SHARED_RUNTIME" "K1W1_EDGE_ADMIN_KEY|SIGNING_ADMIN_KEY"
+
+require_fixed "$AUTH_SHARED_ADMIN" "export function requireSigningAdminKey(req: Request): Response | null {"
+require_fixed "$AUTH_SHARED_ADMIN" 'missing: ["K1W1_EDGE_ADMIN_KEY"]'
+
+require_fixed "$AUTH_SHARED_SCOPED" '"Missing required auth secrets for this Edge Function."'
+require_fixed "$AUTH_SHARED_SCOPED" '"Unauthorized: send either admin key OR bearer token, not both."'
+require_fixed "$AUTH_SHARED_SCOPED" '"Unauthorized: missing authentication header."'
 
 require_fixed "$TRIGGER_WF" "job_id: \${{ steps.resolve.outputs.job_id }}"
 require_fixed "$TRIGGER_WF" "autofix: \${{ steps.resolve.outputs.autofix }}"
@@ -299,7 +310,7 @@ require_fixed "$EDGE_STATUS_DOC" '`android-keystore-export`'
 require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_WORKFLOW_ADMIN_KEY'
 require_fixed "$EDGE_STATUS_DOC" 'K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY'
 require_fixed "$K1W1_HANDLER_EDGE" 'requireAiOperatorJwtRole(req, "k1w1-handler")'
-require_fixed "$AUTH_SHARED" 'export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {'
+require_fixed "$AUTH_SHARED_JWT" "export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {"
 awk '/^\[functions\.k1w1-handler\]/{flag=1; next} /^\[functions\./{flag=0} flag && /verify_jwt = true/{found=1} END{exit(found?0:1)}' "$ROOT_CONFIG"   || fail "k1w1-handler must keep verify_jwt = true in $ROOT_CONFIG"
 
 require_fixed "$CI_LITE_ENV_LOAD" 'WORKFLOW_ADMIN="${K1W1_EDGE_WORKFLOW_ADMIN_KEY:-}"'

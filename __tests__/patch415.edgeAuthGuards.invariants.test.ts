@@ -15,16 +15,18 @@ describe("patch415 edge auth guard invariants", () => {
   ];
   it("defines the scoped edge auth guard and fails closed without configured route secrets", () => {
     const src = read(sharedAuth);
-    expect(src).toContain("export type ScopedEdgeAuthConfig = {");
-    expect(src).toContain("export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {");
-    expect(src).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
-    expect(src).toContain('export const AI_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
-    expect(src).toContain("export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
-    expect(src).toContain("export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
-    expect(src).toContain('"Missing required auth secrets for this Edge Function."');
-    expect(src).toContain('"Unauthorized: send either admin key OR bearer token, not both."');
-    expect(src).toContain('"Unauthorized: missing authentication header."');
-    expect(src).toContain('accepted.push("x-k1w1-admin-key")');
+    const scoped = read("supabase/functions/_shared/auth/scoped.ts");
+    const jwt = read("supabase/functions/_shared/auth/jwt.ts");
+    expect(src).toContain('export type { ScopedEdgeAuthConfig } from "./auth/scoped.ts";');
+    expect(src).toContain('requireScopedEdgeAuth');
+    expect(jwt).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
+    expect(jwt).toContain('export const AI_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
+    expect(jwt).toContain("export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
+    expect(jwt).toContain("export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
+    expect(scoped).toContain('"Missing required auth secrets for this Edge Function."');
+    expect(scoped).toContain('"Unauthorized: send either admin key OR bearer token, not both."');
+    expect(scoped).toContain('"Unauthorized: missing authentication header."');
+    expect(scoped).toContain('accepted.push("x-k1w1-admin-key")');
   });
 
   it("moves workflow-facing edge functions onto scoped workflow admin+JWT secrets", () => {

@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

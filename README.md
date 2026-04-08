@@ -2,13 +2,13 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 
-Zuletzt abgeschlossen: **Patch 760**
+Zuletzt abgeschlossen: **Patch 762**
 
 Der aktuelle Stand bestaetigt:
-- der Hotspot `LocalRemoteDiffSectionRefactor` ist als kompletter Split abgeschlossen (Container/Model/pure Helper/UI-Dateien getrennt)
-- die fuehrende SoT-Doku wurde im selben Zug auf den echten Refactor-Stand nachgezogen (kein Analyse-only-Drift)
+- die drei verbleibenden Hotspots wurden jetzt restlos und verhaltensgleich zerlegt: `buildPipelineDiagnostics`, `_shared/auth`, `useAppInfoScreen`
+- die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
 - aktive Legacy-/Compat-Flaechen wurden stark reduziert
 - die kanonischen Repo-Checks sind vorhanden und dokumentiert

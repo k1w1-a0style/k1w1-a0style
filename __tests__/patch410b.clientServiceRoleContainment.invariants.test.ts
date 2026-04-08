@@ -33,12 +33,13 @@ describe("Patch 410B client service-role containment invariants", () => {
 
   it("keeps full-backup/import free of client-side service-role handling", () => {
     const appInfo = read("screens/AppInfoScreen/hooks/useAppInfoScreen.ts");
+    const secureFlow = read("screens/AppInfoScreen/hooks/useAppInfoSecureBackupFlow.ts");
     const storageKeys = read("lib/storageKeys.ts");
     const types = read("screens/AppInfoScreen/types.ts");
     expect(appInfo).not.toContain("getSupabaseServiceRoleKey");
     expect(appInfo).not.toContain("saveSupabaseServiceRoleKey");
     expect(appInfo).not.toContain("deleteSupabaseServiceRoleKey");
-    expect(appInfo).toContain("legacyClientServiceRoleStorageKeys");
+    expect(secureFlow).toContain("legacyClientServiceRoleStorageKeys");
     expect(appInfo).not.toContain("STORAGE_KEYS.SUPABASE_SERVICE_ROLE_KEY");
     expect(storageKeys).toContain("legacyClientServiceRoleStorageKeys");
     expect(storageKeys).not.toContain("SUPABASE_SERVICE_ROLE_KEY:");

@@ -5,7 +5,7 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("patch605 build_admin provisioning contract invariants", () => {
   it("keeps operator-role SoT fail-closed without introducing a repo-local build_admin mapper", () => {
-    const auth = read("supabase/functions/_shared/auth.ts");
+    const auth = read("supabase/functions/_shared/auth/jwt.ts");
     expect(auth).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
     expect(auth).toContain('export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
     expect(auth).toContain('const authUrl = `${supabaseUrl.replace(/\\/$/, "")}/auth/v1/user`;');

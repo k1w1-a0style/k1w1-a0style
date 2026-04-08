@@ -5,7 +5,7 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("patch604 workflow/keystore operator caller contract invariants", () => {
   it("keeps privileged JWT role SoT fail-closed on build_admin|service_role", () => {
-    const auth = read("supabase/functions/_shared/auth.ts");
+    const auth = read("supabase/functions/_shared/auth/jwt.ts");
     expect(auth).toContain('export const WORKFLOW_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
     expect(auth).toContain('export const PRIVILEGED_OPERATOR_ALLOWED_ROLES = ["service_role", "build_admin"] as const;');
   });

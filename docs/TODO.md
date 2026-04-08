@@ -1,12 +1,15 @@
 # TODO
 
-Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] `BuildPipelineDiagnosticsRefactorFinal` (Patch 761): `lib/diagnostics/buildPipelineDiagnostics.ts` ist jetzt nur noch Orchestrator; Regel-/Profil-/Secret-/Workflow-/ProjectId-Checks und pure Helper liegen in dedizierten Modulen (`buildPipelineDiagnostics.checks.ts`, `.constants.ts`, `.helpers.ts`) ohne semantische Aenderung der bestehenden Severity-/Fix-Vertraege.
+- [x] `SharedAuthHotspotFinal` (Patch 761): `supabase/functions/_shared/auth.ts` wurde als stabile Public-Facade beibehalten, waehrend JWT-, Scoped-Guard-, Runtime-Secret-, Admin- und Rate-Limit-Logik in `auth/*` getrennt wurden; fail-closed Auth-/RBAC-/durable-fallback-Verhalten bleibt unveraendert.
+- [x] `AppInfoHookRefactorFinal` (Patch 761): `useAppInfoScreen.ts` ist jetzt die duenne UI-Orchestrator-Fassade; API-Config-Import/Export und Secure-Backup-/Secret-Flow wurden in `useAppInfoApiConfigFlow.ts` und `useAppInfoSecureBackupFlow.ts` ausgelagert (inkl. Rollback-/Abort-/Legacy-cleanup-Semantik).
 - [x] `LocalRemoteDiffSectionRefactor` (Patch 760): Der Diff-Hotspot ist vollstaendig vom Monolithen in Container, Model, pure Diff-/Fingerprint-Helper, List-UI, Modal-UI und lokale Typen zerlegt; Import-Kompatibilitaet bleibt ueber den schlanken Re-Export erhalten.
 - [x] `RefactorSoTDrift` (Patch 760): Fuehrende SoT-Dateien (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `PROJECT_CHECKLOG`, `PATCHLOG_ROOT`) auf den echten Refactor-Stand synchronisiert; Analyse-only-Header aus Patch 759 sind damit abgeloest.
 
@@ -73,7 +76,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
-2. Stille `.catch(() => {})` weiter reduzieren (kritische Preview-/Build-/Upload-/Repo-Meta-Catches sind in Patch 753 und Chat-Privacy-Catches bereits auf Warn-Logging umgestellt)
+2. SilentCatchHygiene: produktnahe Pfade erneut gescannt (Patch 762) — keine verbleibenden stillen `.catch(() => {})` / `catch {}` im produktiven Runtime-Scope gefunden; nur Dokumentationsbeispiele enthalten den Pattern-Text
 3. `console.log` in Produktivpfaden weiter abbauen
 4. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
 5. Workflow-Hygiene-Nachzug nur mit engem Scope:

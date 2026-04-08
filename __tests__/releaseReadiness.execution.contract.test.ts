@@ -28,6 +28,7 @@ function setupFixture(options: SetupOptions): string {
     "check_eas_production_credentials.sh",
     "check_eas_strict_lockfile_policy.sh",
     "check_workflow_edge_contracts.sh",
+    "check_verify_jwt_visibility.sh",
     "check_edge_rate_limit_retention.sh",
     "check_legacy_disabled_edges.sh",
     "check_k1w1_handler_providers.sh",
