@@ -74,10 +74,9 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
 2. Stille `.catch(() => {})` weiter reduzieren (kritische Preview-/Build-/Upload-/Repo-Meta-Catches sind in Patch 753 und Chat-Privacy-Catches bereits auf Warn-Logging umgestellt)
-3. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
-4. `console.log` in Produktivpfaden weiter abbauen
-5. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
-6. Workflow-Hygiene-Nachzug nur mit engem Scope:
+3. `console.log` in Produktivpfaden weiter abbauen
+4. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
+5. Workflow-Hygiene-Nachzug nur mit engem Scope:
    - `npm install`-Fallback in produktnahen Pfaden weiter reduzieren, ohne dev-Bootstrap kaputtzumachen
    - Repo-Writebacks/persisted Credentials weiter punktuell pruefen; CI-Lite-Autofix-Permission-Scope ist bereits auf `contents: write` reduziert
 
