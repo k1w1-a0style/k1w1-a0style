@@ -42,6 +42,16 @@ type Params = {
 };
 
 export function useConnectionsSaveActions(params: Params) {
+  const {
+    hydrated,
+    runGuardedAction,
+    secrets,
+    persistSelectedEasProjectId,
+    clearGithubConnectionState,
+    clearExpoConnectionState,
+    clearEasConnectionState,
+    clearSupabaseConnectionState,
+  } = params;
   const persistOptionalSecret = useCallback(
     async (input: {
       value: string;
@@ -82,13 +92,13 @@ export function useConnectionsSaveActions(params: Params) {
         value: plan.githubToken,
         save: saveGitHubToken,
         remove: deleteGitHubToken,
-        onRemoved: params.clearGithubConnectionState,
+        onRemoved: clearGithubConnectionState,
       });
       await persistOptionalSecret({
         value: plan.expoToken,
         save: saveExpoToken,
         remove: deleteExpoToken,
-        onRemoved: params.clearExpoConnectionState,
+        onRemoved: clearExpoConnectionState,
       });
       await persistOptionalSecret({
         value: plan.workflowAdminKey,
@@ -101,36 +111,45 @@ export function useConnectionsSaveActions(params: Params) {
         remove: deleteAndroidKeystoreExportAdminKey,
       });
     },
-    [persistOptionalSecret, params.clearExpoConnectionState, params.clearGithubConnectionState],
+    [persistOptionalSecret, clearExpoConnectionState, clearGithubConnectionState],
   );
 
   const saveAll = useCallback(async () => {
-    if (!params.hydrated) return;
-    const v = validateBeforeSave(params.secrets);
+    if (!hydrated) return;
+    const v = validateBeforeSave(secrets);
     if (!v.ok) {
       Alert.alert(v.title, v.message);
       return;
     }
 
-    await params.runGuardedAction({
+    await runGuardedAction({
       defaultTitle: "❌ Speichern fehlgeschlagen",
       task: async () => {
-        const plan = resolveConnectionsSavePlan(params.secrets);
+        const plan = resolveConnectionsSavePlan(secrets);
 
         await persistTokenSavePlan(plan);
         await persistSupabaseSavePlan(plan);
-        await params.persistSelectedEasProjectId(plan.easProjectId);
+        await persistSelectedEasProjectId(plan.easProjectId);
 
         if (plan.shouldClearEasConnection) {
-          await params.clearEasConnectionState();
+          await clearEasConnectionState();
         }
         if (plan.shouldClearSupabaseConnection) {
-          await params.clearSupabaseConnectionState();
+          await clearSupabaseConnectionState();
         }
         Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
       },
     });
-  }, [params, persistSupabaseSavePlan, persistTokenSavePlan]);
+  }, [
+    hydrated,
+    secrets,
+    runGuardedAction,
+    persistTokenSavePlan,
+    persistSupabaseSavePlan,
+    persistSelectedEasProjectId,
+    clearEasConnectionState,
+    clearSupabaseConnectionState,
+  ]);
 
   return {
     saveAll,

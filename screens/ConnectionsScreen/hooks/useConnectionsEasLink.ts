@@ -42,16 +42,30 @@ type Params = {
 };
 
 export function useConnectionsEasLink(params: Params) {
+  const {
+    hydrated,
+    easProjectId,
+    githubToken,
+    effectiveRepo,
+    effectiveBranch,
+    busyRef,
+    persistSelectedEasProjectId,
+    persistConnLights,
+    removeConnLights,
+    applyEasConnectionState,
+    setRepoOk,
+    setRepoOkLine,
+  } = params;
   const [isEasInitRunning, setIsEasInitRunning] = useState(false);
 
   const persistSelectedEasProjectIdBestEffort = useCallback(
     async (projectId: string) => {
       await runCleanupTask(
-        () => params.persistSelectedEasProjectId(projectId),
+        () => persistSelectedEasProjectId(projectId),
         `[ConnectionsScreen] persist/remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
       );
     },
-    [params],
+    [persistSelectedEasProjectId],
   );
 
   const runEasLinkWorkflowStart = useCallback(
@@ -78,7 +92,7 @@ export function useConnectionsEasLink(params: Params) {
   const applyEasWorkflowPostStartState = useCallback(
     async (projectId: string) => {
       const postStartState = resolveEasLinkPostStartState(projectId);
-      params.applyEasConnectionState({
+      applyEasConnectionState({
         ok: false,
         state: postStartState.state,
         verifiedAt: null,
@@ -86,11 +100,11 @@ export function useConnectionsEasLink(params: Params) {
       await applyPersistenceDelta({
         writes: postStartState.writes,
         removes: postStartState.removes,
-        persist: params.persistConnLights,
-        remove: params.removeConnLights,
+        persist: persistConnLights,
+        remove: removeConnLights,
       });
     },
-    [params],
+    [applyEasConnectionState, persistConnLights, removeConnLights],
   );
 
   const persistRepoSelectionState = useCallback(
@@ -98,22 +112,22 @@ export function useConnectionsEasLink(params: Params) {
       const normalizedRepoSlug = repoSlug.trim();
       if (!normalizedRepoSlug) return;
       const persistence = resolveRepoSelectionPersistence({ repoSlug: normalizedRepoSlug, branch });
-      params.setRepoOk(true);
-      params.setRepoOkLine(persistence.repoOkLine);
-      await params.persistConnLights(persistence.writes);
+      setRepoOk(true);
+      setRepoOkLine(persistence.repoOkLine);
+      await persistConnLights(persistence.writes);
     },
-    [params],
+    [setRepoOk, setRepoOkLine, persistConnLights],
   );
 
   // Invariant contract marker retained for source-based tests
   const resolveCurrentEasLaunchSelection = useCallback(() => {
     return resolveEasWorkflowLaunchSelection({
-      githubToken: params.githubToken,
-      repoSlug: params.effectiveRepo || "",
-      branch: params.effectiveBranch || "",
+      githubToken,
+      repoSlug: effectiveRepo || "",
+      branch: effectiveBranch || "",
       parseOwnerRepo,
     });
-  }, [params]);
+  }, [githubToken, effectiveRepo, effectiveBranch]);
 
   const resolveEasLaunchSelectionOrAlert = useCallback(() => {
     const launchSelection = resolveCurrentEasLaunchSelection();
@@ -125,8 +139,8 @@ export function useConnectionsEasLink(params: Params) {
   }, [resolveCurrentEasLaunchSelection]);
 
   const canStartEasWorkflow = useCallback((): boolean => {
-    return params.hydrated && !params.busyRef.current && !isEasInitRunning;
-  }, [params, isEasInitRunning]);
+    return hydrated && !busyRef.current && !isEasInitRunning;
+  }, [hydrated, busyRef, isEasInitRunning]);
 
   // Invariant contract marker retained for source-based tests
   const startEasWorkflow = useCallback(
@@ -215,9 +229,9 @@ export function useConnectionsEasLink(params: Params) {
     await executeEasLaunchPlan({
       selection: launchSelection,
       mode: "link_existing",
-      easProjectId: params.easProjectId,
+      easProjectId,
     });
-  }, [canStartEasWorkflow, resolveEasLaunchSelectionOrAlert, executeEasLaunchPlan, params.easProjectId]);
+  }, [canStartEasWorkflow, resolveEasLaunchSelectionOrAlert, executeEasLaunchPlan, easProjectId]);
 
   const onCreateAndLink = useCallback(async () => {
     if (!canStartEasWorkflow()) return;
@@ -227,9 +241,9 @@ export function useConnectionsEasLink(params: Params) {
     await executeEasLaunchPlan({
       selection: launchSelection,
       mode: "create_and_link",
-      easProjectId: params.easProjectId,
+      easProjectId,
     });
-  }, [canStartEasWorkflow, resolveEasLaunchSelectionOrAlert, executeEasLaunchPlan, params.easProjectId]);
+  }, [canStartEasWorkflow, resolveEasLaunchSelectionOrAlert, executeEasLaunchPlan, easProjectId]);
 
   return {
     isEasInitRunning,

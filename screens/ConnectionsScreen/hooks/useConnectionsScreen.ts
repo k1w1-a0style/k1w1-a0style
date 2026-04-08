@@ -1,14 +1,10 @@
-import { useCallback, useEffect, useMemo } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useMemo } from "react";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import { resolveRepoBranchSelection } from "../../../lib/selection/repoBranch";
-import { resolveConnectionsStatusFlags, resolveEasProjectIdPersistenceAction } from "./useConnectionsScreenHelpers";
-import { deriveSupabaseUrl } from "../utils/validation";
 import { useConnectionsBusyAction } from "./useConnectionsBusyAction";
 import { useConnectionsEasLink } from "./useConnectionsEasLink";
 import { useConnectionsHydration } from "./useConnectionsHydration";
@@ -16,6 +12,9 @@ import { useConnectionsProviderTests } from "./useConnectionsProviderTests";
 import { useConnectionsSecretsState } from "./useConnectionsSecretsState";
 import { useConnectionsPersistence } from "./useConnectionsPersistence";
 import { useConnectionsSaveActions } from "./useConnectionsSaveActions";
+import { useConnectionsStatusModel } from "./useConnectionsStatusModel";
+import { useConnectionsDerivedEffects } from "./useConnectionsDerivedEffects";
+import { useConnectionsEasProjectIdPersistence } from "./useConnectionsEasProjectIdPersistence";
 import type { UseConnectionsScreenReturn } from "./connections.contracts";
 
 export function useConnectionsScreen(): UseConnectionsScreenReturn {
@@ -36,14 +35,7 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
   const effectiveBranch = selection.branch || null;
   const selectionSource = selection.source;
 
-  const persistSelectedEasProjectId = useCallback(async (projectId: string) => {
-    const persistenceAction = resolveEasProjectIdPersistenceAction(projectId);
-    if (persistenceAction.mode === "set") {
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistenceAction.value);
-      return;
-    }
-    await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
-  }, []);
+  const persistSelectedEasProjectId = useConnectionsEasProjectIdPersistence();
 
   const { hydrated, didAutoTestEas } = useConnectionsHydration({
     expoToken: secrets.expoToken,
@@ -119,47 +111,27 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     clearSupabaseConnectionState: persistence.actions.clearSupabaseConnectionState,
   });
 
-  useEffect(() => {
-    if (!hydrated) return;
-    if (didAutoTestEas.current) return;
-    if (!secrets.expoToken.trim()) return;
-    if (!secrets.easProjectId.trim()) return;
-    didAutoTestEas.current = true;
-    void testEas();
-  }, [hydrated, didAutoTestEas, secrets.expoToken, secrets.easProjectId, testEas]);
+  useConnectionsDerivedEffects({
+    hydrated,
+    didAutoTestEas,
+    expoToken: secrets.expoToken,
+    easProjectId: secrets.easProjectId,
+    testEas,
+    supabaseRaw: secrets.supabaseRaw,
+    setSupabaseUrl: secrets.setSupabaseUrl,
+  });
 
-  useEffect(() => {
-    const d = deriveSupabaseUrl(secrets.supabaseRaw);
-    if (d.url) secrets.setSupabaseUrl(d.url);
-  }, [secrets.supabaseRaw, secrets.setSupabaseUrl]);
-
-  const status = useMemo(
-    () =>
-      resolveConnectionsStatusFlags({
-        githubToken: secrets.githubToken,
-        expoToken: secrets.expoToken,
-        workflowAdminKey: secrets.workflowAdminKey,
-        androidKeystoreExportAdminKey: secrets.androidKeystoreExportAdminKey,
-        supabaseUrl: secrets.supabaseUrl,
-        supabaseAnonKey: secrets.supabaseAnonKey,
-        linkedRepo: projectData?.linkedRepo,
-        activeRepo,
-        easProjectId: secrets.easProjectId,
-      }),
-    [
-      secrets.githubToken,
-      secrets.expoToken,
-      secrets.workflowAdminKey,
-      secrets.androidKeystoreExportAdminKey,
-      secrets.supabaseUrl,
-      secrets.supabaseAnonKey,
-      secrets.easProjectId,
-      projectData?.linkedRepo,
-      activeRepo,
-    ],
-  );
-
-  const githubConnected = !!secrets.githubToken.trim();
+  const { status, githubConnected } = useConnectionsStatusModel({
+    githubToken: secrets.githubToken,
+    expoToken: secrets.expoToken,
+    workflowAdminKey: secrets.workflowAdminKey,
+    androidKeystoreExportAdminKey: secrets.androidKeystoreExportAdminKey,
+    supabaseUrl: secrets.supabaseUrl,
+    supabaseAnonKey: secrets.supabaseAnonKey,
+    easProjectId: secrets.easProjectId,
+    linkedRepo: projectData?.linkedRepo,
+    activeRepo,
+  });
 
   return {
     navigation,
