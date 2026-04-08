@@ -1,11 +1,14 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `LocalRemoteDiffSectionRefactor` (Patch 760): Der Diff-Hotspot ist vollstaendig vom Monolithen in Container, Model, pure Diff-/Fingerprint-Helper, List-UI, Modal-UI und lokale Typen zerlegt; Import-Kompatibilitaet bleibt ueber den schlanken Re-Export erhalten.
+- [x] `RefactorSoTDrift` (Patch 760): Fuehrende SoT-Dateien (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `PROJECT_CHECKLOG`, `PATCHLOG_ROOT`) auf den echten Refactor-Stand synchronisiert; Analyse-only-Header aus Patch 759 sind damit abgeloest.
 
 - [x] Persistenz-Recovery-Guardrails (Patch 746): Kein stilles Re-Keying im Read-/Decrypt-Pfad mehr, kaputte verschluesselte/Plaintext-Payloads fuehren in klaren Recovery-Fehler statt Null/Leerpfad, und Recovery-Mode blockiert normale Hintergrund-/Debounce-Speicherwrites bis zu einer expliziten Nutzeraktion (z. B. Import/Neues Projekt).
 - [x] Secret-Import-Haertung (Patch 746): `EAS_PROJECT_ID` wird nur noch gesetzt, wenn der Wert UUID-valide ist; leer fuehrt zu Clear, invalide Werte werden nicht blind geschrieben.
@@ -71,10 +74,9 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
 2. Stille `.catch(() => {})` weiter reduzieren (kritische Preview-/Build-/Upload-/Repo-Meta-Catches sind in Patch 753 und Chat-Privacy-Catches bereits auf Warn-Logging umgestellt)
-3. Leere `catch {}` in `WebCodeEditor.tsx` bereinigen
-4. `console.log` in Produktivpfaden weiter abbauen
-5. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
-6. Workflow-Hygiene-Nachzug nur mit engem Scope:
+3. `console.log` in Produktivpfaden weiter abbauen
+4. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
+5. Workflow-Hygiene-Nachzug nur mit engem Scope:
    - `npm install`-Fallback in produktnahen Pfaden weiter reduzieren, ohne dev-Bootstrap kaputtzumachen
    - Repo-Writebacks/persisted Credentials weiter punktuell pruefen; CI-Lite-Autofix-Permission-Scope ist bereits auf `contents: write` reduziert
 

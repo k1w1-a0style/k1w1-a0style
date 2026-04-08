@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 
 ## Aktiv und workflow-relevant
 

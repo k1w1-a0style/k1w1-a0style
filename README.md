@@ -2,11 +2,13 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 
-Zuletzt abgeschlossen: **Patch 759**
+Zuletzt abgeschlossen: **Patch 760**
 
 Der aktuelle Stand bestaetigt:
+- der Hotspot `LocalRemoteDiffSectionRefactor` ist als kompletter Split abgeschlossen (Container/Model/pure Helper/UI-Dateien getrennt)
+- die fuehrende SoT-Doku wurde im selben Zug auf den echten Refactor-Stand nachgezogen (kein Analyse-only-Drift)
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
 - aktive Legacy-/Compat-Flaechen wurden stark reduziert
 - die kanonischen Repo-Checks sind vorhanden und dokumentiert
