@@ -63,6 +63,7 @@ export function useCiLiteWorkflow() {
   // - sourceHeadSha remains a secondary freshness/safety guard, never the sole correlation anchor for chain-runs
   // Invariant phrase retained in-file for contractual tests:
   // "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert."
+  // "JWT role=build_admin (oder service_role fuer Server-Caller)"
   // "service_role fuer Server-Caller"
   // "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
   void BUILD_ADMIN_FAIL_CLOSED_NOTE;
