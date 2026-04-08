@@ -91,10 +91,12 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   });
 
   it("uses shared edge function constant for artifact-json endpoint", () => {
-    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const facadeSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const artifactSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteArtifactFetch.ts");
 
-    expect(src).toContain("SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON");
-    expect(src).not.toContain("`${edgeUrl}/github-run-artifact-json`");
+    expect(artifactSrc).toContain("SUPABASE_EDGE_FUNCTIONS.GITHUB_RUN_ARTIFACT_JSON");
+    expect(artifactSrc).not.toContain("`${edgeUrl}/github-run-artifact-json`");
+    expect(facadeSrc).toContain("useCiLiteArtifactFetch({");
   });
 
   it("keeps managed markers in managed workflow templates", () => {
@@ -113,13 +115,15 @@ describe("Invariants: repo/branch selection is source of truth", () => {
 
 
   it("does not keep a default-branch fallback in CI-Lite header dispatch", () => {
-    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const facadeSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
+    const dispatchSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteDispatch.ts");
     const helper = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers.ts");
 
-    expect(src).toContain("resolveCiLiteDispatchSelection");
+    expect(dispatchSrc).toContain("resolveCiLiteDispatchSelection");
+    expect(facadeSrc).toContain("const dispatchWorkflow = useCiLiteDispatch({");
     expect(helper).toContain("CI Lite blockiert: Kein Branch verknüpft.");
-    expect(src).not.toContain("getDefaultBranch");
-    expect(src).not.toContain('targetBranch = "main"');
+    expect(dispatchSrc).not.toContain("getDefaultBranch");
+    expect(dispatchSrc).not.toContain('targetBranch = "main"');
   });
 
   it("keeps signing-key readiness project-scoped with legacy fallback", () => {

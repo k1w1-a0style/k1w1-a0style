@@ -4,11 +4,11 @@ import { normalizePreflightPatch } from "../components/ciLite/ciLiteUtils";
 
 describe("CI-Lite flow-near typing/parsing guards", () => {
   it("keeps artifact JSON parsing wired via dedicated helper", () => {
-    const hookSrc = fs.readFileSync(path.join(process.cwd(), "components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts"), "utf8");
+    const artifactFetchSrc = fs.readFileSync(path.join(process.cwd(), "components/CiLiteHeaderButton/hooks/useCiLiteArtifactFetch.ts"), "utf8");
     const helperSrc = fs.readFileSync(path.join(process.cwd(), "components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers.ts"), "utf8");
 
-    expect(hookSrc).toContain("parseCiLiteArtifactJson");
-    expect(hookSrc).toContain("const artifactJson = parseCiLiteArtifactJson(jsonCandidate);");
+    expect(artifactFetchSrc).toContain("parseCiLiteArtifactJson");
+    expect(artifactFetchSrc).toContain("const artifactJson = parseCiLiteArtifactJson(jsonCandidate);");
     expect(helperSrc).toContain("export const parseCiLiteArtifactJson = (payload: unknown)");
   });
 
