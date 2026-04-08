@@ -287,7 +287,8 @@ require_fixed "$LOGS_EDGE" 'truncated,'
 
 require_fixed "$GH_WORKFLOWS_INFRA" 'if (!targetRef) throw new Error("Explicit branch/ref is required.");'
 forbid_fixed "$GH_WORKFLOWS_INFRA" 'ref = "main"'
-require_fixed "$GH_FILES_GITDATA_INFRA" 'const targetBranch = await resolveTargetBranch(owner, repo, options?.branch);'
+require_pattern "$GH_FILES_GITDATA_INFRA" "resolveTargetBranch\(owner, repo, options\?\.branch\)"
+require_fixed "infra/github/files/shared.ts" 'throw new Error("Explicit branch/ref is required.");'
 forbid_fixed "$GH_FILES_GITDATA_INFRA" 'targetBranch = "main"'
 forbid_fixed "$GH_FILES_GITDATA_INFRA" '|| "main"'
 require_fixed "$GH_BRANCHOPS_INFRA" 'throw new Error("Repository default_branch is missing.");'

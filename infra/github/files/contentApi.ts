@@ -103,8 +103,13 @@ export const deleteRepoFile = async (
     if (getResp.status === 401) throw new Error("GitHub Token ungültig.");
     if (getResp.status === 403)
       throw new Error("Keine Berechtigung für Datei-Löschung.");
-    const t = await getResp.text().catch(() => "");
-    throw new Error(`Delete get failed (${getResp.status}): ${t}`);
+    let responseText = "";
+    try {
+      responseText = await getResp.text();
+    } catch {
+      responseText = "[response body unreadable]";
+    }
+    throw new Error(`Delete get failed (${getResp.status}): ${responseText}`);
   }
 
   const existing = await readJsonSafe<GitHubContentFilePayload>(getResp);

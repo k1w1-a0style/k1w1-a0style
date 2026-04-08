@@ -188,8 +188,13 @@ export const listRepoBlobEntries = async (params: {
     );
     const treeRes = await fetchGitHub(treeUrl, { headers });
     if (!treeRes.ok) {
-      const text = await treeRes.text().catch(() => "");
-      throw new Error(`Tree-Abruf fehlgeschlagen (${treeRes.status}): ${text}`);
+      let responseText = "";
+      try {
+        responseText = await treeRes.text();
+      } catch {
+        responseText = "[response body unreadable]";
+      }
+      throw new Error(`Tree-Abruf fehlgeschlagen (${treeRes.status}): ${responseText}`);
     }
     const treeJson = (await readJsonSafe<GitHubTreePayload>(treeRes)) ?? {};
     const tree = Array.isArray(treeJson.tree) ? treeJson.tree : [];
