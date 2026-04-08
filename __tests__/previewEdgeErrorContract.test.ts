@@ -64,7 +64,7 @@ describe("preview edge error contract", () => {
 
   it("keeps preview_page lookup config guards ahead of the fetch timeout allocation", () => {
     const source = fs.readFileSync(
-      path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
+      path.join(process.cwd(), "supabase/functions/preview_page/store.ts"),
       "utf8",
     );
 
@@ -99,13 +99,21 @@ describe("preview edge error contract", () => {
       path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
       "utf8",
     );
+    const previewStoreSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/store.ts"),
+      "utf8",
+    );
+    const previewRequestSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/request.ts"),
+      "utf8",
+    );
 
     expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
     expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
     expect(savePreviewSource).toContain("hashPreviewSecret(secret)");
-    expect(previewPageSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
-    expect(previewPageSource).toContain("findFirstByPreviewSecretCandidates<PreviewRecord[]>");
-    expect(previewPageSource).toContain("deleteByPreviewSecretCandidates(secret");
+    expect(previewRequestSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
+    expect(previewStoreSource).toContain("findFirstByPreviewSecretCandidates<PreviewRecord[]>");
+    expect(previewStoreSource).toContain("deleteByPreviewSecretCandidates(secret");
     expect(previewPageSource).not.toContain("const querySecret =");
     expect(previewPageSource).not.toContain("renderLegacyQuerySecretBridgePage");
     expect(previewPageSource).not.toContain('current.searchParams.delete("secret")');
@@ -124,14 +132,14 @@ describe("preview edge error contract", () => {
   });
 
   it("keeps expiry cleanup aligned with hash-only preview rows", () => {
-    const previewPageSource = fs.readFileSync(
-      path.join(process.cwd(), "supabase/functions/preview_page/index.ts"),
+    const previewStoreSource = fs.readFileSync(
+      path.join(process.cwd(), "supabase/functions/preview_page/store.ts"),
       "utf8",
     );
 
-    const deleteSource = previewPageSource.slice(
-      previewPageSource.indexOf("async function deletePreviewRecord"),
-      previewPageSource.indexOf("function isExpired"),
+    const deleteSource = previewStoreSource.slice(
+      previewStoreSource.indexOf("async function deletePreviewRecord"),
+      previewStoreSource.indexOf("export function isExpired"),
     );
 
     expect(deleteSource).toContain("deleteByPreviewSecretCandidates(secret");
