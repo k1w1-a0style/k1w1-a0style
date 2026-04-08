@@ -5,19 +5,21 @@ describe("Bereich 6 / C4 cleanup invariants", () => {
   const flowFile = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
   const lifecycleHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowLifecycleHelpers.ts");
   const transientHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowTransientStateHelpers.ts");
+  const transientHookFile = path.join(process.cwd(), "hooks/chatAIFlow/useChatAITransientState.ts");
   const screenFile = path.join(process.cwd(), "screens/ChatScreen/hooks/useChatScreen.ts");
   const flowSource = fs.readFileSync(flowFile, "utf8");
   const lifecycleHelpersSource = fs.readFileSync(lifecycleHelpersFile, "utf8");
   const transientHelpersSource = fs.readFileSync(transientHelpersFile, "utf8");
+  const transientHookSource = fs.readFileSync(transientHookFile, "utf8");
   const screenSource = fs.readFileSync(screenFile, "utf8");
 
   it("resetTransientState clears pending plan/change + modal/UI transient state", () => {
-    expect(flowSource).toContain("const resetTransientState = useCallback(() => {");
-    expect(flowSource).toContain("clearInFlightTransientState({");
-    expect(flowSource).toContain("clearPendingDecisionState({");
-    expect(flowSource).toContain("resetTransientUiState({");
-    expect(flowSource).toContain("clearPendingDecisions: true");
-    expect(flowSource).toContain("closeConfirmModal: true");
+    expect(transientHookSource).toContain("const resetTransientState = useCallback(() => {");
+    expect(transientHookSource).toContain("clearInFlightTransientState({");
+    expect(transientHookSource).toContain("clearPendingDecisionState({");
+    expect(transientHookSource).toContain("resetTransientUiState({");
+    expect(transientHookSource).toContain("clearPendingDecisions: true");
+    expect(transientHookSource).toContain("closeConfirmModal: true");
     expect(transientHelpersSource).toContain("abortControllerRef.current?.abort();");
     expect(transientHelpersSource).toContain("queuedAutoFixRef.current = [];");
     expect(transientHelpersSource).toContain("pendingPlanRef.current = null;");
@@ -25,13 +27,13 @@ describe("Bereich 6 / C4 cleanup invariants", () => {
   });
 
   it("ChatScreen focus cleanup invokes handleScreenBlurCleanup to keep blur semantics honest", () => {
-    expect(flowSource).toContain("const handleScreenBlurCleanup = useCallback(() => {");
-    expect(flowSource).toContain("requestAbortedOnBlur: true");
-    expect(flowSource).toContain("const preservedPendingState = hasPreservedPendingState({");
-    expect(flowSource).toContain("buildSystemMessage(");
-    expect(flowSource).toContain("getScreenBlurAbortNotice(preservedPendingState)");
-    expect(flowSource).toContain("clearPendingDecisions: false");
-    expect(flowSource).toContain("closeConfirmModal: false");
+    expect(transientHookSource).toContain("const handleScreenBlurCleanup = useCallback(() => {");
+    expect(transientHookSource).toContain("requestAbortedOnBlur: true");
+    expect(transientHookSource).toContain("const preservedPendingState = hasPreservedPendingState({");
+    expect(transientHookSource).toContain("buildSystemMessage(");
+    expect(transientHookSource).toContain("getScreenBlurAbortNotice(preservedPendingState)");
+    expect(transientHookSource).toContain("clearPendingDecisions: false");
+    expect(transientHookSource).toContain("closeConfirmModal: false");
     expect(lifecycleHelpersSource).toContain("export const shouldAbortOnScreenBlur = ({");
     expect(lifecycleHelpersSource).toContain("export const hasPreservedPendingState = ({");
     expect(lifecycleHelpersSource).toContain("export const getScreenBlurAbortNotice = (");

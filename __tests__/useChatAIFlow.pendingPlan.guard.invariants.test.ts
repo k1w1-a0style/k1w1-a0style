@@ -2,10 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 describe("useChatAIFlow pending plan guard invariants", () => {
-  const file = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
+  const orchestratorFile = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
+  const requestControllerFile = path.join(process.cwd(), "hooks/chatAIFlow/useChatAIRequestController.ts");
   const handoffHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowPendingPlanHandoff.ts");
   const routingHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowInputRoutingHelpers.ts");
-  const src = fs.readFileSync(file, "utf8");
+  const orchestratorSrc = fs.readFileSync(orchestratorFile, "utf8");
+  const requestControllerSrc = fs.readFileSync(requestControllerFile, "utf8");
   const handoffHelpersSrc = fs.readFileSync(handoffHelpersFile, "utf8");
   const routingHelpersSrc = fs.readFileSync(routingHelpersFile, "utf8");
 
@@ -24,8 +26,8 @@ describe("useChatAIFlow pending plan guard invariants", () => {
   });
 
   it("uses the same direct-build helper for scout handoff and metrics", () => {
-    expect(src).toContain("isDirectBuildCommand(normalizedIntentReply)");
-    expect(src).toContain("resolvePendingPlanHandoff({");
-    expect(src).toContain("isDirectBuildCommand,");
+    expect(requestControllerSrc).toContain("isDirectBuildCommand(normalizedIntentReply)");
+    expect(orchestratorSrc).toContain("resolvePendingPlanHandoff({");
+    expect(orchestratorSrc).toContain("isDirectBuildCommand,");
   });
 });
