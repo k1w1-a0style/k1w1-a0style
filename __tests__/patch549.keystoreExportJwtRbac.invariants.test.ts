@@ -13,9 +13,12 @@ describe("patch549 keystore export JWT/RBAC hardening invariants", () => {
 
   it("keeps deny-by-default JWT role checks in shared auth and the route entrypoint", () => {
     const sharedAuth = read("supabase/functions/_shared/auth.ts");
-    expect(sharedAuth).toContain("export type JwtRoleGuardConfig = {");
-    expect(sharedAuth).toContain("export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Promise<Response | null> {");
-    expect(sharedAuth).toContain("Forbidden: verified JWT role is not allowed for this route.");
+    const jwt = read("supabase/functions/_shared/auth/jwt.ts");
+    expect(sharedAuth).toContain('export type { JwtPayload, JwtRoleGuardConfig } from "./auth/jwt.ts";');
+    expect(sharedAuth).toContain('requireJwtRole');
+    expect(jwt).toContain("export type JwtRoleGuardConfig = {");
+    expect(jwt).toContain("export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Promise<Response | null> {");
+    expect(jwt).toContain("Forbidden: verified JWT role is not allowed for this route.");
 
     const route = read("supabase/functions/android-keystore-export/index.ts");
     expect(route).toContain("const jwtRoleGuard = await requireJwtRole(req, {");

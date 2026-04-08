@@ -5,6 +5,8 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("patch510 keystore shared secret helper invariants", () => {
   const sharedAuth = "supabase/functions/_shared/auth.ts";
+  const authRuntime = "supabase/functions/_shared/auth/runtime.ts";
+  const authAdmin = "supabase/functions/_shared/auth/admin.ts";
   const generateHelpers = "supabase/functions/android-keystore-generate/helpers.ts";
   const exportHelpers = "supabase/functions/android-keystore-export/helpers.ts";
   const statusHelpers = "supabase/functions/android-keystore-status/helpers.ts";
@@ -14,13 +16,16 @@ describe("patch510 keystore shared secret helper invariants", () => {
 
   it("exposes shared runtime secret helpers from _shared/auth", () => {
     const src = read(sharedAuth);
-    expect(src).toContain("export function getSupabaseUrl(): string | null {");
-    expect(src).toContain("const getSupabaseUrlSecret = (): string | null =>");
-    expect(src).toContain('getRuntimeEnv("K1W1_SUPABASE_URL")');
-    expect(src).toContain('getRuntimeEnv("SUPABASE_URL")');
-    expect(src).toContain("export function getSigningMasterKey(): string | null {");
-    expect(src).toContain("const getSigningMasterKeySecret = (): string | null =>");
-    expect(src).toContain('getRuntimeEnv("SIGNING_MASTER_KEY")');
+    const runtime = read(authRuntime);
+    const admin = read(authAdmin);
+    expect(src).toContain("getSupabaseUrl");
+    expect(admin).toContain("export function getSupabaseUrl(): string | null {");
+    expect(runtime).toContain("export const getSupabaseUrlSecret = (): string | null =>");
+    expect(runtime).toContain('getRuntimeEnv("K1W1_SUPABASE_URL")');
+    expect(runtime).toContain('getRuntimeEnv("SUPABASE_URL")');
+    expect(admin).toContain("export function getSigningMasterKey(): string | null {");
+    expect(runtime).toContain("export const getSigningMasterKeySecret = (): string | null =>");
+    expect(runtime).toContain('getRuntimeEnv("SIGNING_MASTER_KEY")');
   });
 
   it("re-exports the shared secret helpers for keystore generate/export/status paths", () => {

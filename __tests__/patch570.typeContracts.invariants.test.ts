@@ -5,9 +5,12 @@ describe("Patch 570 type/error contract invariants", () => {
   it("hardens useAppInfoScreen error contracts to unknown + guarded message access", () => {
     const src = readRepoText("screens/AppInfoScreen/hooks/useAppInfoScreen.ts");
     const helpersSrc = readRepoText("screens/AppInfoScreen/hooks/useAppInfoScreen.helpers.ts");
+    const apiFlowSrc = readRepoText("screens/AppInfoScreen/hooks/useAppInfoApiConfigFlow.ts");
+    const secureFlowSrc = readRepoText("screens/AppInfoScreen/hooks/useAppInfoSecureBackupFlow.ts");
 
     expect(src).toContain("function getErrorMessage(error: unknown, fallback: string): string");
-    expect(src).toContain("function isAbortLikeError(error: unknown): boolean");
+    expect(apiFlowSrc).toContain("function isAbortLikeError(error: unknown): boolean");
+    expect(secureFlowSrc).toContain("function isAbortLikeError(error: unknown): boolean");
     expect(src).toContain("toProjectFiles(projectData?.files)");
     expect(helpersSrc).toContain("export function toProjectFiles(value: unknown)");
     expect(src).not.toContain(asAnySnippet("projectData"));

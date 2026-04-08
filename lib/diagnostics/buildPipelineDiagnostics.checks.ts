@@ -1,0 +1,436 @@
+import { resolveRepoSecretListVerification, resolveRepoSecretVerification } from "../status/repoSecretVerification";
+import { isUuid, safeTrim, type DiagnosticCheck } from "./diagnosticTypes";
+import {
+  CANONICAL_EAS_JSON,
+  EAS_PROFILES,
+  type BuildPipelineDiagnosticsDeps,
+  type EasConfig,
+  canonicalEasJsonString,
+  getProfileLabel,
+} from "./buildPipelineDiagnostics.constants";
+import {
+  asRecord,
+  describeRepoSecretContract,
+  getDiagnosticErrorMessage,
+  getRepoSecretCheckTitle,
+  readStringDeps,
+} from "./buildPipelineDiagnostics.helpers";
+
+export async function addLocalPrerequisiteChecks(
+  checks: DiagnosticCheck[],
+  deps: BuildPipelineDiagnosticsDeps,
+): Promise<void> {
+  const [ghToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey] = await Promise.all([
+    deps.getGitHubToken?.() ?? Promise.resolve(null),
+    deps.getExpoToken?.() ?? Promise.resolve(null),
+    deps.getWorkflowAdminKey?.() ?? Promise.resolve(null),
+    deps.getAndroidKeystoreExportAdminKey?.() ?? Promise.resolve(null),
+  ]);
+
+  checks.push({
+    id: "local.githubToken",
+    title: "GitHub Token vorhanden",
+    status: ghToken ? "pass" : "fail",
+    fixHint: ghToken ? undefined : "In Connections GitHub Token setzen.",
+  });
+
+  checks.push({
+    id: "local.expoToken",
+    title: "Expo Token vorhanden",
+    status: expoToken ? "pass" : "fail",
+    fixHint: expoToken ? undefined : "Expo Token speichern (Connections / Settings).",
+  });
+
+  checks.push({
+    id: "local.workflowAdminKey",
+    title: "Lokaler Workflow Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: workflowAdminKey ? "pass" : "fail",
+    fixHint: workflowAdminKey
+      ? undefined
+      : "Workflow-/Build-/Artifact-Readiness braucht den lokalen Workflow Admin-Key (scoped).",
+  });
+
+  checks.push({
+    id: "local.operatorClaimProvisioning",
+    title: "Operator-Claim build_admin extern provisioniert (Preflight-Pflicht)",
+    status: "warn",
+    details: "Workflow-/Build-/Artifact-/Keystore-Routen akzeptieren JWT-Rollen nur als service_role|build_admin.",
+    fixHint:
+      "build_admin wird nicht im Repo erzeugt. Der Claim muss extern im Betriebsprozess fuer den Supabase-User (role/app_metadata.role) provisioniert sein, bevor diese Operator-Flows live getestet werden. Normale eingeloggte Nutzer ohne diesen externen Claim bleiben fail-closed blockiert.",
+  });
+
+  checks.push({
+    id: "local.androidKeystoreExportAdminKey",
+    title: "Lokaler Android Keystore Export Admin-Key vorhanden (x-k1w1-admin-key)",
+    status: androidKeystoreExportAdminKey ? "pass" : "warn",
+    fixHint: androidKeystoreExportAdminKey
+      ? undefined
+      : "Keystore-Routen nutzen den separaten lokalen Keystore-Scoped-Key. Ohne ihn bleibt Keystore-Readiness unbestaetigt.",
+  });
+}
+
+export async function resolveRepoFilePresence(params: {
+  owner: string;
+  repo: string;
+  ref: string;
+  deps: BuildPipelineDiagnosticsDeps;
+}) {
+  const d = params.deps;
+  const [
+    hasAppConfigJs,
+    hasAppConfigTs,
+    hasAppJson,
+    hasEasJson,
+    hasEasProjectJson,
+    hasPackageJson,
+    hasLinkWorkflow,
+    hasTriggeredBuildWorkflow,
+  ] = await Promise.all([
+    d.fileExists?.(params.owner, params.repo, "app.config.js", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, "app.config.ts", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, "app.json", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, "eas.json", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, "eas-project.json", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, "package.json", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, ".github/workflows/eas-link.yml", params.ref) ?? Promise.resolve(false),
+    d.fileExists?.(params.owner, params.repo, ".github/workflows/k1w1-triggered-build.yml", params.ref) ?? Promise.resolve(false),
+  ]);
+
+  return {
+    hasAppConfigJs,
+    hasAppConfigTs,
+    hasAppJson,
+    hasEasJson,
+    hasEasProjectJson,
+    hasPackageJson,
+    hasLinkWorkflow,
+    hasTriggeredBuildWorkflow,
+  };
+}
+
+export async function addRepoConfigChecks(params: {
+  checks: DiagnosticCheck[];
+  owner: string;
+  repo: string;
+  ref: string;
+  deps: BuildPipelineDiagnosticsDeps;
+  hasAppConfigJs: boolean;
+  hasAppConfigTs: boolean;
+  hasAppJson: boolean;
+  hasEasJson: boolean;
+}): Promise<EasConfig | null> {
+  const { checks, owner, repo, ref, deps } = params;
+  const expoConfigOk = params.hasAppConfigJs || params.hasAppConfigTs || params.hasAppJson;
+  checks.push({
+    id: "repo.expoConfig",
+    title: "Expo Config vorhanden (app.config.* / app.json)",
+    status: expoConfigOk ? "pass" : "fail",
+    details: `Branch: ${ref}`,
+    fixHint: expoConfigOk ? undefined : "Im Repo muss app.config.js / app.config.ts oder app.json vorhanden sein.",
+    fix:
+      expoConfigOk || params.hasAppConfigJs || params.hasAppConfigTs
+        ? undefined
+        : {
+            label: "Create minimal Expo config",
+            patch: {
+              upsert: [{ path: "app.json", content: `${JSON.stringify({ expo: { name: "CHANGE_ME", slug: "change-me", version: "1.0.0", android: { package: "com.change.me" } } }, null, 2)}\n` }],
+              explanation: "Minimales app.json erzeugt (TODO: name/slug/version/android.package auf reale Werte anpassen).",
+            },
+          },
+  });
+
+  checks.push({
+    id: "repo.easJson",
+    title: "eas.json vorhanden",
+    status: params.hasEasJson ? "pass" : "fail",
+    fixHint: params.hasEasJson ? undefined : "eas.json fehlt → Template/Patch anwenden (sonst EAS Profiles fehlen).",
+    fix: params.hasEasJson
+      ? undefined
+      : {
+          label: "Apply canonical EAS config",
+          patch: {
+            upsert: [{ path: "eas.json", content: canonicalEasJsonString() }],
+            explanation: "Legt eine kanonische eas.json mit development/preview/production Profilen an.",
+          },
+        },
+  });
+
+  let easJson: EasConfig | null = null;
+  if (params.hasEasJson) {
+    easJson = await deps.readJsonFile?.<EasConfig>(owner, repo, "eas.json", ref) ?? null;
+    if (!easJson) {
+      checks.push({ id: "repo.easJson.parse", title: "eas.json ist parsebar", status: "fail", fixHint: "eas.json konnte nicht gelesen/geparst werden." });
+    }
+  }
+
+  return easJson;
+}
+
+export function addEasProfileChecks(checks: DiagnosticCheck[], easJson: EasConfig | null): void {
+  for (const prof of EAS_PROFILES) {
+    const p = easJson?.build?.[prof];
+    if (!p) {
+      checks.push({
+        id: `repo.easProfile.${prof}`,
+        title: `EAS Profil vorhanden: ${getProfileLabel(prof)}`,
+        status: "fail",
+        fixHint: "Profil fehlt in eas.json. In-App: Repo-Projektdateien aktualisieren (Templates/Push) oder CI AutoFix nutzen.",
+        fix: {
+          label: "Apply canonical EAS config",
+          patch: {
+            jsonMerge: [{ path: "eas.json", patch: { build: { [prof]: CANONICAL_EAS_JSON.build[prof] } }, createIfMissing: true }],
+            explanation: `Ergänzt das fehlende build.${prof} Profil in eas.json (additiv).`,
+          },
+        },
+      });
+      continue;
+    }
+
+    const btRaw = p?.android?.buildType;
+    const bt = typeof btRaw === "string" ? btRaw.toLowerCase().trim() : "";
+    const btOk = bt === "apk" || bt === "";
+    checks.push({
+      id: `repo.easBuildType.${prof}`,
+      title: `Android BuildType (APK-only): ${getProfileLabel(prof)}`,
+      status: btOk ? (bt === "apk" ? "pass" : "warn") : "fail",
+      details: btOk ? (bt === "apk" ? undefined : `build.${prof}.android.buildType ist nicht gesetzt – bitte explizit "apk" setzen.`) : `BuildType ist "${btRaw}". Erwartet: "apk".`,
+      fixHint: btOk ? (bt === "apk" ? undefined : `Setze in eas.json: build.${prof}.android.buildType = "apk".`) : `Setze build.${prof}.android.buildType auf "apk".`,
+      fix: bt === "apk" ? undefined : {
+        label: `Setze ${prof}.android.buildType auf "apk"`,
+        patch: { jsonMerge: [{ path: "eas.json", patch: { build: { [prof]: { android: { buildType: "apk" } } } }, createIfMissing: true }], explanation: "APK-only: Der In-App Builder unterstützt ausschließlich installierbare APKs." },
+      },
+    });
+
+    const withoutCreds = p?.android?.withoutCredentials === true;
+    if (prof === "production") {
+      checks.push({
+        id: `repo.easAndroidWithoutCreds.${prof}`,
+        title: `Android Signierung: ${getProfileLabel(prof)}`,
+        status: withoutCreds ? "warn" : "pass",
+        details: withoutCreds ? "android.withoutCredentials=true ist aktiv – Production Builds sollten signiert werden (Keystore nötig)." : undefined,
+        fixHint: withoutCreds ? "Entferne android.withoutCredentials oder setze es auf false, damit Production signiert ist." : undefined,
+        fix: withoutCreds ? { label: "Deaktiviere withoutCredentials (production)", patch: { jsonMerge: [{ path: "eas.json", patch: { build: { production: { android: { withoutCredentials: false } } } }, createIfMissing: true }], explanation: "Production Builds benötigen Signing Credentials (Keystore). withoutCredentials ist nur für interne Builds gedacht." } } : undefined,
+      });
+    } else {
+      checks.push({
+        id: `repo.easAndroidWithoutCreds.${prof}`,
+        title: `Android Signierung (CI-safe): ${getProfileLabel(prof)}`,
+        status: withoutCreds ? "pass" : "warn",
+        details: withoutCreds ? "withoutCredentials=true → kein Keystore nötig (ideal für CI / interne APKs)." : "withoutCredentials fehlt → CI non-interactive kann beim ersten Build am Keystore scheitern.",
+        fixHint: withoutCreds ? undefined : `Empfohlen: build.${prof}.android.withoutCredentials=true (wenn du keine signierten internen APKs brauchst).`,
+        fix: withoutCreds ? undefined : { label: `Setze ${prof}.android.withoutCredentials=true`, patch: { jsonMerge: [{ path: "eas.json", patch: { build: { [prof]: { android: { withoutCredentials: true } } } }, createIfMissing: true }], explanation: "Damit development/preview Builds in CI ohne vorherige Keystore-Erstellung zuverlässig laufen." } },
+      });
+    }
+
+    if (prof === "development") {
+      const devClient = p?.developmentClient === true;
+      const dist = typeof p?.distribution === "string" ? String(p.distribution).trim() : "";
+      const internalOk = !devClient ? dist === "internal" || dist === "" : true;
+      checks.push({
+        id: "repo.easDevelopmentCoherent",
+        title: "Development Profil konsistent (Dev-Client ODER internal APK)",
+        status: devClient || internalOk ? "pass" : "warn",
+        details: devClient ? "Development-Client Flow aktiv (developmentClient=true)." : internalOk ? "Development ist als internal APK konfiguriert (ohne Dev-Client)." : "developmentClient=false aber distribution ist nicht internal.",
+        fixHint: devClient || internalOk ? undefined : "Wenn developmentClient=false ist, sollte distribution=internal gesetzt sein.",
+        fix: devClient || internalOk ? undefined : { label: "Setze distribution=internal (development)", patch: { jsonMerge: [{ path: "eas.json", patch: { build: { development: { distribution: "internal" } } }, createIfMissing: true }], explanation: "Development ohne Dev-Client sollte als internes APK gebaut werden (distribution=internal)." } },
+      });
+      if (!devClient) {
+        checks.push({
+          id: "repo.easEnableDevClientFlow",
+          title: "Optional: Development-Client Flow aktivieren",
+          status: "info",
+          details: "Wenn du im Dev-Mode den echten Dev-Client nutzen willst, aktiviere developmentClient=true (und stelle sicher, dass expo-dev-client als Dependency existiert).",
+          fix: {
+            label: "Setze developmentClient=true (development)",
+            patch: { jsonMerge: [{ path: "eas.json", patch: { build: { development: { developmentClient: true } } }, createIfMissing: true }], explanation: "Aktiviert den Development-Client Flow. Dafür wird in der Regel expo-dev-client als Dependency benötigt." },
+          },
+        });
+      }
+    }
+  }
+}
+
+export async function addExpoDevClientCheck(params: {
+  checks: DiagnosticCheck[];
+  deps: BuildPipelineDiagnosticsDeps;
+  owner: string;
+  repo: string;
+  ref: string;
+  hasPackageJson: boolean;
+  easJson: EasConfig | null;
+}): Promise<void> {
+  if (!params.hasPackageJson) return;
+  try {
+    const pkg = await params.deps.readJsonFile?.<unknown>(params.owner, params.repo, "package.json", params.ref);
+    const pkgRecord = asRecord(pkg);
+    const deps = {
+      ...readStringDeps(pkgRecord?.dependencies),
+      ...readStringDeps(pkgRecord?.devDependencies),
+    };
+    const hasDevClient = typeof deps["expo-dev-client"] === "string";
+    const devClientEnabled = params.easJson?.build?.development?.developmentClient === true;
+
+    params.checks.push({
+      id: "repo.dep.expoDevClient",
+      title: "Dependency: expo-dev-client (für Development Flow)",
+      status: hasDevClient ? "pass" : devClientEnabled ? "warn" : "pass",
+      details: hasDevClient ? undefined : devClientEnabled ? "developmentClient=true ist aktiv, aber expo-dev-client fehlt im package.json." : "developmentClient ist aus – expo-dev-client ist optional.",
+      fixHint: hasDevClient ? undefined : devClientEnabled ? "Entweder expo-dev-client hinzufügen ODER developmentClient=false verwenden (internal APK)." : undefined,
+      fix: hasDevClient || !devClientEnabled
+        ? undefined
+        : {
+            label: "Stelle development Profil auf internal APK (ohne Dev-Client)",
+            patch: {
+              jsonMerge: [{ path: "eas.json", patch: { build: { development: { developmentClient: false, distribution: "internal", android: { buildType: "apk" } } } }, createIfMissing: true }],
+              explanation: "Damit Dev-Builds ohne expo-dev-client zuverlässig laufen, wird das development Profil als internes APK konfiguriert.",
+            },
+          },
+    });
+  } catch {
+    params.checks.push({ id: "repo.dep.expoDevClient.read", title: "Dependency: expo-dev-client (für Development Flow)", status: "warn", fixHint: "package.json konnte nicht gelesen werden." });
+  }
+}
+
+export async function detectEasProjectId(params: {
+  owner: string;
+  repo: string;
+  ref: string;
+  deps: BuildPipelineDiagnosticsDeps;
+  hasEasProjectJson: boolean;
+  hasAppJson: boolean;
+  hasAppConfigJs: boolean;
+  hasAppConfigTs: boolean;
+}): Promise<{ projectIdOk: boolean; projectId: string; projectIdSource: "eas-project.json" | "app.json" | "app.config" | "" }> {
+  let projectId = "";
+  let projectIdSource: "eas-project.json" | "app.json" | "app.config" | "" = "";
+  let projectIdOk = false;
+
+  if (params.hasEasProjectJson) {
+    try {
+      const data = await params.deps.readJsonFile?.<{ projectId?: string }>(params.owner, params.repo, "eas-project.json", params.ref);
+      const candidate = safeTrim(data?.projectId);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "eas-project.json";
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  if (!projectIdOk && params.hasAppJson) {
+    try {
+      const appJson = await params.deps.readJsonFile?.<{ expo?: { extra?: { eas?: { projectId?: string } } } }>(params.owner, params.repo, "app.json", params.ref);
+      const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "app.json";
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  if (!projectIdOk && (params.hasAppConfigJs || params.hasAppConfigTs)) {
+    try {
+      const path = params.hasAppConfigJs ? "app.config.js" : "app.config.ts";
+      const text = await params.deps.getRepoFileText?.({ owner: params.owner, repo: params.repo, path, ref: params.ref }) ?? "";
+      const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+      const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
+      const candidate = safeTrim(m1?.[1] ?? m2?.[1] ?? null);
+      if (candidate && isUuid(candidate)) {
+        projectId = candidate;
+        projectIdOk = true;
+        projectIdSource = "app.config";
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  return { projectIdOk, projectId, projectIdSource };
+}
+
+export function addProjectIdCheck(
+  checks: DiagnosticCheck[],
+  ref: string,
+  projectId: { projectIdOk: boolean; projectId: string; projectIdSource: "eas-project.json" | "app.json" | "app.config" | "" },
+): void {
+  checks.push({
+    id: "repo.easProjectId",
+    title: "EAS projectId vorhanden (non-interactive)",
+    status: projectId.projectIdOk ? "pass" : "fail",
+    details: projectId.projectIdOk ? `projectId: ${projectId.projectId} (source: ${projectId.projectIdSource})` : undefined,
+    fixHint: projectId.projectIdOk ? undefined : "EAS projectId fehlt → In-App: RepoScreen 'EAS Projekt erstellen/verbinden' ausführen oder Workflow 'eas-link.yml' starten.",
+    fix: projectId.projectIdOk
+      ? undefined
+      : {
+          label: "EAS Projekt verbinden (Auto)",
+          workflowDispatch: {
+            workflowFileName: "eas-link.yml",
+            ref,
+            fallbackPatch: {
+              upsert: [{ path: ".github/workflows/eas-link.yml", content: 'name: EAS Link\non:\n  workflow_dispatch:\njobs:\n  link:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo "eas-link placeholder"\n' }],
+              explanation: "Fehlenden Workflow eas-link.yml anlegen, damit EAS-Link Auto-Fix dispatchbar ist.",
+            },
+          },
+        },
+  });
+}
+
+export function addWorkflowPresenceChecks(checks: DiagnosticCheck[], flags: { hasLinkWorkflow: boolean; hasTriggeredBuildWorkflow: boolean }) {
+  checks.push({ id: "repo.workflow.easLink", title: "Workflow vorhanden: eas-link.yml", status: flags.hasLinkWorkflow ? "pass" : "fail", fixHint: flags.hasLinkWorkflow ? undefined : "Workflow fehlt → Template/Patch anwenden (für 1-Click EAS Linking)." });
+  checks.push({ id: "repo.workflow.triggeredBuild", title: "Workflow vorhanden: k1w1-triggered-build.yml", status: flags.hasTriggeredBuildWorkflow ? "pass" : "fail", fixHint: flags.hasTriggeredBuildWorkflow ? undefined : "Workflow fehlt → Template/Patch anwenden (für repository_dispatch Builds)." });
+}
+
+export async function addRepoSecretsChecks(params: {
+  checks: DiagnosticCheck[];
+  deps: BuildPipelineDiagnosticsDeps;
+  owner: string;
+  repo: string;
+}): Promise<void> {
+  try {
+    const names = await params.deps.listRepoSecretNames?.(params.owner, params.repo) ?? [];
+    const expoTokenContract = resolveRepoSecretVerification({ name: "EXPO_TOKEN", names });
+    const supabaseUrlContract = resolveRepoSecretVerification({ name: "SUPABASE_URL", names });
+    const supabaseServiceRoleContract = resolveRepoSecretVerification({ name: "SUPABASE_SERVICE_ROLE_KEY", names });
+
+    const expoTokenCopy = describeRepoSecretContract({ name: "EXPO_TOKEN", state: expoTokenContract.state });
+    const supabaseUrlCopy = describeRepoSecretContract({ name: "SUPABASE_URL", state: supabaseUrlContract.state, optional: true });
+    const serviceRoleCopy = describeRepoSecretContract({ name: "SUPABASE_SERVICE_ROLE_KEY", state: supabaseServiceRoleContract.state, optional: true });
+
+    params.checks.push({ id: "repo.secret.expoToken", title: getRepoSecretCheckTitle({ name: "EXPO_TOKEN", state: expoTokenContract.state }), status: expoTokenCopy.status, fixHint: expoTokenCopy.fixHint });
+    params.checks.push({ id: "repo.secret.supabaseUrl", title: getRepoSecretCheckTitle({ name: "SUPABASE_URL", state: supabaseUrlContract.state }), status: supabaseUrlCopy.status, fixHint: supabaseUrlCopy.fixHint });
+    params.checks.push({ id: "repo.secret.supabaseServiceRole", title: getRepoSecretCheckTitle({ name: "SUPABASE_SERVICE_ROLE_KEY", state: supabaseServiceRoleContract.state }), status: serviceRoleCopy.status, fixHint: serviceRoleCopy.fixHint });
+  } catch (e: unknown) {
+    const errorState = resolveRepoSecretListVerification({ error: e }).state;
+    const secretListCopy = describeRepoSecretContract({ name: "repo secrets", state: errorState, optional: true });
+    params.checks.push({ id: "repo.secret.list", title: "Repo Secrets abrufbar", status: secretListCopy.status, details: getDiagnosticErrorMessage(e, "Secrets konnten nicht gelesen werden."), fixHint: secretListCopy.fixHint });
+  }
+}
+
+export async function addAppConfigUsageCheck(params: {
+  checks: DiagnosticCheck[];
+  deps: BuildPipelineDiagnosticsDeps;
+  owner: string;
+  repo: string;
+  ref: string;
+  hasAppConfigJs: boolean;
+}): Promise<void> {
+  if (!params.hasAppConfigJs) return;
+  try {
+    const appConfig = await params.deps.getRepoFileText?.({ owner: params.owner, repo: params.repo, path: "app.config.js", ref: params.ref }) ?? "";
+    const usesEasProjectJson = appConfig.includes("eas-project.json");
+    params.checks.push({
+      id: "repo.appConfig.usesEasProjectJson",
+      title: "app.config.js nutzt eas-project.json",
+      status: usesEasProjectJson ? "pass" : "warn",
+      fixHint: usesEasProjectJson ? undefined : "Empfehlung: app.config.js sollte projectId aus eas-project.json lesen (damit CI nicht auf ENV angewiesen ist).",
+      fix: undefined,
+    });
+  } catch {
+    // noop
+  }
+}

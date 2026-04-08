@@ -1,12 +1,15 @@
 # TODO
 
-Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
+Stand: **2026-04-08 (Patch 761, HotspotFinalisierung (Diagnostics/Auth/AppInfo) + RefactorSoTDrift-Follow-up abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] `BuildPipelineDiagnosticsRefactorFinal` (Patch 761): `lib/diagnostics/buildPipelineDiagnostics.ts` ist jetzt nur noch Orchestrator; Regel-/Profil-/Secret-/Workflow-/ProjectId-Checks und pure Helper liegen in dedizierten Modulen (`buildPipelineDiagnostics.checks.ts`, `.constants.ts`, `.helpers.ts`) ohne semantische Aenderung der bestehenden Severity-/Fix-Vertraege.
+- [x] `SharedAuthHotspotFinal` (Patch 761): `supabase/functions/_shared/auth.ts` wurde als stabile Public-Facade beibehalten, waehrend JWT-, Scoped-Guard-, Runtime-Secret-, Admin- und Rate-Limit-Logik in `auth/*` getrennt wurden; fail-closed Auth-/RBAC-/durable-fallback-Verhalten bleibt unveraendert.
+- [x] `AppInfoHookRefactorFinal` (Patch 761): `useAppInfoScreen.ts` ist jetzt die duenne UI-Orchestrator-Fassade; API-Config-Import/Export und Secure-Backup-/Secret-Flow wurden in `useAppInfoApiConfigFlow.ts` und `useAppInfoSecureBackupFlow.ts` ausgelagert (inkl. Rollback-/Abort-/Legacy-cleanup-Semantik).
 - [x] `LocalRemoteDiffSectionRefactor` (Patch 760): Der Diff-Hotspot ist vollstaendig vom Monolithen in Container, Model, pure Diff-/Fingerprint-Helper, List-UI, Modal-UI und lokale Typen zerlegt; Import-Kompatibilitaet bleibt ueber den schlanken Re-Export erhalten.
 - [x] `RefactorSoTDrift` (Patch 760): Fuehrende SoT-Dateien (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `PROJECT_CHECKLOG`, `PATCHLOG_ROOT`) auf den echten Refactor-Stand synchronisiert; Analyse-only-Header aus Patch 759 sind damit abgeloest.
 

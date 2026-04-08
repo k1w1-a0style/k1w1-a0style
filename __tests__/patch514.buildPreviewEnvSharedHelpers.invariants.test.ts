@@ -36,6 +36,8 @@ function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T 
 
 describe("patch514 build/preview env helper hygiene invariants", () => {
   const sharedAuth = "supabase/functions/_shared/auth.ts";
+  const authRuntime = "supabase/functions/_shared/auth/runtime.ts";
+  const authAdmin = "supabase/functions/_shared/auth/admin.ts";
   const checkIndex = "supabase/functions/check-eas-build/index.ts";
   const triggerIndex = "supabase/functions/trigger-eas-build/index.ts";
   const previewHelpers = "supabase/functions/preview_page/helpers.ts";
@@ -44,13 +46,15 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
 
   it("extends the shared auth helper line for shared runtime env reads", () => {
     const src = read(sharedAuth);
-    expect(src).toContain("export const getRuntimeEnv = (key: string): string | undefined => {");
-    expect(src).toContain("export function getPreviewSupabaseUrl(): string | null {");
-    expect(src).toContain("export function getPreviewServiceRoleKey(): string | null {");
-    expect(src).toContain('getRuntimeEnv("K1W1_SUPABASE_URL")');
-    expect(src).toContain('getRuntimeEnv("SUPABASE_URL")');
-    expect(src).toContain('getRuntimeEnv("PREVIEW_SUPABASE_URL")');
-    expect(src).toContain('getRuntimeEnv("PREVIEW_SERVICE_ROLE_KEY")');
+    const runtime = read(authRuntime);
+    const admin = read(authAdmin);
+    expect(src).toContain("getRuntimeEnv");
+    expect(admin).toContain("export function getPreviewSupabaseUrl(): string | null {");
+    expect(admin).toContain("export function getPreviewServiceRoleKey(): string | null {");
+    expect(runtime).toContain('getRuntimeEnv("K1W1_SUPABASE_URL")');
+    expect(runtime).toContain('getRuntimeEnv("SUPABASE_URL")');
+    expect(runtime).toContain('getRuntimeEnv("PREVIEW_SUPABASE_URL")');
+    expect(runtime).toContain('getRuntimeEnv("PREVIEW_SERVICE_ROLE_KEY")');
   });
 
   it("removes direct Deno.env reads from the targeted build/preview files", () => {
