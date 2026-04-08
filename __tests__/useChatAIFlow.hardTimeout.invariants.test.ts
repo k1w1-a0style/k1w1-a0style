@@ -2,10 +2,12 @@ import fs from "fs";
 import path from "path";
 
 describe("useChatAIFlow hard-timeout wiring invariants", () => {
-  const file = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
-  const requestOrchestratorFile = path.join(process.cwd(), "hooks/chatAIFlowRequestOrchestrator.ts");
-  const source = fs.readFileSync(file, "utf8");
-  const requestOrchestratorSource = fs.readFileSync(requestOrchestratorFile, "utf8");
+  const orchestratorFile = path.join(process.cwd(), "hooks/chatAIFlowRequestOrchestrator.ts");
+  const requestControllerFile = path.join(process.cwd(), "hooks/chatAIFlow/useChatAIRequestController.ts");
+  const timeoutHelperFile = path.join(process.cwd(), "hooks/chatAIFlow/chatAIFlowPureHelpers.ts");
+  const requestOrchestratorSource = fs.readFileSync(orchestratorFile, "utf8");
+  const requestControllerSource = fs.readFileSync(requestControllerFile, "utf8");
+  const timeoutHelperSource = fs.readFileSync(timeoutHelperFile, "utf8");
 
   it("wires planner/builder/validator/explain through runOrchestratorWithHardTimeout", () => {
     const calls = requestOrchestratorSource.match(/await\s+runOrchestratorWithTimeout\(/g) ?? [];
@@ -19,10 +21,8 @@ describe("useChatAIFlow hard-timeout wiring invariants", () => {
   });
 
   it("keeps raw runOrchestrator call confined to timeout wrapper", () => {
-    const processStart = source.indexOf("const processAIRequest = useCallback(");
-    expect(processStart).toBeGreaterThan(-1);
-
-    const processBody = source.slice(processStart);
-    expect(processBody).not.toMatch(/await\s+runOrchestrator\(/);
+    expect(requestControllerSource).not.toMatch(/await\s+runOrchestrator\(/);
+    expect(requestOrchestratorSource).not.toMatch(/await\s+runOrchestrator\(/);
+    expect(timeoutHelperSource).toContain("const result = await runOrchestrator(");
   });
 });

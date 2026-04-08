@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 
 describe("useChatAIFlow streaming sync invariants", () => {
-  const file = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
+  const file = path.join(process.cwd(), "hooks/chatAIFlow/useChatAITransientState.ts");
   const source = fs.readFileSync(file, "utf8");
 
   it("guards simulateStreaming ticks/completion against stale runs", () => {
