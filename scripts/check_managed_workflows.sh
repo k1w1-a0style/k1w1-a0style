@@ -68,11 +68,17 @@ done
 
 EDGE_FILE="supabase/functions/github-workflow-dispatch/index.ts"
 SHARED_FILE="shared/workflows/managedWorkflowTemplates.ts"
+CI_LITE_TEMPLATE_FILE="shared/workflows/templates/ciLiteTemplate.ts"
+CI_LITE_AUTOFIX_TEMPLATE_FILE="shared/workflows/templates/ciLiteAutofixTemplate.ts"
+DIAGNOSTICS_TEMPLATE_FILE="shared/workflows/templates/k1w1DiagnosticsTemplate.ts"
 EAS_LINK_SHARED_FILE="shared/workflows/easLinkWorkflowTemplate.ts"
 EAS_BUILD_RELEASE_SHARED_FILE="shared/workflows/easBuildReleaseWorkflowTemplates.ts"
 TRIGGERED_BUILD_SHARED_FILE="shared/workflows/k1w1TriggeredBuildWorkflowTemplate.ts"
 [ -f "$EDGE_FILE" ] || fail "Missing edge workflow source: $EDGE_FILE"
 [ -f "$SHARED_FILE" ] || fail "Missing shared workflow source: $SHARED_FILE"
+[ -f "$CI_LITE_TEMPLATE_FILE" ] || fail "Missing shared CI Lite template source: $CI_LITE_TEMPLATE_FILE"
+[ -f "$CI_LITE_AUTOFIX_TEMPLATE_FILE" ] || fail "Missing shared CI Lite autofix template source: $CI_LITE_AUTOFIX_TEMPLATE_FILE"
+[ -f "$DIAGNOSTICS_TEMPLATE_FILE" ] || fail "Missing shared diagnostics template source: $DIAGNOSTICS_TEMPLATE_FILE"
 [ -f "$EAS_LINK_SHARED_FILE" ] || fail "Missing shared EAS Link workflow source: $EAS_LINK_SHARED_FILE"
 [ -f "$EAS_BUILD_RELEASE_SHARED_FILE" ] || fail "Missing shared EAS/Release workflow source: $EAS_BUILD_RELEASE_SHARED_FILE"
 [ -f "$TRIGGERED_BUILD_SHARED_FILE" ] || fail "Missing shared triggered-build workflow source: $TRIGGERED_BUILD_SHARED_FILE"
@@ -85,18 +91,20 @@ fi
 if grep -q 'WORKFLOW_TEMPLATES' "$EDGE_FILE"; then
   fail "Edge dispatch must not keep implicit bootstrap template map references"
 fi
-grep -q '# managed-by: k1w1' "$SHARED_FILE" || fail "Shared workflow templates missing managed-by marker"
-version_count="$(grep -E -c '# workflow-version: [0-9]+' "$SHARED_FILE" || true)"
+grep -q '# managed-by: k1w1' "$CI_LITE_TEMPLATE_FILE" || fail "Shared CI Lite template missing managed-by marker"
+grep -q '# managed-by: k1w1' "$CI_LITE_AUTOFIX_TEMPLATE_FILE" || fail "Shared CI Lite autofix template missing managed-by marker"
+version_count="$(grep -E -c '# workflow-version: [0-9]+' "$CI_LITE_TEMPLATE_FILE" || true)"
 [ "${version_count:-0}" -ge 1 ] || fail "Shared workflow templates missing numeric workflow-version marker"
 
-shared_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$SHARED_FILE" | awk '{print $3}' | sort -n | tail -n1)"
+shared_max_version="$(grep -Eo '# workflow-version: [0-9]+' "$CI_LITE_TEMPLATE_FILE" "$CI_LITE_AUTOFIX_TEMPLATE_FILE" | awk '{print $3}' | sort -n | tail -n1)"
 [ -n "${shared_max_version:-}" ] || fail "Could not determine shared workflow-version"
 if [ "$shared_max_version" -lt 399 ]; then
   fail "Shared workflow-version unexpectedly old: $shared_max_version"
 fi
 
-grep -q 'source_sha' "$SHARED_FILE" || fail "Shared workflow templates missing source_sha/source_commit_sha provenance"
-grep -q 'repository_dispatch:' "$SHARED_FILE" || fail "Shared templates missing repository_dispatch support"
+grep -q 'source_sha' "$CI_LITE_TEMPLATE_FILE" || fail "Shared CI Lite template missing source_sha/source_commit_sha provenance"
+grep -q 'source_sha' "$CI_LITE_AUTOFIX_TEMPLATE_FILE" || fail "Shared CI Lite autofix template missing source_sha/source_commit_sha provenance"
+grep -q 'repository_dispatch:' "$CI_LITE_TEMPLATE_FILE" || fail "Shared CI Lite template missing repository_dispatch support"
 grep -q 'WORKFLOW_EAS_LINK_TEMPLATE' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link workflow file missing WORKFLOW_EAS_LINK_TEMPLATE export"
 grep -q '^# managed-by: k1w1' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing managed-by marker"
 grep -q '^# workflow-version: ' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing workflow-version marker"

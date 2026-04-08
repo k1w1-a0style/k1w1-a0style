@@ -19,11 +19,17 @@ describe("patch 399 managed workflow drift invariants", () => {
 
   it("template sources carry managed workflow markers", () => {
     const shared = read("shared/workflows/managedWorkflowTemplates.ts");
+    const ciLiteTemplate = read("shared/workflows/templates/ciLiteTemplate.ts");
+    const ciLiteAutofixTemplate = read("shared/workflows/templates/ciLiteAutofixTemplate.ts");
     const infra = read("infra/github/workflowTemplates.ts");
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
 
-    expect(shared).toContain('"k1w1-ci-lite.yml": `\n# managed-by: k1w1\n# workflow-version: 399');
-    expect(shared).toContain('"k1w1-ci-lite-autofix.yml": `\n# managed-by: k1w1\n# workflow-version: 399');
+    expect(shared).toContain('"k1w1-ci-lite.yml": WORKFLOW_K1W1_CI_LITE_TEMPLATE');
+    expect(shared).toContain('"k1w1-ci-lite-autofix.yml": WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE');
+    expect(ciLiteTemplate).toContain("# managed-by: k1w1");
+    expect(ciLiteTemplate).toContain("# workflow-version: 399");
+    expect(ciLiteAutofixTemplate).toContain("# managed-by: k1w1");
+    expect(ciLiteAutofixTemplate).toContain("# workflow-version: 399");
     expect(infra).toContain("managedWorkflowTemplates");
     expect(edge).not.toContain("managedWorkflowTemplates");
     expect(edge).toContain("missing_workflow");

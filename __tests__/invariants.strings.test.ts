@@ -142,11 +142,11 @@ describe("Invariant String Tests", () => {
     expect(wfAuto).toContain('event_type="trigger-ci-lite"');
     expect(wfAuto).toContain("\njobs:\n");
 
-    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
-    expect(sharedTemplates).toContain("k1w1-ci-lite.yml");
+    const sharedTemplates = read("shared/workflows/templates/ciLiteTemplate.ts");
+    const sharedAutofixTemplate = read("shared/workflows/templates/ciLiteAutofixTemplate.ts");
     expect(sharedTemplates).toContain("\non:\n  repository_dispatch:");
     expect(sharedTemplates).toContain("trigger-ci-lite");
-    expect(sharedTemplates).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
+    expect(sharedAutofixTemplate).toContain("repos/\\${GITHUB_REPOSITORY}/dispatches");
 
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
     expect(edge).toContain("missing_workflow");
@@ -162,7 +162,7 @@ describe("Invariant String Tests", () => {
     // Why it matters: tee without pipefail causes false-green header status, and Expo preflight guards build-readiness.
     const wf = read(".github/workflows/k1w1-ci-lite.yml");
     const wfAuto = read(".github/workflows/k1w1-ci-lite-autofix.yml");
-    const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
+    const sharedTemplates = read("shared/workflows/templates/ciLiteTemplate.ts");
     const appTemplates = read("infra/github/workflowTemplates.ts");
 
     for (const source of [wf, wfAuto, sharedTemplates]) {

@@ -1,0 +1,143 @@
+export const WORKFLOW_K1W1_DIAGNOSTICS_TEMPLATE = `name: k1w1 diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to diagnose"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: \${{ github.workflow }}-\${{ inputs.branch || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: \${{ inputs.branch }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate expo config + diagnostics report
+        id: diag
+        shell: bash
+        env:
+          EXPO_TOKEN: \${{ secrets.EXPO_TOKEN }}
+          REPO: \${{ github.repository }}
+          BRANCH: \${{ inputs.branch }}
+          RUN_ID: \${{ github.run_id }}
+          SHA: \${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          ERRORS="[]"
+          STATUS="pass"
+          PROJECT_ID=""
+
+          # expo config json
+          if npx expo config --json > expo-config.json; then
+            :
+          else
+            STATUS="fail"
+            ERRORS="$(node -e 'const e=JSON.parse(process.argv[1]); e.push({code:"EXPO_CONFIG_FAILED",message:"npx expo config --json failed"}); console.log(JSON.stringify(e));' "$ERRORS")"
+          fi
+
+          if [ -f expo-config.json ]; then
+            PROJECT_ID="$(node -e 'const fs=require("fs"); const c=JSON.parse(fs.readFileSync("expo-config.json","utf8")); const id=c?.expo?.extra?.eas?.projectId || ""; process.stdout.write(String(id));' || true)"
+          fi
+
+          if [ -z "$PROJECT_ID" ]; then
+            STATUS="fail"
+            ERRORS="$(node -e 'const e=JSON.parse(process.argv[1]); e.push({code:"MISSING_EAS_PROJECT_ID",message:"expo.extra.eas.projectId missing. Run eas-link.yml to commit eas-project.json/projectId."}); console.log(JSON.stringify(e));' "$ERRORS")"
+          fi
+
+          {
+            echo "### k1w1 diagnostics"
+            echo "- Branch: \${BRANCH}"
+            echo "- Status: \${STATUS}"
+            echo "- expo.extra.eas.projectId: \${PROJECT_ID:-}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          REPO="$REPO" BRANCH="$BRANCH" RUN_ID="$RUN_ID" SHA="$SHA" STATUS="$STATUS" PROJECT_ID="$PROJECT_ID" ERRORS="$ERRORS" \
+          node - <<'NODE'
+          const fs = require("fs");
+          const report = {
+            github_repo: process.env.REPO,
+            branch: process.env.BRANCH,
+            status: process.env.STATUS,
+            project_id: process.env.PROJECT_ID ? process.env.PROJECT_ID : null,
+            workflow_run_id: process.env.RUN_ID,
+            commit_sha: process.env.SHA,
+            errors: JSON.parse(process.env.ERRORS || "[]"),
+            expo_config: fs.existsSync("expo-config.json")
+              ? JSON.parse(fs.readFileSync("expo-config.json", "utf8"))
+              : null,
+            created_at: new Date().toISOString(),
+          };
+          fs.writeFileSync("diagnostics-report.json", JSON.stringify(report, null, 2));
+          NODE
+
+          {
+            echo "status=$STATUS"
+            echo "project_id=$PROJECT_ID"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload diagnostics artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: k1w1-diagnostics
+          path: |
+            diagnostics-report.json
+            expo-config.json
+
+      - name: Send diagnostics report to Supabase
+        if: \${{ always() }}
+        shell: bash
+        env:
+          SUPABASE_URL: \${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: \${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "\${SUPABASE_URL:-}" ] || [ -z "\${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "⚠️ Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY secrets; skipping Supabase report insert."
+            exit 0
+          fi
+
+          if [ ! -f diagnostics-report.json ]; then
+            echo "⚠️ diagnostics-report.json missing; skipping."
+            exit 0
+          fi
+
+          curl --fail-with-body -sS -X POST "\${SUPABASE_URL%/}/rest/v1/diagnostics_reports" \
+            -H "Content-Type: application/json" \
+            -H "apikey: \${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer \${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Prefer: return=minimal" \
+            --data-binary @diagnostics-report.json
+
+          echo "✅ Diagnostics report inserted into Supabase."
+
+      - name: Fail job if diagnostics failed
+        if: \${{ steps.diag.outputs.status == 'fail' }}
+        run: |
+          echo "Diagnostics failed (see summary / artifact / Supabase diagnostics_reports)."
+          exit 1
+`;
