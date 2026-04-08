@@ -13,7 +13,7 @@ const ALLOWED_GET_LEGACY_CALLS = new Set([
   "lib/orchestrator/k1w1Edge.ts",
   "screens/AppInfoScreen/hooks/useAppInfoScreen.ts",
   "screens/ConnectionsScreen/hooks/useConnectionsScreen.ts",
-  "screens/GitHubReposScreen/components/SecretsSection.tsx",
+  "screens/GitHubReposScreen/components/SecretsSection/index.tsx",
 ]);
 
 function collectFiles(dirRel: string, acc: string[] = []): string[] {
