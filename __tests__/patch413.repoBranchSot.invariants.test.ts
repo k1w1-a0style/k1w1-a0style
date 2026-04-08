@@ -8,8 +8,9 @@ const exists = (rel: string) => fs.existsSync(repoPath(rel));
 describe("Patch 413 repo/branch SoT invariants", () => {
   it("removes config repo fallback from build start", () => {
     const src = read("contexts/ProjectContext.tsx");
+    const buildController = read("contexts/projectContext/useProjectBuildController.ts");
     expect(src).not.toContain("CONFIG.BUILD.GITHUB_REPO");
-    expect(src).toContain("Kein GitHub-Repo verknüpft.");
+    expect(buildController).toContain("Kein GitHub-Repo verknüpft.");
   });
 
   it("blocks CI-Lite patch sync without an explicit branch", () => {

@@ -4,103 +4,52 @@ import React, {
   useContext,
   useState,
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   ReactNode,
 } from "react";
-import { Alert, AppState } from "react-native";
+import { Alert } from "react-native";
 import { v4 as uuidv4 } from "uuid";
 import { Mutex } from "async-mutex";
 
 import { logger } from "../lib/logger";
 
-import type { ChatMessage } from "../shared/types/chat";
-import type { BuildHistoryEntry } from "../shared/types/build";
 import type {
   AutoFixRequest,
-  LastPreviewMeta,
   ProjectData,
-  ProjectFile,
-  TemplateId,
-  PreferredPreviewMode,
 } from "../shared/types/project";
 import type { ProjectContextProps } from "./projectTypes";
-
-import {
-  saveProjectToStorage,
-  loadProjectFromStorage,
-} from "../infra/storage/projectPersistence";
 
 import {
   getGitHubToken,
   getWorkflowRuns,
 } from "../infra/github/githubService";
 
-import { loadTemplateFromFile } from "../project/services/templateLoader";
-import { applyProjectFileUpdates, mergeProjectFiles } from "../project/domain/projectFileMutations";
 import {
   exportProjectZip,
   exportTextFilesZip,
   importProjectZip,
 } from "../project/services/projectArchiveService";
-import { startBuildJob } from "../project/services/buildStartService";
-import { useBuildStatus } from "../hooks/useBuildStatus";
 
-// ✅ FIX: Einheitlicher Validator-Wrapper
-import { validateFilePath, validateFileContent } from "../lib/validators";
-import type { BuildStatus } from "../shared/types/build";
-import {
-  addBuildToHistory,
-  updateBuildInHistory,
-} from "../lib/buildHistoryStorage";
-import { resolveEffectiveTemplateId } from "../lib/diagnostics/templates";
-import { loadChatHistorySettings } from "../lib/chatPrivacySettings";
-import { trimChatHistory } from "../infra/storage/persistenceHelpers";
-import {
-  buildProjectForCreation,
-  normalizeLoadedProjectData,
-  removeProjectFilesByPaths,
-} from "./projectContextHelpers";
-import {
-  createAppStateSaveHandler,
-  createProjectSaveScheduler,
-  hydrateChatRetentionLimit,
-  initializeProjectData,
-  runWithProjectLoading,
-} from "./projectContextPersistenceHelpers";
+import { normalizeLoadedProjectData } from "./projectContextHelpers";
 import {
   appendChatMessageWithRetention,
-  CHAT_HISTORY_RETENTION_FALLBACK,
-  CurrentBuildState,
-  mergeBuildPollIntoCurrentBuild,
-  resolveProjectContextErrorMessage,
-  resolveBuildHistoryPollUpdate,
   resolveHistoryBuildSelection,
-  resolveTemplateMode,
   resolveLinkedBranchForRepoSelection,
+  resolveProjectContextErrorMessage,
+  resolveTemplateMode,
   sanitizeChatRetentionLimit,
   shouldApplyHydratedRetention,
 } from "./projectContextStateHelpers";
 import { composeProjectContextValue, deriveProjectContextMessages } from "./projectContextValueHelpers";
-import {
-  BuildSelectionSnapshot,
-  createBuildErrorState,
-  createBuildPollingAbortState,
-  createBuildQueuedStateAfterStart,
-  createBuildQueuedStateForStart,
-  resolveBuildHistoryWarningMessage,
-  resolveBuildStartErrorMessage,
-  resolveBuildStartContext,
-  shouldSyncCurrentBuildFromPoll,
-} from "./projectContextBuildHelpers";
-
-const SAVE_DEBOUNCE_MS = 500;
+import { useProjectPersistenceController } from "./projectContext/useProjectPersistenceController";
+import { useProjectBuildController } from "./projectContext/useProjectBuildController";
+import { useProjectChatRetention } from "./projectContext/useProjectChatRetention";
+import { useProjectFileCommands } from "./projectContext/useProjectFileCommands";
 
 const ProjectContext = createContext<ProjectContextProps | undefined>(
   undefined,
 );
-
 
 export {
   getGitHubToken,
@@ -128,277 +77,65 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
   const isMountedRef = useRef(true);
   const projectDataRef = useRef<ProjectData | null>(null);
   projectDataRef.current = projectData;
-  const persistenceWriteBlockedRef = useRef(false);
-  const persistProjectToStorage = async (
-    project: ProjectData,
-    options?: { force?: boolean },
-  ): Promise<void> => {
-    if (!options?.force && persistenceWriteBlockedRef.current) {
-      logger.warn("[ProjectContext] Storage write blocked due to recovery mode; skipping save.");
-      return;
-    }
-    await saveProjectToStorage(project);
-  };
+  const mutexRef = useRef(new Mutex());
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(
-    null,
-  );
-  const currentBuildRef = useRef<CurrentBuildState | null>(null);
-  currentBuildRef.current = currentBuild;
-  const activeBuildSelectionRef = useRef<BuildSelectionSnapshot | null>(null);
-
-  // Centralized polling (single source of truth)
-  const activeJobId = currentBuild?.jobId ?? null;
-  const buildPoll = useBuildStatus(activeJobId, {
-    onMaxErrors: (lastError: unknown) => {
-      setCurrentBuild((prev) =>
-        createBuildPollingAbortState({
-          previous: prev,
-          lastError,
-          nowIso: new Date().toISOString(),
-        }),
-      );
-    },
+  const {
+    isLoading,
+    updateProject,
+    createNewProject,
+    importNormalizedProjectData,
+  } = useProjectPersistenceController({
+    setProjectData,
+    projectDataRef,
+    isMountedRef,
+    mutexRef,
   });
 
-  const mutexRef = useRef(new Mutex());
-  const persistenceSchedulerRef = useRef(
-    createProjectSaveScheduler({
-      clearTimeoutFn: clearTimeout,
-      setTimeoutFn: setTimeout,
-      debounceMs: SAVE_DEBOUNCE_MS,
-      saveProjectToStorage: (project) => persistProjectToStorage(project),
-      onSaveError: (error) => {
-        logger.error("[ProjectContext] Save error", { error });
-      },
-      canPersist: () => !persistenceWriteBlockedRef.current,
-    }),
-  );
+  const {
+    addChatMessage,
+    clearChatHistory,
+    setChatRetentionLimit,
+  } = useProjectChatRetention({ updateProject });
+
+  const {
+    updateProjectFiles,
+    createFile,
+    deleteFile,
+    deleteFiles,
+    renameFile,
+    setProjectName,
+    setLastPreview,
+    setPackageName,
+    setLinkedRepo,
+    setTemplateId,
+    setAdvancedTemplatePickerEnabled,
+    setPreferredBuildProfile,
+    setPreferredPreviewMode,
+  } = useProjectFileCommands({ updateProject });
+
+  const {
+    currentBuild,
+    startBuild,
+  } = useProjectBuildController({ projectData });
 
   const [autoFixRequest, setAutoFixRequest] = useState<AutoFixRequest | null>(
     null,
   );
-  const chatRetentionLimitRef = useRef<number>(CHAT_HISTORY_RETENTION_FALLBACK);
-  const didSetRuntimeRetentionRef = useRef(false);
 
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
+  const triggerAutoFix = useCallback((message: string) => {
+    const request: AutoFixRequest = {
+      id: uuidv4(),
+      message,
+      timestamp: new Date().toISOString(),
     };
+    setAutoFixRequest(request);
+    logger.info("[ProjectContext] Auto-Fix Request getriggert:", request.id);
   }, []);
 
-  const setIsLoadingSafe = useCallback((nextValue: boolean) => {
-    if (!isMountedRef.current) return;
-    setIsLoading(nextValue);
+  const clearAutoFixRequest = useCallback(() => {
+    setAutoFixRequest(null);
+    logger.info("[ProjectContext] Auto-Fix Request gelöscht");
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadRetention = async () => {
-      const hydratedLimit = await hydrateChatRetentionLimit({
-        loadChatHistorySettings,
-        shouldApplyHydratedRetention,
-        didSetRuntimeRetention: didSetRuntimeRetentionRef.current,
-        onHydrationError: (error) => {
-          logger.warn("[ProjectContext] chat retention hydration failed; using fallback", { error });
-        },
-      });
-      if (!cancelled && hydratedLimit !== null) {
-        chatRetentionLimitRef.current = hydratedLimit;
-      }
-    };
-
-    void loadRetention();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const clearPendingSave = useCallback(() => {
-    persistenceSchedulerRef.current.clearPendingSave();
-  }, []);
-
-  const debouncedSave = useCallback((project: ProjectData) => {
-    persistenceSchedulerRef.current.queueSave(project);
-  }, []);
-
-  const updateProject = useCallback(
-    async (updater: (prev: ProjectData) => ProjectData) => {
-      const release = await mutexRef.current.acquire();
-      try {
-        setProjectData((prev) => {
-          if (!prev) return prev;
-          const updated = updater(prev);
-          const finalProject = {
-            ...updated,
-            lastModified: new Date().toISOString(),
-          };
-          if (!persistenceWriteBlockedRef.current) {
-            debouncedSave(finalProject);
-          } else {
-            logger.warn("[ProjectContext] Recovery mode active: in-memory update without persistence.");
-          }
-          return finalProject;
-        });
-      } catch (error) {
-        logger.error("[ProjectContext] Update error", { error });
-      } finally {
-        release();
-      }
-    },
-    [debouncedSave],
-  );
-
-  const runWithProjectLock = useCallback(
-    async (task: () => Promise<void>) => {
-      const release = await mutexRef.current.acquire();
-      try {
-        await task();
-      } finally {
-        release();
-      }
-    },
-    [],
-  );
-
-  const replaceProjectData = useCallback(
-    async (nextProject: ProjectData) => {
-      await runWithProjectLock(async () => {
-        persistenceSchedulerRef.current.invalidatePendingSnapshot();
-        persistenceWriteBlockedRef.current = false;
-        setProjectData(nextProject);
-        await persistProjectToStorage(nextProject, { force: true });
-      });
-    },
-    [runWithProjectLock],
-  );
-
-  const updateProjectFiles = useCallback(
-    async (files: ProjectFile[], newName?: string) => {
-      await updateProject((prev) => {
-        const mergedFiles = mergeProjectFiles(prev.files, files);
-        logger.info(
-          `📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`,
-        );
-        return applyProjectFileUpdates(prev, files, newName);
-      });
-    },
-    [updateProject],
-  );
-
-  const setProjectName = useCallback(
-    async (newName: string) => {
-      await updateProject((prev) => ({ ...prev, name: newName }));
-    },
-    [updateProject],
-  );
-
-  const setChatRetentionLimit = useCallback(
-    async (limit: number) => {
-      const safeLimit = sanitizeChatRetentionLimit(limit);
-      didSetRuntimeRetentionRef.current = true;
-      chatRetentionLimitRef.current = safeLimit;
-      await updateProject((prev) => ({
-        ...prev,
-        chatHistory: trimChatHistory(prev.chatHistory || [], safeLimit),
-      }));
-    },
-    [updateProject],
-  );
-
-  const addChatMessage = useCallback(
-    async (message: ChatMessage) => {
-      await updateProject((prev) => ({
-        ...prev,
-        chatHistory: appendChatMessageWithRetention(
-          prev.chatHistory || [],
-          message,
-          chatRetentionLimitRef.current,
-        ),
-      }));
-    },
-    [updateProject],
-  );
-
-  const clearChatHistory = useCallback(async () => {
-    await updateProject((prev) => ({
-      ...prev,
-      chatHistory: [],
-    }));
-  }, [updateProject]);
-
-  const setLastPreview = useCallback(
-    async (preview: LastPreviewMeta | null) => {
-      await updateProject((prev) => ({
-        ...prev,
-        lastPreview: preview ?? null,
-      }));
-    },
-    [updateProject],
-  );
-
-  const setPackageName = useCallback(
-    async (packageName: string) => {
-      await updateProject((prev) => ({ ...prev, packageName }));
-    },
-    [updateProject],
-  );
-
-  const createNewProject = useCallback(async () => {
-    Alert.alert(
-      "Neues Projekt",
-      "Möchtest du ein neues Projekt erstellen? Der aktuelle Chat und alle Dateien werden zurückgesetzt.",
-      [
-        { text: "Abbrechen", style: "cancel" },
-        {
-          text: "Neu erstellen",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await runWithProjectLoading({
-                setLoading: setIsLoadingSafe,
-                task: async () => {
-                  const currentProjectData = projectDataRef.current;
-                  const mode = resolveTemplateMode(currentProjectData?.templateId);
-                  const { effective } = resolveEffectiveTemplateId(
-                    mode,
-                    currentProjectData?.files || [],
-                  );
-                  const templateFiles = await loadTemplateFromFile(effective);
-                  const newProject: ProjectData = {
-                    ...buildProjectForCreation({
-                      id: uuidv4(),
-                      files: templateFiles,
-                      templateId: mode,
-                      effectiveTemplateId: effective,
-                      preferredPreviewMode:
-                        currentProjectData?.preferredPreviewMode ?? "supabase",
-                    }),
-                    lastPreview: null,
-                  };
-
-                  await replaceProjectData(newProject);
-
-                  Alert.alert("Erfolg", "Neues Projekt wurde erstellt!");
-                  logger.info("✅ Neues Projekt erstellt und gespeichert.");
-                },
-              });
-            } catch (error: unknown) {
-              Alert.alert(
-                "Fehler",
-                resolveProjectContextErrorMessage(
-                  error,
-                  "Projekt konnte nicht erstellt werden",
-                ),
-              );
-            }
-          },
-        },
-      ],
-    );
-  }, [replaceProjectData, setIsLoadingSafe]);
 
   const exportProjectAsZip = useCallback(async () => {
     if (!projectData) {
@@ -463,24 +200,16 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           text: "Auswählen",
           onPress: async () => {
             try {
-              await runWithProjectLoading({
-                setLoading: setIsLoadingSafe,
-                task: async () => {
-                  const result = await importProjectZip();
-
-                  const normalizedProject = normalizeLoadedProjectData(result.project);
-                  // Invariant contract markers retained for source-based tests:
-                  // setProjectData(normalizedProject);
-                  // await saveProjectToStorage(normalizedProject);
-
-                  await replaceProjectData(normalizedProject);
-
-                  Alert.alert(
-                    "Import erfolgreich",
-                    `Projekt "${normalizedProject.name}" importiert (${result.fileCount} Dateien).`,
-                  );
-                },
-              });
+              const result = await importProjectZip();
+              const normalizedProject = normalizeLoadedProjectData(result.project);
+              // Invariant contract markers retained for source-based tests:
+              // setProjectData(normalizedProject);
+              // await saveProjectToStorage(normalizedProject);
+              const imported = await importNormalizedProjectData(normalizedProject);
+              Alert.alert(
+                "Import erfolgreich",
+                `Projekt "${imported.name}" importiert (${result.fileCount} Dateien).`,
+              );
             } catch (error: unknown) {
               Alert.alert(
                 "Import fehlgeschlagen",
@@ -494,363 +223,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
         },
       ],
     );
-  }, [replaceProjectData, setIsLoadingSafe]);
-
-  const createFile = useCallback(
-    async (path: string, content: string) => {
-      const pathValidation = validateFilePath(path);
-      if (!pathValidation.valid) {
-        Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
-      }
-
-      const contentValidation = validateFileContent(content);
-      if (!contentValidation.valid) {
-        Alert.alert(
-          "Ungültiger Dateiinhalt",
-          contentValidation.error || "Datei ist zu groß",
-        );
-        return;
-      }
-
-      const validPath = pathValidation.normalized || path;
-
-      await updateProject((prev) => {
-        if (prev.files.some((f) => f.path === validPath)) {
-          Alert.alert(
-            "Fehler",
-            "Eine Datei mit diesem Pfad existiert bereits.",
-          );
-          return prev;
-        }
-        return {
-          ...prev,
-          files: [...prev.files, { path: validPath, content }],
-        };
-      });
-    },
-    [updateProject],
-  );
-
-  const deleteFile = useCallback(
-    async (path: string) => {
-      await updateProject((prev) => ({
-        ...prev,
-        files: removeProjectFilesByPaths(prev.files, [path]),
-      }));
-    },
-    [updateProject],
-  );
-
-  const deleteFiles = useCallback(
-    async (paths: string[]) => {
-      if (!paths.some((path) => typeof path === "string" && path.length > 0)) return;
-
-      await updateProject((prev) => ({
-        ...prev,
-        files: removeProjectFilesByPaths(prev.files, paths),
-      }));
-    },
-    [updateProject],
-  );
-
-  const renameFile = useCallback(
-    async (oldPath: string, newPath: string) => {
-      const pathValidation = validateFilePath(newPath);
-      if (!pathValidation.valid) {
-        Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
-      }
-
-      const validNewPath = pathValidation.normalized || newPath;
-
-      await updateProject((prev) => {
-        if (prev.files.some((f) => f.path === validNewPath)) {
-          Alert.alert(
-            "Fehler",
-            "Eine Datei mit dem neuen Pfad existiert bereits.",
-          );
-          return prev;
-        }
-        return {
-          ...prev,
-          files: prev.files.map((f) =>
-            f.path === oldPath ? { ...f, path: validNewPath } : f,
-          ),
-        };
-      });
-    },
-    [updateProject],
-  );
-
-  const triggerAutoFix = useCallback((message: string) => {
-    const request: AutoFixRequest = {
-      id: uuidv4(),
-      message,
-      timestamp: new Date().toISOString(),
-    };
-    setAutoFixRequest(request);
-    logger.info("[ProjectContext] Auto-Fix Request getriggert:", request.id);
-  }, []);
-
-  const clearAutoFixRequest = useCallback(() => {
-    setAutoFixRequest(null);
-    logger.info("[ProjectContext] Auto-Fix Request gelöscht");
-  }, []);
-
-  const setLinkedRepo = useCallback(
-    async (repo: string | null, branch?: string | null) => {
-      await updateProject((prev) => ({
-        ...prev,
-        linkedRepo: repo,
-        linkedBranch: resolveLinkedBranchForRepoSelection({
-          previousRepo: prev.linkedRepo,
-          nextRepo: repo,
-          previousBranch: prev.linkedBranch,
-          nextBranch: branch,
-        }),
-      }));
-      logger.info(
-        `🔗 Projekt verknüpft mit: ${repo ?? "–"} (Branch: ${branch ?? "–"})`,
-      );
-    },
-    [updateProject],
-  );
-
-  const setTemplateId = useCallback(
-    async (templateId: TemplateId) => {
-      if (!templateId) return;
-      await updateProject((prev) => ({ ...prev, templateId }));
-      logger.info(`🧩 Template gespeichert: ${templateId}`);
-    },
-    [updateProject],
-  );
-
-  const setAdvancedTemplatePickerEnabled = useCallback(async (enabled: boolean) => {
-    await updateProject((prev) => ({
-      ...prev,
-      advancedTemplatePickerEnabled: enabled,
-    }));
-  }, [updateProject]);
-
-  const setPreferredBuildProfile = useCallback(
-    async (profile: "development" | "preview" | "production") => {
-      await updateProject((prev) => ({
-        ...prev,
-        preferredBuildProfile: profile,
-      }));
-      logger.info(`⚙️ Preferred Build-Profile gespeichert: ${profile}`);
-    },
-    [updateProject],
-  );
-
-  const setPreferredPreviewMode = useCallback(
-    async (mode: PreferredPreviewMode) => {
-      await updateProject((prev) => ({
-        ...prev,
-        preferredPreviewMode: mode,
-      }));
-      logger.info(`🖥️ Preferred Preview-Mode gespeichert: ${mode}`);
-    },
-    [updateProject],
-  );
-
-  useEffect(() => {
-    const initializeProject = async () => {
-      try {
-        logger.info("APP START (ProjectContext)");
-        const initialized = await initializeProjectData({
-          loadProjectFromStorage,
-          loadTemplateFromFile,
-          saveProjectToStorage,
-          createProjectId: () => uuidv4(),
-        });
-        if (isMountedRef.current) {
-          setProjectData(initialized.project);
-        }
-        if (initialized.source === "storage") {
-          persistenceWriteBlockedRef.current = false;
-          logger.info("📖 Projekt geladen:", initialized.project.name);
-        } else if (initialized.source === "recovery-template") {
-          persistenceWriteBlockedRef.current = true;
-          logger.error("[ProjectContext] Verschluesselten Storage-Stand nicht geladen; Recovery-Template aktiv.", {
-            reason: initialized.recoveryError ?? "unknown",
-          });
-          Alert.alert(
-            "Projekt-Wiederherstellung erforderlich",
-            initialized.recoveryError ??
-              "Gespeicherte verschluesselte Projektdaten konnten nicht geladen werden. Ein neues In-Memory-Template wurde geöffnet, ohne den vorhandenen Storage zu überschreiben.",
-          );
-        } else {
-          persistenceWriteBlockedRef.current = false;
-          logger.info("Kein Projekt gefunden, lade neues Template...");
-          logger.info("Neues Template-Projekt erstellt und gespeichert.");
-        }
-      } catch (error) {
-        logger.error("[ProjectContext] App-Start Ladefehler", { error });
-      } finally {
-        setIsLoadingSafe(false);
-      }
-    };
-
-    void initializeProject();
-  }, [setIsLoadingSafe]);
-
-  useEffect(() => {
-    const handleAppStateChange = createAppStateSaveHandler({
-      flushForAppState: persistenceSchedulerRef.current.flushForAppState,
-      getProjectData: () => projectDataRef.current,
-      onBeforeFlush: () => {
-        logger.info("🔄 App geht in Background, flushe ausstehende Saves...");
-      },
-      onAfterFlush: (didSave) => {
-        if (didSave) {
-          logger.info("✅ Background-Save erfolgreich");
-        }
-      },
-      onFlushError: (error) => {
-        logger.error("[ProjectContext] Background-Save fehlgeschlagen", { error });
-      },
-    });
-
-    const subscription = AppState.addEventListener("change", handleAppStateChange);
-    return () => subscription.remove();
-  }, []);
-
-  useEffect(() => () => clearPendingSave(), [clearPendingSave]);
-
-  const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
-  const runBuildHistoryBestEffort = useCallback(
-    (
-      mode: "update" | "insert",
-      operation: () => Promise<void>,
-    ) => {
-      operation().catch((historyError: unknown) => {
-        logger.warn(resolveBuildHistoryWarningMessage(mode), { error: historyError });
-      });
-    },
-    [],
-  );
-
-  // Keep ProjectContext.currentBuild in sync with centralized polling hook
-  useEffect(() => {
-    if (!shouldSyncCurrentBuildFromPoll({ activeJobId }) || !activeJobId) return;
-
-    const nowIso = new Date().toISOString();
-
-    setCurrentBuild((prev) =>
-      mergeBuildPollIntoCurrentBuild({
-        previous: prev,
-        activeJobId,
-        details: buildPoll.details,
-        status: buildPoll.status,
-        lastError: buildPoll.lastError,
-        nowIso,
-      }),
-    );
-  }, [activeJobId, buildPoll.details, buildPoll.lastError, buildPoll.status]);
-
-  // Update build history as statuses arrive (best-effort)
-  useEffect(() => {
-    const pollDetails = buildPoll.details;
-    const nextHistoryUpdate = resolveBuildHistoryPollUpdate({
-      activeJobId,
-      details: pollDetails,
-      status: buildPoll.status,
-      lastSnapshot: lastHistoryStatusRef.current,
-      selectionSnapshot: activeBuildSelectionRef.current,
-      currentBuild: currentBuildRef.current,
-    });
-    if (!nextHistoryUpdate || !activeJobId || !pollDetails) return;
-
-    lastHistoryStatusRef.current = nextHistoryUpdate.nextSnapshot;
-
-    runBuildHistoryBestEffort("update", () =>
-      updateBuildInHistory(activeJobId, nextHistoryUpdate.update),
-    );
-  }, [activeJobId, buildPoll.details, buildPoll.status, runBuildHistoryBestEffort]);
-
-  const startBuild = useCallback(
-    async (buildProfile?: string) => {
-      try {
-        // Invariant contract marker: "Kein GitHub-Repo verknüpft."
-        const buildStartContext = resolveBuildStartContext({
-          project: projectData,
-          requestedBuildProfile: buildProfile,
-        });
-        const pd = buildStartContext.project;
-        const githubRepo = buildStartContext.githubRepo;
-        const profile = buildStartContext.buildProfile;
-
-        const startedAt = new Date().toISOString();
-        const buildBranch = (pd.linkedBranch ?? "").trim();
-        activeBuildSelectionRef.current = {
-          jobId: null,
-          repoName: githubRepo,
-          branch: buildBranch,
-          buildProfile: profile,
-        };
-        setCurrentBuild(
-          createBuildQueuedStateForStart({
-            githubRepo,
-            branch: buildBranch,
-            buildProfile: profile,
-            startedAt,
-          }),
-        );
-
-        // Build runs on GitHub. Best-effort push local files to repo, then trigger build via Supabase.
-        const started = await startBuildJob({
-          project: pd,
-          buildProfile: profile,
-        });
-
-        const jobId = started.jobId;
-        const githubRepoResolved = started.githubRepo;
-        const branchResolved = started.branch;
-        activeBuildSelectionRef.current = {
-          jobId,
-          repoName: githubRepoResolved,
-          branch: branchResolved,
-          buildProfile: profile,
-        };
-
-        setCurrentBuild((prev) =>
-          createBuildQueuedStateAfterStart({
-            previous: prev,
-            jobId,
-            githubRepo: githubRepoResolved,
-            branch: branchResolved,
-            buildProfile: profile,
-            nowIso: new Date().toISOString(),
-          }),
-        );
-
-        runBuildHistoryBestEffort("insert", () =>
-          addBuildToHistory({
-            id: uuidv4(),
-            jobId,
-            repoName: githubRepoResolved,
-            branch: branchResolved,
-            status: "queued",
-            startedAt,
-            buildProfile: profile,
-          }),
-        );
-
-      } catch (e: unknown) {
-        setCurrentBuild(
-          createBuildErrorState({
-            message: resolveBuildStartErrorMessage(e),
-            nowIso: new Date().toISOString(),
-          }),
-        );
-        throw e;
-      }
-    },
-    [projectData, runBuildHistoryBestEffort],
-  );
-
+  }, [importNormalizedProjectData]);
 
   const contextMessages = useMemo(
     () => deriveProjectContextMessages(projectData?.chatHistory),
