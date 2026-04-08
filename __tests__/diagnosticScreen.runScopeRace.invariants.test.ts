@@ -3,7 +3,7 @@ import path from 'path';
 
 describe('DiagnosticScreen run scope race hardening', () => {
   const source = fs.readFileSync(
-    path.join(process.cwd(), 'screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts'),
+    path.join(process.cwd(), 'screens/DiagnosticScreen/hooks/useDiagnosticRunController.ts'),
     'utf8',
   );
 

@@ -12,6 +12,19 @@ const EMPTY_RUNTIME_PRESENCE: RuntimePresenceState = {
   androidKeystoreExportAdminKey: null,
 };
 
+async function readRuntimeSecretOrNull(
+  key: keyof RuntimePresenceState,
+  read: () => Promise<string | null>,
+): Promise<string | null> {
+  try {
+    return await read();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`[SecretsSection] runtime credential read failed (${key}): ${reason}`);
+    return null;
+  }
+}
+
 export function useRuntimeCredentialPresence(activeRepo: string | null) {
   const [runtimePresence, setRuntimePresence] = useState<RuntimePresenceState>(EMPTY_RUNTIME_PRESENCE);
   const [runtimeLoading, setRuntimeLoading] = useState(false);
@@ -30,9 +43,9 @@ export function useRuntimeCredentialPresence(activeRepo: string | null) {
 
     try {
       const [expoToken, workflowAdminKey, androidKeystoreExportAdminKey] = await Promise.all([
-        getExpoToken().catch(() => null),
-        getWorkflowAdminKey().catch(() => null),
-        getAndroidKeystoreExportAdminKey().catch(() => null),
+        readRuntimeSecretOrNull("expoToken", getExpoToken),
+        readRuntimeSecretOrNull("workflowAdminKey", getWorkflowAdminKey),
+        readRuntimeSecretOrNull("androidKeystoreExportAdminKey", getAndroidKeystoreExportAdminKey),
       ]);
 
       if (runtimeRequestRef.current !== requestId) return;

@@ -8,7 +8,7 @@ describe("useChatAIFlow meta command + attachment regression", () => {
   const handoffHelpersSrc = fs.readFileSync(handoffHelpersFile, "utf8");
 
   it("routes meta commands against raw user input before AI attachment notice input", () => {
-    expect(src).toContain("async (\n      rawInput: string,\n      aiInput: string = rawInput,");
+    expect(src).toMatch(/async \(rawInput: string, aiInput: string = rawInput\): Promise<boolean> => \{/);
     expect(src).toContain("const { userContent, candidateInput } = getNormalizedSendInputs(rawInput, aiInput);");
     expect(src).toContain("if (!userContent && !candidateInput) return false;");
     expect(src).toContain("const metaResult = userContent");
@@ -17,7 +17,7 @@ describe("useChatAIFlow meta command + attachment regression", () => {
 
   it("keeps attachment notice scoped to the AI request payload", () => {
     expect(src).toContain("sanitizedUserContent || sanitizedAiContent");
-    expect(src).toContain("const ok = await processAIRequest(sanitizedAiContent, false, false);");
+    expect(src).toContain("return processAIRequest(sanitizedAiContent, false, false);");
   });
 
   it("keeps attachment-only follow-up details alive in pending-plan handoff", () => {
