@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -11,6 +11,8 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ### Ergebnis
 
+- `LocalRemoteDiffSectionRefactor` ist abgeschlossen: der bisherige Monolith wurde entlang Container/Model/pure Diff-/Fingerprint-Helper/List-/Modal-UI/Types aufgeteilt; die oeffentliche Section-Importform bleibt kompatibel ueber einen schlanken Re-Export.
+- `RefactorSoTDrift` ist im selben Durchlauf geschlossen: README/TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT sowie CHECKLOG/PATCHLOG spiegeln jetzt denselben echten Refactor-Stand statt eines Analyse-only-Headers.
 - Release-/Trust-Drift im CI-Lite-Operatorpfad ehrlich reproduziert und behoben: `check_workflow_edge_contracts.sh` war lokal rot wegen fehlendem Pflicht-Marker in `useCiLiteWorkflow.ts` (`JWT role=build_admin (oder service_role fuer Server-Caller)`), nach Marker-Nachzug wieder gruen.
 - Workflow-Writeback im manuellen `eas-link`-Pfad gehaertet: Top-Level-Permissions auf read-default reduziert, Write nur job-scoped; Commit-Push erfolgt nur noch fuer explizite, sichere Remote-Branches (kein SHA/detached/unsafe Ref, kein stilles `|| true` beim Push).
 - Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).

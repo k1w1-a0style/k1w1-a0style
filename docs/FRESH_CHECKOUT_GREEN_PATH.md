@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

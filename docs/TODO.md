@@ -1,11 +1,14 @@
 # TODO
 
-Stand: **2026-04-07 (Patch 759, HotspotMasterPlan Analyse-only)**
+Stand: **2026-04-08 (Patch 760, LocalRemoteDiffSectionRefactor + RefactorSoTDrift abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `LocalRemoteDiffSectionRefactor` (Patch 760): Der Diff-Hotspot ist vollstaendig vom Monolithen in Container, Model, pure Diff-/Fingerprint-Helper, List-UI, Modal-UI und lokale Typen zerlegt; Import-Kompatibilitaet bleibt ueber den schlanken Re-Export erhalten.
+- [x] `RefactorSoTDrift` (Patch 760): Fuehrende SoT-Dateien (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `PROJECT_CHECKLOG`, `PATCHLOG_ROOT`) auf den echten Refactor-Stand synchronisiert; Analyse-only-Header aus Patch 759 sind damit abgeloest.
 
 - [x] Persistenz-Recovery-Guardrails (Patch 746): Kein stilles Re-Keying im Read-/Decrypt-Pfad mehr, kaputte verschluesselte/Plaintext-Payloads fuehren in klaren Recovery-Fehler statt Null/Leerpfad, und Recovery-Mode blockiert normale Hintergrund-/Debounce-Speicherwrites bis zu einer expliziten Nutzeraktion (z. B. Import/Neues Projekt).
 - [x] Secret-Import-Haertung (Patch 746): `EAS_PROJECT_ID` wird nur noch gesetzt, wenn der Wert UUID-valide ist; leer fuehrt zu Clear, invalide Werte werden nicht blind geschrieben.
