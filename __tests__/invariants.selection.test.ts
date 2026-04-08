@@ -58,8 +58,9 @@ describe("Invariants: repo/branch selection is source of truth", () => {
 
   it("does not silently fall back to 'main' in ConnectionsScreen EAS prep flows", () => {
     const src = read("screens/ConnectionsScreen/hooks/useConnectionsScreen.ts");
+    const easLink = read("screens/ConnectionsScreen/hooks/useConnectionsEasLink.ts");
 
-    expect(src).toContain("Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.");
+    expect(easLink).toContain("Kein Branch ausgewählt. Bitte zuerst in GitHub Repos einen Branch verknüpfen.");
     expect(src).not.toContain('projectData?.linkedBranch || "main"');
     expect(src).not.toContain('activeBranch || projectData?.linkedBranch || "main"');
   });
