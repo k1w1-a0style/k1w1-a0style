@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert } from "react-native";
+import { useCallback, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
@@ -8,55 +7,16 @@ import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import { resolveRepoBranchSelection } from "../../../lib/selection/repoBranch";
-import {
-  deleteAndroidKeystoreExportAdminKey,
-  deleteExpoToken,
-  deleteGitHubToken,
-  deleteWorkflowAdminKey,
-  saveAndroidKeystoreExportAdminKey,
-  saveExpoToken,
-  saveGitHubToken,
-  saveWorkflowAdminKey,
-} from "../../../infra/github/githubService";
-import {
-  deleteSupabaseAnonKey,
-  saveSupabaseAnonKey,
-} from "../../../lib/supabaseAnonKeyStorage";
-import { debugLog } from "../../../lib/debugOverlay";
-import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction";
-import {
-  deriveSupabaseUrl,
-  safeAlertText,
-  validateBeforeSave,
-  normalizeStoredSupabaseRaw,
-} from "../utils/validation";
-import {
-  applyPersistenceDelta,
-  persistEntriesWithFallback,
-  removeEntriesWithFallback,
-  resolveConnectionsSavePlan,
-  resolveConnectionsStatusFlags,
-  resolveEasProjectIdPersistenceAction,
-  resolveEasStatusPersistence,
-  resolveExpoConnectionPersistence,
-  resolveGitHubConnectionPersistence,
-  resolveSupabaseConnectionPersistence,
-} from "./useConnectionsScreenHelpers";
-import {
-  easClearedPersistence,
-  expoClearedPersistence,
-  githubClearedPersistence,
-  supabaseClearedPersistence,
-} from "./useConnectionsScreenState";
+import { resolveConnectionsStatusFlags, resolveEasProjectIdPersistenceAction } from "./useConnectionsScreenHelpers";
+import { deriveSupabaseUrl } from "../utils/validation";
 import { useConnectionsBusyAction } from "./useConnectionsBusyAction";
 import { useConnectionsEasLink } from "./useConnectionsEasLink";
 import { useConnectionsHydration } from "./useConnectionsHydration";
 import { useConnectionsProviderTests } from "./useConnectionsProviderTests";
 import { useConnectionsSecretsState } from "./useConnectionsSecretsState";
-import type { ConnectionPersistenceDelta, UseConnectionsScreenReturn } from "./connections.contracts";
-import {
-  type VerificationContractState,
-} from "../../../lib/status/verificationContract";
+import { useConnectionsPersistence } from "./useConnectionsPersistence";
+import { useConnectionsSaveActions } from "./useConnectionsSaveActions";
+import type { UseConnectionsScreenReturn } from "./connections.contracts";
 
 export function useConnectionsScreen(): UseConnectionsScreenReturn {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
@@ -65,125 +25,7 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
 
   const secrets = useConnectionsSecretsState();
   const { busy, busyRef, runGuardedAction } = useConnectionsBusyAction();
-
-  const [githubOk, setGithubOk] = useState(false);
-  const [githubUser, setGithubUser] = useState("");
-  const [githubScopes, setGithubScopes] = useState("");
-  const [supabaseOk, setSupabaseOk] = useState(false);
-  const [supabaseRef, setSupabaseRef] = useState("");
-  const [expoOk, setExpoOk] = useState(false);
-  const [expoUser, setExpoUser] = useState("");
-  const [easOk, setEasOk] = useState(false);
-  const [easState, setEasState] = useState<VerificationContractState>("missing");
-  const [easLastVerifiedAt, setEasLastVerifiedAt] = useState<string | null>(null);
-  const [repoOk, setRepoOk] = useState(false);
-  const [repoOkLine, setRepoOkLine] = useState("");
-
-  const applyEasConnectionState = useCallback((status: {
-    ok: boolean;
-    state: VerificationContractState;
-    verifiedAt: string | null;
-  }): void => {
-    setEasOk(status.ok);
-    setEasState(status.state);
-    setEasLastVerifiedAt(status.verifiedAt);
-  }, []);
-
-  const persistConnLights = useCallback(async (entries: Array<[string, string]>) => {
-    await persistEntriesWithFallback(AsyncStorage, entries);
-  }, []);
-
-  const removeConnLights = useCallback(async (keys: string[]) => {
-    await removeEntriesWithFallback(AsyncStorage, keys);
-  }, []);
-
-  const applyConnectionPersistence = useCallback(
-    async (params: { persistence: ConnectionPersistenceDelta; applyState: () => void }) => {
-      params.applyState();
-      await applyPersistenceDelta({
-        writes: params.persistence.writes,
-        removes: params.persistence.removes,
-        persist: persistConnLights,
-        remove: removeConnLights,
-      });
-    },
-    [persistConnLights, removeConnLights],
-  );
-
-  const logConnectionFailure = useCallback((params: { channel: string; message: string; error: unknown }) => {
-    debugLog(params.channel, params.message, {
-      error: redactSecrets(truncateWithMarker(safeAlertText(params.error), 800)),
-    });
-  }, []);
-
-  const applyClearedConnectionState = useCallback(
-    async (params: { resetState: () => void; persistence: ConnectionPersistenceDelta }) => {
-      params.resetState();
-      await applyPersistenceDelta({
-        writes: params.persistence.writes,
-        removes: params.persistence.removes,
-        persist: persistConnLights,
-        remove: removeConnLights,
-      });
-    },
-    [persistConnLights, removeConnLights],
-  );
-
-  const saveConnEasStatus = useCallback(
-    async (params: { ok: boolean; state: VerificationContractState; verifiedAt?: string | null }) => {
-      const verifiedAt = params.verifiedAt ?? null;
-      applyEasConnectionState({ ok: params.ok, state: params.state, verifiedAt });
-      const persistence = resolveEasStatusPersistence({ ok: params.ok, state: params.state, verifiedAt });
-      await applyPersistenceDelta({
-        writes: persistence.writes,
-        removes: persistence.removes,
-        persist: persistConnLights,
-        remove: removeConnLights,
-      });
-    },
-    [applyEasConnectionState, persistConnLights, removeConnLights],
-  );
-
-  const clearGithubConnectionState = useCallback(async () => {
-    await applyClearedConnectionState({
-      resetState: () => {
-        setGithubOk(false);
-        setGithubUser("");
-        setGithubScopes("");
-        setRepoOk(false);
-        setRepoOkLine("");
-        applyEasConnectionState({ ok: false, state: "missing", verifiedAt: null });
-      },
-      persistence: githubClearedPersistence(),
-    });
-  }, [applyClearedConnectionState, applyEasConnectionState]);
-
-  const clearExpoConnectionState = useCallback(async () => {
-    await applyClearedConnectionState({
-      resetState: () => {
-        setExpoOk(false);
-        setExpoUser("");
-      },
-      persistence: expoClearedPersistence(),
-    });
-  }, [applyClearedConnectionState]);
-
-  const clearEasConnectionState = useCallback(async () => {
-    await applyClearedConnectionState({
-      resetState: () => applyEasConnectionState({ ok: false, state: "missing", verifiedAt: null }),
-      persistence: easClearedPersistence(),
-    });
-  }, [applyClearedConnectionState, applyEasConnectionState]);
-
-  const clearSupabaseConnectionState = useCallback(async () => {
-    await applyClearedConnectionState({
-      resetState: () => {
-        setSupabaseOk(false);
-        setSupabaseRef("");
-      },
-      persistence: supabaseClearedPersistence(),
-    });
-  }, [applyClearedConnectionState]);
+  const persistence = useConnectionsPersistence();
 
   const selection = useMemo(
     () => resolveRepoBranchSelection({ projectData, activeRepo, activeBranch }),
@@ -195,9 +37,9 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
   const selectionSource = selection.source;
 
   const persistSelectedEasProjectId = useCallback(async (projectId: string) => {
-    const persistence = resolveEasProjectIdPersistenceAction(projectId);
-    if (persistence.mode === "set") {
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistence.value);
+    const persistenceAction = resolveEasProjectIdPersistenceAction(projectId);
+    if (persistenceAction.mode === "set") {
+      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistenceAction.value);
       return;
     }
     await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
@@ -213,59 +55,19 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     setSupabaseUrl: secrets.setSupabaseUrl,
     setSupabaseAnonKey: secrets.setSupabaseAnonKey,
     setEasProjectId: secrets.setEasProjectId,
-    setGithubOk,
-    setGithubUser,
-    setGithubScopes,
-    setSupabaseOk,
-    setSupabaseRef,
-    setExpoOk,
-    setExpoUser,
-    setRepoOk,
-    setRepoOkLine,
-    applyEasConnectionState,
-    persistConnLights,
-    removeConnLights,
+    setGithubOk: persistence.setters.setGithubOk,
+    setGithubUser: persistence.setters.setGithubUser,
+    setGithubScopes: persistence.setters.setGithubScopes,
+    setSupabaseOk: persistence.setters.setSupabaseOk,
+    setSupabaseRef: persistence.setters.setSupabaseRef,
+    setExpoOk: persistence.setters.setExpoOk,
+    setExpoUser: persistence.setters.setExpoUser,
+    setRepoOk: persistence.setters.setRepoOk,
+    setRepoOkLine: persistence.setters.setRepoOkLine,
+    applyEasConnectionState: persistence.actions.applyEasConnectionState,
+    persistConnLights: persistence.actions.persistConnLights,
+    removeConnLights: persistence.actions.removeConnLights,
   });
-
-  const applyGitHubPersistence = useCallback(
-    async (persistence: ReturnType<typeof resolveGitHubConnectionPersistence>) => {
-      await applyConnectionPersistence({
-        persistence,
-        applyState: () => {
-          setGithubOk(persistence.ok);
-          setGithubUser(persistence.login);
-          setGithubScopes(persistence.scopes);
-        },
-      });
-    },
-    [applyConnectionPersistence],
-  );
-
-  const applyExpoPersistence = useCallback(
-    async (persistence: ReturnType<typeof resolveExpoConnectionPersistence>) => {
-      await applyConnectionPersistence({
-        persistence,
-        applyState: () => {
-          setExpoOk(persistence.ok);
-          setExpoUser(persistence.username);
-        },
-      });
-    },
-    [applyConnectionPersistence],
-  );
-
-  const applySupabasePersistence = useCallback(
-    async (persistence: ReturnType<typeof resolveSupabaseConnectionPersistence>) => {
-      await applyConnectionPersistence({
-        persistence,
-        applyState: () => {
-          setSupabaseOk(persistence.ok);
-          setSupabaseRef(persistence.ref);
-        },
-      });
-    },
-    [applyConnectionPersistence],
-  );
 
   const { testGitHub, testExpo, testSupabase, testEas, isTestingEas } = useConnectionsProviderTests({
     hydrated,
@@ -275,11 +77,11 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     supabaseAnonKey: secrets.supabaseAnonKey,
     easProjectId: secrets.easProjectId,
     runGuardedAction,
-    logConnectionFailure,
-    applyGitHubPersistence,
-    applyExpoPersistence,
-    applySupabasePersistence,
-    saveConnEasStatus,
+    logConnectionFailure: persistence.actions.logConnectionFailure,
+    applyGitHubPersistence: persistence.actions.applyGitHubPersistence,
+    applyExpoPersistence: persistence.actions.applyExpoPersistence,
+    applySupabasePersistence: persistence.actions.applySupabasePersistence,
+    saveConnEasStatus: persistence.actions.saveConnEasStatus,
   });
 
   const { isEasInitRunning, onLinkExisting, onCreateAndLink } = useConnectionsEasLink({
@@ -290,11 +92,31 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     effectiveBranch,
     busyRef,
     persistSelectedEasProjectId,
-    persistConnLights,
-    removeConnLights,
-    applyEasConnectionState,
-    setRepoOk,
-    setRepoOkLine,
+    persistConnLights: persistence.actions.persistConnLights,
+    removeConnLights: persistence.actions.removeConnLights,
+    applyEasConnectionState: persistence.actions.applyEasConnectionState,
+    setRepoOk: persistence.setters.setRepoOk,
+    setRepoOkLine: persistence.setters.setRepoOkLine,
+  });
+
+  const { saveAll } = useConnectionsSaveActions({
+    hydrated,
+    runGuardedAction,
+    secrets: {
+      githubToken: secrets.githubToken,
+      expoToken: secrets.expoToken,
+      workflowAdminKey: secrets.workflowAdminKey,
+      androidKeystoreExportAdminKey: secrets.androidKeystoreExportAdminKey,
+      supabaseRaw: secrets.supabaseRaw,
+      supabaseUrl: secrets.supabaseUrl,
+      supabaseAnonKey: secrets.supabaseAnonKey,
+      easProjectId: secrets.easProjectId,
+    },
+    persistSelectedEasProjectId,
+    clearGithubConnectionState: persistence.actions.clearGithubConnectionState,
+    clearExpoConnectionState: persistence.actions.clearExpoConnectionState,
+    clearEasConnectionState: persistence.actions.clearEasConnectionState,
+    clearSupabaseConnectionState: persistence.actions.clearSupabaseConnectionState,
   });
 
   useEffect(() => {
@@ -310,122 +132,6 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     const d = deriveSupabaseUrl(secrets.supabaseRaw);
     if (d.url) secrets.setSupabaseUrl(d.url);
   }, [secrets.supabaseRaw, secrets.setSupabaseUrl]);
-
-  const persistOptionalSecret = useCallback(
-    async (params: {
-      value: string;
-      save: (value: string) => Promise<void>;
-      remove: () => Promise<void>;
-      onRemoved?: () => Promise<void>;
-    }) => {
-      const normalizedValue = params.value.trim();
-      if (normalizedValue) {
-        await params.save(normalizedValue);
-        return;
-      }
-      await params.remove();
-      if (params.onRemoved) {
-        await params.onRemoved();
-      }
-    },
-    [],
-  );
-
-  const persistSupabaseSavePlan = useCallback(
-    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
-      const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
-      await persistOptionalSecret({
-        value: plan.supabaseAnonKey,
-        save: saveSupabaseAnonKey,
-        remove: deleteSupabaseAnonKey,
-      });
-    },
-    [persistOptionalSecret],
-  );
-
-  const persistTokenSavePlan = useCallback(
-    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
-      await persistOptionalSecret({
-        value: plan.githubToken,
-        save: saveGitHubToken,
-        remove: deleteGitHubToken,
-        onRemoved: clearGithubConnectionState,
-      });
-      await persistOptionalSecret({
-        value: plan.expoToken,
-        save: saveExpoToken,
-        remove: deleteExpoToken,
-        onRemoved: clearExpoConnectionState,
-      });
-      await persistOptionalSecret({
-        value: plan.workflowAdminKey,
-        save: saveWorkflowAdminKey,
-        remove: deleteWorkflowAdminKey,
-      });
-      await persistOptionalSecret({
-        value: plan.androidKeystoreExportAdminKey,
-        save: saveAndroidKeystoreExportAdminKey,
-        remove: deleteAndroidKeystoreExportAdminKey,
-      });
-    },
-    [persistOptionalSecret, clearGithubConnectionState, clearExpoConnectionState],
-  );
-
-  const saveAll = useCallback(async () => {
-    if (!hydrated) return;
-    const v = validateBeforeSave({
-      githubToken: secrets.githubToken,
-      expoToken: secrets.expoToken,
-      workflowAdminKey: secrets.workflowAdminKey,
-      androidKeystoreExportAdminKey: secrets.androidKeystoreExportAdminKey,
-      supabaseUrl: secrets.supabaseUrl,
-      supabaseAnonKey: secrets.supabaseAnonKey,
-      easProjectId: secrets.easProjectId,
-    });
-    if (!v.ok) {
-      Alert.alert(v.title, v.message);
-      return;
-    }
-
-    await runGuardedAction({
-      defaultTitle: "❌ Speichern fehlgeschlagen",
-      task: async () => {
-        const plan = resolveConnectionsSavePlan({
-          githubToken: secrets.githubToken,
-          expoToken: secrets.expoToken,
-          workflowAdminKey: secrets.workflowAdminKey,
-          androidKeystoreExportAdminKey: secrets.androidKeystoreExportAdminKey,
-          supabaseRaw: secrets.supabaseRaw,
-          supabaseUrl: secrets.supabaseUrl,
-          supabaseAnonKey: secrets.supabaseAnonKey,
-          easProjectId: secrets.easProjectId,
-        });
-
-        await persistTokenSavePlan(plan);
-        await persistSupabaseSavePlan(plan);
-        await persistSelectedEasProjectId(plan.easProjectId);
-
-        if (plan.shouldClearEasConnection) {
-          await clearEasConnectionState();
-        }
-        if (plan.shouldClearSupabaseConnection) {
-          await clearSupabaseConnectionState();
-        }
-        Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
-      },
-    });
-  }, [
-    hydrated,
-    secrets,
-    runGuardedAction,
-    persistTokenSavePlan,
-    persistSupabaseSavePlan,
-    persistSelectedEasProjectId,
-    clearEasConnectionState,
-    clearSupabaseConnectionState,
-  ]);
 
   const status = useMemo(
     () =>
@@ -464,15 +170,15 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     activeRepo: effectiveRepo,
     onLinkExisting,
     onCreateAndLink,
-    githubOk,
-    githubUser,
-    githubScopes,
-    supabaseOk,
-    expoOk,
-    expoUser,
-    repoOk,
-    repoOkLine,
-    supabaseRef,
+    githubOk: persistence.state.githubOk,
+    githubUser: persistence.state.githubUser,
+    githubScopes: persistence.state.githubScopes,
+    supabaseOk: persistence.state.supabaseOk,
+    expoOk: persistence.state.expoOk,
+    expoUser: persistence.state.expoUser,
+    repoOk: persistence.state.repoOk,
+    repoOkLine: persistence.state.repoOkLine,
+    supabaseRef: persistence.state.supabaseRef,
     status,
     repoLine,
     selectionSource,
@@ -500,9 +206,9 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     setSupabaseUrl: secrets.setSupabaseUrl,
     supabaseAnonKey: secrets.supabaseAnonKey,
     setSupabaseAnonKey: secrets.setSupabaseAnonKey,
-    easOk,
-    easState,
-    easLastVerifiedAt,
+    easOk: persistence.state.easOk,
+    easState: persistence.state.easState,
+    easLastVerifiedAt: persistence.state.easLastVerifiedAt,
     easProjectId: secrets.easProjectId,
     setEasProjectId: secrets.setEasProjectId,
     saveAll,
