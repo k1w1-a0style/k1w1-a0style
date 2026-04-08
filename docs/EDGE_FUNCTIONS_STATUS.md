@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-08 (Patch 761, HotspotFinalisierung (Diagnostics/Auth/AppInfo) + RefactorSoTDrift-Follow-up abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 
 ## Aktiv und workflow-relevant
 

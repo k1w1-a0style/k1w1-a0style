@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-08 (Patch 761, HotspotFinalisierung (Diagnostics/Auth/AppInfo) + RefactorSoTDrift-Follow-up abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -76,7 +76,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
-2. Stille `.catch(() => {})` weiter reduzieren (kritische Preview-/Build-/Upload-/Repo-Meta-Catches sind in Patch 753 und Chat-Privacy-Catches bereits auf Warn-Logging umgestellt)
+2. SilentCatchHygiene: produktnahe Pfade erneut gescannt (Patch 762) — keine verbleibenden stillen `.catch(() => {})` / `catch {}` im produktiven Runtime-Scope gefunden; nur Dokumentationsbeispiele enthalten den Pattern-Text
 3. `console.log` in Produktivpfaden weiter abbauen
 4. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
 5. Workflow-Hygiene-Nachzug nur mit engem Scope:

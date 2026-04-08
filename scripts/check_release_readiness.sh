@@ -49,6 +49,9 @@ bash scripts/check_eas_strict_lockfile_policy.sh
 echo "[verify:release] workflow/edge contracts"
 bash scripts/check_workflow_edge_contracts.sh
 
+echo "[verify:release] verify_jwt visibility"
+bash scripts/check_verify_jwt_visibility.sh
+
 echo "[verify:release] edge rate-limit retention"
 bash scripts/check_edge_rate_limit_retention.sh
 

@@ -562,8 +562,7 @@ Deno.serve(async (req) => {
 
     const ms = Date.now() - started;
     const fileCount = record.files ? Object.keys(record.files).length : 0;
-    // eslint-disable-next-line no-console
-    console.log(
+    console.warn(
       `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} logs=${showRawLogs ? "on" : "off"} runtimeErrors=${showRuntimeErrors ? "on" : "off"} ms=${ms}`,
     );
 

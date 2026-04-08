@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-08 (Patch 761, HotspotFinalisierung (Diagnostics/Auth/AppInfo) + RefactorSoTDrift-Follow-up abgeschlossen)**
+Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
 
-Zuletzt abgeschlossen: **Patch 761**
+Zuletzt abgeschlossen: **Patch 762**
 
 Der aktuelle Stand bestaetigt:
 - die drei verbleibenden Hotspots wurden jetzt restlos und verhaltensgleich zerlegt: `buildPipelineDiagnostics`, `_shared/auth`, `useAppInfoScreen`
