@@ -23,6 +23,15 @@ require_pattern() {
   grep -Eq -- "$pattern" "$file" || fail "Missing pattern /$pattern/ in $file"
 }
 
+require_all_patterns() {
+  local file="$1"
+  shift
+  local pattern
+  for pattern in "$@"; do
+    require_pattern "$file" "$pattern"
+  done
+}
+
 forbid_fixed() {
   local file="$1"
   local text="$2"
@@ -185,6 +194,11 @@ require_fixed "$BUILD_START_SERVICE" "JWT role=build_admin (oder service_role fu
 require_fixed "$BUILD_POLLING_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
 require_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
+require_all_patterns "$WIZARD_HOOK" "build_admin" "service_role" "Server-Caller"
+require_all_patterns "$BUILD_START_SERVICE" "JWT role=build_admin" "service_role" "Server-Caller"
+require_all_patterns "$BUILD_POLLING_SERVICE" "JWT role=build_admin" "service_role" "Server-Caller"
+require_all_patterns "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin" "service_role" "Server-Caller"
+require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin" "service_role" "Server-Caller"
 require_fixed "$WIZARD_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
 require_fixed "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
 require_fixed "$BUILD_POLLING_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
@@ -195,6 +209,16 @@ require_fixed "$BUILD_START_SERVICE" "ausserhalb dieses Repos per Supabase-User-
 require_fixed "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 require_fixed "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
 require_fixed "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_all_patterns "$WIZARD_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
+require_all_patterns "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer" "build_admin-Claim"
+require_all_patterns "$BUILD_POLLING_SERVICE" "Normale eingeloggte Nutzer" "build_admin-Claim"
+require_all_patterns "$WORKFLOW_LOGS_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
+require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
+require_all_patterns "$WIZARD_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
+require_all_patterns "$BUILD_START_SERVICE" "ausserhalb dieses Repos" "Supabase-User-Claim"
+require_all_patterns "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos" "Supabase-User-Claim"
+require_all_patterns "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
+require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
 forbid_fixed "$BUILD_START_SERVICE" "JWT role=authenticated"
 
 require_fixed "$BUILD_READINESS_DOC" '### 3.5 Supabase-/Operator-Readiness (verbindliche Reihenfolge)'

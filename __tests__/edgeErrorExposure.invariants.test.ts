@@ -5,11 +5,12 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("edge error exposure invariants", () => {
   it("preview_page does not interpolate raw stack/message into overlay HTML", () => {
-    const src = read("supabase/functions/preview_page/index.ts");
+    const src = read("supabase/functions/preview_page/render.ts");
+    const indexSrc = read("supabase/functions/preview_page/index.ts");
 
     expect(src).toContain("function setOverlayState(state, message)");
     expect(src).toContain("body.textContent = sanitizeClientErrorText");
-    expect(src).toContain("return previewPageErrorResponse({");
+    expect(indexSrc).toContain("return previewPageErrorResponse({");
     expect(src).not.toContain("return jsonPreviewError({ code: recordResult.code })");
     expect(src).not.toContain('overlay.innerHTML = `\n      <div class="error-title">Preview Error</div>\n      <div class="error-message">${String(err?.stack || err?.message || err)}</div>\n    `;');
     expect(src).not.toContain("err?.stack");
