@@ -5,14 +5,14 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 describe("k1w1-handler live reachability error contracts", () => {
   it("includes provider + model in upstream HTTP errors", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+    const src = read("supabase/functions/k1w1-handler/helpers/errors.ts");
 
     expect(src).toContain("function providerHttpError(");
     expect(src).toContain("(model=${model})");
   });
 
   it("keeps visible Groq model IDs while allowing runtime mapping and prefix fallback", () => {
-    const src = read("supabase/functions/k1w1-handler/helpers.ts");
+    const src = read("supabase/functions/k1w1-handler/helpers/providers.ts");
 
     expect(src).toContain('const resolvedSelection = resolveProviderModelForRuntime("groq", selectedModel);');
     expect(src).toContain('const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;');

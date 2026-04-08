@@ -11,17 +11,43 @@ require_verify() {
   local fn="$1"
   local expected="$2"
   awk -v fn="$fn" -v expected="$expected" '
-    $0 ~ "^\\[functions\\." fn "\\]" { in_block=1; next }
-    /^\[functions\./ { in_block=0 }
-    in_block && $0 ~ /^verify_jwt\s*=\s*(true|false)/ {
-      gsub(/ /, "", $0)
-      split($0,a,"=")
-      found=a[2]
-      if (found == expected) ok=1
-      else bad=1
+    BEGIN {
+      in_block = 0
+      seen = 0
+      found = ""
+    }
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+
+      if (line ~ "^\\[functions\\." fn "\\]$") {
+        in_block = 1
+        next
+      }
+
+      if (line ~ /^\[/) {
+        in_block = 0
+      }
+
+      if (!in_block) {
+        next
+      }
+
+      scrubbed = line
+      sub(/[[:space:]]*#.*/, "", scrubbed)
+      if (scrubbed ~ /^verify_jwt[[:space:]]*=[[:space:]]*(true|false)[[:space:]]*$/) {
+        split(scrubbed, parts, "=")
+        value = parts[2]
+        gsub(/[[:space:]]/, "", value)
+        found = value
+        seen = 1
+      }
     }
     END {
-      if (!ok || bad) exit 1
+      if (!seen || found != expected) {
+        exit 1
+      }
     }
   ' "$CFG" || {
     echo "[FAIL] verify_jwt mismatch for functions.${fn} (expected ${expected})" >&2

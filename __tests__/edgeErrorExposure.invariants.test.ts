@@ -17,7 +17,7 @@ describe("edge error exposure invariants", () => {
 
   it("k1w1-handler returns only structured client-safe errors", () => {
     const indexSrc = read("supabase/functions/k1w1-handler/index.ts");
-    const helpersSrc = read("supabase/functions/k1w1-handler/helpers.ts");
+    const helpersSrc = read("supabase/functions/k1w1-handler/helpers/errors.ts");
 
     expect(indexSrc).toContain('code: "invalid_request_payload" as const');
     expect(indexSrc).toContain('const errorPayload = classifyK1w1HandlerError(err, {');
