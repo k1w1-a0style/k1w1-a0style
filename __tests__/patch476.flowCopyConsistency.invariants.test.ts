@@ -12,7 +12,7 @@ describe("Patch 476 flow-copy consistency invariants", () => {
 
   it("documents app-managed secret sync scope and manual production boundary", () => {
     const syncSummary = read("screens/ConnectionsScreen/index.tsx");
-    const secretsSection = read("screens/GitHubReposScreen/components/SecretsSection.tsx");
+    const secretsSection = read("screens/GitHubReposScreen/components/SecretsSection/index.tsx");
 
     expect(syncSummary).toContain("Automatisch per Secret-Sync ins aktive Repo");
     expect(syncSummary).toContain("Nicht aus der App auto-synchronisiert:");
