@@ -3,7 +3,7 @@ import path from 'path';
 
 describe('DiagnosticScreen selection scope invalidation', () => {
   const source = fs.readFileSync(
-    path.join(process.cwd(), 'screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts'),
+    path.join(process.cwd(), 'screens/DiagnosticScreen/hooks/useDiagnosticRunController.ts'),
     'utf8',
   );
 
@@ -14,10 +14,10 @@ describe('DiagnosticScreen selection scope invalidation', () => {
     expect(source).toContain('if (previousScope === nextScope) {');
   });
 
-  it('still clears stale diagnostic UI state when the scope changes', () => {
+  it('still clears stale diagnostic run state when the scope changes', () => {
     expect(source).toContain('setResults([]);');
     expect(source).toContain('setLastRunAt(null);');
-    expect(source).toContain('setIssueSheetVisible(false);');
-    expect(source).toContain('setPreviewEntries([]);');
+    expect(source).toContain('setProgressStage(null);');
+    expect(source).toContain('setScopeResetSeq((v) => v + 1);');
   });
 });

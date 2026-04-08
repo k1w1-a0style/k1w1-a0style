@@ -1,81 +1,27 @@
 // screens/DiagnosticScreen/hooks/useDiagnosticScreen.ts
-// REFACTORED: check runners → diagnosticRunners.ts
+// REFACTORED: Diagnostic screen hooks split into run/results/ui/action modules.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, LayoutAnimation, Platform, UIManager } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
-
+import { useEffect, useMemo, useRef } from "react";
+import { Platform, UIManager } from "react-native";
 
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
-import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
-
-import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
 
 import { useDiagnosticCiAutofix } from "./useDiagnosticCiAutofix";
-
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
-import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
-import type { Status } from "../types";
-
 import { useDiagnosticPreferences } from "./useDiagnosticPreferences";
 import { useDiagnosticUpload } from "./useDiagnosticUpload";
-import { useDiagnosticFixRunner } from "./useDiagnosticFixRunner";
 import { useDiagnosticSelection } from "./useDiagnosticSelection";
-import { useDiagnosticIssueFiltering } from "./useDiagnosticIssueFiltering";
-import { getDiagnosticFixOffer } from "../../../lib/diagnostics/fixResultContract";
 
-import type { ProjectData, ProjectFile } from "../../../shared/types/project";
+import type { UseDiagnosticScreenOptions } from "./diagnosticScreen.contracts";
+import { useDiagnosticUiState } from "./useDiagnosticUiState";
+import { useDiagnosticRunController } from "./useDiagnosticRunController";
+import { useDiagnosticResultsModel } from "./useDiagnosticResultsModel";
+import { useDiagnosticActions } from "./useDiagnosticActions";
+import { pipelineCheckAppliesToModes } from "./diagnosticPipelineModeRules";
 
-import { ORDER, runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
-import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
-import { runCleanupTask } from "../../../lib/safeCleanup";
-import {
-  buildDiagnosticSelectionScope,
-  resolveDiagnosticFocusedProfiles,
-} from "./useDiagnosticScreenHelpers";
+export { pipelineCheckAppliesToModes };
 
-export function pipelineCheckAppliesToModes(params: {
-  checkId: string;
-  modesAll: boolean;
-  selectedModes: BuildMode[];
-  recommendedMode: BuildMode;
-}): boolean {
-  const { checkId, modesAll, selectedModes, recommendedMode } = params;
-  if (modesAll) return true;
-
-  const enabled = new Set<BuildMode>(
-    selectedModes.length ? selectedModes : [recommendedMode],
-  );
-
-  const isFor = (p: "development" | "preview" | "production") => {
-    if (checkId.endsWith(`.${p}`)) return true;
-    if (checkId.includes(`.${p}.`)) return true;
-    if (checkId.includes(`easProfile.${p}`)) return true;
-    return false;
-  };
-
-  const devOnly =
-    checkId === "repo.easDevelopmentCoherent" ||
-    checkId === "repo.easEnableDevClientFlow" ||
-    checkId === "repo.dep.expoDevClient" ||
-    checkId === "repo.dep.expoDevClient.read";
-
-  if (devOnly) return enabled.has("development");
-  if (isFor("development")) return enabled.has("development");
-  if (isFor("preview")) return enabled.has("preview");
-  if (isFor("production")) return enabled.has("production");
-  return true;
-}
-
-export function useDiagnosticScreen(opts: {
-  projectData: ProjectData | null;
-  linkedRepo: string;
-  linkedBranch?: string;
-  setPreferredBuildProfile?: (mode: BuildMode) => void;
-  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
-}) {
+export function useDiagnosticScreen(opts: UseDiagnosticScreenOptions) {
   const {
     projectData,
     linkedRepo,
@@ -85,7 +31,7 @@ export function useDiagnosticScreen(opts: {
     deleteFile,
   } = opts;
 
-  const projectRef = useRef<ProjectData | null>(projectData);
+  const projectRef = useRef(projectData);
   useEffect(() => {
     projectRef.current = projectData;
   }, [projectData]);
@@ -99,34 +45,14 @@ export function useDiagnosticScreen(opts: {
   }, []);
 
   useEffect(() => {
-    // NOTE: In der New Architecture ist setLayoutAnimationEnabledExperimental ein No-Op (warn spam).
     const isNewArch = !!(globalThis as { nativeFabricUIManager?: unknown }).nativeFabricUIManager;
     if (Platform.OS === "android" && !isNewArch) {
       UIManager.setLayoutAnimationEnabledExperimental?.(true);
     }
   }, []);
 
-  // UI: main tabs + accordions
-  const [tab, setTab] = useState<TabKey>("overview");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [advancedFixesOpen, setAdvancedFixesOpen] = useState(false);
-
-  const toggleAdvanced = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setAdvancedOpen((v) => !v);
-  }, []);
-
-  const toggleAdvancedFixes = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setAdvancedFixesOpen((v) => !v);
-  }, []);
-
-
-
-  // Used to reset undo history from inside runDiagnostics without circular dependencies.
   const clearHistoryRef = useRef<null | (() => void)>(null);
 
-  // Recommended by default, Advanced optional multi-select
   const recommendedMode = useMemo<BuildMode>(() => {
     const preferred = String(projectData?.preferredBuildProfile || "development");
     if (preferred === "preview" || preferred === "production" || preferred === "development") {
@@ -163,209 +89,50 @@ export function useDiagnosticScreen(opts: {
     setAutoFixScope,
   } = prefs;
 
-  // CI/Workflow autofix (GitHub repo)
   const { ciFixing, ciFixLog, runCiAutofix } = useDiagnosticCiAutofix({
     linkedRepo,
     linkedBranch,
   });
 
-  // Diagnostics run
-  const [target, setTarget] = useState<PreflightTarget>({ mode: "expoGo" });
-  const [results, setResults] = useState<PreflightCheckResult[]>([]);
-  const [running, setRunning] = useState(false);
-  const runningRef = useRef(false);
-  const diagnosticRunEpochRef = useRef(0);
-  const activeSelectionScopeRef = useRef<string | null>(null);
-  const [progressStage, setProgressStage] = useState<string | null>(null);
-  const [lastRunAt, setLastRunAt] = useState<number | null>(null);
-
-  const counts = useMemo(() => {
-    const c = { pass: 0, warn: 0, fail: 0 };
-    for (const r of results) {
-      const st = (r.status ?? "pass") as Status;
-      c[st] += 1;
-    }
-    return c;
-  }, [results]);
-
-  const sortedResults = useMemo(() => {
-    const list = [...results];
-    list.sort(
-      (a, b) =>
-        ORDER[(a.status as Status) ?? "pass"] -
-        ORDER[(b.status as Status) ?? "pass"],
-    );
-    return list;
-  }, [results]);
-
   const { selected, setSelected, selectedCount, clearSelection } = useDiagnosticSelection();
+  const ui = useDiagnosticUiState();
 
-  const { issuesFilter, setIssuesFilter, visibleResults } = useDiagnosticIssueFiltering(sortedResults);
-
-  const toSeverity = useCallback((s: Status): IssueDetail["severity"] => {
-    if (s === "fail") return "critical";
-    if (s === "warn") return "warning";
-    return "info";
-  }, []);
-
-
-  const fixableResults = useMemo(() => {
-    const list = sortedResults.filter((r) => !!r.fix?.patch);
-    list.sort(
-      (a, b) =>
-        ORDER[(a.status as Status) ?? "pass"] -
-        ORDER[(b.status as Status) ?? "pass"],
-    );
-    return list;
-  }, [sortedResults]);
-
-  useEffect(() => {
-    activeSelectionScopeRef.current = buildDiagnosticSelectionScope(linkedRepo, linkedBranch);
-  }, [linkedRepo, linkedBranch]);
-
-  const pipelineAppliesToFocus = useCallback(
-    (id: string): boolean =>
+  const run = useDiagnosticRunController({
+    projectRef,
+    mountedRef,
+    linkedRepo,
+    linkedBranch,
+    includeLocalChecks,
+    includePipelineChecks,
+    modesAll,
+    selectedModes,
+    recommendedMode,
+    pipelineAppliesToFocus: (id) =>
       pipelineCheckAppliesToModes({
         checkId: id,
         modesAll,
         selectedModes,
         recommendedMode,
       }),
-    [modesAll, recommendedMode, selectedModes],
-  );
-
-  const runDiagnostics = useCallback(
-    async (opts?: { resetSelection?: boolean; resetHistory?: boolean }) => {
-      if (!projectRef.current) {
-        Alert.alert("Kein Projekt", "Bitte zuerst ein Projekt laden.");
-        return;
-      }
-      if (runningRef.current) return;
-
-      runningRef.current = true;
-      setRunning(true);
-
-      const runEpoch = ++diagnosticRunEpochRef.current;
-      const runScope = activeSelectionScopeRef.current;
-      const isCurrentRun = () =>
-        mountedRef.current &&
-        diagnosticRunEpochRef.current === runEpoch &&
-        activeSelectionScopeRef.current === runScope;
-      const guardedSetResults = (nextResults: PreflightCheckResult[]) => {
-        if (isCurrentRun()) setResults(nextResults);
-      };
-      const guardedSetProgressStage = (nextStage: string | null) => {
-        if (isCurrentRun()) setProgressStage(nextStage);
-      };
-
-      const resetSelection = opts?.resetSelection !== false;
-      const resetHistory = opts?.resetHistory !== false;
-      setResults([]);
-      if (resetSelection) clearSelection();
-      if (resetHistory) clearHistoryRef.current?.();
-      setProgressStage("Checks starten…");
-
-      try {
-        const files = projectRef.current.files;
-        const all: PreflightCheckResult[] = [];
-
-        const focusedProfiles = resolveDiagnosticFocusedProfiles({
-          modesAll,
-          selectedModes,
-          recommendedMode,
-        });
-
-        await runLocalChecks({
-          includeLocalChecks,
-          focusedProfiles,
-          files,
-          all,
-          mountedRef,
-          setResults: guardedSetResults,
-          setProgressStage: guardedSetProgressStage,
-        });
-        await runPipelineChecks({
-          includePipelineChecks,
-          linkedRepo,
-          linkedBranch,
-          files,
-          pipelineAppliesToFocus,
-          all,
-          mountedRef,
-          setResults: guardedSetResults,
-          setProgressStage: guardedSetProgressStage,
-        });
-
-        if (isCurrentRun()) {
-          setResults(all);
-          setLastRunAt(Date.now());
-          setProgressStage(null);
-          // Persist diagnostic status strictly for the active repo/branch selection.
-          const hasFails = all.some((r) => r.status === "fail");
-          const diagValue = hasFails ? "false" : "true";
-          const hasPersistableSelection = Boolean(String(linkedRepo ?? "").trim() && String(linkedBranch ?? "").trim());
-          if (hasPersistableSelection) {
-            const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-              linkedRepo,
-              linkedBranch,
-            });
-            await runCleanupTask(
-              () => AsyncStorage.setItem(scopedDiagnosticKey, diagValue),
-              `[DiagnosticScreen] persist scoped diagnostic flag failed for key=${scopedDiagnosticKey}`,
-            );
-          } else {
-            await runCleanupTask(
-              () => AsyncStorage.removeItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK),
-              `[DiagnosticScreen] remove unscoped diagnostic flag failed for key=${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}`,
-            );
-          }
-        }
-      } catch (e: unknown) {
-        if (isCurrentRun()) {
-          Alert.alert("Diagnostics fehlgeschlagen", getDiagnosticUiErrorMessage(e));
-          setProgressStage(null);
-        }
-      } finally {
-        if (diagnosticRunEpochRef.current === runEpoch) {
-          runningRef.current = false;
-          if (mountedRef.current) setRunning(false);
-        }
-      }
+    clearSelection,
+    clearHistoryRef,
+    onScopeInvalidated: () => {
+      ui.setReportVisible(false);
+      ui.setIssueSheetVisible(false);
+      ui.setActiveIssue(null);
     },
-    [
-      clearSelection,
-      includeLocalChecks,
-      includePipelineChecks,
-      linkedRepo,
-      linkedBranch,
-      modesAll,
-      mountedRef,
-      pipelineAppliesToFocus,
-      recommendedMode,
-      selectedModes,
-    ],
-  );
+  });
 
-  // Upload state
-  const uploadState = useDiagnosticUpload({ projectRef, mountedRef, results, target });
-  const {
-    uploadBusyRef,
-    uploadBusy,
-    uploadCooldownUntil,
-    setUploadCooldownUntil,
-    setCooldownNow,
-    uploadCooldownLeftSec,
-    getOrCreateUploadClientRequestId,
-    resetUploadClientRequestId,
-    upload,
-    copyReport,
-  } = uploadState;
+  const model = useDiagnosticResultsModel({
+    results: run.results,
+    modesAll,
+    selectedModes,
+    recommendedMode,
+  });
 
   const toast = useInlineToast();
-  const [reportVisible, setReportVisible] = useState(false);
 
-  // Fix runner (split out from the old monolith)
-  const fixRunner = useDiagnosticFixRunner({
+  const actions = useDiagnosticActions({
     projectRef,
     mountedRef,
     linkedRepo,
@@ -376,148 +143,81 @@ export function useDiagnosticScreen(opts: {
     rerunAfterFix,
     autoFixIncludeWarn,
     autoFixScope,
-    sortedResults,
-    visibleResults,
-    fixableResults,
+    sortedResults: model.sortedResults,
+    visibleResults: model.visibleResults,
+    fixableResults: model.fixableResults,
     selected,
     setSelected,
-    runDiagnostics,
+    runDiagnostics: run.runDiagnostics,
     toast,
     clearHistoryRef,
+    activeIssue: ui.activeIssue,
+    setActiveIssue: ui.setActiveIssue,
+    setIssueSheetVisible: ui.setIssueSheetVisible,
+    toSeverity: model.toSeverity,
   });
 
-  const {
-    history,
-    previewVisible,
-    setPreviewVisible,
-    previewLabel,
-    previewEntries,
-    setPreviewLabel,
-    setPreviewEntries,
-    applyBusy,
-    fixModalVisible,
-    fixModalTitle,
-    fixModalSubtitle,
-    fixSteps,
-    fixStepIndex,
-    fixDone,
-    closeFixModal,
-    openPreview,
-    applyPatch,
-    undoLast,
-    undoAll,
-    applySingle,
-    autoFix,
-    applySelected,
-    smartFix,
-    applyIssueFix,
-    applyFixList,
-  } = fixRunner;
-
-  const lastSelectionScopeRef = useRef<string | null>(null);
-  const didInitSelectionScopeRef = useRef(false);
-  const [issueSheetVisible, setIssueSheetVisible] = useState(false);
-  const [activeIssue, setActiveIssue] = useState<PreflightCheckResult | null>(null);
+  useEffect(() => {
+    if (!ui.issueSheetVisible) {
+      ui.setActiveIssue(null);
+    }
+  }, [ui.issueSheetVisible, ui.setActiveIssue]);
 
   useEffect(() => {
-    const nextScope = buildDiagnosticSelectionScope(linkedRepo, linkedBranch);
-    const previousScope = lastSelectionScopeRef.current;
-    lastSelectionScopeRef.current = nextScope;
+    if (run.scopeResetSeq === 0) return;
+    actions.setPreviewVisible(false);
+    actions.setPreviewLabel("");
+    actions.setPreviewEntries([]);
+  }, [run.scopeResetSeq, actions.setPreviewEntries, actions.setPreviewLabel, actions.setPreviewVisible]);
 
-    if (!didInitSelectionScopeRef.current) {
-      didInitSelectionScopeRef.current = true;
-      return;
+  useEffect(() => {
+    if (!actions.previewVisible) {
+      actions.setPreviewLabel("");
+      actions.setPreviewEntries([]);
     }
+  }, [actions.previewVisible, actions.setPreviewEntries, actions.setPreviewLabel]);
 
-    if (previousScope === nextScope) {
-      return;
-    }
-
-    diagnosticRunEpochRef.current += 1;
-    runningRef.current = false;
-    setRunning(false);
-    setResults([]);
-    setSelected({});
-    setLastRunAt(null);
-    setProgressStage(null);
-    clearHistoryRef.current?.();
-    setReportVisible(false);
-    setIssueSheetVisible(false);
-    setActiveIssue(null);
-    setPreviewVisible(false);
-    setPreviewLabel("");
-    setPreviewEntries([]);
-  }, [
-    linkedRepo,
-    linkedBranch,
-    setSelected,
-    setReportVisible,
-    setIssueSheetVisible,
-    setActiveIssue,
-    setPreviewVisible,
-    setPreviewLabel,
-    setPreviewEntries,
-  ]);
+  const uploadState = useDiagnosticUpload({
+    projectRef,
+    mountedRef,
+    results: run.results,
+    target: run.target,
+  });
 
   const tabDefs = useMemo(
     () => [
       { key: "overview" as const, label: "Overview" },
-      { key: "issues" as const, label: "Issues", badge: counts.fail + counts.warn },
-      { key: "fixes" as const, label: "Fixes", badge: fixableResults.length },
+      { key: "issues" as const, label: "Issues", badge: model.counts.fail + model.counts.warn },
+      { key: "fixes" as const, label: "Fixes", badge: model.fixableResults.length },
     ],
-    [counts.fail, counts.warn, fixableResults.length],
+    [model.counts.fail, model.counts.warn, model.fixableResults.length],
   );
-
-  const issueList = visibleResults;
-  const busy = running || applyBusy;
-
-  const openIssue = useCallback((r: PreflightCheckResult) => {
-    setActiveIssue(r);
-    setIssueSheetVisible(true);
-  }, []);
-
-  const closeIssue = useCallback(() => setIssueSheetVisible(false), []);
-
-  const activeIssueDetail = useMemo<IssueDetail | null>(() => {
-    if (!activeIssue) return null;
-    const st = ((activeIssue.status ?? "pass") as Status) ?? "pass";
-    const fixOffer = getDiagnosticFixOffer(activeIssue);
-    return {
-      title: activeIssue.title,
-      message: activeIssue.message,
-      details: activeIssue.details,
-      severity: toSeverity(st),
-      hasFix: fixOffer.status !== "advisory_only",
-      fixLabel: activeIssue.fix?.label || fixOffer.actionLabel,
-      previewAvailable: fixOffer.previewAvailable,
-    };
-  }, [activeIssue, toSeverity]);
 
   const headerStats = useMemo(() => {
     const name = projectData?.name ?? "–";
-    const easProfile = target.mode === "eas" ? target.profile : undefined;
-    const mode = target.mode === "expoGo" ? "Expo Go" : `EAS: ${easProfile ?? "?"}`;
+    const easProfile = run.target.mode === "eas" ? run.target.profile : undefined;
+    const mode = run.target.mode === "expoGo" ? "Expo Go" : `EAS: ${easProfile ?? "?"}`;
     const prof = (() => {
       if (modesAll) return "all";
       if (selectedModes.length > 1) return `${selectedModes.length} profiles`;
       return selectedModes[0] ?? recommendedMode;
     })();
     return { name, mode, profileLabel: prof };
-  }, [modesAll, projectData?.name, recommendedMode, selectedModes, target]);
+  }, [modesAll, projectData?.name, recommendedMode, run.target, selectedModes]);
 
   return {
     toast,
-    tab,
-    setTab,
+    tab: ui.tab,
+    setTab: ui.setTab,
     tabDefs,
-    issueList,
-    busy,
-    advancedOpen,
-    advancedFixesOpen,
-    toggleAdvanced,
-    toggleAdvancedFixes,
-    issuesFilter,
-    setIssuesFilter,
+    issueList: model.visibleResults,
+    busy: run.running || actions.applyBusy,
+    advancedOpen: ui.advancedOpen,
+    advancedFixesOpen: ui.advancedFixesOpen,
+    toggleAdvanced: ui.toggleAdvanced,
+    toggleAdvancedFixes: ui.toggleAdvancedFixes,
+    issuesFilter: model.issuesFilter,
+    setIssuesFilter: model.setIssuesFilter,
     selected,
     setSelected,
     selectedCount,
@@ -545,64 +245,30 @@ export function useDiagnosticScreen(opts: {
     runCiAutofix,
     projectRef,
     mountedRef,
-    uploadBusyRef,
-    uploadCooldownUntil,
-    setUploadCooldownUntil,
-    setCooldownNow,
-    uploadCooldownLeftSec,
-    getOrCreateUploadClientRequestId,
-    resetUploadClientRequestId,
+    ...uploadState,
 
-    // workflow
-    target,
-    setTarget,
-    results,
-    setResults,
-    running,
-    progressStage,
-    lastRunAt,
-    history,
-    previewVisible,
-    setPreviewVisible,
-    previewLabel,
-    previewEntries,
-    setPreviewLabel,
-    setPreviewEntries,
-    applyBusy,
-    uploadBusy,
-    fixModalVisible,
-    fixModalTitle,
-    fixModalSubtitle,
-    fixSteps,
-    fixStepIndex,
-    fixDone,
-    closeFixModal,
-    counts,
-    sortedResults,
-    toSeverity,
-    visibleResults,
-    fixableResults,
-    pipelineAppliesToFocus,
-    runDiagnostics,
-    openPreview,
-    applyPatch,
-    undoLast,
-    undoAll,
-    applySingle,
-    autoFix,
-    applySelected,
-    smartFix,
-    reportVisible,
-    setReportVisible,
-    issueSheetVisible,
-    activeIssue,
-    activeIssueDetail,
-    openIssue,
-    closeIssue,
-    applyIssueFix,
-    applyFixList,
-    upload,
-    copyReport,
+    target: run.target,
+    setTarget: run.setTarget,
+    results: run.results,
+    setResults: run.setResults,
+    running: run.running,
+    progressStage: run.progressStage,
+    lastRunAt: run.lastRunAt,
+
+    ...actions,
+
+    counts: model.counts,
+    sortedResults: model.sortedResults,
+    toSeverity: model.toSeverity,
+    visibleResults: model.visibleResults,
+    fixableResults: model.fixableResults,
+    pipelineAppliesToFocus: model.pipelineAppliesToFocus,
+    runDiagnostics: run.runDiagnostics,
+
+    reportVisible: ui.reportVisible,
+    setReportVisible: ui.setReportVisible,
+    issueSheetVisible: ui.issueSheetVisible,
+    activeIssue: ui.activeIssue,
     headerStats,
   };
 }
