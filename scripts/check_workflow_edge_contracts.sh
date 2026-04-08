@@ -47,6 +47,8 @@ SAVE_PREVIEW_EDGE="supabase/functions/save_preview/index.ts"
 LEGACY_TEST_EDGE="supabase/functions/test/index.ts"
 GH_WORKFLOWS_INFRA="infra/github/workflows.ts"
 GH_FILES_INFRA="infra/github/files.ts"
+GH_FILES_GITDATA_INFRA="infra/github/files/gitDataApi.ts"
+GH_FILES_SHARED_INFRA="infra/github/files/shared.ts"
 GH_BRANCHOPS_INFRA="infra/github/branchOps.ts"
 TRIGGER_WF=".github/workflows/k1w1-triggered-build.yml"
 EAS_WF=".github/workflows/eas-build.yml"
@@ -75,7 +77,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -286,9 +288,10 @@ require_fixed "$LOGS_EDGE" 'truncated,'
 
 require_fixed "$GH_WORKFLOWS_INFRA" 'if (!targetRef) throw new Error("Explicit branch/ref is required.");'
 forbid_fixed "$GH_WORKFLOWS_INFRA" 'ref = "main"'
-require_fixed "$GH_FILES_INFRA" 'if (!targetBranch) throw new Error("Explicit branch/ref is required.");'
-forbid_fixed "$GH_FILES_INFRA" 'targetBranch = "main"'
-forbid_fixed "$GH_FILES_INFRA" '|| "main"'
+require_pattern "$GH_FILES_GITDATA_INFRA" "resolveTargetBranch\(owner, repo, options\?\.branch\)"
+require_pattern "$GH_FILES_SHARED_INFRA" "throw new Error\(\"Explicit branch/ref is required\.\"\);"
+forbid_fixed "$GH_FILES_GITDATA_INFRA" 'targetBranch = "main"'
+forbid_fixed "$GH_FILES_GITDATA_INFRA" '|| "main"'
 require_fixed "$GH_BRANCHOPS_INFRA" 'throw new Error("Repository default_branch is missing.");'
 forbid_fixed "$GH_BRANCHOPS_INFRA" 'default_branch || "main"'
 

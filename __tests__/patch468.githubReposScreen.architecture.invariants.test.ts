@@ -13,7 +13,7 @@ describe("Patch 468 GitHub repo sync architecture invariants", () => {
   });
 
   it("uses consolidated Git tree/commit/ref flow for multi-file push", () => {
-    const filesInfra = read("infra/github/files.ts");
+    const filesInfra = read("infra/github/files/gitDataApi.ts");
 
     expect(filesInfra).toContain("/git/trees");
     expect(filesInfra).toContain("/git/commits");

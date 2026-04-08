@@ -117,7 +117,7 @@ export async function requireVerifiedJwt(req: Request, scope: string): Promise<R
   }
 
   const verified = await verifyJwtViaSupabaseAuth(req);
-  if (!verified.ok) {
+  if (verified.ok === false) {
     if (verified.reason === "server_misconfigured") {
       return errorResponse("JWT verification is unavailable due to server auth misconfiguration.", req, 500, { scope });
     }
@@ -137,7 +137,7 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
   }
 
   const verified = await verifyJwtViaSupabaseAuth(req);
-  if (!verified.ok) {
+  if (verified.ok === false) {
     if (verified.reason === "server_misconfigured") {
       return errorResponse("JWT verification is unavailable due to server auth misconfiguration.", req, 500, { scope: cfg.scope });
     }
