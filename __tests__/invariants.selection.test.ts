@@ -98,14 +98,14 @@ describe("Invariants: repo/branch selection is source of truth", () => {
   });
 
   it("keeps managed markers in managed workflow templates", () => {
-    const src = read("shared/workflows/managedWorkflowTemplates.ts");
+    const src = read("shared/workflows/templates/ciLiteTemplate.ts");
 
     expect(src).toContain('# managed-by: k1w1');
     expect(src).toContain('# workflow-version: 399');
   });
 
   it("keeps source provenance fields in CI-Lite template artifacts", () => {
-    const src = read("shared/workflows/managedWorkflowTemplates.ts");
+    const src = read("shared/workflows/templates/ciLiteTemplate.ts");
 
     expect(src).toContain('\"source_sha\": \"\\${SOURCE_SHA:-}\"');
     expect(src).toContain('\"github_sha\": \"\\${GITHUB_SHA}\"');

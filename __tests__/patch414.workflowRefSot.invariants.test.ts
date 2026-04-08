@@ -127,33 +127,6 @@ const extractTemplateContent = (jsonSrc: string, workflowPath: string) => {
   return entries.find((entry) => entry.path === workflowPath)?.content ?? "";
 };
 
-const extractNamedTemplateLiteral = (src: string, workflowPath: string) => {
-  const marker = `"${workflowPath}": \``;
-  const start = src.indexOf(marker);
-  if (start === -1) return "";
-
-  let i = start + marker.length;
-  let out = "";
-
-  while (i < src.length) {
-    const ch = src[i];
-    if (ch === "\\") {
-      out += ch;
-      if (i + 1 < src.length) {
-        out += src[i + 1];
-        i += 2;
-        continue;
-      }
-      break;
-    }
-    if (ch === "`") return out;
-    out += ch;
-    i += 1;
-  }
-
-  return out;
-};
-
 const GENERIC_SAFE_REF_REGEX = "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$";
 const CI_LITE_ALLOWED_REF_REGEX = "^(work|codex|dev|develop)$";
 
@@ -276,19 +249,24 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
     const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
     const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
+    const sharedContracts = read("shared/workflows/templateContracts.ts");
+    const sharedCiLiteTemplate = read("shared/workflows/templates/ciLiteTemplate.ts");
+    const sharedAutofixTemplate = read("shared/workflows/templates/ciLiteAutofixTemplate.ts");
     const infraTemplates = read("infra/github/workflowTemplates.ts");
     const edgeTemplates = read("supabase/functions/github-workflow-dispatch/index.ts");
-    const sharedCiLite = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite.yml");
-    const sharedAutofix = extractNamedTemplateLiteral(sharedTemplates, "k1w1-ci-lite-autofix.yml");
+    const sharedCiLite = sharedCiLiteTemplate;
+    const sharedAutofix = sharedAutofixTemplate;
     const legacyRegex = "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$";
-
+    expect(sharedTemplates).toContain('"k1w1-ci-lite.yml": WORKFLOW_K1W1_CI_LITE_TEMPLATE');
+    expect(sharedTemplates).toContain('"k1w1-ci-lite-autofix.yml": WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE');
+    expect(sharedContracts).toContain(`CI_LITE_ALLOWED_REF_REGEX = "${CI_LITE_ALLOWED_REF_REGEX}"`);
     expect(ciLite).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
     expect(ciLite).toContain("allowed_ref_regex: ${{ env.ALLOWED_REF_REGEX }}");
     expect(ciLite).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(ciLite).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
     for (const src of [sharedCiLite]) {
-      expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
+      expect(src).toContain('ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"');
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
@@ -300,7 +278,7 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(autofix).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
     for (const src of [sharedAutofix]) {
-      expect(src).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
+      expect(src).toContain('ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"');
       expect(src).toContain("allowed_ref_regex: \\${{ env.ALLOWED_REF_REGEX }}");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);

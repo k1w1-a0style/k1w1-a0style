@@ -18,14 +18,14 @@ describe("patch 403 workflow contract invariants", () => {
   it("keeps CI Lite package-manager aware in shared + infra templates while dispatch edge stays mutation-free", () => {
     const infra = read("infra/github/workflowTemplates.ts");
     const edge = read("supabase/functions/github-workflow-dispatch/index.ts");
-    const shared = read("shared/workflows/managedWorkflowTemplates.ts");
+    const sharedCiLite = read("shared/workflows/templates/ciLiteTemplate.ts");
 
     expect(infra).toContain('from "../../shared/workflows/managedWorkflowTemplates"');
     expect(edge).not.toContain("managedWorkflowTemplates");
     expect(edge).not.toContain("WORKFLOW_TEMPLATES");
     expect(edge).toContain("missing_workflow");
 
-    for (const src of [shared]) {
+    for (const src of [sharedCiLite]) {
       expect(src).toContain("package_manager");
       expect(src).toContain("cache_kind");
       expect(src).toContain("yarn install --immutable");
