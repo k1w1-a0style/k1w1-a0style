@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
+Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
 
 ## Aktiv und workflow-relevant
 

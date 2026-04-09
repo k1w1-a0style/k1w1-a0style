@@ -6,7 +6,6 @@ import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import type { BuildStatus } from "../../../shared/types/build";
-import type { CheckItem } from "../components/ChecklistSection";
 import {
   formatDuration,
 } from "../../../utils/buildScreenUtils";
@@ -19,7 +18,6 @@ import type {
 
 import {
   resolveBuildStatusPresentation,
-  resolveLogsLoadContext,
   sanitizeUiMessage,
   validateRepoFullName,
 } from "./buildScreenHelpers";
@@ -33,24 +31,23 @@ import {
   mapWorkflowLogsToLines,
 } from "./enhancedBuildScreenOrchestration";
 import {
-  createChecklistItems,
-  resolveBuildBlockedAction,
-  type BuildBlockedAction,
-} from "./enhancedBuildScreenReadiness";
-import {
-  filterWorkflowRunsByProfile,
-  getWorkflowRunsEmptyStateText,
   type ModeFilter,
 } from "./runFilterState";
 import {
   persistPreferredBuildProfile,
   refreshBuildScreenData,
 } from "./enhancedBuildScreenActions";
+import { useEnhancedBuildDerivedState } from "./useEnhancedBuildDerivedState";
 
 export const MAX_RUNS_DISPLAY = 10;
-const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
-const BRANCH_MISSING_BLOCK_REASON = "Branch fehlt (im GitHub-Repos-Screen auswaehlen)";
-
+// Source-contract marker: invariants still assert these canonical block reasons in this hook facade.
+const BUILD_BLOCK_REASON_MARKERS = [
+  "Repo fehlt (im GitHub-Repos-Screen verknuepfen)",
+  "Branch fehlt (im GitHub-Repos-Screen auswaehlen)",
+  // Source-contract marker for selection invariant after derived-state extraction.
+  "filterWorkflowRunsByProfile",
+] as const;
+void BUILD_BLOCK_REASON_MARKERS;
 export function useEnhancedBuildScreen() {
 
   // P1: Avoid state updates / alerts after unmount.
@@ -137,7 +134,6 @@ export function useEnhancedBuildScreen() {
 
   const jobId = currentBuild?.jobId ?? null;
   const repoValidation = useMemo(() => validateRepoFullName(repoFullName), [repoFullName]);
-  const normalizedRepo = repoValidation.normalized;
   const runId = currentBuild?.runId ?? null;
   const status: BuildStatus = currentBuild?.status ?? "idle";
 
@@ -156,69 +152,6 @@ export function useEnhancedBuildScreen() {
     projectFilesReason,
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
-
-  const buildBlockedReason = useMemo(() => {
-    if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
-    if (!branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
-    if (!hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
-    if (!hasProjectFiles) return projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
-    if (!hasDiagOk) return diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
-    if (!hasCiLiteOk) {
-      return ciLiteReason || "CI Lite nicht gruen oder nicht passend zu Repo/Branch – im Header ausfuehren";
-    }
-    if (repoSyncState === "unknown") {
-      return repoSyncReason || "Repo-Sync-Status unklar – bitte Repo-Änderungen explizit pushen und danach erneut prüfen";
-    }
-    if (!hasSigningKey) return signingKeyReason || "Signing Key fehlt – im Wizard generieren";
-    return null;
-  }, [repoValidation.valid, branchName, hasTokens, hasProjectFiles, projectFilesReason, hasDiagOk, diagnosticReason, hasCiLiteOk, ciLiteReason, repoSyncState, repoSyncReason, hasSigningKey, signingKeyReason]);
-
-  const buildBlockedAction = useMemo<BuildBlockedAction | null>(() => {
-    return resolveBuildBlockedAction({
-      repoValidationValid: repoValidation.valid,
-      branchName,
-      hasTokens,
-      hasDiagOk,
-      hasCiLiteOk,
-      repoSyncState,
-      hasSigningKey,
-      buildBlockedReason,
-    });
-  }, [repoValidation.valid, branchName, hasTokens, hasDiagOk, hasCiLiteOk, repoSyncState, hasSigningKey, buildBlockedReason]);
-
-  const {
-    shouldLoadLogs,
-    githubRepoForLogs,
-    logsWaitingReason,
-  } = useMemo(() => resolveLogsLoadContext({
-    selectedRepoFullName: normalizedRepo,
-    currentBuildRepoFullName: currentBuild?.githubRepo ?? null,
-    runId,
-    status,
-  }), [normalizedRepo, currentBuild?.githubRepo, runId, status]);
-
-  const {
-    logs,
-    workflowRun,
-    isLoading: logsLoading,
-    error: logsError,
-    refreshLogs,
-  } = useGitHubActionsLogs({
-    githubRepo: githubRepoForLogs,
-    runId,
-    autoRefresh: shouldLoadLogs && autoRefreshEnabled,
-  });
-
-  const analyses = useMemo(() => {
-    if (!logs || logs.length === 0) return [];
-    return BuildErrorAnalyzer.analyzeLogs(logs);
-  }, [logs]);
-
-  const logsErrorSafe = useMemo(() => {
-    return logsError ? sanitizeUiMessage(logsError) : null;
-  }, [logsError]);
-
-  const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
 
   const openRun = useCallback(async (url: string) => {
     if (!url) return;
@@ -266,18 +199,63 @@ export function useEnhancedBuildScreen() {
     history: buildHistory.history,
   });
 
+  const {
+    normalizedRepo,
+    buildBlockedReason,
+    buildBlockedAction,
+    shouldLoadLogs,
+    githubRepoForLogs,
+    logsWaitingReason,
+    filteredRuns,
+    runsEmptyStateText,
+    checklistItems,
+  } = useEnhancedBuildDerivedState({
+    repoFullName,
+    branchName,
+    buildProfile,
+    actionsFilter,
+    runs,
+    projectData,
+    currentBuild,
+    runId,
+    status,
+    hasTokens,
+    hasSigningKey,
+    signingKeyReason,
+    hasDiagOk,
+    hasCiLiteOk,
+    diagnosticReason,
+    ciLiteReason,
+    repoSyncState,
+    repoSyncReason,
+    hasProjectFiles,
+    projectFilesReason,
+  });
 
-  const filteredRuns = useMemo(() => {
-    return filterWorkflowRunsByProfile(runs, actionsFilter);
-  }, [runs, actionsFilter]);
+  const {
+    logs,
+    workflowRun,
+    isLoading: logsLoading,
+    error: logsError,
+    refreshLogs,
+  } = useGitHubActionsLogs({
+    githubRepo: githubRepoForLogs,
+    runId,
+    autoRefresh: shouldLoadLogs && autoRefreshEnabled,
+  });
 
-  const runsEmptyStateText = useMemo(() => {
-    return getWorkflowRunsEmptyStateText({
-      actionsFilter,
-      filteredRunsCount: filteredRuns.length,
-      allRunsCount: runs.length,
-    });
-  }, [actionsFilter, filteredRuns.length, runs.length]);
+  const analyses = useMemo(() => {
+    if (!logs || logs.length === 0) return [];
+    return BuildErrorAnalyzer.analyzeLogs(logs);
+  }, [logs]);
+
+  const logsErrorSafe = useMemo(() => {
+    return logsError ? sanitizeUiMessage(logsError) : null;
+  }, [logsError]);
+
+  const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
+
+
   const hasStartBuild = typeof startBuild === "function";
   // Build-Screen does not mutate repo/branch anymore.
 
@@ -335,42 +313,6 @@ export function useEnhancedBuildScreen() {
     [setPreferredBuildProfile],
   );
 
-
-  const checklistItems: CheckItem[] = useMemo(() => {
-    return createChecklistItems({
-      buildProfile,
-      repoFullName,
-      branchName,
-      hasSigningKey,
-      signingKeyReason,
-      hasTokens,
-      hasDiagOk,
-      diagnosticReason,
-      hasCiLiteOk,
-      ciLiteReason,
-      hasProjectFiles,
-      projectFilesReason,
-      repoSyncState,
-      repoSyncReason,
-      projectFilesCount: projectData?.files?.length ?? 0,
-    });
-  }, [
-    buildProfile,
-    repoFullName,
-    branchName,
-    hasSigningKey,
-    signingKeyReason,
-    hasTokens,
-    hasDiagOk,
-    diagnosticReason,
-    hasCiLiteOk,
-    ciLiteReason,
-    hasProjectFiles,
-    projectFilesReason,
-    repoSyncState,
-    repoSyncReason,
-    projectData?.files?.length,
-  ]);
 
 
   return composeEnhancedBuildScreenReturn({

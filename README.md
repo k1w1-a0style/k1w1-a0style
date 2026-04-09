@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
+Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
 
-Zuletzt abgeschlossen: **Patch 764**
+Zuletzt abgeschlossen: **Patch 765**
 
 Der aktuelle Stand bestaetigt:
 - die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API

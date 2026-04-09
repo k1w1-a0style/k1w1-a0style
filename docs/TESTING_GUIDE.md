@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
+Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
