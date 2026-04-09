@@ -12,6 +12,7 @@
  * Response is intentionally minimized & sanitized to avoid leaking huge GitHub objects.
  */
 import { errorResponse, jsonResponse } from "../_shared/cors.ts";
+import { sanitizeSecretsInText } from "../_shared/errorSanitization.ts";
 import { githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
@@ -54,17 +55,12 @@ export function parseGithubRepo(v: unknown): { owner: string; repo: string } | n
 }
 
 export function redactSecrets(text: string): string {
-  // Basic redaction: emails + obvious token patterns.
-  // Keep it conservative to avoid destroying useful logs.
-  const t1 = text.replace(
+  // Keep email redaction explicit for log privacy.
+  const noEmail = text.replace(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
     "<redacted-email>",
   );
-  const t2 = t1.replace(
-    /\b(ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
-    "<redacted-token>",
-  );
-  return t2;
+  return sanitizeSecretsInText(noEmail);
 }
 
 export function isPrivateIp(hostname: string): boolean {

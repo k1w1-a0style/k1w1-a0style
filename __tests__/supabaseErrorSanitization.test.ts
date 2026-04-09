@@ -1,5 +1,6 @@
 import {
   sanitizeErrorText,
+  sanitizeSecretsInText,
   sanitizeUnknownForTransport,
 } from "../supabase/functions/_shared/errorSanitization";
 
@@ -27,6 +28,23 @@ describe("supabase edge error sanitization", () => {
     const outText = sanitizeErrorText(inText);
     expect(outText).not.toContain("ghp_1234567890abcdef");
     expect(outText).toContain("[REDACTED_TOKEN]");
+  });
+
+  test("sanitizeSecretsInText redacts header/query/assignment style secrets", () => {
+    const inText = [
+      "authorization: Bearer abc.def.ghi",
+      "x-api-key=supersecret",
+      "https://example.test/cb?access_token=abc123&safe=1",
+      "password: hunter2",
+    ].join("\n");
+
+    const outText = sanitizeSecretsInText(inText);
+    expect(outText).not.toContain("abc.def.ghi");
+    expect(outText).not.toContain("supersecret");
+    expect(outText).not.toContain("abc123");
+    expect(outText).not.toContain("hunter2");
+    expect(outText).toContain("[REDACTED_TOKEN]");
+    expect(outText).toContain("[REDACTED_SECRET]");
   });
 
   test("sanitizeUnknownForTransport walks objects/arrays", () => {
