@@ -4,13 +4,6 @@ import type {
 } from "../../../lib/diagnostics/preflightTypes";
 import { safeTruncateText } from "../../../lib/diagnostics/sanitize";
 import {
-  DEFAULT_PATCH_LIMITS,
-  checkPatchLimits,
-  summarizeBatchLimits,
-  summarizeBatchRisk,
-} from "../../../lib/diagnostics/fixSafety";
-import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
-import {
   formatBatchFixResultDetail,
   formatBatchFixSubtitle,
 } from "./fixRunnerDisplayHelpers";
@@ -26,18 +19,15 @@ import {
 import { resolveWorkflowDispatchTarget } from "./fixRunnerOrchestrationHelpers";
 import {
   buildBatchExecutionPlan,
-  collectBatchSafetyPatches,
 } from "./fixRunnerBatchPlanHelpers";
-import {
-  buildBatchRiskPromptMessage,
-  confirmWithAlert,
-} from "./fixRunnerPromptHelpers";
 import type { FixStep } from "../types";
 import {
   markStepBlocked,
   runOptionalVerify,
   runPatchApplyAndSync,
 } from "./fixRunnerFlowSharedSteps";
+import { confirmBatchFixSafety, getSingleFixPromptMeta } from "./fixRunnerFlowExecutorHelpers";
+export { getSingleFixPromptMeta } from "./fixRunnerFlowExecutorHelpers";
 
 export const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 
@@ -243,30 +233,11 @@ export async function executeBatchFixFlow(params: {
   } = params;
   if (!items.length) return;
 
-  const batch = collectBatchSafetyPatches(items);
-
-  const limitSummary = summarizeBatchLimits(batch, DEFAULT_PATCH_LIMITS);
-  if (limitSummary.hasHard) {
-    const lines = limitSummary.hardLines.join("\n");
-    params.onHardLimitBlock(
-      `Mindestens ein Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n${lines}`,
-    );
-    return;
-  }
-
-  const riskSummary = summarizeBatchRisk(batch);
-  if (riskSummary.hasRisk || limitSummary.hasSoft) {
-    const proceed = await confirmWithAlert({
-      title: "Risky batch fix",
-      message: buildBatchRiskPromptMessage({
-        hasRisk: riskSummary.hasRisk,
-        shortPaths: riskSummary.shortPaths,
-        more: riskSummary.more,
-        softLines: limitSummary.hasSoft ? limitSummary.softLines : [],
-      }),
-    });
-    if (!proceed) return;
-  }
+  const safetyConfirmed = await confirmBatchFixSafety({
+    items,
+    onHardLimitBlock: params.onHardLimitBlock,
+  });
+  if (!safetyConfirmed) return;
 
   const { deduped, steps, skipped } = buildBatchExecutionPlan({
     items,
@@ -387,55 +358,6 @@ export async function executeSingleFixFlow(params: {
       stepsLength: steps.length,
     }),
   );
-}
-
-export function getSingleFixPromptMeta(params: {
-  result: PreflightCheckResult;
-  linkedRepo: string;
-  shouldSyncPatch: (patch: PreflightPatch) => boolean;
-}): {
-  blockedReason: string | null;
-  sizeNote: string;
-  canSyncRepo: boolean;
-  syncWouldHelp: boolean;
-  patch: PreflightPatch | null;
-} {
-  const { result, linkedRepo, shouldSyncPatch } = params;
-  if (!result.fix?.patch) {
-    return {
-      blockedReason: null,
-      sizeNote: "",
-      canSyncRepo: false,
-      syncWouldHelp: false,
-      patch: null,
-    };
-  }
-
-  const patch = result.fix.patch as PreflightPatch;
-  const sizeCheck = checkPatchLimits(patch, DEFAULT_PATCH_LIMITS);
-  if (sizeCheck.hardFail) {
-    return {
-      blockedReason:
-        "Dieser Fix ist zu groß/komplex und wird aus Sicherheitsgründen blockiert.\n\n" +
-        sizeCheck.reasons.join("\n"),
-      sizeNote: "",
-      canSyncRepo: false,
-      syncWouldHelp: false,
-      patch: null,
-    };
-  }
-
-  const sizeNote = sizeCheck.softWarn
-    ? `\n\n⚠ Größe/Komplexität: ${sizeCheck.reasons.join(", ")}`
-    : "";
-
-  return {
-    blockedReason: null,
-    sizeNote,
-    canSyncRepo: !!parseOwnerRepo(linkedRepo),
-    syncWouldHelp: shouldSyncPatch(patch),
-    patch,
-  };
 }
 
 export function buildSingleFixPromptMessage(params: {
