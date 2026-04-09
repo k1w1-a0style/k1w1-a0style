@@ -1,4 +1,4 @@
-import { CI_LITE_ALLOWED_REF_REGEX } from "../templateContracts";
+import { CI_LITE_ALLOWED_REF_REGEX, CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
 
 export const WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE = `
 # managed-by: k1w1
@@ -36,7 +36,7 @@ jobs:
       JOB_ID: \${{ inputs.job_id }}
       TARGET_BRANCH: \${{ inputs.ref }}
       ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
-      WORKFLOW_VERSION: "399"
+      WORKFLOW_VERSION: "${CI_LITE_WORKFLOW_VERSION}"
 
     steps:
       - name: Determine target branch

@@ -1,4 +1,4 @@
-import { CI_LITE_ALLOWED_REF_REGEX } from "../templateContracts";
+import { CI_LITE_ALLOWED_REF_REGEX, CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
 
 export const WORKFLOW_K1W1_CI_LITE_TEMPLATE = `
 # managed-by: k1w1
@@ -38,7 +38,7 @@ jobs:
 
     env:
       ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
-      WORKFLOW_VERSION: "399"
+      WORKFLOW_VERSION: "${CI_LITE_WORKFLOW_VERSION}"
 
     steps:
       - name: Determine target ref
