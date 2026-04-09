@@ -242,12 +242,12 @@ jobs:
               yarn)
                 echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                pnpm install --frozen-lockfile || pnpm install
+                pnpm install --frozen-lockfile
                 ;;
               *)
                 echo "::error::Unknown package manager '$PM'"
@@ -558,12 +558,12 @@ jobs:
               yarn)
                 echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                pnpm install --frozen-lockfile || pnpm install
+                pnpm install --frozen-lockfile
                 ;;
               *)
                 echo "::error::Unknown package manager '$PM'"

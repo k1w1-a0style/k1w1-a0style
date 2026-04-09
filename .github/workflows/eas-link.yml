@@ -150,7 +150,7 @@ jobs:
               yarn)
                 echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
