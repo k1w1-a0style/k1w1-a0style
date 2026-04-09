@@ -1,11 +1,20 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
+Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `ChatScreenHookResidual` (Patch 769): Prefill-Param-Handling in `useChatScreen` aus der Haupt-Fassade in `chatScreenPrefill.ts` entmischt; Fehler beim Param-Cleanup werden jetzt sichtbar via `logger.warn(...)` statt stummem Catch.
+- [x] `CiLiteWorkflowResidual` (Patch 769): Logline-Ableitung aus `useCiLiteWorkflow.ts` in `resolveCiLiteLogLines(...)` ausgelagert; Pending-/Hydrated-/Run-Log-Semantik bleibt unveraendert.
+- [x] `EnhancedBuildScreenResidual` (Patch 769): Log-Ableitungen (`analyses`, `logsErrorSafe`, `logLines`) aus dem Haupt-Hook in `useEnhancedBuildLogState.ts` gezogen; Build-/Readiness-/Start-Semantik unveraendert.
+- [x] `GitHubWorkflowsInfraResidual` (Patch 769): JSON-Parse-Fehlerpfad im Workflow-Dispatch ist jetzt sichtbar (`logger.warn`) statt stiller Fallback; fail-closed Fehlerbild bleibt gleich.
+- [x] `CredentialsWizardScreenResidual` (Patch 769): erneute Residual-Bewertung ohne erzwungenen Split; bestehende Trennung (`useCredentialsWizardActions.ts`, `useCredentialsWizardUiState.ts`) ist aktuell ausreichend schlank.
+
+- [x] `ResidualHotspotFinalScan` (Patch 769): A1/A2/A3-Residual-Hotspots erneut im engen Scope durchgeprueft; kein weiterer sicherer Mehrwert fuer zusaetzliche Zerlegung ohne neue Regression-/Review-Kosten. Verbleibende groessere Dateien sind bewusst als fachliche Orchestratoren belassen.
+- [x] `WeakFallbackHygieneFollowup` (Patch 769): produktnaher Silent-Fallback im GitHub-Repos-Bootstrap entfernt (`AsyncStorage.getItem(...).catch(() => "")` -> explizites `null`-Sentinel + `logger.warn(...)`), ohne Verhaltensaenderung beim leeren/unverfuegbaren EAS-Project-ID-Wert.
 
 - [x] `ScopeTruthfulnessNachzug` (Patch 766): breiter PR-Scope explizit als Mehrfachblock nachgezogen (CI-Lite-Hooks, GitHubRepos UI, EnhancedBuild-Hooks, Preview-Flows, Diagnostics-Checks/FixRunner, Workflow-/Template-Contracts) statt schmaler Teilstory.
 - [x] `LiveContractDriftGuardHardening` (Patch 766): `scripts/check_edge_live_contracts.sh` prueft jetzt neben `k1w1-handler`/`preview_page` auch `save_preview` auf Fragment-Transport (`transport=fragment#secret=`) und blockiert Legacy-`?secret=`-Rueckfall explizit fail-closed.

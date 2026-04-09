@@ -11,7 +11,6 @@ import { deriveCiLiteHeaderState } from "./useCiLiteWorkflowStatusHelpers";
 import { useCiLiteRunLookupState } from "./useCiLiteRunLookupState";
 import {
   resolveCiLiteLookupFailureMessage,
-  resolveCiLitePendingRunMessage,
   resolveHydratedCiLiteStepInfo,
   resolveCiLiteWorkflowErrorFallback,
   resolveCiLiteCompletionErrorText,
@@ -19,6 +18,7 @@ import {
   isCiLiteRunContextActive,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
+  resolveCiLiteLogLines,
   getCiLiteWorkflowErrorMessage,
 } from "./useCiLiteWorkflowHelpers";
 import {
@@ -193,12 +193,14 @@ export function useCiLiteWorkflow() {
   });
 
   const logLines = useMemo(() => {
-    if (!runId) {
-      if (hydratedDisplaySnapshot) return [];
-      return [resolveCiLitePendingRunMessage({ chainWaiting, workflowId, jobId })];
-    }
-    if (!logs || logs.length === 0) return [];
-    return logs.map((e) => e.message);
+    return resolveCiLiteLogLines({
+      runId,
+      logs,
+      hydratedDisplaySnapshotPresent: Boolean(hydratedDisplaySnapshot),
+      chainWaiting,
+      workflowId,
+      jobId,
+    });
   }, [runId, logs, jobId, chainWaiting, workflowId, hydratedDisplaySnapshot]);
 
   const stepInfo = useMemo<{ lint: StepState; typecheck: StepState; eslintErrors: number; tsErrors: number }>(() => {

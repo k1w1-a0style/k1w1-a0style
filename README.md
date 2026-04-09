@@ -2,11 +2,14 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
+Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
 
-Zuletzt abgeschlossen: **Patch 767**
+Zuletzt abgeschlossen: **Patch 769**
 
 Der aktuelle Stand bestaetigt:
+- Chat/CI-Lite/EnhancedBuild/Workflow-Residuals wurden im direkten Scope weiter entmischt, ohne API-/Contract-Aenderung der Fassaden
+- residuale A1/A2/A3-Hotspots wurden erneut im engen Scope geprueft; verbleibende Hauptdateien sind als schlanke Orchestratoren ohne erzwungenen Grossumbau belassen
+- ein produktnaher Weak-Fallback (`AsyncStorage.getItem(...).catch(() => "")`) wurde in `GitHubReposScreen` auf expliziten Sentinel + Warn-Observability umgestellt
 - die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API
 - die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
 - der Workflow-Contract-Check wurde gegen Text-/Formulierungsdrift robuster gemacht, ohne Auth-/RBAC-Inhalt aufzuweichen

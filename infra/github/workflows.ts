@@ -245,7 +245,15 @@ export const triggerWorkflow = async (
   try {
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     json = isJsonRecord(parsed) ? parsed : {};
-  } catch {
+  } catch (error) {
+    logger.warn("[GitHub workflows] dispatch error response parse failed", {
+      owner,
+      repo,
+      workflowFileName,
+      ref: targetRef,
+      status,
+      error,
+    });
     json = {};
   }
   throw new Error(readGitHubMessage(json) || "workflow dispatch failed");

@@ -90,6 +90,28 @@ export const isCiLiteRunContextActive = (params: {
   );
 };
 
+export const resolveCiLiteLogLines = (params: {
+  runId: number | null | undefined;
+  logs: Array<{ message: string }> | null | undefined;
+  hydratedDisplaySnapshotPresent: boolean;
+  chainWaiting: boolean;
+  workflowId: string;
+  jobId: string | null;
+}): string[] => {
+  if (!params.runId) {
+    if (params.hydratedDisplaySnapshotPresent) return [];
+    return [
+      resolveCiLitePendingRunMessage({
+        chainWaiting: params.chainWaiting,
+        workflowId: params.workflowId,
+        jobId: params.jobId,
+      }),
+    ];
+  }
+  if (!params.logs || params.logs.length === 0) return [];
+  return params.logs.map((entry) => entry.message);
+};
+
 export const parseCiLiteArtifactJson = (payload: unknown): CiLiteArtifactJson => {
   if (!payload || typeof payload !== "object") {
     throw new Error("Artifact JSON missing or invalid");
@@ -110,4 +132,3 @@ export const parseCiLiteArtifactJson = (payload: unknown): CiLiteArtifactJson =>
     github_sha: readSha("github_sha"),
   };
 };
-

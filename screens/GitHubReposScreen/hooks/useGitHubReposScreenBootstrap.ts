@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { getGitHubToken } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
+import { logger } from "../../../lib/logger";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
 
 export function useGitHubReposScreenBootstrap() {
@@ -70,7 +71,14 @@ export function useGitHubReposScreenBootstrap() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => "");
+      let id: string | null = null;
+      try {
+        id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID);
+      } catch (error: unknown) {
+        logger.warn("[GitHubReposScreen] EAS project ID konnte nicht aus AsyncStorage geladen werden", {
+          error,
+        });
+      }
       if (!mounted) return;
       setEasProjectId((id || "").trim());
     })();
