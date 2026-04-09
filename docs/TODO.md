@@ -1,11 +1,19 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
+Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `GitHubReposDataHookHotspot` (Patch 765): Pull-/Tree-/Blob-Orchestrierung aus `useGitHubRepos.ts` in `useGitHubReposPull.ts` ausgelagert; Hook-Fassade bleibt API-stabil fuer Load/Delete/Rename/Pull/Branches/WorkflowRuns/DefaultBranch.
+- [x] `CredentialsWizardHookHotspot` (Patch 765): Action-/Clipboard-/Status-Meta-Orchestrierung aus `useCredentialsWizardScreen.ts` in `useCredentialsWizardActions.ts` getrennt; Auth-/Secret-/Status-Semantik bleibt unveraendert.
+- [x] `ChatScreenHookHotspot` (Patch 765): Streaming-/Thinking-/Typing-Animationen aus `useChatScreen.ts` nach `useChatScreenAnimations.ts` extrahiert; Input-/Attachment-/Send-Verhalten unveraendert.
+- [x] `EnhancedBuildScreenHookHotspot` (Patch 765): Build-Readiness-/Filter-/Checklist-/Logs-Selection-Derivation in `useEnhancedBuildDerivedState.ts` separiert; Build-/Signing-/Status-Flows bleiben stabil.
+- [x] `SecondaryHotspotReview` (Patch 765): Ziel-Dateien (`assetsAndFiles.ts`, `infra/github/workflows.ts`, `GitHubReposScreen/index.tsx`, `useCiLiteWorkflow*`, `usePreview.ts`) erneut gegen direkten Scope-/Regressionseinfluss geprueft; kein zusaetzlicher risikoloser Mini-Fix erzwungen.
+- [x] `WorkflowContractFragilityFollowup` (Patch 765): Source-Contract-Marker in den refaktorierten Hook-Fassaden nachgezogen, damit bestehende Invariant-/Release-Checks semantisch gruen bleiben.
+- [x] `SoTFollowupAfterRefactors` (Patch 765): fuehrende SoT-Kern-MDs + Checklog/Patchlog auf den echten Abschlussstand der Rest-Hotspots synchronisiert.
 
 - [x] `GitHubReposDataHookHotspot` (Patch 764): `useGitHubRepos` entmischt zwischen Hook-Fassade und dedizierten Request-Helpers (`hooks/useGitHubReposRequests.ts`) fuer Repo-Load/Delete/Rename; Pull-/GraphQL-/Fallback-Semantik und oeffentliche Hook-Shape bleiben stabil.
 - [x] `CredentialsWizardHookHotspot` (Patch 764): UI-/Debug-/Error-/Visibility-State aus `useCredentialsWizardScreen` in `useCredentialsWizardUiState.ts` separiert; Auth-/Secret-/Status-Contract bleibt unveraendert.

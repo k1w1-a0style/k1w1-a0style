@@ -4,7 +4,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
-  Easing,
   FlatList,
   InteractionManager,
   Keyboard,
@@ -32,6 +31,7 @@ import {
 } from "./chatScreenTypes";
 import type { DocumentResultAsset } from "./chatScreenTypes";
 import { pickChatDocument } from "./chatScreenDocumentPicker";
+import { useChatScreenAnimations } from "./useChatScreenAnimations";
 
 type ChatScreenRouteParams = { prefillText?: string };
 type ChatScreenRoute = RouteProp<{ Chat: ChatScreenRouteParams | undefined }, "Chat">;
@@ -111,13 +111,14 @@ export const useChatScreen = () => {
   // Keyboard
   const keyboardHeight = useKeyboardHeight();
 
-  // Animations
-  const thinkingOpacity = useRef(new Animated.Value(0)).current;
-  const thinkingScale = useRef(new Animated.Value(0.8)).current;
-  const typingDot1 = useRef(new Animated.Value(0)).current;
-  const typingDot2 = useRef(new Animated.Value(0)).current;
-  const typingDot3 = useRef(new Animated.Value(0)).current;
-  const sendButtonScale = useRef(new Animated.Value(1)).current;
+  const {
+    thinkingOpacity,
+    thinkingScale,
+    typingDot1,
+    typingDot2,
+    typingDot3,
+    sendButtonScale,
+  } = useChatScreenAnimations({ isAiLoading, isStreaming });
 
   const combinedIsLoading = isProjectLoading || isAiLoading;
   const projectFiles: ProjectFile[] = projectData?.files ?? [];
@@ -226,93 +227,6 @@ export const useChatScreen = () => {
       return () => clearTimeout(timer);
     }
   }, [messages, hardScrollToBottom, isAtBottomRef]);
-
-  useEffect(() => {
-    let animationRef: Animated.CompositeAnimation | null = null;
-
-    if (isAiLoading || isStreaming) {
-      Animated.parallel([
-        Animated.timing(thinkingOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(thinkingScale, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      animationRef = Animated.loop(
-        Animated.sequence([
-          Animated.timing(typingDot1, {
-            toValue: 1,
-            duration: 400,
-            easing: Easing.ease,
-            useNativeDriver: true,
-          }),
-          Animated.timing(typingDot2, {
-            toValue: 1,
-            duration: 400,
-            easing: Easing.ease,
-            useNativeDriver: true,
-          }),
-          Animated.timing(typingDot3, {
-            toValue: 1,
-            duration: 400,
-            easing: Easing.ease,
-            useNativeDriver: true,
-          }),
-          Animated.parallel([
-            Animated.timing(typingDot1, {
-              toValue: 0,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-            Animated.timing(typingDot2, {
-              toValue: 0,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-            Animated.timing(typingDot3, {
-              toValue: 0,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-          ]),
-        ]),
-      );
-      animationRef.start();
-    } else {
-      Animated.parallel([
-        Animated.timing(thinkingOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(thinkingScale, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      typingDot1.setValue(0);
-      typingDot2.setValue(0);
-      typingDot3.setValue(0);
-    }
-
-    return () => animationRef?.stop();
-  }, [
-    isAiLoading,
-    isStreaming,
-    thinkingOpacity,
-    thinkingScale,
-    typingDot1,
-    typingDot2,
-    typingDot3,
-  ]);
 
   const handlePickDocument = useCallback(async () => {
     const asset = await pickChatDocument();
