@@ -64,7 +64,7 @@ npm run edge:check:live
 
 ## 5) Erwartetes Verhalten beim Live-Check
 - `k1w1-handler` mit absichtlich kaputtem JSON -> `400 invalid_request_payload`
-- `preview_page` mit bewusst falschem `secret` -> `404 Preview not found`
+- `preview_page` ohne Header -> `400 Missing preview secret header.`; bei `Missing ?secret=...` liegt Legacy-Deploy-Drift vor (redeploy erforderlich).
 
 Wenn stattdessen `401`/`403` kommt:
 - JWT neu ziehen

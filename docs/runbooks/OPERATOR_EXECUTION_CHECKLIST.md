@@ -51,6 +51,7 @@ Optional isoliert:
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" \
 EDGE_OPERATOR_JWT="<extern provisionierter build_admin jwt>" \
 npm run edge:check:live
+# umfasst jetzt auch save_preview-Transport-Contract (fragment/header, kein ?secret=)
 ```
 
 ## 5) Erwartete Resultate

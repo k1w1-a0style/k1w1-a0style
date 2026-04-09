@@ -60,6 +60,18 @@ assert_body_contains() {
   fi
 }
 
+assert_body_not_contains() {
+  local file="$1"
+  local needle="$2"
+  if grep -Fq -- "$needle" "$file"; then
+    echo "Response body must not contain legacy marker: $needle" >&2
+    echo "--- body ---" >&2
+    cat "$file" >&2
+    echo >&2
+    exit 1
+  fi
+}
+
 printf '{"broken":' > "$TMP_DIR/k1w1-invalid.json"
 
 k1w1_status="$(request POST "$EDGE_BASE_URL/k1w1-handler" "$TMP_DIR/k1w1-invalid.json" "k1w1-handler")"
@@ -84,8 +96,48 @@ if [ "$preview_status" != "400" ]; then
   cat "$TMP_DIR/preview_page.body" >&2 || true
   exit 1
 fi
+if grep -Fq 'Missing ?secret=' "$TMP_DIR/preview_page.body"; then
+  echo "preview_page live contract drift: legacy query-secret response detected ('Missing ?secret=...')." >&2
+  echo "Expected modern header contract: 'Missing preview secret header.'" >&2
+  echo "Action: redeploy preview_page (and verify save_preview emits transport=fragment links)." >&2
+  echo "--- body ---" >&2
+  cat "$TMP_DIR/preview_page.body" >&2 || true
+  exit 1
+fi
 assert_body_contains "$TMP_DIR/preview_page.body" 'Missing preview secret header.'
+assert_body_not_contains "$TMP_DIR/preview_page.body" '?secret='
 
 echo "preview_page live contract: OK (missing preview header -> 400 fail-closed)"
+
+cat > "$TMP_DIR/save-preview-payload.json" <<'JSON'
+{
+  "name": "live-contract-check",
+  "files": {
+    "App.tsx": {
+      "type": "CODE",
+      "contents": "export default function App(){ return null; }"
+    }
+  },
+  "dependencies": {}
+}
+JSON
+
+save_preview_status="$(request POST "$EDGE_BASE_URL/save_preview" "$TMP_DIR/save-preview-payload.json" "save_preview")"
+if [ "$save_preview_status" != "200" ]; then
+  echo "save_preview contract failed: expected HTTP 200 for valid JWT + minimal payload, got $save_preview_status" >&2
+  echo "Action: verify save_preview deployment and PREVIEW_* runtime env on target project." >&2
+  echo "--- headers ---" >&2
+  cat "$TMP_DIR/save_preview.headers" >&2 || true
+  echo "--- body ---" >&2
+  cat "$TMP_DIR/save_preview.body" >&2 || true
+  exit 1
+fi
+assert_body_contains "$TMP_DIR/save_preview.body" '"ok":true'
+assert_body_contains "$TMP_DIR/save_preview.body" '"previewUrl":"'
+assert_body_contains "$TMP_DIR/save_preview.body" "transport=fragment"
+assert_body_contains "$TMP_DIR/save_preview.body" "#secret="
+assert_body_not_contains "$TMP_DIR/save_preview.body" "?secret="
+
+echo "save_preview live contract: OK (returns fragment/header transport URL, no query-secret)"
 
 echo "Live edge contracts: OK"

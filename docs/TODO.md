@@ -1,11 +1,14 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `ScopeTruthfulnessNachzug` (Patch 766): breiter PR-Scope explizit als Mehrfachblock nachgezogen (CI-Lite-Hooks, GitHubRepos UI, EnhancedBuild-Hooks, Preview-Flows, Diagnostics-Checks/FixRunner, Workflow-/Template-Contracts) statt schmaler Teilstory.
+- [x] `LiveContractDriftGuardHardening` (Patch 766): `scripts/check_edge_live_contracts.sh` prueft jetzt neben `k1w1-handler`/`preview_page` auch `save_preview` auf Fragment-Transport (`transport=fragment#secret=`) und blockiert Legacy-`?secret=`-Rueckfall explizit fail-closed.
 
 - [x] `GitHubReposDataHookHotspot` (Patch 765): Pull-/Tree-/Blob-Orchestrierung aus `useGitHubRepos.ts` in `useGitHubReposPull.ts` ausgelagert; Hook-Fassade bleibt API-stabil fuer Load/Delete/Rename/Pull/Branches/WorkflowRuns/DefaultBranch.
 - [x] `CredentialsWizardHookHotspot` (Patch 765): Action-/Clipboard-/Status-Meta-Orchestrierung aus `useCredentialsWizardScreen.ts` in `useCredentialsWizardActions.ts` getrennt; Auth-/Secret-/Status-Semantik bleibt unveraendert.
@@ -80,7 +83,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 ### Kritisch offen
 
-- Keine aktuell erkennbaren **technisch kritischen** High-Priority-Restpunkte im dokumentierten Supabase-/Live-Scope.
+- Bekannter Live-Drift bleibt bis zum echten Redeploy von `preview_page`/`save_preview` auf der Zielumgebung ein Blocker, falls der Live-Body noch Legacy-Text (`Missing ?secret=...`) liefert; Patch 766 haertet die Drift-Erkennung repo-seitig, ersetzt aber keinen Deploy ohne Operator-Zugang.
 
 ### Bewusst offen / Produktentscheidung
 

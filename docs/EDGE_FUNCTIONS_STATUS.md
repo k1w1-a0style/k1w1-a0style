@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
 
 ## Aktiv und workflow-relevant
 

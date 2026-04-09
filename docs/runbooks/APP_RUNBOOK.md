@@ -76,7 +76,7 @@ Ziel: In <30 Minuten reproduzierbar von „frisches Setup“ zu „Build gestart
 
 
 ### 5) Live-Contract-Check (staging/prod, read-only)
-- Vor echten Operator-Tests einmal `npm run edge:check:live` gegen die Zielumgebung ausführen.
+- Vor echten Operator-Tests einmal `npm run edge:check:live` gegen die Zielumgebung ausführen (inkl. `save_preview` Fragment-Transport-Vertrag und Legacy-`?secret=`-Drift-Guard).
 - Erwartung:
   - `k1w1-handler` -> `400 invalid_request_payload` bei absichtlich kaputtem JSON.
   - `preview_page` -> `404 Preview not found` bei bewusst ungültigem `secret`.

@@ -1,16 +1,18 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: Der reale Release-Pfad war initial reproduzierbar rot (`typecheck:edge` brach auf `preview_invalid_payload` vs. `preview_payload_invalid`), wurde im selben Durchlauf behoben und danach mit `check_release_readiness` wieder lokal belastbar bestaetigt (`OK_WITH_SKIPS` wegen fehlender Live-Edge-Env-Variablen fuer Vertrags-Smokes).
+> Letzter Voll-Gate im aktuellen Durchlauf: Lokale Vollchecks sind gruen; `check_release_readiness` bleibt in dieser Shell ehrlich `OK_WITH_SKIPS`, weil `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` hier nicht gesetzt waren. Ein Fake-Live-Signoff wurde bewusst nicht behauptet.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
 ### Ergebnis
 
+- `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.
+- Bekannter Live-Drift wird jetzt klarer eingegrenzt: falls `preview_page` live weiter `Missing ?secret=...` liefert, meldet der Check explizit Legacy-Deploy-Drift statt unscharfem Generic-Fail.
 - `HookHotspotRestabschluss` ist jetzt finalisiert: `useGitHubRepos` (Pull-Orchestrierung), `useCredentialsWizardScreen` (Action-/Status-Meta), `useChatScreen` (Animations-Side-Effects) und `useEnhancedBuildScreen` (Derived Readiness/Filter/Checklist/Logs) sind weiter entmischt, bei stabiler Public-Hook-Shape.
 - `LocalRemoteDiffSectionRefactor` ist abgeschlossen: der bisherige Monolith wurde entlang Container/Model/pure Diff-/Fingerprint-Helper/List-/Modal-UI/Types aufgeteilt; die oeffentliche Section-Importform bleibt kompatibel ueber einen schlanken Re-Export.
 - `RefactorSoTDrift` ist im selben Durchlauf geschlossen: README/TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT sowie CHECKLOG/PATCHLOG spiegeln jetzt denselben echten Refactor-Stand statt eines Analyse-only-Headers.
