@@ -169,13 +169,13 @@ jobs:
           set -euo pipefail
           if [ "${{ steps.lock.outputs.has_lockfile }}" != "true" ]; then
             echo "::warning::No lockfile found. Falling back to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            npm install --no-audit --no-fund
             exit 0
           fi
 
           case "${{ steps.lock.outputs.package_manager }}" in
             npm)
-              npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+              npm ci --no-audit --no-fund
               ;;
             yarn)
               yarn install --immutable || yarn install --frozen-lockfile
