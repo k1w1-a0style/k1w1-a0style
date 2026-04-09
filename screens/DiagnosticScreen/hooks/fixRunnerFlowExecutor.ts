@@ -21,10 +21,7 @@ import {
   buildSingleFixSuccessResult,
 } from "./fixRunnerFlowPlanHelpers";
 import {
-  runApplyStep,
   runDispatchStep,
-  runSyncStep,
-  runVerifyStep,
 } from "./fixRunnerExecutionHelpers";
 import { resolveWorkflowDispatchTarget } from "./fixRunnerOrchestrationHelpers";
 import {
@@ -36,6 +33,11 @@ import {
   confirmWithAlert,
 } from "./fixRunnerPromptHelpers";
 import type { FixStep } from "../types";
+import {
+  markStepBlocked,
+  runOptionalVerify,
+  runPatchApplyAndSync,
+} from "./fixRunnerFlowSharedSteps";
 
 export const AUTOFIX_MAX = 50; // safety: don't apply endless chains
 
@@ -128,19 +130,23 @@ export async function executeIssueFixFlow(params: {
 
   let cursor = 0;
 
-  const patchStep = await runApplyStep({
-    enabled: !!patchForApply,
-    stepIndex: cursor,
-    runFixStep,
-    apply: async () => {
-      await applyPatch(result.title, patchForApply as PreflightPatch);
-    },
-    finishWithResult,
-    failMessage: "Patch konnte nicht angewendet werden.",
-  });
-  if (!patchStep.ok) return;
-  const patchApplied = patchStep.applied;
-  cursor = patchStep.nextIndex;
+  let patchApplied = false;
+  if (patchForApply) {
+    const patchStep = await runPatchApplyAndSync({
+      stepIndex: cursor,
+      runFixStep,
+      finishWithResult,
+      label: result.title,
+      patch: patchForApply as PreflightPatch,
+      applyPatch,
+      shouldSync: false,
+      syncPatchToGitHub,
+      failMessage: "Patch konnte nicht angewendet werden.",
+    });
+    if (!patchStep.ok) return;
+    patchApplied = patchStep.patchApplied;
+    cursor = patchStep.nextIndex;
+  }
 
   if (dispatch) {
     const dispatchTarget = resolveWorkflowDispatchTarget({
@@ -181,23 +187,28 @@ export async function executeIssueFixFlow(params: {
     cursor = dispatchStep.nextIndex;
   }
 
-  const syncStep = await runSyncStep({
-    enabled: !!(doSync && patchForApply),
-    stepIndex: cursor,
-    runFixStep,
-    sync: () => syncPatchToGitHub(result.title, patchForApply as PreflightPatch),
-    finishWithResult,
-    localChangeApplied: patchApplied,
-  });
-  if (!syncStep.ok) return;
-  cursor = syncStep.nextIndex;
+  if (doSync && patchForApply) {
+    const syncStep = await runPatchApplyAndSync({
+      stepIndex: cursor,
+      runFixStep,
+      finishWithResult,
+      label: result.title,
+      patch: patchForApply as PreflightPatch,
+      applyPatch: async () => undefined,
+      applyEnabled: false,
+      shouldSync: true,
+      syncPatchToGitHub,
+    });
+    if (!syncStep.ok) return;
+    cursor = syncStep.nextIndex;
+  }
 
-  const verifyStep = await runVerifyStep({
+  const verifyStep = await runOptionalVerify({
     enabled: rerunAfterFix,
     stepIndex: cursor,
     runFixStep,
-    verify: runDiagnostics,
     finishWithResult,
+    runDiagnostics,
     localChangeApplied: patchApplied,
     workflowTriggered: !!dispatch,
   });
@@ -272,38 +283,28 @@ export async function executeBatchFixFlow(params: {
   let appliedCount = 0;
 
   for (const { result, patch } of deduped) {
-    const applyStep = await runApplyStep({
-      enabled: true,
+    const patchStep = await runPatchApplyAndSync({
       stepIndex: cursor,
       runFixStep,
-      apply: async () => {
-        await applyPatch(result.title, patch);
-      },
       finishWithResult,
+      label: result.title,
+      patch,
+      applyPatch,
+      shouldSync: shouldSyncPatch(patch),
+      syncPatchToGitHub,
       localChangeAppliedOnFailure: appliedCount > 0 || undefined,
     });
-    if (!applyStep.ok) return;
-    if (applyStep.applied) appliedCount++;
-    cursor = applyStep.nextIndex;
-
-    const syncStep = await runSyncStep({
-      enabled: shouldSyncPatch(patch),
-      stepIndex: cursor,
-      runFixStep,
-      sync: () => syncPatchToGitHub(result.title, patch),
-      finishWithResult,
-      localChangeApplied: appliedCount > 0,
-    });
-    if (!syncStep.ok) return;
-    cursor = syncStep.nextIndex;
+    if (!patchStep.ok) return;
+    if (patchStep.patchApplied) appliedCount++;
+    cursor = patchStep.nextIndex;
   }
 
-  const verifyStep = await runVerifyStep({
+  const verifyStep = await runOptionalVerify({
     enabled: rerunAfterFix,
     stepIndex: cursor,
     runFixStep,
-    verify: runDiagnostics,
     finishWithResult,
+    runDiagnostics,
     localChangeApplied: appliedCount > 0,
   });
   if (!verifyStep.ok) return;
@@ -338,37 +339,43 @@ export async function executeSingleFixFlow(params: {
   const { steps } = buildSingleFixPlan({ doSync, rerunAfterFix });
   openFixModal({ title: "Fix", subtitle: result.title, steps });
 
-  const patchStep = await runApplyStep({
-    enabled: true,
+  const patchStep = await runPatchApplyAndSync({
     stepIndex: 0,
     runFixStep,
-    apply: async () => {
-      await applyPatch(result.title, patch);
-    },
     finishWithResult,
+    label: result.title,
+    patch,
+    applyPatch,
+    shouldSync: false,
+    syncPatchToGitHub,
     failMessage: "Fehler",
   });
   if (!patchStep.ok) return;
-  const patchApplied = patchStep.applied;
+  const patchApplied = patchStep.patchApplied;
 
   let stepCursor = patchStep.nextIndex;
-  const syncStep = await runSyncStep({
-    enabled: doSync,
-    stepIndex: stepCursor,
-    runFixStep,
-    sync: () => syncPatchToGitHub(result.title, patch),
-    finishWithResult,
-    localChangeApplied: patchApplied,
-  });
-  if (!syncStep.ok) return;
-  stepCursor = syncStep.nextIndex;
+  if (doSync) {
+    const syncStep = await runPatchApplyAndSync({
+      stepIndex: stepCursor,
+      runFixStep,
+      finishWithResult,
+      label: result.title,
+      patch,
+      applyPatch: async () => undefined,
+      applyEnabled: false,
+      shouldSync: true,
+      syncPatchToGitHub,
+    });
+    if (!syncStep.ok) return;
+    stepCursor = syncStep.nextIndex;
+  }
 
-  const verifyStep = await runVerifyStep({
+  const verifyStep = await runOptionalVerify({
     enabled: rerunAfterFix,
     stepIndex: stepCursor,
     runFixStep,
-    verify: runDiagnostics,
     finishWithResult,
+    runDiagnostics,
     localChangeApplied: patchApplied,
   });
   if (!verifyStep.ok) return;
@@ -438,21 +445,4 @@ export function buildSingleFixPromptMessage(params: {
 }): string {
   const { result, syncWouldHelp, sizeNote } = params;
   return `${result.title}\n\n${safeTruncateText(result.message ?? "", 240)}${syncWouldHelp ? "\n\nHinweis: Dieser Fix betrifft Repo-Dateien → Sync macht Sinn." : ""}${sizeNote}`;
-}
-
-function markStepBlocked(params: {
-  markFixStepFailed: MarkFixStepFailed;
-  cursor: number;
-  detail: string;
-  finishWithResult: FinishWithResult;
-  patchApplied: boolean;
-}) {
-  const { markFixStepFailed, cursor, detail, finishWithResult, patchApplied } = params;
-  markFixStepFailed(cursor, detail, detail);
-  finishWithResult({
-    status: "blocked",
-    detail,
-    localChangeApplied: patchApplied,
-    stepIndex: cursor,
-  });
 }
