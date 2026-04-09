@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
+Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -9,6 +9,8 @@ Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
 
 - [x] `ScopeTruthfulnessNachzug` (Patch 766): breiter PR-Scope explizit als Mehrfachblock nachgezogen (CI-Lite-Hooks, GitHubRepos UI, EnhancedBuild-Hooks, Preview-Flows, Diagnostics-Checks/FixRunner, Workflow-/Template-Contracts) statt schmaler Teilstory.
 - [x] `LiveContractDriftGuardHardening` (Patch 766): `scripts/check_edge_live_contracts.sh` prueft jetzt neben `k1w1-handler`/`preview_page` auch `save_preview` auf Fragment-Transport (`transport=fragment#secret=`) und blockiert Legacy-`?secret=`-Rueckfall explizit fail-closed.
+- [x] `ReleaseReadinessToolingRobustness` (Patch 767): `scripts/check_release_readiness.sh` nutzt fuer strict/edge TypeScript jetzt robusten repo-lokalen `tsc`-Aufruf (`./node_modules/.bin/tsc`, fallback `npx tsc`) statt globalem PATH-`tsc`.
+- [x] `LiveEdgeVariableSourceDocumentation` (Patch 767): Testing-/Runbook-Doku nennt sichere Quellen fuer `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` explizit (Runner-Secrets bevorzugt, URL-Fallback via Projekt-Ref `xfgnzpcljsuqqdjlxgul`, JWT nie als Klartext im Repo).
 
 - [x] `GitHubReposDataHookHotspot` (Patch 765): Pull-/Tree-/Blob-Orchestrierung aus `useGitHubRepos.ts` in `useGitHubReposPull.ts` ausgelagert; Hook-Fassade bleibt API-stabil fuer Load/Delete/Rename/Pull/Branches/WorkflowRuns/DefaultBranch.
 - [x] `CredentialsWizardHookHotspot` (Patch 765): Action-/Clipboard-/Status-Meta-Orchestrierung aus `useCredentialsWizardScreen.ts` in `useCredentialsWizardActions.ts` getrennt; Auth-/Secret-/Status-Semantik bleibt unveraendert.
@@ -83,7 +85,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 ### Kritisch offen
 
-- Bekannter Live-Drift bleibt bis zum echten Redeploy von `preview_page`/`save_preview` auf der Zielumgebung ein Blocker, falls der Live-Body noch Legacy-Text (`Missing ?secret=...`) liefert; Patch 766 haertet die Drift-Erkennung repo-seitig, ersetzt aber keinen Deploy ohne Operator-Zugang.
+- Kein aktuell bekannter technischer High-Priority-Restpunkt; der fruehere `preview_page`-Legacy-Drift (`Missing ?secret=...`) wurde per Redeploy (`preview_page` + `save_preview`) geschlossen und im SoT als erledigt markiert.
 
 ### Bewusst offen / Produktentscheidung
 

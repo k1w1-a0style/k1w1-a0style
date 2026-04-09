@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-09 (Patch 766, Scope-/Live-Contract-Truthfulness-Finish)**
+Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
@@ -46,6 +46,21 @@ Oder als kompletter Verify-Pfad:
 ```bash
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run verify:release
 ```
+
+### Variable-/Secret-Bezug fuer Live-Checks (ohne Secret-Leaks)
+
+Pflichtvariablen:
+- `EDGE_BASE_URL`
+- `EDGE_OPERATOR_JWT`
+
+Sichere Bezugswege (Reihenfolge):
+1. **CI/Runner (bevorzugt):** als masked Repo-Secrets `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` injizieren.
+2. **Lokaler URL-Fallback:** Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `EDGE_BASE_URL="https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1"`.
+3. **JWT-Fallback lokal:** kurzlebiger `build_admin`-JWT (temporär) oder stabilerer technischer Server-Caller-Weg als Secret in sicherer Umgebung (z. B. service_role im Runner), nie als Klartext im Repo.
+
+Wichtig:
+- Keine JWTs/API-Keys/Passwörter in Dateien, Commits oder Logs schreiben.
+- Der Live-Signoff ist env-/token-gebunden; ohne diese Variablen bleibt `verify:release` ehrlich `OK_WITH_SKIPS`.
 
 ### Wichtige Grenze der Live-Contract-Checks (verify_jwt)
 

@@ -5,6 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 SKIP_COUNT=0
 
+run_repo_tsc() {
+  if [[ -x "./node_modules/.bin/tsc" ]]; then
+    ./node_modules/.bin/tsc "$@"
+    return
+  fi
+  npx --yes tsc "$@"
+}
+
 echo "[verify:release] docs lint"
 node scripts/docsLint.js
 
@@ -23,10 +31,10 @@ else
 fi
 
 echo "[verify:release] strict typecheck"
-tsc -p tsconfig.strict.json --noEmit --noUnusedLocals --noUnusedParameters
+run_repo_tsc -p tsconfig.strict.json --noEmit --noUnusedLocals --noUnusedParameters
 
 echo "[verify:release] edge typecheck"
-tsc -p supabase/functions/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters
+run_repo_tsc -p supabase/functions/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters
 
 echo "[verify:release] workflow template drift"
 bash scripts/check_workflow_template_drift.sh

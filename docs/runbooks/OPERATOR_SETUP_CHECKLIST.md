@@ -53,6 +53,11 @@ Wenn die Live-Checks gegen eine echte Umgebung laufen sollen:
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin jwt>" npm run verify:release
 ```
 
+Sichere Variablenquelle:
+- CI/Runner bevorzugt ueber masked Repo-Secrets `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`.
+- Lokaler URL-Fallback (ohne Secret): Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
+- JWT lokal nur temporaer/kurzlebig nutzen; fuer stabile technische Checks bevorzugt serverseitigen Secret-Weg (Runner Secret), nie Klartext im Repo.
+
 
 Der read-only Teil laesst sich bei Bedarf auch isoliert starten:
 
@@ -65,6 +70,7 @@ npm run edge:check:live
 ## 5) Erwartetes Verhalten beim Live-Check
 - `k1w1-handler` mit absichtlich kaputtem JSON -> `400 invalid_request_payload`
 - `preview_page` ohne Header -> `400 Missing preview secret header.`; bei `Missing ?secret=...` liegt Legacy-Deploy-Drift vor (redeploy erforderlich).
+- `save_preview` mit gueltigem JWT + minimalem Payload -> `200 ok:true` und `previewUrl` im Fragment-Transport (`transport=fragment#secret=...`, kein `?secret=`).
 
 Wenn stattdessen `401`/`403` kommt:
 - JWT neu ziehen
