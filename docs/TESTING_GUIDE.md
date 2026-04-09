@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
+Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

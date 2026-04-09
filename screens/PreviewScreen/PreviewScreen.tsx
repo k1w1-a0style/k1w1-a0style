@@ -38,7 +38,6 @@ export default function PreviewScreen() {
     transientLocalPreviewNotice,
     displayState,
     runtimeHint,
-    qrImageUrl,
     phase,
     setPhase,
     webError,
@@ -59,8 +58,6 @@ export default function PreviewScreen() {
     handleCreate,
     handleReset,
     handleCopy,
-    handleCopyQrLink,
-    handleOpenQr,
     handleOpenExternal,
     handleFullscreen,
   } = usePreviewScreen();
@@ -107,12 +104,10 @@ export default function PreviewScreen() {
           hotReloadEnabled={hotReloadEnabled}
           hotDotAnim={hotDotAnim}
           hasPreviewUrl={Boolean(previewUrl)}
-          hasQrUrl={Boolean(qrImageUrl)}
           canFullscreen={canOpenFullscreen}
           onToggleHotReload={() => setHotReloadEnabled((value) => !value)}
           onReload={handleReload}
           onCopy={handleCopy}
-          onOpenQr={handleOpenQr}
           onOpenExternal={handleOpenExternal}
           onFullscreen={handleFullscreen}
         />
@@ -198,18 +193,6 @@ export default function PreviewScreen() {
                         <Ionicons name="open-outline" size={14} color={theme.palette.primary} />
                         <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>Im Browser öffnen</Text>
                       </Pressable>
-                      {qrImageUrl && (
-                        <Pressable style={s.urlBtn} onPress={handleOpenQr}>
-                          <Ionicons name="qr-code-outline" size={14} color={theme.palette.primary} />
-                          <Text style={[s.urlBtnText, s.urlBtnTextPrimary]}>QR anzeigen</Text>
-                        </Pressable>
-                      )}
-                      {qrImageUrl && (
-                        <Pressable style={s.urlBtn} onPress={handleCopyQrLink}>
-                          <Ionicons name="copy-outline" size={14} color={theme.palette.text.primary} />
-                          <Text style={s.urlBtnText}>QR-Link kopieren</Text>
-                        </Pressable>
-                      )}
                     </View>
                   </View>
                 )}

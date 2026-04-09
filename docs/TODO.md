@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
+Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -70,9 +70,9 @@ Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTrut
 - [x] Drift in eingebetteten Template-Workflow-Kopien geschlossen (`templates/expo-sdk54-base.json`, `templates/expo-sdk54-full.json` jetzt wieder baseline-aligned zu `.github/workflows/eas-build.yml` und `.github/workflows/release-build.yml`).
 - [x] `k1w1-ci-lite-autofix` Workflow-Permissions minimalisiert: unnoetiges `actions: write` entfernt; `contents: write` bleibt fuer guarded Writeback/Dispatch erhalten.
 - [x] Lokalen HTML-/Eval-/Babel-/CDN-Fallback in `lib/sandpackBuilder.ts` fuer Production-/Release-Kontext hart deaktiviert (Guard + expliziter Disabled-HTML-Pfad), Dev/Test bleibt explizit nutzbar.
-- [x] Preview-Secret-Modell gehaertet (Patch 751): `save_preview` speichert Secret nur noch gehasht, `preview_page` nutzt hash-first Lookup und fallbackt nur fuer bestehende Legacy-Klartextsaetze.
+- [x] Preview-Secret-Modell gehaertet (Patch 751): `save_preview` speichert Preview-Secrets nur noch gehasht, `preview_page` nutzt ausschliesslich hash-only Lookup ohne Raw-Secret-Compat-Fallback.
 - [x] Preview-Auth-Boundary klein nachgeschaerft (Patch 751): `preview_page` akzeptiert nur GET/HEAD; Secret bleibt Header-basiert (Fragment-Handoff), kein Query-Secret-Revival.
-- [x] Preview-Expiry-Cleanup nach Secret-Hashing repariert (Patch 752): Expiry-Delete nutzt dieselben Secret-Kandidaten (hash-first + legacy raw fallback) wie der Lookup, damit gehashte und alte raw Rows gleichermassen loeschbar bleiben.
+- [x] Preview-Expiry-Cleanup nach Secret-Hashing repariert (Patch 752): Expiry-Delete nutzt denselben hash-only Candidate-Pfad wie der Lookup; es gibt keinen Raw-Secret-Compat-Delete mehr im aktiven Vertrag.
 - [x] MaxRuntimeHardening nachgezogen (Patch 753): neue runtime-nahe Tests fuer Preview-Secret-Candidate-Vertrag (`findFirst...`/`delete...`), Release-Execution-Contract bleibt aktiv, und kritische Silent-Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbares Warn-Logging umgestellt.
 - [x] SilentCatchDebt Follow-up (Patch 754): weiterer stummer Catch im PreviewFullscreen-URL-Guard auf sichtbares Warn-Logging umgestellt; Device-ID-Fallback im Diagnostic-Upload dokumentiert jetzt Fehler sichtbar statt still zu schlucken.
 - [x] Preview boundary/runtime guard runtime-nah ergaenzt (Patch 754): `isValidPreviewSecretFormat(...)` als shared Runtime-Guard extrahiert und mit ausfuehrbaren Tests gegen missing/invalid/valid Secret-Formate abgesichert.

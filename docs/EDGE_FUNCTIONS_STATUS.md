@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
+Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
 
 ## Aktiv und workflow-relevant
 

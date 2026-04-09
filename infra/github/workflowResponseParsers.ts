@@ -1,4 +1,4 @@
-import type { WorkflowJob, WorkflowJobStep, WorkflowRun, WorkflowRunDetails } from "./workflows";
+import type { WorkflowJob, WorkflowJobStep, WorkflowRun, WorkflowRunDetails } from "./workflowTypes";
 import {
   JsonRecord,
   isJsonRecord,

@@ -19,6 +19,25 @@ function ensurePattern(text, pattern, label, human) {
 }
 
 
+function extractSection(text, heading) {
+  const escaped = heading.replace(/[|\{}()[\]^$+*?.]/g, "\\$&");
+  const regex = new RegExp(`^##\\s+${escaped}\\s*$`, "m");
+  const match = text.match(regex);
+  if (!match || match.index == null) return "";
+  const start = match.index + match[0].length;
+  const rest = text.slice(start);
+  const nextHeading = rest.match(/^##\\s+/m);
+  const end = nextHeading && nextHeading.index != null ? start + nextHeading.index : text.length;
+  return text.slice(start, end);
+}
+
+function ensureNotPattern(text, pattern, label, human) {
+  if (pattern.test(text)) {
+    throw new Error(`${label} must not contain drift pattern: ${human}`);
+  }
+}
+
+
 const stateContract = read("docs/01-state-contract.md");
 const buildReadiness = read("docs/06-build-readiness.md");
 const appRunbook = read("docs/runbooks/APP_RUNBOOK.md");
@@ -49,6 +68,14 @@ ensurePattern(todoDoc, /(offen|separat|ausserhalb)/i, "docs/TODO.md", "explicit 
 ensurePattern(reviewDoc, /Keine offenen Repo-Muss-Punkte/i, "docs/reviews/Review.md", "active review marker for repo must-points");
 ensurePattern(reviewDoc, /extern/i, "docs/reviews/Review.md", "explicit external scope wording");
 ensurePattern(reviewDoc, /(offen|separat|ausserhalb)/i, "docs/reviews/Review.md", "explicit open/scope disclaimer");
+
+const todoActiveSection = extractSection(todoDoc, "1) In diesem Durchlauf im Repo gefixt (nicht-live)");
+ensurePattern(todoActiveSection, /hash-only/i, "docs/TODO.md", "active preview secret hash-only wording");
+ensureNotPattern(todoActiveSection, /(legacy\s*raw\s*fallback|raw\s*Rows\s*bleiben\s*kompatibel|hash-first)/i, "docs/TODO.md", "legacy preview raw-fallback wording in active section");
+
+const reviewActiveSection = extractSection(reviewDoc, "Was heute aktiv gilt");
+ensurePattern(reviewActiveSection, /hash-only/i, "docs/reviews/Review.md", "active review preview secret hash-only wording");
+ensureNotPattern(reviewActiveSection, /(legacy\s*raw\s*fallback|raw\s*Rows\s*bleiben\s*kompatibel|hash-first)/i, "docs/reviews/Review.md", "legacy preview raw-fallback wording in active section");
 ensureContains(readme, "npm run verify:release", "README.md");
 ensureContains(readme, "node_modules/expo/tsconfig.base.json", "README.md");
 
