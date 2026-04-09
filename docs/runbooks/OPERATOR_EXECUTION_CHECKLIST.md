@@ -1,6 +1,6 @@
 # Operator Execution Checklist (extern / Live-Staging)
 
-Stand: **2026-04-02 (Patch 708)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 Ziel: Eine kurze, abhakbare Ausfuehrungsliste fuer externe Operator-Schritte, damit Live-/Staging-Verifikation reproduzierbar bleibt.
 
@@ -58,6 +58,7 @@ Sichere Variablenquelle:
 - Runner/CI: `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` als masked secrets injizieren.
 - Lokaler URL-Fallback: Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
 - JWT lokal nur kurzlebig nutzen; fuer dauerhafte technische Checks bevorzugt serverseitigen Secret-Weg als Runner-Secret.
+- Fuer interaktive `k1w1-handler`-Liveverifikation den frischen usergebundenen `build_admin`-JWT verwenden; `service_role` bleibt ein separater technischer Server-Caller-Pfad und ist hier kein gleichwertiger Ersatz.
 
 ## 5) Erwartete Resultate
 

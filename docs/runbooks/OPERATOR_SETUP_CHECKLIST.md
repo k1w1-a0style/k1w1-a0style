@@ -1,6 +1,6 @@
 # Operator Setup Checklist (`build_admin`)
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 Ziel: Ein neuer Operator soll ohne Raten vom Login bis zum read-only Live-Vertragscheck kommen.
 
@@ -57,6 +57,7 @@ Sichere Variablenquelle:
 - CI/Runner bevorzugt ueber masked Repo-Secrets `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`.
 - Lokaler URL-Fallback (ohne Secret): Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
 - JWT lokal nur temporaer/kurzlebig nutzen; fuer stabile technische Checks bevorzugt serverseitigen Secret-Weg (Runner Secret), nie Klartext im Repo.
+- Fuer den interaktiven `k1w1-handler`-Live-Contract gilt: frischer `build_admin`-JWT; `service_role` ist hier kein gleichwertiger User-Ersatz.
 
 
 Der read-only Teil laesst sich bei Bedarf auch isoliert starten:

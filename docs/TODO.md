@@ -1,11 +1,16 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `ResidualRestblockFinalization` (Patch 770): finaler Scope-Rescan fuer alle 5 verbleibenden Hotspots abgeschlossen; kein weiterer sicherer Mehrwert-Split in `useCiLiteWorkflow.ts`, `useEnhancedBuildScreen.ts`, `useCredentialsWizardScreen.ts` und `infra/github/workflows.ts` erzwungen (bewusst schlanke Orchestratoren).
+- [x] `ChatScreenHookResidualFollowup` (Patch 770): Scroll-Retry-/Primary-Catch in `useChatScreen.ts` meldet Fehler jetzt sichtbar (`logger.warn(...)`) statt still.
+- [x] `LiveEdgeTruthfulnessFollowup` (Patch 770): SoT nachgezogen, dass der reale erfolgreiche Live-Lauf fuer `k1w1-handler` mit frischem `build_admin`-JWT lief; `service_role` wird fuer diesen usergebundenen Live-Operatorvertrag nicht als gleichwertiger Ersatz behauptet.
+- [x] `LiveVariableAndSecretDocumentation` (Patch 770): `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` inkl. sicherer Bezugswege und `OK_FULL` vs `OK_WITH_SKIPS` nochmal konsistent in Kern-SoT/Runbooks nachgeschaerft, ohne Secret-Literale.
 
 - [x] `ChatScreenHookResidual` (Patch 769): Prefill-Param-Handling in `useChatScreen` aus der Haupt-Fassade in `chatScreenPrefill.ts` entmischt; Fehler beim Param-Cleanup werden jetzt sichtbar via `logger.warn(...)` statt stummem Catch.
 - [x] `CiLiteWorkflowResidual` (Patch 769): Logline-Ableitung aus `useCiLiteWorkflow.ts` in `resolveCiLiteLogLines(...)` ausgelagert; Pending-/Hydrated-/Run-Log-Semantik bleibt unveraendert.
