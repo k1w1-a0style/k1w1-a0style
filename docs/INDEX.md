@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

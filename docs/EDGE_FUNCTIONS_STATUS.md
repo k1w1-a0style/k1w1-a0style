@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 
 ## Aktiv und workflow-relevant
 

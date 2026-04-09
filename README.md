@@ -2,12 +2,12 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 
-Zuletzt abgeschlossen: **Patch 763**
+Zuletzt abgeschlossen: **Patch 764**
 
 Der aktuelle Stand bestaetigt:
-- die drei verbleibenden Hotspots wurden jetzt restlos und verhaltensgleich zerlegt: `buildPipelineDiagnostics`, `_shared/auth`, `useAppInfoScreen`
+- die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API
 - die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
 - der Workflow-Contract-Check wurde gegen Text-/Formulierungsdrift robuster gemacht, ohne Auth-/RBAC-Inhalt aufzuweichen
 - produktive Runtime-Pfade sind erneut auf offensichtliche `console.log`-Reste geprueft (kein ungewollter Treffer ausser der zentralen Logger-Fassade)

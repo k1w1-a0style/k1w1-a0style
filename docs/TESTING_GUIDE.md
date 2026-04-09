@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

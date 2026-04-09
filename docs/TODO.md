@@ -1,11 +1,19 @@
 # TODO
 
-Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `GitHubReposDataHookHotspot` (Patch 764): `useGitHubRepos` entmischt zwischen Hook-Fassade und dedizierten Request-Helpers (`hooks/useGitHubReposRequests.ts`) fuer Repo-Load/Delete/Rename; Pull-/GraphQL-/Fallback-Semantik und oeffentliche Hook-Shape bleiben stabil.
+- [x] `CredentialsWizardHookHotspot` (Patch 764): UI-/Debug-/Error-/Visibility-State aus `useCredentialsWizardScreen` in `useCredentialsWizardUiState.ts` separiert; Auth-/Secret-/Status-Contract bleibt unveraendert.
+- [x] `ChatScreenHookHotspot` (Patch 764): Attachment-Picker-Seitenpfad aus `useChatScreen` in `chatScreenDocumentPicker.ts` ausgelagert; Send-/Draft-/Attachment-Truthfulness bleibt unveraendert in der Screen-Fassade.
+- [x] `EnhancedBuildScreenHookHotspot` (Patch 764): Build-Action-Orchestrierung (`refreshBuildScreenData`, `persistPreferredBuildProfile`) in `enhancedBuildScreenActions.ts` ausgelagert; Build-/Signing-/Status-Flows bleiben unveraendert.
+- [x] `SecondaryHotspotReview` (Patch 764): `assetsAndFiles.ts`, `infra/github/workflows.ts`, `GitHubReposScreen/index.tsx`, `useCiLiteWorkflow*`, `usePreview.ts` erneut bewertet; kein risikoarmer Mini-Fix im direkten Scope erzwungen.
+- [x] `WorkflowContractFragilityFollowup` (Patch 764): Folge-Drifts nach Hook-Splits geprueft; Contract-Script bleibt klein nachgezogen und gruen, ohne neuen Systemumbau.
+- [x] `SoTFollowupAfterRefactors` (Patch 764): fuehrende SoT-Dokumente und Patch-/Checklog auf den echten Hook-Decomposition-Stand synchronisiert.
 
 - [x] `WorkflowContractFragility` (Patch 763): `scripts/check_workflow_edge_contracts.sh` wurde von unnötig exakten Vollsatz-Markern auf semantische Contract-Marker umgestellt (`require_operator_claim_contract`, Pattern-Buendel statt Copy-exakter Formulierungen), damit inhaltliche RBAC-/Operator-Vertraege weiter hart geprueft werden, aber kleine Text-/Copy-Anpassungen den Gate nicht mehr unnoetig brechen.
 - [x] `RefactorSoTDrift` Follow-up (Patch 763): Fuehrende SoT-Dokumente (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `EDGE_FUNCTIONS_STATUS`, Checklog/Patchlog) auf den aktuellen Stand inkl. Workflow-Contract-Nachzug synchronisiert.
@@ -82,8 +90,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
 2. SilentCatchHygiene: produktnahe Pfade erneut gescannt (Patch 762) — keine verbleibenden stillen `.catch(() => {})` / `catch {}` im produktiven Runtime-Scope gefunden; nur Dokumentationsbeispiele enthalten den Pattern-Text
-3. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
-4. Workflow-Hygiene-Nachzug nur mit engem Scope:
+3. Workflow-Hygiene-Nachzug nur mit engem Scope:
    - verbleibende `npm install`-Fallbacks in produktnahen Pfaden weiter reduzieren, **nur** wenn lockfile-/bootstrap-sichere Alternative ohne CI-Onboarding-Risiko vorliegt
    - Repo-Writebacks/persisted Credentials weiter punktuell pruefen; CI-Lite-Autofix-Permission-Scope ist bereits auf `contents: write` reduziert
 

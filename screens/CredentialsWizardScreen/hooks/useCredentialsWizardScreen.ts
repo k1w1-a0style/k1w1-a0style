@@ -1,7 +1,7 @@
 // screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts
 // REFACTORED: helpers → credentialHelpers.ts
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Clipboard from "expo-clipboard";
@@ -20,12 +20,8 @@ import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 
-import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
+import type { ApiModeId, ModeDef, StatusResult, UiModeId } from "../types";
 
-import {
-  sanitizeErrorForUi,
-  sanitizeWizardHttpDebug,
-} from "../utils/security";
 import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 import { describeLocalEdgeAdminKeyIssue } from "../utils/localAdminKey";
 
@@ -49,6 +45,7 @@ import {
   resolveWizardStatusPresentation,
 } from "../statusContract";
 import { runGenerateAction, runStatusRefreshAction } from "./wizardEdgeActions";
+import { useCredentialsWizardUiState } from "./useCredentialsWizardUiState";
 
 export { mergePersistedStatusByMode };
 
@@ -86,7 +83,24 @@ export function useCredentialsWizardScreen() {
   const [adminKey, setAdminKey] = useState<string>("");
   const [adminKeyLoaded, setAdminKeyLoaded] = useState(false);
 
-  const [busy, setBusy] = useState<string | null>(null);
+  const {
+    busy,
+    setBusy,
+    lastDebug,
+    lastError,
+    showAdvanced,
+    setShowAdvanced,
+    showDebug,
+    setShowDebug,
+    showError,
+    setShowError,
+    activeActionRef,
+    isMountedRef,
+    safeSetLastError,
+    safeSetLastDebug,
+    setLastError,
+    setLastDebug,
+  } = useCredentialsWizardUiState();
 
   const projectCredentialScope = useMemo(
     () =>
@@ -99,33 +113,6 @@ export function useCredentialsWizardScreen() {
 
   const [statusByMode, setStatusByMode] = useState<Record<UiModeId, StatusResult | null>>(
     getEmptyStatusByMode(),
-  );
-
-  const [lastDebug, setLastDebug] = useState<WizardHttpDebug | null>(null);
-  const [lastError, setLastError] = useState<string | null>(null);
-
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showDebug, setShowDebug] = useState(false);
-  const [showError, setShowError] = useState(false);
-
-  const activeActionRef = useRef<string | null>(null);
-  const isMountedRef = useRef(true);
-
-  const safeSetLastError = useCallback(
-    (err: unknown) => {
-      if (!isMountedRef.current) return;
-      const text = err instanceof Error ? err.message : String(err ?? "");
-      setLastError(sanitizeErrorForUi(text));
-    },
-    [setLastError]
-  );
-
-  const safeSetLastDebug = useCallback(
-    (dbg: WizardHttpDebug | null) => {
-      if (!isMountedRef.current) return;
-      setLastDebug(dbg ? sanitizeWizardHttpDebug(dbg) : null);
-    },
-    [setLastDebug]
   );
 
   useEffect(() => {

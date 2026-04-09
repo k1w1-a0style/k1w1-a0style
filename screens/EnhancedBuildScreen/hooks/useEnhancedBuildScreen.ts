@@ -5,7 +5,6 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
-import { runCleanupTask } from "../../../lib/safeCleanup";
 import type { BuildStatus } from "../../../shared/types/build";
 import type { CheckItem } from "../components/ChecklistSection";
 import {
@@ -43,6 +42,10 @@ import {
   getWorkflowRunsEmptyStateText,
   type ModeFilter,
 } from "./runFilterState";
+import {
+  persistPreferredBuildProfile,
+  refreshBuildScreenData,
+} from "./enhancedBuildScreenActions";
 
 export const MAX_RUNS_DISPLAY = 10;
 const REPO_MISSING_BLOCK_REASON = "Repo fehlt (im GitHub-Repos-Screen verknuepfen)";
@@ -299,15 +302,11 @@ export function useEnhancedBuildScreen() {
     if (!canFetch || !hasGetWorkflowRuns) return;
     if (isMountedRef.current) setRefreshing(true);
     try {
-      await fetchRuns();
-      await runCleanupTask(
-        () => buildHistory.refresh(),
-        "[EnhancedBuildScreen] background history refresh failed",
-      );
-      await runCleanupTask(
-        () => refreshPreconditions(),
-        "[EnhancedBuildScreen] background preconditions refresh failed",
-      );
+      await refreshBuildScreenData({
+        fetchRuns,
+        refreshHistory: buildHistory.refresh,
+        refreshPreconditions,
+      });
     } finally {
       if (isMountedRef.current) setRefreshing(false);
     }
@@ -325,7 +324,10 @@ export function useEnhancedBuildScreen() {
     async (p: BuildProfile) => {
       setBuildProfile(p);
       try {
-        if (setPreferredBuildProfile) await setPreferredBuildProfile(p);
+        await persistPreferredBuildProfile({
+          profile: p,
+          setPreferredBuildProfile,
+        });
       } catch (e) {
         console.warn("[Build] Konnte Build-Profil nicht persistieren:", e);
       }
