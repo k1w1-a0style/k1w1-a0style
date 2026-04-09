@@ -118,10 +118,11 @@ describe("Invariants: repo/branch selection is source of truth", () => {
     const facadeSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts");
     const dispatchSrc = read("components/CiLiteHeaderButton/hooks/useCiLiteDispatch.ts");
     const helper = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowHelpers.ts");
+    const contracts = read("components/CiLiteHeaderButton/hooks/useCiLiteWorkflowContracts.ts");
 
     expect(dispatchSrc).toContain("resolveCiLiteDispatchSelection");
     expect(facadeSrc).toContain("const dispatchWorkflow = useCiLiteDispatch({");
-    expect(helper).toContain("CI Lite blockiert: Kein Branch verknüpft.");
+    expect(helper + contracts).toContain("CI Lite blockiert: Kein Branch verknüpft.");
     expect(dispatchSrc).not.toContain("getDefaultBranch");
     expect(dispatchSrc).not.toContain('targetBranch = "main"');
   });

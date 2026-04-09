@@ -10,8 +10,8 @@ import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteW
 import {
   hasCiLiteLookupTimedOut,
   resolveCiLiteLookupFailureLabel,
-  resolveCiLiteMatchedRun,
 } from "./useCiLiteWorkflowHelpers";
+import { resolveCiLiteMatchedRun } from "./useCiLiteWorkflowContracts";
 
 import type { CiLiteLookupFailureMessageBuilder, CiLiteLookupTrackingParams } from "./ciLiteWorkflow.contracts";
 
