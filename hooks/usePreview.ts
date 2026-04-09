@@ -5,11 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useProject } from "../contexts/ProjectContext";
-import { logger } from "../lib/logger";
-
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
-  describeEmptyRemotePreviewFiles,
   isAllowedFile,
   isProjectFile,
   sanitizePreviewPath,
@@ -23,9 +20,8 @@ import {
   buildPreviewFileMap,
   ensureMinimumPreviewFiles,
   normalizePreviewFilesForWeb,
-  PREVIEW_REMOTE_FAIL_CLOSED_MESSAGE,
 } from "./usePreviewFlowHelpers";
-import { createLocalFallbackPreview, tryCreateSupabasePreview } from "./usePreviewCreation";
+import { executePreviewCreation, normalizePreviewCreationError } from "./usePreviewExecution";
 
 export interface UsePreviewReturn {
   state: PreviewState;
@@ -137,9 +133,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         isAllowedFile,
         sanitizePreviewPath,
         onSizeLimitExceeded: () => {
-          logger.warn(
-            "[usePreview] ⚠️ Größen-Limit erreicht, weitere Dateien werden übersprungen",
-          );
+          console.warn("[usePreview] ⚠️ Größen-Limit erreicht, weitere Dateien werden übersprungen");
         },
       }),
     [projectData],
@@ -166,43 +160,17 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       safeSetRemoteFailure(null);
 
       try {
-        const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
-        const files = normalizePreviewFilesForWeb(ensureMinimumPreviewFiles(fileMap));
-
-        if (attemptSupabaseFirst && hasRemoteProjectFiles) {
-          const { result } = await tryCreateSupabasePreview({
-            projectData,
-            files,
-            dependencies,
-            setLastPreview: (meta) => setLastPreview(meta as LastPreviewMeta),
-            setPreferredPreviewMode,
-            setters: {
-              setLastPreviewState: safeSetLastPreviewState,
-              setRemoteFailure: safeSetRemoteFailure,
-              setError: safeSetError,
-              setLastCreatedAt: safeSetLastCreatedAt,
-            },
-          });
-          if (result) return result;
-        } else if (attemptSupabaseFirst) {
-          safeSetRemoteFailure(
-            describeEmptyRemotePreviewFiles({
-              projectFileCount: Array.isArray(projectData.files) ? projectData.files.length : 0,
-              allowedFileCount: Object.keys(fileMap).length,
-              skippedCount,
-            }),
-          );
-        }
-
-        if (!localFallbackExplicitlyEnabled) {
-          throw new Error(PREVIEW_REMOTE_FAIL_CLOSED_MESSAGE);
-        }
-
-        return createLocalFallbackPreview({
+        const filesForWeb = normalizePreviewFilesForWeb(ensureMinimumPreviewFiles(fileMap));
+        return await executePreviewCreation({
           projectData,
-          files,
+          fileMap,
+          filesForWeb,
           dependencies,
+          skippedCount,
+          attemptSupabaseFirst,
+          localFallbackExplicitlyEnabled,
           setLastPreview: (meta) => setLastPreview(meta as LastPreviewMeta),
+          setPreferredPreviewMode,
           setters: {
             setLastPreviewState: safeSetLastPreviewState,
             setRemoteFailure: safeSetRemoteFailure,
@@ -211,9 +179,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
           },
         });
       } catch (e: unknown) {
-        const message =
-          e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
-        logger.error("[usePreview] Fehler", { message });
+        const message = normalizePreviewCreationError(e);
         safeSetError(message);
         throw new Error(message);
       } finally {

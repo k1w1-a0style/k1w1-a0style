@@ -155,6 +155,8 @@ export const getWorkflowRunJobs = async (
   return readWorkflowJobs(json);
 };
 
+// Orchestrator bewusst zentral: Dispatch-Flow verbindet RateLimit/Auth/Fallback-ID/Fehler-Mapping in einem fail-closed Pfad.
+// Weitere Zerlegung ist moeglich, bringt hier aber aktuell keinen klaren Sicherheits-/Wartungsgewinn ohne source-contract Risiken.
 export const triggerWorkflow = async (
   owner: string,
   repo: string,
