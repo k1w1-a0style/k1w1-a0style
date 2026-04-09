@@ -10,6 +10,7 @@ import {
   jsonResponse,
   rateLimit,
   getRequestClientIp, getRequestRateLimitSubject,
+  isAllowedGithubRepo,
   requireDurableRateLimit,
   repoOk,
   requireJwtRole,
@@ -84,6 +85,9 @@ Deno.serve(async (req) => {
         req,
         400,
       );
+    }
+    if (!isAllowedGithubRepo(repo)) {
+      return errorResponse("Repo not allowed", req, 403, { repo });
     }
     const resolvedMode = resolveMode(body?.mode);
 

@@ -10,6 +10,7 @@ import {
   getSupabaseUrl,
   handleCors,
   jsonResponse,
+  isAllowedGithubRepo,
   rateLimit,
   requireDurableRateLimit,
   repoOk,
@@ -39,6 +40,7 @@ Deno.serve(async (req) => {
     subject: getRequestRateLimitSubject(req),
     max: 60,
     windowMs: 60_000,
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
@@ -61,6 +63,9 @@ Deno.serve(async (req) => {
     const repo = safeString(body?.repo);
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
+    }
+    if (!isAllowedGithubRepo(repo)) {
+      return errorResponse("Repo not allowed", req, 403, { repo });
     }
     const resolvedMode = resolveMode(body?.mode);
 

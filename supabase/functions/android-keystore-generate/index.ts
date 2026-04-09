@@ -3,6 +3,7 @@
 
 import {
   resolveMode, getForge, safeString, repoOk,
+  isAllowedGithubRepo,
   encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
   errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
@@ -37,6 +38,7 @@ Deno.serve(async (req) => {
     subject: getRequestRateLimitSubject(req),
     max: 30,
     windowMs: 60_000,
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
   const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
@@ -73,6 +75,9 @@ Deno.serve(async (req) => {
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
+    }
+    if (!isAllowedGithubRepo(repo)) {
+      return errorResponse("Repo not allowed", req, 403, { repo });
     }
     // `resolveMode` already normalizes/validates.
 
