@@ -165,8 +165,14 @@ export async function startBuildJob(params: {
   }
 
   const supabase = await ensureSupabaseClient();
-  const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
-  const session = await supabase.auth.getSession().catch(() => null);
+  const workflowAdminKey = await getWorkflowAdminKey().catch((error: unknown) => {
+    logger.warn("[buildStartService] getWorkflowAdminKey failed", { error });
+    return null;
+  });
+  const session = await supabase.auth.getSession().catch((error: unknown) => {
+    logger.warn("[buildStartService] auth.getSession failed", { error });
+    return null;
+  });
   const accessToken = session?.data?.session?.access_token ?? null;
 
   if (!accessToken) {

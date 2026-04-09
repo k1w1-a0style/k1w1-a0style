@@ -21,6 +21,7 @@ import {
 import type { PreflightPatch } from "../../../lib/diagnostics/preflightTypes";
 import type { ProjectFile } from "../../../shared/types/project";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
+import { logger } from "../../../lib/logger";
 
 interface UseCiLitePatchOpts {
   githubRepo: string;
@@ -112,7 +113,10 @@ export function useCiLitePatch({ githubRepo, branch }: UseCiLitePatchOpts) {
         throw new Error("Kein Branch verknüpft (Auto-Sync nach Patch).");
       }
 
-      const tok = await getGitHubToken().catch(() => null);
+      const tok = await getGitHubToken().catch((error: unknown) => {
+        logger.warn("[CiLitePatch] getGitHubToken failed during auto-sync", { error });
+        return null;
+      });
       if (!tok) throw new Error("GitHub Token fehlt (Auto-Sync nach Patch).");
 
       const touched = patchTouchedPaths(patch);

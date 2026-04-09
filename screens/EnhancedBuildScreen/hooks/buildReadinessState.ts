@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
+import { logger } from "../../../lib/logger";
 import { diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
 import {
   normalizeVerificationContract,
@@ -70,7 +71,10 @@ export async function readBuildReadinessState(params: {
   });
 
   const [diagScopedVal, persistedCiLite] = await Promise.all([
-    storageGetItem(scopedDiagnosticKey).catch(() => null),
+    storageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
+      logger.warn("[EnhancedBuild] diagnostic storage read failed", { key: scopedDiagnosticKey, error });
+      return null;
+    }),
     readPersistedCiLiteSelection({
       repoFullName,
       branchName,

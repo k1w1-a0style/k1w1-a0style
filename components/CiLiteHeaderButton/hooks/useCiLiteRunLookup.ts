@@ -4,6 +4,7 @@ import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getWorkflowAdminKey } from "../../../infra/github/githubService";
+import { logger } from "../../../lib/logger";
 import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
 import { chooseWorkflowRunCandidateDetailed, type WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
@@ -41,7 +42,10 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
       requireJobIdMarker?: boolean;
     }) => {
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+      const workflowAdminKey = await getWorkflowAdminKey().catch((error: unknown) => {
+        logger.warn("[CiLiteRunLookup] getWorkflowAdminKey failed", { error });
+        return null;
+      });
       const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
       if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
         const normalized = normalizeCiLiteWorkflowError({

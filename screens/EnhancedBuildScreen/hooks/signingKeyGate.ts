@@ -7,6 +7,7 @@ import {
   credStatusMetaKeyForProjectUiMode,
   resolveProjectCredentialScope,
 } from "../../../lib/storageKeys";
+import { logger } from "../../../lib/logger";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import type { BuildProfile } from "../types";
 
@@ -45,10 +46,22 @@ async function readScopedCredentialValue(params: {
   allowLegacyFallback: boolean;
   storageGetItem: StorageReader;
 }): Promise<string | null> {
-  const scopedVal = await params.storageGetItem(params.scopedKey).catch(() => null);
+  const scopedVal = await params.storageGetItem(params.scopedKey).catch((error: unknown) => {
+    logger.warn("[EnhancedBuild] scoped signing credential read failed", {
+      key: params.scopedKey,
+      error,
+    });
+    return null;
+  });
   if (scopedVal !== null) return scopedVal;
   if (!params.allowLegacyFallback || params.scopedKey === params.legacyKey) return null;
-  return params.storageGetItem(params.legacyKey).catch(() => null);
+  return params.storageGetItem(params.legacyKey).catch((error: unknown) => {
+    logger.warn("[EnhancedBuild] legacy signing credential fallback read failed", {
+      key: params.legacyKey,
+      error,
+    });
+    return null;
+  });
 }
 
 export function describeSigningKeyGateReason(params: {
@@ -140,7 +153,10 @@ export async function readSigningKeyGateState(
       allowLegacyFallback,
       storageGetItem,
     }),
-    readEdgeAdminKey().catch(() => null),
+    readEdgeAdminKey().catch((error: unknown) => {
+      logger.warn("[EnhancedBuild] readEdgeAdminKey failed while evaluating signing gate", { error });
+      return null;
+    }),
   ]);
 
   const hasSigningKey = existsRaw === "true";
