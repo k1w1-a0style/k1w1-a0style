@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Easing,
   FlatList,
@@ -12,7 +11,6 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,6 +31,7 @@ import {
   buildUserInputWithAttachmentNotice,
 } from "./chatScreenTypes";
 import type { DocumentResultAsset } from "./chatScreenTypes";
+import { pickChatDocument } from "./chatScreenDocumentPicker";
 
 type ChatScreenRouteParams = { prefillText?: string };
 type ChatScreenRoute = RouteProp<{ Chat: ChatScreenRouteParams | undefined }, "Chat">;
@@ -316,31 +315,8 @@ export const useChatScreen = () => {
   ]);
 
   const handlePickDocument = useCallback(async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets?.[0]) {
-        const asset = result.assets[0];
-        const sizeKB = asset.size ? (asset.size / 1024).toFixed(2) : "?";
-        setSelectedFileAsset(asset);
-
-        if (asset.size && asset.size > 100000) {
-          Alert.alert(
-            "📎 Große Datei ausgewählt",
-            `${asset.name} (${sizeKB} KB)\n\nHinweis: Große Dateien können die Verarbeitung verlangsamen.`,
-          );
-        }
-      } else {
-        setSelectedFileAsset(null);
-      }
-    } catch (e: unknown) {
-      const error = e instanceof Error ? e : new Error(String(e));
-      Alert.alert("Fehler", error.message || "Dateiauswahl fehlgeschlagen");
-      setSelectedFileAsset(null);
-    }
+    const asset = await pickChatDocument();
+    setSelectedFileAsset(asset);
   }, []);
 
   const handleSend = useCallback(async () => {

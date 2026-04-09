@@ -18,6 +18,11 @@ import {
 } from "../infra/github/githubService";
 
 import type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
+import {
+  buildGitHubDeleteRepoRequest,
+  buildGitHubRenameRepoRequest,
+  buildGitHubReposListRequest,
+} from "./useGitHubReposRequests";
 export type { GitHubRepo, UseGitHubReposCallbacks } from "./gitHubReposTypes";
 export type { GitHubBranch, WorkflowRun };
 
@@ -181,19 +186,7 @@ export const useGitHubRepos = (
       setLoading(true);
       setError(null);
 
-      const res = await fetchWithBackoff(
-        githubApiUrl("/user/repos?per_page=100&sort=updated"),
-        {
-          headers: buildGitHubAuthHeaders(token),
-        },
-      );
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`GitHub-API Fehler (${res.status}): ${text}`);
-      }
-
-      const json = (await res.json()) as GitHubRepo[];
+      const json = await buildGitHubReposListRequest(token);
       setRepos(json);
     } catch (e: unknown) {
       logger.error("[useGitHubRepos] Error:", e);
@@ -210,21 +203,15 @@ export const useGitHubRepos = (
       if (!token) return;
 
       try {
-        const res = await fetchWithBackoff(
-          githubApiUrl(`/repos/${repo.full_name}`),
-          {
-            method: "DELETE",
-            headers: buildGitHubAuthHeaders(token),
-          },
-        );
+        const status = await buildGitHubDeleteRepoRequest(token, repo.full_name);
 
-        if (res.status === 403) {
+        if (status === 403) {
           callbacks?.onDeleteNoPermission?.(repo);
           return false;
         }
 
-        if (res.status !== 204) {
-          throw new Error(`Status ${res.status}`);
+        if (status !== 204) {
+          throw new Error(`Status ${status}`);
         }
 
         setRepos((prev) => prev.filter((r) => r.full_name !== repo.full_name));
@@ -244,18 +231,7 @@ export const useGitHubRepos = (
       if (!token) return null;
 
       try {
-        const res = await fetchWithBackoff(
-          githubApiUrl(`/repos/${currentFullName}`),
-          {
-            method: "PATCH",
-            headers: buildGitHubAuthHeaders(token),
-            body: JSON.stringify({ name: newName }),
-          },
-        );
-
-        if (!res.ok) {
-          throw new Error(`Status ${res.status}`);
-        }
+        await buildGitHubRenameRepoRequest(token, currentFullName, newName);
 
         const [owner] = currentFullName.split("/");
         const newFullName = `${owner}/${newName}`;

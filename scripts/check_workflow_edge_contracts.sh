@@ -32,6 +32,18 @@ require_all_patterns() {
   done
 }
 
+require_operator_claim_contract() {
+  local file="$1"
+  require_all_patterns "$file" \
+    "build_admin" \
+    "service_role" \
+    "Server-Caller" \
+    "Normale eingeloggte Nutzer" \
+    "build_admin-Claim" \
+    "ausserhalb dieses Repos" \
+    "Supabase-User-Claim"
+}
+
 forbid_fixed() {
   local file="$1"
   local text="$2"
@@ -187,38 +199,15 @@ require_fixed "$PREVIEW_HOOK" 'Missing Supabase Preview JWT'
 require_fixed "$PREVIEW_HOOK" 'bearerJwt: userJwt'
 forbid_fixed "$PREVIEW_HOOK" 'isLegacyPreviewOperatorModeEnabled'
 forbid_fixed "$PREVIEW_HOOK" 'LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED'
-require_fixed "$CI_LITE_MODAL" "lokalen Workflow Admin Key (scoped)"
-require_fixed "$CI_LITE_MODAL" "Legacy-Compat/Sunset-Vertrag"
-require_fixed "$WIZARD_HOOK" "build_admin (oder service_role fuer Server-Caller)"
-require_fixed "$BUILD_START_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
-require_fixed "$BUILD_POLLING_SERVICE" "JWT role=build_admin (oder service_role fuer Server-Caller)"
-require_fixed "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
-require_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
-require_all_patterns "$WIZARD_HOOK" "build_admin" "service_role" "Server-Caller"
-require_all_patterns "$BUILD_START_SERVICE" "JWT role=build_admin" "service_role" "Server-Caller"
-require_all_patterns "$BUILD_POLLING_SERVICE" "JWT role=build_admin" "service_role" "Server-Caller"
-require_all_patterns "$WORKFLOW_LOGS_HOOK" "JWT role=build_admin" "service_role" "Server-Caller"
-require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin" "service_role" "Server-Caller"
-require_fixed "$WIZARD_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
-require_fixed "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
-require_fixed "$BUILD_POLLING_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
-require_fixed "$WORKFLOW_LOGS_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
-require_fixed "$CI_LITE_WORKFLOW_HOOK" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
-require_fixed "$WIZARD_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+require_all_patterns "$CI_LITE_MODAL" "Workflow Admin Key" "scoped" "Sunset-Vertrag"
 require_fixed "$BUILD_START_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
-require_fixed "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
-require_fixed "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
-require_fixed "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
-require_all_patterns "$WIZARD_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
-require_all_patterns "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer" "build_admin-Claim"
-require_all_patterns "$BUILD_POLLING_SERVICE" "Normale eingeloggte Nutzer" "build_admin-Claim"
-require_all_patterns "$WORKFLOW_LOGS_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
-require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "Normale eingeloggte Nutzer" "build_admin-Claim"
-require_all_patterns "$WIZARD_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
-require_all_patterns "$BUILD_START_SERVICE" "ausserhalb dieses Repos" "Supabase-User-Claim"
-require_all_patterns "$BUILD_POLLING_SERVICE" "ausserhalb dieses Repos" "Supabase-User-Claim"
-require_all_patterns "$WORKFLOW_LOGS_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
-require_all_patterns "$CI_LITE_WORKFLOW_HOOK" "ausserhalb dieses Repos" "Supabase-User-Claim"
+require_fixed "$BUILD_START_SERVICE" "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
+require_fixed "$CI_LITE_WORKFLOW_HOOK" "JWT role=build_admin (oder service_role fuer Server-Caller)"
+require_operator_claim_contract "$WIZARD_HOOK"
+require_operator_claim_contract "$BUILD_START_SERVICE"
+require_operator_claim_contract "$BUILD_POLLING_SERVICE"
+require_operator_claim_contract "$WORKFLOW_LOGS_HOOK"
+require_operator_claim_contract "$CI_LITE_WORKFLOW_HOOK"
 forbid_fixed "$BUILD_START_SERVICE" "JWT role=authenticated"
 
 require_fixed "$BUILD_READINESS_DOC" '### 3.5 Supabase-/Operator-Readiness (verbindliche Reihenfolge)'
@@ -328,7 +317,7 @@ require_fixed "$EDGE_STATUS_DOC" '`trigger-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`check-eas-build`'
 require_fixed "$EDGE_STATUS_DOC" '`github-workflow-dispatch`'
 require_fixed "$EDGE_STATUS_DOC" "build_admin-Claim wird nicht im Repo erzeugt"
-require_fixed "$BUILD_READINESS_DOC" "build_admin-Claim wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos vergeben"
+require_all_patterns "$BUILD_READINESS_DOC" "build_admin-Claim" "ausserhalb dieses Repos" "Provisioning-Prozess"
 require_fixed "$BUILD_READINESS_DOC" 'Operator-Runbook/Preflight (extern provisionierter `build_admin`-Vertrag)'
 require_fixed "$BUILD_READINESS_DOC" 'Ein normales eingeloggtes User-JWT ohne externen `build_admin`-Claim ist **nicht ausreichend**.'
 require_fixed "$RISK_HOTSPOTS_DOC" "Es gibt im Repo keinen internen Claim-Mapper/Grant-Flow fuer build_admin"

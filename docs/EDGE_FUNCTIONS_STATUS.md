@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
+Stand: **2026-04-09 (Patch 764, Hook-Hotspot-Decomposition-Wave abgeschlossen)**
 
 ## Aktiv und workflow-relevant
 
