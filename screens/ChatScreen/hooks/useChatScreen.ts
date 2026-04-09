@@ -18,6 +18,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import type { ChatMessage } from "../../../shared/types/chat";
 import type { ProjectFile } from "../../../shared/types/project";
 import { useAI } from "../../../contexts/AIContext";
+import { logger } from "../../../lib/logger";
 
 import { useKeyboardHeight } from "../../../hooks/useKeyboardHeight";
 import { useChatAIFlow } from "../../../hooks/useChatAIFlow";
@@ -138,6 +139,9 @@ export const useChatScreen = () => {
   // Single retry if first scroll didn't reach bottom (layout not yet final)
   const scrollPendingRef = useRef(false);
   const scrollAnimatedRef = useRef(false);
+  const logChatScrollWarning = useCallback((stage: "primary" | "retry", error: unknown) => {
+    logger.warn("[ChatScreen] scrollToEnd failed", { stage, error });
+  }, []);
 
   const hardScrollToBottom = useCallback((animated: boolean) => {
     if (animated) scrollAnimatedRef.current = true;
@@ -158,8 +162,9 @@ export const useChatScreen = () => {
 
       try {
         flatListRef.current?.scrollToEnd({ animated: shouldAnimate });
-      } catch {
+      } catch (error) {
         // FlatList may throw if not yet mounted
+        logChatScrollWarning("primary", error);
       }
 
       // One retry after 150ms — covers cases where the list layout
@@ -170,12 +175,13 @@ export const useChatScreen = () => {
         try {
           // Retry without animation to avoid a visible double-scroll.
           flatListRef.current?.scrollToEnd({ animated: false });
-        } catch {
+        } catch (error) {
           // FlatList may throw if not yet mounted / measured.
+          logChatScrollWarning("retry", error);
         }
       }, 150);
     });
-  }, []);
+  }, [logChatScrollWarning]);
 
   const {
     pendingPlan,

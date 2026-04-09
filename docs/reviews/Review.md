@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -12,6 +12,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 ### Ergebnis
 
 - `useChatScreen.ts` ist im Residual-Block weiter entmischt: Prefill-/Route-Param-Cleanup liegt nun in `chatScreenPrefill.ts`; Fehler beim Param-Reset werden sichtbar geloggt statt stumm geschluckt.
+- `useChatScreen.ts` schliesst den verbliebenen Silent-Catch-Rest im Scrollpfad: `scrollToEnd`-Fehler werden nun im Primary-/Retry-Pfad via `logger.warn(...)` sichtbar, ohne UI-/Send-/Flow-Semantik zu aendern.
 - `useCiLiteWorkflow.ts` delegiert die Logline-Ableitung jetzt an `resolveCiLiteLogLines(...)`, sodass Pending-/Hydrated-/Run-Log-Wiring aus dem Haupt-Hook weiter reduziert ist.
 - `useEnhancedBuildScreen.ts` lagert den Log-Derivation-Block (`analyses`, `logsErrorSafe`, `logLines`) in `useEnhancedBuildLogState.ts` aus; Haupt-Hook bleibt Screen-Orchestrator.
 - `infra/github/workflows.ts` meldet JSON-Parse-Fehler im Dispatch-Errorpfad nun mit `logger.warn(...)`; fail-closed Workflow-Fehlerverhalten bleibt unveraendert.
@@ -20,7 +21,9 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.
 - Bekannter Live-Drift wird jetzt klarer eingegrenzt: falls `preview_page` live weiter `Missing ?secret=...` liefert, meldet der Check explizit Legacy-Deploy-Drift statt unscharfem Generic-Fail.
 - `check_release_readiness.sh` ist gegen fehlendes globales `tsc` robust gemacht (repo-lokaler Aufruf + `npx`-Fallback), ohne Checks zu entfernen/aufzuweichen.
+- Residual-Hotspot-Finalscan fuer alle 5 Rest-Hotspots abgeschlossen: `useCiLiteWorkflow.ts`, `useEnhancedBuildScreen.ts`, `useCredentialsWizardScreen.ts` und `infra/github/workflows.ts` verbleiben bewusst als schlanke Orchestrator-Fassaden ohne weiteren risikoreichen Nulzen-Split.
 - Live-Variable-SoT ist jetzt explizit: `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` bevorzugt als masked Runner-Secrets; lokaler URL-Fallback ueber Projekt-Ref `xfgnzpcljsuqqdjlxgul`; JWTs/API-Keys bleiben strikt ausserhalb Repo-Dateien.
+- Live-Truthfulness klargezogen: Der erfolgreiche `k1w1-handler`-Live-Contract wurde mit einem frischen `build_admin`-JWT gefahren; `service_role` wird fuer diesen usergebundenen Operator-Livepfad nicht als gleichwertiger Ersatz behauptet.
 - `HookHotspotRestabschluss` ist jetzt finalisiert: `useGitHubRepos` (Pull-Orchestrierung), `useCredentialsWizardScreen` (Action-/Status-Meta), `useChatScreen` (Animations-Side-Effects) und `useEnhancedBuildScreen` (Derived Readiness/Filter/Checklist/Logs) sind weiter entmischt, bei stabiler Public-Hook-Shape.
 - `LocalRemoteDiffSectionRefactor` ist abgeschlossen: der bisherige Monolith wurde entlang Container/Model/pure Diff-/Fingerprint-Helper/List-/Modal-UI/Types aufgeteilt; die oeffentliche Section-Importform bleibt kompatibel ueber einen schlanken Re-Export.
 - `RefactorSoTDrift` ist im selben Durchlauf geschlossen: README/TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT sowie CHECKLOG/PATCHLOG spiegeln jetzt denselben echten Refactor-Stand statt eines Analyse-only-Headers.

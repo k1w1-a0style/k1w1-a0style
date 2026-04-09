@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

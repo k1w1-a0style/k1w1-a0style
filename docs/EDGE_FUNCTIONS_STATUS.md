@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 ## Aktiv und workflow-relevant
 
@@ -64,6 +64,7 @@ Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityF
   - `bash scripts/check_workflow_edge_contracts.sh`
 
 - App-seitig gibt es aktuell weiterhin einen lokalen Edge-Admin-Key im SecureStore. Wenn du Workflows/Logs/Dispatch aus der App startest, muss dieser lokale Wert zum serverseitigen Workflow-Admin-Secret passen.
+- Fuer interaktive Live-Contract-Pruefungen von `k1w1-handler` wurde im aktuellen Lauf ein frischer usergebundener `build_admin`-JWT verwendet; `service_role` ist hier nicht als gleichwertiger Ersatz fuer denselben User-Operator-Contract zu lesen.
 
 
 ## Operative Reihenfolge (Runbook-Kurzfassung)

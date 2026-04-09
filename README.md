@@ -2,14 +2,18 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
-Zuletzt abgeschlossen: **Patch 769**
+Zuletzt abgeschlossen: **Patch 770**
 
 Der aktuelle Stand bestaetigt:
+- die verbleibenden Residual-Hotspots (Chat, CI-Lite, EnhancedBuild, CredentialsWizard, GitHub Workflows) sind final geprueft; nur der direkte Scope wurde minimal gehaertet
 - Chat/CI-Lite/EnhancedBuild/Workflow-Residuals wurden im direkten Scope weiter entmischt, ohne API-/Contract-Aenderung der Fassaden
 - residuale A1/A2/A3-Hotspots wurden erneut im engen Scope geprueft; verbleibende Hauptdateien sind als schlanke Orchestratoren ohne erzwungenen Grossumbau belassen
+- `useChatScreen` meldet `scrollToEnd`-Fehler im Retry-/Primary-Pfad jetzt sichtbar ueber `logger.warn(...)` statt stiller Catchs (keine Verhaltensaenderung am Flow)
 - ein produktnaher Weak-Fallback (`AsyncStorage.getItem(...).catch(() => "")`) wurde in `GitHubReposScreen` auf expliziten Sentinel + Warn-Observability umgestellt
+- Release-/Live-Truthfulness ist explizit: mit gesetzten `EDGE_BASE_URL` + frischem `EDGE_OPERATOR_JWT` (build_admin) ist `verify:release` fuer den Live-Teil `OK_FULL`; ohne Live-Env bleibt der ehrliche Status `OK_WITH_SKIPS`
+- fuer den `k1w1-handler`-Live-Operatorfluss wird `EDGE_OPERATOR_JWT` als frischer `build_admin`-JWT benoetigt; `service_role` ist dabei nicht als gleichwertiger interaktiver User-Ersatz zu lesen
 - die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API
 - die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
 - der Workflow-Contract-Check wurde gegen Text-/Formulierungsdrift robuster gemacht, ohne Auth-/RBAC-Inhalt aufzuweichen

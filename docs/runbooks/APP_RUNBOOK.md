@@ -1,6 +1,6 @@
 # App Runbook (QA / Operator)
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
 
 Ziel: In <30 Minuten reproduzierbar von „frisches Setup“ zu „Build gestartet“ inkl. klarer Failure- und Re-Run-Entscheidungen.
 
@@ -82,6 +82,7 @@ Ziel: In <30 Minuten reproduzierbar von „frisches Setup“ zu „Build gestart
   - `preview_page` -> `400 Missing preview secret header.` ohne Header.
   - `save_preview` -> `200 ok:true` mit `previewUrl` als `transport=fragment#secret=...` (kein `?secret=`).
 - Liefert `k1w1-handler` stattdessen `401/403`, zuerst JWT / externes `build_admin`-Provisioning prüfen und **nicht** am Repo-Code herumflicken.
+- Fuer denselben interaktiven User-Operatorvertrag wird ein frischer `build_admin`-JWT erwartet; `service_role` ist dafuer kein gleichwertiger Ersatzpfad.
 
 ---
 
