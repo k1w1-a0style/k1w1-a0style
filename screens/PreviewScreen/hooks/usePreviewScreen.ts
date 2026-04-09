@@ -10,6 +10,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useProject } from '../../../contexts/ProjectContext';
 import { usePreview } from '../../../hooks/usePreview';
+import { logger } from '../../../lib/logger';
 import {
   formatPreviewExpiry,
   getPreviewChannelLabel,
@@ -150,7 +151,6 @@ export function usePreviewScreen() {
     }
     return getPreviewChannelLabel(previewKind);
   }, [displayState.kind, previewKind]);
-  const qrImageUrl = useMemo(() => null, []);
   const runtimeHint = useMemo(() => {
     const sourceKind = previewKind ?? 'none';
     const sourceType = previewSource?.type ?? 'none';
@@ -289,23 +289,18 @@ export function usePreviewScreen() {
     }
   }, [previewUrl]);
 
-  const handleCopyQrLink = useCallback(async () => {
-    Alert.alert('Deaktiviert', 'QR-Link ist deaktiviert, um Preview-Secrets nicht an Drittanbieter zu senden.');
-  }, []);
 
   const handleOpenExternal = useCallback(async () => {
     if (previewUrl) {
       try {
         await Linking.openURL(previewUrl);
-      } catch {
+      } catch (error) {
+        logger.warn('[PreviewScreen] open external preview URL failed', { error, previewUrl });
         Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
       }
     }
   }, [previewUrl]);
 
-  const handleOpenQr = useCallback(async () => {
-    Alert.alert('Deaktiviert', 'QR-Link ist deaktiviert, um Preview-Secrets nicht an Drittanbieter zu senden.');
-  }, []);
 
   const canOpenFullscreen = Boolean(previewSource);
 
@@ -333,7 +328,6 @@ export function usePreviewScreen() {
     transientLocalPreviewNotice,
     displayState,
     runtimeHint,
-    qrImageUrl,
     phase,
     setPhase,
     webError,
@@ -354,9 +348,7 @@ export function usePreviewScreen() {
     handleCreate,
     handleReset,
     handleCopy,
-    handleCopyQrLink,
     handleOpenExternal,
-    handleOpenQr,
     handleFullscreen,
   };
 }

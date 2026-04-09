@@ -2,11 +2,15 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 770, ResidualRestblockFinalization + LiveContractTruthSync)**
+Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
 
-Zuletzt abgeschlossen: **Patch 770**
+Zuletzt abgeschlossen: **Patch 771**
 
 Der aktuelle Stand bestaetigt:
+- Preview-Secret-SoT ist auf den realen hash-only Vertrag synchronisiert (kein aktiver Raw-Fallback-Story-Drift in den Kern-Dokumenten)
+- `check_docs_contracts.js` haertet den Preview-Secret-Vertrag semantisch (aktive Sektionen: `hash-only` Pflicht, Legacy-Raw-Fallback verboten)
+- der verbliebene Preview-QR-UI-Rest ist entfernt; es gibt keinen irrefuehrenden QR-Action-Pfad mehr
+- der bisherige type-only Zyklus zwischen `infra/github/workflows.ts` und `infra/github/workflowResponseParsers.ts` ist ueber `workflowTypes.ts` sauber entkoppelt
 - die verbleibenden Residual-Hotspots (Chat, CI-Lite, EnhancedBuild, CredentialsWizard, GitHub Workflows) sind final geprueft; nur der direkte Scope wurde minimal gehaertet
 - Chat/CI-Lite/EnhancedBuild/Workflow-Residuals wurden im direkten Scope weiter entmischt, ohne API-/Contract-Aenderung der Fassaden
 - residuale A1/A2/A3-Hotspots wurden erneut im engen Scope geprueft; verbleibende Hauptdateien sind als schlanke Orchestratoren ohne erzwungenen Grossumbau belassen

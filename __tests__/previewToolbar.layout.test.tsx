@@ -13,12 +13,10 @@ describe('PreviewToolbar responsive layout', () => {
         hotReloadEnabled
         hotDotAnim={new Animated.Value(1)}
         hasPreviewUrl
-        hasQrUrl
         canFullscreen
         onToggleHotReload={jest.fn()}
         onReload={jest.fn()}
         onCopy={jest.fn()}
-        onOpenQr={jest.fn()}
         onOpenExternal={jest.fn()}
         onFullscreen={jest.fn()}
       />,
