@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 768, ResidualHotspotFinalScan + WeakFallbackHygiene)**
+Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -11,6 +11,10 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ### Ergebnis
 
+- `useChatScreen.ts` ist im Residual-Block weiter entmischt: Prefill-/Route-Param-Cleanup liegt nun in `chatScreenPrefill.ts`; Fehler beim Param-Reset werden sichtbar geloggt statt stumm geschluckt.
+- `useCiLiteWorkflow.ts` delegiert die Logline-Ableitung jetzt an `resolveCiLiteLogLines(...)`, sodass Pending-/Hydrated-/Run-Log-Wiring aus dem Haupt-Hook weiter reduziert ist.
+- `useEnhancedBuildScreen.ts` lagert den Log-Derivation-Block (`analyses`, `logsErrorSafe`, `logLines`) in `useEnhancedBuildLogState.ts` aus; Haupt-Hook bleibt Screen-Orchestrator.
+- `infra/github/workflows.ts` meldet JSON-Parse-Fehler im Dispatch-Errorpfad nun mit `logger.warn(...)`; fail-closed Workflow-Fehlerverhalten bleibt unveraendert.
 - Residual-/Rest-Hotspots aus A1/A2/A3 wurden erneut im engen Scope geprueft; verbleibende groessere Dateien sind aktuell fachlich sinnvolle Orchestratoren, bei denen weiterer Split keinen klaren Sicherheits-/Review-Gewinn mehr brachte.
 - WeakFallback-Hygiene im produktnahen Repo-Bootstrap nachgezogen: `AsyncStorage.getItem(...).catch(() => "")` wurde durch expliziten `null`-Sentinel + Warn-Logging ersetzt (gleiches User-Verhalten, bessere Beobachtbarkeit bei Storage-Fehlern).
 - `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.

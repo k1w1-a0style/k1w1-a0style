@@ -32,6 +32,7 @@ import {
 import type { DocumentResultAsset } from "./chatScreenTypes";
 import { pickChatDocument } from "./chatScreenDocumentPicker";
 import { useChatScreenAnimations } from "./useChatScreenAnimations";
+import { consumeChatPrefillText } from "./chatScreenPrefill";
 
 type ChatScreenRouteParams = { prefillText?: string };
 type ChatScreenRoute = RouteProp<{ Chat: ChatScreenRouteParams | undefined }, "Chat">;
@@ -85,17 +86,14 @@ export const useChatScreen = () => {
   // Allow other screens to prefill the composer (e.g. Diagnostic -> Debug)
   useFocusEffect(
     useCallback(() => {
-      const prefill = route?.params?.prefillText;
-      if (typeof prefill === "string" && prefill.trim()) {
-        setTextInput((prev) => (prev ? prev : prefill));
-        try {
-          navigation.setParams({ prefillText: undefined });
-        } catch {
-          // ignore
-        }
-      }
+      consumeChatPrefillText({
+        prefillText: route?.params?.prefillText,
+        currentTextInput: textInput,
+        setTextInput,
+        clearPrefillText: () => navigation.setParams({ prefillText: undefined }),
+      });
       return () => {};
-    }, [navigation, route?.params?.prefillText]),
+    }, [navigation, route?.params?.prefillText, textInput]),
   );
 
   const [streamingMessage, setStreamingMessage] = useState<string>("");

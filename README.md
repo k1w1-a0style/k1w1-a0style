@@ -2,11 +2,12 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 768, ResidualHotspotFinalScan + WeakFallbackHygiene)**
+Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
 
-Zuletzt abgeschlossen: **Patch 768**
+Zuletzt abgeschlossen: **Patch 769**
 
 Der aktuelle Stand bestaetigt:
+- Chat/CI-Lite/EnhancedBuild/Workflow-Residuals wurden im direkten Scope weiter entmischt, ohne API-/Contract-Aenderung der Fassaden
 - residuale A1/A2/A3-Hotspots wurden erneut im engen Scope geprueft; verbleibende Hauptdateien sind als schlanke Orchestratoren ohne erzwungenen Grossumbau belassen
 - ein produktnaher Weak-Fallback (`AsyncStorage.getItem(...).catch(() => "")`) wurde in `GitHubReposScreen` auf expliziten Sentinel + Warn-Observability umgestellt
 - die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API

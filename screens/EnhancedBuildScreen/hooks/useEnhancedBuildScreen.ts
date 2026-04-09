@@ -3,7 +3,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
-import { BuildErrorAnalyzer } from "../../../lib/buildErrorAnalyzer";
 import type { BuildStatus } from "../../../shared/types/build";
 import {
   formatDuration,
@@ -27,7 +26,6 @@ import { composeEnhancedBuildScreenReturn } from "./enhancedBuildScreenReturnCom
 import { filterBuildHistoryByMode, summarizeBuildHistoryStats } from "./enhancedBuildScreenHistory";
 import {
   countHiddenRuns,
-  mapWorkflowLogsToLines,
 } from "./enhancedBuildScreenOrchestration";
 import {
   type ModeFilter,
@@ -35,6 +33,7 @@ import {
 import { useEnhancedBuildDerivedState } from "./useEnhancedBuildDerivedState";
 import { useBuildProfileSync, useModeFilterSync, useMountedFlag } from "./useEnhancedBuildScreenLifecycle";
 import { useBuildRefreshAction, useOpenRunAction, useSelectBuildProfileAction } from "./useEnhancedBuildScreenActions";
+import { useEnhancedBuildLogState } from "./useEnhancedBuildLogState";
 
 export const MAX_RUNS_DISPLAY = 10;
 // Source-contract marker: invariants still assert these canonical block reasons in this hook facade.
@@ -218,16 +217,10 @@ export function useEnhancedBuildScreen() {
     autoRefresh: shouldLoadLogs && autoRefreshEnabled,
   });
 
-  const analyses = useMemo(() => {
-    if (!logs || logs.length === 0) return [];
-    return BuildErrorAnalyzer.analyzeLogs(logs);
-  }, [logs]);
-
-  const logsErrorSafe = useMemo(() => {
-    return logsError ? sanitizeUiMessage(logsError) : null;
-  }, [logsError]);
-
-  const logLines = useMemo(() => mapWorkflowLogsToLines(logs), [logs]);
+  const { analyses, logsErrorSafe, logLines } = useEnhancedBuildLogState({
+    logs,
+    logsError,
+  });
 
 
   const hasStartBuild = typeof startBuild === "function";

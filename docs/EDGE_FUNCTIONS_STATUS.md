@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 768, ResidualHotspotFinalScan + WeakFallbackHygiene)**
+Stand: **2026-04-09 (Patch 769, ResidualHotspotTightening + ScopedObservabilityFollowup)**
 
 ## Aktiv und workflow-relevant
 
