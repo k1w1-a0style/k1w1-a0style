@@ -295,11 +295,15 @@ export function usePreviewScreen() {
       try {
         await Linking.openURL(previewUrl);
       } catch (error) {
-        logger.warn('[PreviewScreen] open external preview URL failed', { error, previewUrl });
+        logger.warn('[PreviewScreen] open external preview URL failed', {
+          error,
+          hasPreviewUrl: true,
+          previewUrlDisplay,
+        });
         Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
       }
     }
-  }, [previewUrl]);
+  }, [previewUrl, previewUrlDisplay]);
 
 
   const canOpenFullscreen = Boolean(previewSource);
