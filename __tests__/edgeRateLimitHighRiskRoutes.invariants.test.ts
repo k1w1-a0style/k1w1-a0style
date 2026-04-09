@@ -18,4 +18,12 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     expect(src).toContain("enforceDurable: true");
     expect(src).toContain('rateLimit(req, "preview_page", 60, 60_000)');
   });
+
+  it("keeps android-keystore-export durable limiter fail-closed", () => {
+    const src = read("supabase/functions/android-keystore-export/index.ts");
+    expect(src).toContain('requireDurableRateLimit(req, {');
+    expect(src).toContain('scope: "android-keystore-export"');
+    expect(src).toContain("enforceDurable: true");
+    expect(src).toContain('rateLimit(req, "android-keystore-export", 30, 60_000)');
+  });
 });

@@ -18,6 +18,7 @@ import {
   safeString,
 } from "./helpers.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -42,6 +43,7 @@ Deno.serve(async (req) => {
     subject: getRequestRateLimitSubject(req),
     max: 30,
     windowMs: 60_000,
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
@@ -95,7 +97,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (error) {
-      return errorResponse("DB read failed", req, 500, { message: error.message });
+      return errorResponse("DB read failed", req, 500);
     }
     if (!data) return errorResponse("No signing record for repo", req, 404, { repo });
 
@@ -107,7 +109,7 @@ Deno.serve(async (req) => {
 
     const { data: file, error: dlErr } = await supabase.storage.from(bucket).download(path);
     if (dlErr || !file) {
-      return errorResponse("Storage download failed", req, 500, { message: dlErr?.message });
+      return errorResponse("Storage download failed", req, 500);
     }
 
     const encrypted = await file.text();
@@ -119,7 +121,7 @@ Deno.serve(async (req) => {
       const actor = typeof payload?.sub === "string" ? payload.sub : "service_role";
       const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
-      await supabase.from("signing_audit_log").insert({
+      const { error: auditError } = await supabase.from("signing_audit_log").insert({
         repo,
         mode: resolvedMode,
         action: "export",
@@ -127,8 +129,11 @@ Deno.serve(async (req) => {
         ip,
         user_agent: userAgent,
       });
+      if (auditError) {
+        return errorResponse("Audit log write failed", req, 503);
+      }
     } catch {
-      console.warn("[signing_audit_log] insert failed");
+      return errorResponse("Audit log write failed", req, 503);
     }
 
     return jsonResponse(
@@ -143,8 +148,9 @@ Deno.serve(async (req) => {
       req,
     );
   } catch (e) {
+    const safeMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
     return errorResponse("Unhandled error", req, 500, {
-      message: e instanceof Error ? e.message : String(e),
+      message: safeMessage,
     });
   }
 });
