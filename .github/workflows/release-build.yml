@@ -144,27 +144,32 @@ jobs:
         run: |
           set -euo pipefail
 
+          PROFILE="${{ inputs.profile }}"
           PM="${{ steps.lock.outputs.package_manager }}"
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             case "$PM" in
               npm)
-                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                npm ci --no-audit --no-fund
                 ;;
               yarn)
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 corepack enable || true
-                pnpm install --frozen-lockfile || pnpm install
+                pnpm install --frozen-lockfile
                 ;;
               *)
                 echo "::error::Unknown package manager '$PM'"
                 exit 1
                 ;;
             esac
+          elif [ "$PROFILE" != "development" ]; then
+            echo "::error::Release workflow requires a lockfile for profile '$PROFILE'."
+            exit 1
           else
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            echo "::warning::No lockfile found; allowing npm install only for development profile."
+            npm install --no-audit --no-fund
           fi
 
       - name: Install EAS CLI
