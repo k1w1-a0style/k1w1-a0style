@@ -137,8 +137,14 @@ export const collectForbiddenFileHits = (
 
 export const readNativeDirState = (files: ProjectFile[]) => {
   const byFilePath = byPath(files);
-  const hasAndroidDir = files.some((f) => f.path === "android" || f.path.startsWith("android/"));
-  const hasIosDir = files.some((f) => f.path === "ios" || f.path.startsWith("ios/"));
+  const hasAndroidDir = files.some((f) => {
+    const path = normalizePath(f.path);
+    return path === "android" || path.startsWith("android/");
+  });
+  const hasIosDir = files.some((f) => {
+    const path = normalizePath(f.path);
+    return path === "ios" || path.startsWith("ios/");
+  });
 
   const androidLooksIncomplete =
     hasAndroidDir && !(has(byFilePath, "android/app/build.gradle") || has(byFilePath, "android/app/build.gradle.kts"));
