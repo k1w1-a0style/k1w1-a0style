@@ -64,6 +64,7 @@ Wichtig:
 
 ### Wichtige Grenze der Live-Contract-Checks (verify_jwt)
 
+- Zuletzt bestaetigter Volllauf: mit gesetzten `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` liefen `edge:check:live` und `verify:release` auf `OK_FULL`.
 - `npm run edge:check:live` prueft aktuell live drei Contract-Kanten: `k1w1-handler` invalid JSON, `preview_page` missing-header fail-closed, und `save_preview` Fragment-Transport (`transport=fragment#secret=...` ohne Query-`?secret=`). Dashboard-Flags bleiben weiterhin separater Operator-Audit.
 - Der operatorische Flag-Audit ist fuer den aktuellen Stand erfolgt: live ist fuer `save_preview` und `k1w1-handler` `verify_jwt=true` bestaetigt.
 - Fuer kuenftige Releases bleibt ein expliziter Flag-Abgleich sinnvoll, weil ein spaeterer Dashboard-Drift durch reine Verhaltenschecks nicht sicher ausgeschlossen wird.

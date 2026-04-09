@@ -31,6 +31,6 @@ Der Abschlusslauf hatte noch zwei echte Restpunkte:
 - `bash scripts/check_verify_jwt_visibility.sh`
 - `bash scripts/check_patch_docs_sync.sh`
 - `npm run -s docs:lint`
-- `bash scripts/check_release_readiness.sh` (in dieser Shell: `OK_WITH_SKIPS`, da Live-Env nicht gesetzt)
-- `bash scripts/check_edge_live_env_readiness.sh` (SKIP ohne gesetzte Live-Env)
-- `bash scripts/check_edge_live_contracts.sh` (fails fast ohne gesetzte Live-Env)
+- `bash scripts/check_edge_live_env_readiness.sh` (mit gesetzten Live-Variablen: OK)
+- `bash scripts/check_edge_live_contracts.sh` (mit gesetzten Live-Variablen: OK)
+- `bash scripts/check_release_readiness.sh` (`OK_FULL` mit gesetzten Live-Variablen)

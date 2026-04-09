@@ -5,7 +5,7 @@ Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variabl
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: lokale Vollchecks sind gruen, `check_release_readiness` bleibt in dieser Shell ehrlich `OK_WITH_SKIPS` ohne gesetzte Live-Env; der echte Live-Contract-Lauf (`k1w1-handler`, `preview_page`, `save_preview`) wurde separat in der Zielumgebung erfolgreich bestaetigt.
+> Letzter Voll-Gate im aktuellen Durchlauf: lokale Vollchecks plus Live-Edge-Contracts liefen mit gesetzten Live-Variablen vollstaendig gruen (`OK_FULL`), inklusive `k1w1-handler`, `preview_page` und `save_preview`.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
@@ -82,7 +82,7 @@ Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 - `bash scripts/check_edge_helper_visibility.sh`
 - `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
-- Ergebnis `check_release_readiness`: `OK_WITH_SKIPS` (Live-Contract-Smokes nur mit gesetztem `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`; ohne diese Variablen kein behauptetes Full-Live-Green).
+- Ergebnis `check_release_readiness`: `OK_FULL` (Live-Variablen gesetzt; Live-Contract-Smokes real ausgefuehrt).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 
