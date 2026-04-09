@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
+Stand: **2026-04-09 (Patch 768, ResidualHotspotFinalScan + WeakFallbackHygiene)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
@@ -11,6 +11,8 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ### Ergebnis
 
+- Residual-/Rest-Hotspots aus A1/A2/A3 wurden erneut im engen Scope geprueft; verbleibende groessere Dateien sind aktuell fachlich sinnvolle Orchestratoren, bei denen weiterer Split keinen klaren Sicherheits-/Review-Gewinn mehr brachte.
+- WeakFallback-Hygiene im produktnahen Repo-Bootstrap nachgezogen: `AsyncStorage.getItem(...).catch(() => "")` wurde durch expliziten `null`-Sentinel + Warn-Logging ersetzt (gleiches User-Verhalten, bessere Beobachtbarkeit bei Storage-Fehlern).
 - `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.
 - Bekannter Live-Drift wird jetzt klarer eingegrenzt: falls `preview_page` live weiter `Missing ?secret=...` liefert, meldet der Check explizit Legacy-Deploy-Drift statt unscharfem Generic-Fail.
 - `check_release_readiness.sh` ist gegen fehlendes globales `tsc` robust gemacht (repo-lokaler Aufruf + `npx`-Fallback), ohne Checks zu entfernen/aufzuweichen.
