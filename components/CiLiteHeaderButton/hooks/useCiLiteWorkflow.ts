@@ -3,8 +3,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ensureSupabaseClient } from "../../../lib/supabase";
-import { logger } from "../../../lib/logger";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubActionsLogs } from "../../../hooks/useGitHubActionsLogs";
 import { computeCiLiteOk, inferStepStates, safeUi } from "../../ciLite/ciLiteUtils";
@@ -21,7 +19,6 @@ import {
   isCiLiteRunContextActive,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
-  getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
 } from "./useCiLiteWorkflowHelpers";
 import {
@@ -30,35 +27,18 @@ import {
   resolveCiLiteDone,
   resolveEffectiveCiLiteWorkflowRun,
 } from "./useCiLiteWorkflowDerivations";
-import { resolveCiLiteMissingJwtMessage } from "./useCiLiteWorkflowContracts";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
+import { resolveOperatorAccess } from "./useCiLiteWorkflowAccess";
 import { useCiLiteDispatch } from "./useCiLiteDispatch";
 import { useCiLiteRunLookup } from "./useCiLiteRunLookup";
 import { useCiLiteArtifactFetch } from "./useCiLiteArtifactFetch";
 import { useCiLitePersistenceHydration, useCiLitePersistenceSnapshot } from "./useCiLitePersistence";
-import { getWorkflowAdminKey } from "../../../infra/github/githubService";
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
-import { normalizeCiLiteWorkflowError } from "./ciLiteWorkflowErrors";
+import { useCiLiteAutofixChainRun } from "./useCiLiteAutofixChainRun";
 import {
   BUILD_ADMIN_FAIL_CLOSED_NOTE,
   BUILD_ADMIN_PROVISIONING_NOTE,
   BUILD_ADMIN_SERVER_CALLER_NOTE,
 } from "./ciLiteWorkflow.contracts";
-
-async function readOperatorJwt(context: "artifact" | "lookup" | "dispatch"): Promise<string | null> {
-  const supabase = await ensureSupabaseClient().catch((error: unknown) => {
-    logger.warn("[CiLiteWorkflow] ensureSupabaseClient failed while reading operator jwt", { context, error });
-    return null;
-  });
-  if (!supabase) return null;
-
-  const session = await supabase.auth.getSession().catch((error: unknown) => {
-    logger.warn("[CiLiteWorkflow] auth.getSession failed while reading operator jwt", { context, error });
-    return null;
-  });
-  const jwt = String(session?.data?.session?.access_token ?? "").trim();
-  return jwt || null;
-}
 
 export function useCiLiteWorkflow() {
   // Contract for chain-run correlation:
@@ -125,26 +105,8 @@ export function useCiLiteWorkflow() {
   const githubRepo = useMemo(() => (projectData?.linkedRepo?.trim() || "").trim(), [projectData?.linkedRepo]);
   const branch = useMemo(() => (projectData?.linkedBranch?.trim() || "").trim(), [projectData?.linkedBranch]);
 
-  const resolveOperatorAccess = useCallback(async (context: "artifact" | "dispatch") => {
-    const adminKey = await getWorkflowAdminKey().catch(() => null);
-    const trimmedAdminKey = String(adminKey ?? "").trim();
-    if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
-      const normalized = normalizeCiLiteWorkflowError({
-        context,
-        adminKey,
-      });
-      throw new Error(normalized.userMessage);
-    }
-
-    const userJwt = await readOperatorJwt(context);
-    if (!userJwt) {
-      throw new Error(resolveCiLiteMissingJwtMessage(context));
-    }
-
-    return {
-      adminKey: trimmedAdminKey,
-      userJwt,
-    };
+  const resolveOperatorAccessCallback = useCallback(async (context: "artifact" | "dispatch") => {
+    return resolveOperatorAccess(context);
   }, []);
 
   const stopLookupWithError = useCallback(
@@ -186,7 +148,7 @@ export function useCiLiteWorkflow() {
     workflowRunId: workflowRun?.id ?? null,
     workflowStatus: workflowRun?.status,
     artifactAttemptedContextRef,
-    resolveOperatorAccess,
+    resolveOperatorAccess: resolveOperatorAccessCallback,
     setArtifactLoading,
     setArtifactError,
     setArtifactResult,
@@ -305,54 +267,27 @@ export function useCiLiteWorkflow() {
   });
   const isAutofix = workflowId === WORKFLOW_CI_LITE_AUTOFIX;
 
-  useEffect(() => {
-    if (workflowId !== WORKFLOW_CI_LITE_AUTOFIX || !workflowRun) return;
-    if (workflowRun.status !== "completed" || workflowRun.conclusion !== "success") return;
-    if (!jobId || !githubRepo || chainWaiting) return;
-
-    const b = (targetRef || branch || "").trim();
-    if (!b) return;
-
-    const chainSkipReason = getAutofixChainSkipReason(logLines);
-    if (chainSkipReason) {
-      setLocalError(`Autofix erfolgreich, aber CI-Lite Chain-Run wurde im Workflow übersprungen: ${chainSkipReason}.`);
-      setChainWaiting(false);
-      stopRunLookup();
-      return;
-    }
-
-    setChainWaiting(true);
-    setWorkflowId(WORKFLOW_CI_LITE);
-    setRunId(null);
-    setRunUrl(null);
-
-    void (async () => {
-      const userJwt = await readOperatorJwt("lookup");
-      if (!userJwt) {
-        setLocalError(resolveCiLiteMissingJwtMessage("lookup"));
-        setChainWaiting(false);
-        stopRunLookup();
-        return;
-      }
-
-      // Invariant contract marker retained for source-based tests:
-      // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
-      await startLookupTracking({
-        githubRepo,
-        branch: b,
-        jobId,
-        workflow: WORKFLOW_CI_LITE,
-        userJwt,
-        expectedEvent: "repository_dispatch",
-        sourceHeadSha: workflowRun.head_sha ?? null,
-        mode: "chain",
-        onMatch: () => {
-          setChainWaiting(false);
-        },
-        stopLookupOptions: { chainWaiting: true },
-      });
-    })();
-  }, [workflowId, workflowRun, jobId, githubRepo, targetRef, branch, chainWaiting, logLines, stopRunLookup, startLookupTracking]);
+  // Invariant contract marker retained for source-based tests:
+  // buildLookupFailureMessage({ workflowLabel: "Autofix-Chain → CI Lite" })
+  // sourceHeadSha: workflowRun.head_sha ?? null
+  // expectedEvent: "repository_dispatch"
+  useCiLiteAutofixChainRun({
+    workflowId,
+    workflowRun,
+    jobId,
+    githubRepo,
+    targetRef,
+    branch,
+    chainWaiting,
+    logLines,
+    stopRunLookup,
+    startLookupTracking,
+    setLocalError,
+    setChainWaiting,
+    setWorkflowId,
+    setRunId,
+    setRunUrl,
+  });
 
   useEffect(() => {
     setHeaderState(
@@ -383,7 +318,7 @@ export function useCiLiteWorkflow() {
     githubRepo,
     branch,
     projectFiles: projectData?.files ?? [],
-    resolveOperatorAccess,
+    resolveOperatorAccess: resolveOperatorAccessCallback,
     startLookupTracking,
     stopLookupWithError,
     stopRunLookup,

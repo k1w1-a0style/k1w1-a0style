@@ -1,16 +1,20 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: Der reale Release-Pfad war initial reproduzierbar rot (`typecheck:edge` brach auf `preview_invalid_payload` vs. `preview_payload_invalid`), wurde im selben Durchlauf behoben und danach mit `check_release_readiness` wieder lokal belastbar bestaetigt (`OK_WITH_SKIPS` wegen fehlender Live-Edge-Env-Variablen fuer Vertrags-Smokes).
+> Letzter Voll-Gate im aktuellen Durchlauf: lokale Vollchecks plus Live-Edge-Contracts liefen mit gesetzten Live-Variablen vollstaendig gruen (`OK_FULL`), inklusive `k1w1-handler`, `preview_page` und `save_preview`.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
 ### Ergebnis
 
+- `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.
+- Bekannter Live-Drift wird jetzt klarer eingegrenzt: falls `preview_page` live weiter `Missing ?secret=...` liefert, meldet der Check explizit Legacy-Deploy-Drift statt unscharfem Generic-Fail.
+- `check_release_readiness.sh` ist gegen fehlendes globales `tsc` robust gemacht (repo-lokaler Aufruf + `npx`-Fallback), ohne Checks zu entfernen/aufzuweichen.
+- Live-Variable-SoT ist jetzt explizit: `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` bevorzugt als masked Runner-Secrets; lokaler URL-Fallback ueber Projekt-Ref `xfgnzpcljsuqqdjlxgul`; JWTs/API-Keys bleiben strikt ausserhalb Repo-Dateien.
 - `HookHotspotRestabschluss` ist jetzt finalisiert: `useGitHubRepos` (Pull-Orchestrierung), `useCredentialsWizardScreen` (Action-/Status-Meta), `useChatScreen` (Animations-Side-Effects) und `useEnhancedBuildScreen` (Derived Readiness/Filter/Checklist/Logs) sind weiter entmischt, bei stabiler Public-Hook-Shape.
 - `LocalRemoteDiffSectionRefactor` ist abgeschlossen: der bisherige Monolith wurde entlang Container/Model/pure Diff-/Fingerprint-Helper/List-/Modal-UI/Types aufgeteilt; die oeffentliche Section-Importform bleibt kompatibel ueber einen schlanken Re-Export.
 - `RefactorSoTDrift` ist im selben Durchlauf geschlossen: README/TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT sowie CHECKLOG/PATCHLOG spiegeln jetzt denselben echten Refactor-Stand statt eines Analyse-only-Headers.
@@ -78,7 +82,7 @@ Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 - `bash scripts/check_edge_helper_visibility.sh`
 - `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
-- Ergebnis `check_release_readiness`: `OK_WITH_SKIPS` (Live-Contract-Smokes nur mit gesetztem `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`; ohne diese Variablen kein behauptetes Full-Live-Green).
+- Ergebnis `check_release_readiness`: `OK_FULL` (Live-Variablen gesetzt; Live-Contract-Smokes real ausgefuehrt).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 

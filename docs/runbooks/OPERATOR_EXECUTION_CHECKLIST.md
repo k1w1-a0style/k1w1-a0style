@@ -51,13 +51,20 @@ Optional isoliert:
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" \
 EDGE_OPERATOR_JWT="<extern provisionierter build_admin jwt>" \
 npm run edge:check:live
+# umfasst jetzt auch save_preview-Transport-Contract (fragment/header, kein ?secret=)
 ```
+
+Sichere Variablenquelle:
+- Runner/CI: `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` als masked secrets injizieren.
+- Lokaler URL-Fallback: Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
+- JWT lokal nur kurzlebig nutzen; fuer dauerhafte technische Checks bevorzugt serverseitigen Secret-Weg als Runner-Secret.
 
 ## 5) Erwartete Resultate
 
 - [ ] `verify:release` zeigt fuer vollständiges Sign-off `OK_FULL`; `OK_WITH_SKIPS` ist nur partial/local evidence und **kein** Voll-Sign-off.
 - [ ] Live-Checks laufen nicht mehr im SKIP-Pfad (ENV gesetzt).
 - [ ] Read-only Vertragsantworten entsprechen Runbook-Erwartung.
+- [ ] Bei Preview-Vertrag: kein Legacy-`?secret=`-Response mehr; bei Drift `preview_page`/`save_preview` gezielt redeployen.
 - [ ] `verify_jwt` fuer `save_preview` und `k1w1-handler` im Zielprojekt aktiv bestaetigt (`true`).
 
 ## 6) Troubleshooting (schnell)

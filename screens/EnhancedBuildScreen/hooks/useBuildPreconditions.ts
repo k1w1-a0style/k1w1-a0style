@@ -8,6 +8,16 @@ import type { VerificationContractState } from "../../../lib/status/verification
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
 
+async function readTokenOrUnavailable(read: () => Promise<string | null>): Promise<string | null> {
+  try {
+    const value = await read();
+    const trimmed = String(value ?? "").trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
+}
+
 export function useBuildPreconditions(
   buildProfile: BuildProfile,
   repoFullName: string,
@@ -56,8 +66,8 @@ export function useBuildPreconditions(
     try {
       // Tokens
       const [gh, expo] = await Promise.all([
-        getGitHubToken().catch(() => ""),
-        getExpoToken().catch(() => ""),
+        readTokenOrUnavailable(getGitHubToken),
+        readTokenOrUnavailable(getExpoToken),
       ]);
       applyIfCurrent(() => setHasTokens(!!(gh && expo)));
 

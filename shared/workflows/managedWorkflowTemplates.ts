@@ -3,7 +3,12 @@ import { WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE } from "./templates/ciLiteAutofi
 import { WORKFLOW_K1W1_CI_LITE_TEMPLATE } from "./templates/ciLiteTemplate";
 import { WORKFLOW_K1W1_DIAGNOSTICS_TEMPLATE } from "./templates/k1w1DiagnosticsTemplate";
 
-export { CI_LITE_ALLOWED_REF_REGEX, MANAGED_BY_MARKER, WORKFLOW_VERSION_399_MARKER } from "./templateContracts";
+export {
+  CI_LITE_ALLOWED_REF_REGEX,
+  CI_LITE_WORKFLOW_VERSION,
+  CI_LITE_WORKFLOW_VERSION_MARKER,
+  MANAGED_BY_MARKER,
+} from "./templateContracts";
 
 export const WORKFLOW_TEMPLATES: Record<string, string> = {
   "k1w1-diagnostics.yml": WORKFLOW_K1W1_DIAGNOSTICS_TEMPLATE,

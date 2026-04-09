@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
@@ -47,9 +47,25 @@ Oder als kompletter Verify-Pfad:
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run verify:release
 ```
 
+### Variable-/Secret-Bezug fuer Live-Checks (ohne Secret-Leaks)
+
+Pflichtvariablen:
+- `EDGE_BASE_URL`
+- `EDGE_OPERATOR_JWT`
+
+Sichere Bezugswege (Reihenfolge):
+1. **CI/Runner (bevorzugt):** als masked Repo-Secrets `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` injizieren.
+2. **Lokaler URL-Fallback:** Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `EDGE_BASE_URL="https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1"`.
+3. **JWT-Fallback lokal:** kurzlebiger `build_admin`-JWT (temporär) oder stabilerer technischer Server-Caller-Weg als Secret in sicherer Umgebung (z. B. service_role im Runner), nie als Klartext im Repo.
+
+Wichtig:
+- Keine JWTs/API-Keys/Passwörter in Dateien, Commits oder Logs schreiben.
+- Der Live-Signoff ist env-/token-gebunden; ohne diese Variablen bleibt `verify:release` ehrlich `OK_WITH_SKIPS`.
+
 ### Wichtige Grenze der Live-Contract-Checks (verify_jwt)
 
-- `npm run edge:check:live` prueft aktuell API-Verhalten (z. B. Error-Codes/Antwortstruktur), nicht direkt Dashboard-Flags.
+- Zuletzt bestaetigter Volllauf: mit gesetzten `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` liefen `edge:check:live` und `verify:release` auf `OK_FULL`.
+- `npm run edge:check:live` prueft aktuell live drei Contract-Kanten: `k1w1-handler` invalid JSON, `preview_page` missing-header fail-closed, und `save_preview` Fragment-Transport (`transport=fragment#secret=...` ohne Query-`?secret=`). Dashboard-Flags bleiben weiterhin separater Operator-Audit.
 - Der operatorische Flag-Audit ist fuer den aktuellen Stand erfolgt: live ist fuer `save_preview` und `k1w1-handler` `verify_jwt=true` bestaetigt.
 - Fuer kuenftige Releases bleibt ein expliziter Flag-Abgleich sinnvoll, weil ein spaeterer Dashboard-Drift durch reine Verhaltenschecks nicht sicher ausgeschlossen wird.
 

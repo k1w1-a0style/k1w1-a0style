@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-09 (Patch 765, Hotspot-Restabschluss in Hook-Fassaden abgeschlossen)**
+Stand: **2026-04-09 (Patch 767, ReleaseReadinessToolingRobustness + Live-Variable-SoT-Finish)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

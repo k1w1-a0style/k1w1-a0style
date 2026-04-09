@@ -103,7 +103,12 @@ function parsePayloadFromText(text: string): unknown {
 }
 
 export async function readCiLiteErrorResponse(response: Response): Promise<{ payload: unknown; text: string }> {
-  const text = await response.text().catch(() => "");
+  let text = "";
+  try {
+    text = await response.text();
+  } catch {
+    text = "response_text_unavailable";
+  }
   const payload = parsePayloadFromText(text);
   return { payload, text };
 }

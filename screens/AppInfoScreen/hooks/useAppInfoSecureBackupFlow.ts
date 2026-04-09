@@ -50,6 +50,27 @@ export type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
 
+
+async function readSecretOrNull(read: () => Promise<string | null>): Promise<string | null> {
+  try {
+    const value = await read();
+    const trimmed = String(value ?? "").trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readStorageOrNull(key: string): Promise<string | null> {
+  try {
+    const value = await AsyncStorage.getItem(key);
+    const trimmed = String(value ?? "").trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
+}
+
 type GitHubSelectionDeps = {
   activeRepo: string | null;
   activeBranch: string | null;
@@ -92,21 +113,21 @@ export function useAppInfoSecureBackupFlow(params: {
 
   const collectSecretBackupPayload = useCallback(async () => {
     const [githubToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, signingAdminKey, signingMasterKey] = await Promise.all([
-      getGitHubToken().catch(() => null),
-      getExpoToken().catch(() => null),
-      getWorkflowAdminKey().catch(() => null),
-      getAndroidKeystoreExportAdminKey().catch(() => null),
-      getSigningAdminKey().catch(() => null),
-      getSigningMasterKey().catch(() => null),
+      readSecretOrNull(getGitHubToken),
+      readSecretOrNull(getExpoToken),
+      readSecretOrNull(getWorkflowAdminKey),
+      readSecretOrNull(getAndroidKeystoreExportAdminKey),
+      readSecretOrNull(getSigningAdminKey),
+      readSecretOrNull(getSigningMasterKey),
     ]);
 
     await removeLegacyClientServiceRoleKeys();
 
     const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] = await Promise.all([
-      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
-      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
-      getSupabaseAnonKey().catch(() => ""),
-      AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
+      readStorageOrNull(STORAGE_KEYS.SUPABASE_RAW),
+      readStorageOrNull(STORAGE_KEYS.SUPABASE_URL),
+      readSecretOrNull(getSupabaseAnonKey),
+      readStorageOrNull(STORAGE_KEYS.EAS_PROJECT_ID),
     ]);
 
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
