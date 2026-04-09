@@ -22,8 +22,11 @@ describe("Patch 476 flow-copy consistency invariants", () => {
   it("keeps EAS responsibility split between Connections and Repo flow", () => {
     const connections = read("screens/ConnectionsScreen/components/EasCard.tsx");
     const repos = read("screens/GitHubReposScreen/index.tsx");
+    const easLinkSection = read("screens/GitHubReposScreen/components/EasLinkSection.tsx");
 
     expect(connections).toContain("Wird beim EAS-Link im GitHub-Repos-Screen genutzt");
-    expect(repos).toContain("Tokens/Grundverbindungen pflegst du weiterhin im Verbindungen-Screen.");
+    expect(repos + easLinkSection).toContain(
+      "Tokens/Grundverbindungen pflegst du weiterhin im Verbindungen-Screen.",
+    );
   });
 });

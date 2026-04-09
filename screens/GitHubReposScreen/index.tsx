@@ -6,8 +6,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  Pressable,
-  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +32,8 @@ import { LocalRemoteDiffSection } from "./components/LocalRemoteDiffSection";
 import { PushOptionsModal } from "./components/PushOptionsModal";
 import { PullPreviewModal } from "./components/PullPreviewModal";
 import { getErrorMessage } from "./hooks/githubReposScreenErrorHelpers";
+import { EasLinkSection } from "./components/EasLinkSection";
+import { buildRepoListData } from "./utils/repoListViewModel";
 
 export default function GitHubReposScreen() {
   const s = styles;
@@ -149,26 +149,17 @@ export default function GitHubReposScreen() {
     [handleSelectRepo, setShowRenameRepo],
   );
 
-  const repoData: GitHubRepo[] = useMemo(() => {
-    if (!(showRepoList ?? true)) return [];
-    if (filteredRepos.length > 0) return filteredRepos;
-
-    if (activeRepo) {
-      return [
-        {
-          id: `linked:${activeRepo}`,
-          name: activeRepo.split("/").pop() || activeRepo,
-          full_name: activeRepo,
-          private: true,
-          default_branch: activeBranch || undefined,
-          owner: { login: activeRepo.split("/")[0] || userLogin || "unknown" },
-          html_url: `https://github.com/${activeRepo}`,
-        } as unknown as GitHubRepo,
-      ];
-    }
-
-    return [];
-  }, [filteredRepos, showRepoList, activeRepo, activeBranch, userLogin]);
+  const repoData: GitHubRepo[] = useMemo(
+    () =>
+      buildRepoListData({
+        showRepoList,
+        filteredRepos,
+        activeRepo,
+        activeBranch,
+        userLogin,
+      }),
+    [filteredRepos, showRepoList, activeRepo, activeBranch, userLogin],
+  );
 
   const renderRepoItem = useCallback(
     ({ item }: { item: GitHubRepo }) => (
@@ -282,84 +273,16 @@ export default function GitHubReposScreen() {
       )}
 
       {activeRepo && (
-        <View style={[s.section, s.sectionNeon]} testID="eas-link-section">
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={s.sectionTitle}>EAS Link</Text>
-            <View style={s.chipRow}>
-              <View
-                style={[
-                  s.chip,
-                  easLinkStatus.state === "verified" ? s.chipActive : null,
-                  easLinkStatus.tone === "error" ? { borderColor: theme.palette.error } : null,
-                  easLinkStatus.tone === "warn" ? { borderColor: theme.palette.warning ?? theme.palette.primary } : null,
-                ]}
-              >
-                <Text
-                  style={[
-                    s.chipText,
-                    easLinkStatus.state === "verified" ? s.chipTextActive : null,
-                    easLinkStatus.tone === "error" ? { color: theme.palette.error } : null,
-                    easLinkStatus.tone === "warn" ? { color: theme.palette.warning ?? theme.palette.primary } : null,
-                  ]}
-                >
-                  {easLinkStatus.label}
-                </Text>
-              </View>
-
-              <Pressable
-                testID="eas-link-refresh"
-                onPress={() => void handleEasLinkStatusCheck()}
-                style={({ pressed }: { pressed: boolean }) => [s.iconBtn, pressed && { opacity: 0.7 }]}
-                accessibilityLabel="EAS Status prüfen"
-              >
-                <Ionicons name="refresh" size={18} color={theme.palette.primary} />
-              </Pressable>
-            </View>
-          </View>
-
-          <Text style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginTop: -2, marginBottom: 8 }}>
-            Dieser Repo-Schritt prueft Workflow und Projektdatei getrennt. Nur ein voll passender Workflow plus passende
-            <Text style={{ fontFamily: "monospace", color: theme.palette.text.primary }}> eas-project.json</Text> gilt hier als verifiziert.
-            Tokens/Grundverbindungen pflegst du weiterhin im Verbindungen-Screen.
-          </Text>
-
-          <Text
-            testID="eas-link-detail"
-            style={{ fontSize: 12, color: theme.palette.text.secondary, lineHeight: 18, marginBottom: 10 }}
-          >
-            {easLinkStatus.detail}
-          </Text>
-
-          <TextInput
-            testID="eas-project-id"
-            value={easProjectId}
-            onChangeText={setEasProjectId}
-            placeholder="EAS Project ID (optional)"
-            placeholderTextColor={theme.palette.text.secondary}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={s.searchInput}
-          />
-
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-            <Pressable
-              testID="eas-link-run"
-              onPress={() => void handleEasLink()}
-              disabled={isEasLinking}
-              style={({ pressed }: { pressed: boolean }) => [s.button, pressed && { opacity: 0.85 }, isEasLinking && s.buttonDisabled]}
-            >
-              <Text style={s.buttonText}>{isEasLinking ? "EAS Link läuft…" : "EAS Projekt erstellen/verbinden"}</Text>
-            </Pressable>
-
-            <Pressable
-              testID="eas-link-open"
-              onPress={() => activeRepo && handleOpenRepoOnGitHub()}
-              style={({ pressed }: { pressed: boolean }) => [s.button, s.buttonSecondary, pressed && { opacity: 0.85 }]}
-            >
-              <Text style={s.buttonTextSecondary}>Repo öffnen</Text>
-            </Pressable>
-          </View>
-        </View>
+        <EasLinkSection
+          easLinkStatus={easLinkStatus}
+          easProjectId={easProjectId}
+          setEasProjectId={setEasProjectId}
+          isEasLinking={isEasLinking}
+          handleEasLinkStatusCheck={handleEasLinkStatusCheck}
+          handleEasLink={handleEasLink}
+          handleOpenRepoOnGitHub={handleOpenRepoOnGitHub}
+          activeRepo={activeRepo}
+        />
       )}
 
       <RepoSyncSection

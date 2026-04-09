@@ -8,7 +8,10 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
-import { resolveCiLiteDispatchSelection, resolveCiLiteSyncStateError } from "./useCiLiteWorkflowHelpers";
+import {
+  resolveCiLiteDispatchSelection,
+  resolveCiLiteSyncStateError,
+} from "./useCiLiteWorkflowContracts";
 
 type UseCiLiteDispatchParams = {
   dispatching: boolean;

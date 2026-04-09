@@ -21,10 +21,16 @@ import {
   isCiLiteRunContextActive,
   resolveCiLiteDisplaySnapshot,
   resolveCiLiteTargetRef,
-  resolveCiLiteMissingJwtMessage,
   getAutofixChainSkipReason,
   getCiLiteWorkflowErrorMessage,
 } from "./useCiLiteWorkflowHelpers";
+import {
+  buildCiLiteRunMeta,
+  collectCiLiteErrorLines,
+  resolveCiLiteDone,
+  resolveEffectiveCiLiteWorkflowRun,
+} from "./useCiLiteWorkflowDerivations";
+import { resolveCiLiteMissingJwtMessage } from "./useCiLiteWorkflowContracts";
 import { getArtifactUiMessage } from "./ciLiteWorkflowNoticeHelpers";
 import { useCiLiteDispatch } from "./useCiLiteDispatch";
 import { useCiLiteRunLookup } from "./useCiLiteRunLookup";
@@ -243,27 +249,26 @@ export function useCiLiteWorkflow() {
     return inferStepStates(logLines);
   }, [logLines, hydratedDisplaySnapshot]);
 
-  const onlyErrors = useMemo(() => {
-    const out: string[] = [];
-    for (const l of logLines) {
-      if (/error\s+TS\d+:/i.test(l)) out.push(l);
-      else if (/\serror\s{2,}/i.test(l) && !/error\s+TS\d+:/i.test(l)) out.push(l);
-      else if (/JSX element .* has no corresponding closing tag/i.test(l)) out.push(l);
-      else if (/Process completed with exit code\s+(?!0)\d+/i.test(l)) out.push(l);
-    }
-    return out;
-  }, [logLines]);
+  const onlyErrors = useMemo(() => collectCiLiteErrorLines(logLines), [logLines]);
 
-  const effectiveWorkflowRun = workflowRun ?? (hydratedDisplaySnapshot
-    ? { status: "completed", conclusion: hydratedDisplaySnapshot.conclusion }
-    : null);
+  const effectiveWorkflowRun = useMemo(
+    () =>
+      resolveEffectiveCiLiteWorkflowRun({
+        workflowRun,
+        hydratedConclusion: hydratedDisplaySnapshot?.conclusion,
+      }),
+    [workflowRun, hydratedDisplaySnapshot?.conclusion],
+  );
 
-  const done = useMemo(() => {
-    if (workflowRun?.status === "completed") return true;
-    if (hydratedDisplaySnapshot) return true;
-    if (logLines?.some((l) => /Process completed with exit code/i.test(l))) return true;
-    return false;
-  }, [workflowRun?.status, logLines, hydratedDisplaySnapshot]);
+  const done = useMemo(
+    () =>
+      resolveCiLiteDone({
+        workflowStatus: workflowRun?.status,
+        hasHydratedSnapshot: Boolean(hydratedDisplaySnapshot),
+        logLines,
+      }),
+    [workflowRun?.status, logLines, hydratedDisplaySnapshot],
+  );
 
   const showError = safeUi(
     localError ||
@@ -394,22 +399,7 @@ export function useCiLiteWorkflow() {
     setTargetRef,
   });
 
-  const runMeta = useMemo(() => {
-    if (!workflowRun?.created_at) return null;
-    const created = Date.parse(workflowRun.created_at);
-    const updated = Date.parse(workflowRun.updated_at || workflowRun.created_at);
-    const durMs = Number.isFinite(created) && Number.isFinite(updated) ? Math.max(0, updated - created) : 0;
-    const durSec = Math.round(durMs / 1000);
-    return {
-      id: workflowRun.id,
-      runNumber: workflowRun.run_number,
-      status: workflowRun.status,
-      conclusion: workflowRun.conclusion || "—",
-      duration: durSec ? `${durSec}s` : "—",
-      url: runUrl || workflowRun.html_url,
-      updatedAt: workflowRun.updated_at,
-    };
-  }, [workflowRun, runUrl]);
+  const runMeta = useMemo(() => buildCiLiteRunMeta({ workflowRun, runUrl }), [workflowRun, runUrl]);
 
   return {
     visible, setVisible,

@@ -5,16 +5,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useProject } from "../contexts/ProjectContext";
-import { buildSandpackHtml } from "../lib/sandpackBuilder";
-import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
-import type { PreviewFiles } from "../types/preview";
 
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
   describeEmptyRemotePreviewFiles,
-  describeRemotePreviewFailure,
-  invokeSavePreview,
   isAllowedFile,
   isProjectFile,
   sanitizePreviewPath,
@@ -26,13 +21,11 @@ import type { PreviewResult, PreviewState } from "./previewHelpers";
 import {
   buildPreviewDependencies,
   buildPreviewFileMap,
-  buildSnackPreviewFiles,
   ensureMinimumPreviewFiles,
-  extractSessionAccessToken,
-  getErrorStatusCode,
   normalizePreviewFilesForWeb,
   PREVIEW_REMOTE_FAIL_CLOSED_MESSAGE,
 } from "./usePreviewFlowHelpers";
+import { createLocalFallbackPreview, tryCreateSupabasePreview } from "./usePreviewCreation";
 
 export interface UsePreviewReturn {
   state: PreviewState;
@@ -53,7 +46,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   const { setLastPreview, setPreferredPreviewMode } = useProject();
   const [lastPreview, setLastPreviewState] = useState<PreviewResult | null>(null);
 
-  // Hardening: prevent concurrent preview creation and avoid state updates after unmount.
   const isAliveRef = useRef(true);
   const inFlightRef = useRef<Promise<PreviewResult | null> | null>(null);
 
@@ -82,7 +74,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
     setLastPreviewState(v);
   }, []);
 
-  // Restore last preview from persisted project data (fast toggle from header)
   useEffect(() => {
     const persisted = projectData?.lastPreview ?? null;
     setLastPreviewState((prev) => {
@@ -95,8 +86,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         source: persisted.source,
       };
 
-      // Keep in-memory HTML only when the persisted metadata still matches.
-      // This avoids stale preview carry-over when switching projects/screens.
       if (
         prev &&
         prev.url === restored.url &&
@@ -136,7 +125,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       return;
     }
 
-    // Nur den transienten Hinweis zurücksetzen; andere Fehler bleiben erhalten.
     setError((prev) =>
       prev?.startsWith("Hinweis: Der letzte lokale HTML-/Eval-Fallback") ? null : prev,
     );
@@ -158,16 +146,13 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
   );
 
   const { fileMap, totalSize, skippedCount } = previewFiles;
-
   const dependencies = useMemo(() => buildPreviewDependencies(fileMap), [fileMap]);
 
   const preferredMode = projectData?.preferredPreviewMode ?? "supabase";
-
   const attemptSupabaseFirst = shouldAttemptSupabaseFirst(preferredMode);
   const localFallbackExplicitlyEnabled = shouldUseLocalPreviewFallback(preferredMode);
 
   const createPreview = useCallback(async (): Promise<PreviewResult | null> => {
-    // Singleflight: reuse the in-flight promise (prevents double-tap races).
     if (inFlightRef.current) return inFlightRef.current;
 
     const run = (async (): Promise<PreviewResult | null> => {
@@ -184,77 +169,21 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         const hasRemoteProjectFiles = Object.keys(fileMap).length > 0;
         const files = normalizePreviewFilesForWeb(ensureMinimumPreviewFiles(fileMap));
 
-        // 1) Prefer Supabase-hosted preview (visual mode)
         if (attemptSupabaseFirst && hasRemoteProjectFiles) {
-          let userJwt: string | null = null;
-          try {
-            const supabase = await ensureSupabaseClient();
-            const sessionResult = await supabase.auth.getSession().catch(() => null);
-            userJwt = extractSessionAccessToken(sessionResult);
-
-            if (!userJwt) {
-              throw new Error("Missing Supabase Preview JWT");
-            }
-
-            const snackFiles: PreviewFiles = buildSnackPreviewFiles(files);
-            const resolvedDependencies = dependencies ?? {};
-            const dependencyCount = Object.keys(resolvedDependencies).length;
-            const fileCount = Object.keys(snackFiles).length;
-
-            const invokeOpts = {
-              projectId: projectData.id,
-              name: projectData.name || "Preview",
-              files: snackFiles,
-              dependencies: resolvedDependencies,
-              meta: {
-                template: "react",
-                debug: {
-                  source: "usePreview",
-                  fileCount,
-                  dependencyCount,
-                },
-              },
-            };
-
-            const resp = await invokeSavePreview({
-              bearerJwt: userJwt,
-              payload: invokeOpts,
-            });
-            const previewUrl =
-              typeof resp?.previewUrl === "string" ? resp.previewUrl : null;
-
-            if (resp?.ok && previewUrl) {
-              const result: PreviewResult = {
-                url: previewUrl,
-                html: null,
-                expiresAt: resp?.expiresAt ?? null,
-                source: "supabase",
-              };
-
-              safeSetLastPreviewState(result);
-              safeSetRemoteFailure(null);
-              await setLastPreview({
-                url: result.url,
-                source: result.source,
-                createdAt: new Date().toISOString(),
-                expiresAt: result.expiresAt,
-              } as LastPreviewMeta);
-              if (setPreferredPreviewMode) await setPreferredPreviewMode("supabase");
-              safeSetLastCreatedAt(Date.now());
-              return result;
-            }
-
-            throw new Error(resp?.error || "Preview konnte nicht erstellt werden");
-          } catch (supErr: unknown) {
-            safeSetRemoteFailure(
-              describeRemotePreviewFailure({
-                bearerJwt: userJwt,
-                statusCode: getErrorStatusCode(supErr),
-                error: supErr,
-              }),
-            );
-            logger.warn("[usePreview] ⚠️ Supabase Preview fehlgeschlagen", supErr);
-          }
+          const { result } = await tryCreateSupabasePreview({
+            projectData,
+            files,
+            dependencies,
+            setLastPreview: (meta) => setLastPreview(meta as LastPreviewMeta),
+            setPreferredPreviewMode,
+            setters: {
+              setLastPreviewState: safeSetLastPreviewState,
+              setRemoteFailure: safeSetRemoteFailure,
+              setError: safeSetError,
+              setLastCreatedAt: safeSetLastCreatedAt,
+            },
+          });
+          if (result) return result;
         } else if (attemptSupabaseFirst) {
           safeSetRemoteFailure(
             describeEmptyRemotePreviewFiles({
@@ -269,43 +198,18 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
           throw new Error(PREVIEW_REMOTE_FAIL_CLOSED_MESSAGE);
         }
 
-        // 2) Explicit local mode only: local HTML/Eval preview for dev/best-effort.
-        let html: string;
-        try {
-          html = buildSandpackHtml({
-            title: projectData.name || "Preview",
-            files,
-            dependencies,
-            allowUnsafeLocalEval:
-              (typeof __DEV__ !== "undefined" && __DEV__) || process.env.NODE_ENV === "test",
-          });
-        } catch (e) {
-          logger.error("[usePreview] buildSandpackHtml failed", { err: e });
-          safeSetError("Lokaler Dev-Fallback konnte nicht erzeugt werden.");
-          return null;
-        }
-
-        if (!html || typeof html !== "string") {
-          safeSetError("Lokaler Dev-Fallback konnte nicht erzeugt werden.");
-          return null;
-        }
-
-        const fallback: PreviewResult = {
-          url: null,
-          html,
-          expiresAt: null,
-          source: "local",
-        };
-
-        safeSetLastPreviewState(fallback);
-        await setLastPreview({
-          url: fallback.url,
-          source: fallback.source,
-          createdAt: new Date().toISOString(),
-          expiresAt: fallback.expiresAt,
-        } as LastPreviewMeta);
-        safeSetLastCreatedAt(Date.now());
-        return fallback;
+        return createLocalFallbackPreview({
+          projectData,
+          files,
+          dependencies,
+          setLastPreview: (meta) => setLastPreview(meta as LastPreviewMeta),
+          setters: {
+            setLastPreviewState: safeSetLastPreviewState,
+            setRemoteFailure: safeSetRemoteFailure,
+            setError: safeSetError,
+            setLastCreatedAt: safeSetLastCreatedAt,
+          },
+        });
       } catch (e: unknown) {
         const message =
           e instanceof Error ? e.message : "Unbekannter Fehler beim Erstellen.";
@@ -319,7 +223,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
     inFlightRef.current = run;
     return run.finally(() => {
-      // Ensure the lock is released even if the component unmounted.
       inFlightRef.current = null;
     });
   }, [
@@ -332,7 +235,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
     safeSetLastPreviewState,
     setLastPreview,
     setPreferredPreviewMode,
-    preferredMode,
     attemptSupabaseFirst,
     localFallbackExplicitlyEnabled,
     skippedCount,
@@ -359,7 +261,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
     [isCreating, lastCreatedAt, error, remoteFailure, fileMap, totalSize, skippedCount],
   );
 
-  // Content-aware fingerprint: key + per-file content hash (same-length edits are detected).
   const filesFingerprint = useMemo(() => {
     const keys = Object.keys(fileMap).sort();
     const totalLen = Object.values(fileMap).reduce((sum, content) => sum + content.length, 0);
