@@ -11,6 +11,7 @@ import {
   getExpoToken,
 } from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
+import { logger } from "../../../lib/logger";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
 import { readBuildReadinessState } from "./buildReadinessState";
@@ -93,7 +94,8 @@ export function useOneClickDeploy(
         if (cancelled) return;
         setAutoSyncSecrets(value === "true");
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        logger.warn("[EnhancedBuild] failed to read one-click auto-sync preference", { error });
         if (cancelled) return;
         setAutoSyncSecrets(false);
       });
@@ -109,7 +111,9 @@ export function useOneClickDeploy(
       const setItem = resolveAsyncStorageSetItem();
       if (setItem) {
         setItem(STORAGE_KEYS.ONE_CLICK_AUTO_SYNC_SECRETS, next ? "true" : "false").catch(
-          () => {},
+          (error: unknown) => {
+            logger.warn("[EnhancedBuild] failed to persist one-click auto-sync preference", { error });
+          },
         );
       }
       return next;
@@ -167,8 +171,14 @@ export function useOneClickDeploy(
       // === Step 2: Tokens pruefen ===
       updateStep("tokens", "running");
       const [ghToken, expoToken] = await Promise.all([
-        getGitHubToken().catch(() => null),
-        getExpoToken().catch(() => null),
+        getGitHubToken().catch((error: unknown) => {
+          logger.warn("[EnhancedBuild] getGitHubToken failed during one-click deploy", { error });
+          return null;
+        }),
+        getExpoToken().catch((error: unknown) => {
+          logger.warn("[EnhancedBuild] getExpoToken failed during one-click deploy", { error });
+          return null;
+        }),
       ]);
       if (abortRef.current) return;
 
@@ -204,7 +214,10 @@ export function useOneClickDeploy(
           linkedRepo: repoFullName,
           linkedBranch: branchName,
           files,
-        }).catch(() => "unknown" as const);
+        }).catch((error: unknown) => {
+          logger.warn("[EnhancedBuild] getRepoSyncState failed during one-click deploy readiness", { error });
+          return "unknown" as const;
+        });
 
         if (abortRef.current) return;
 

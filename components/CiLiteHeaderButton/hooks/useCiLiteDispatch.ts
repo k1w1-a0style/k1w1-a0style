@@ -7,6 +7,7 @@ import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { logger } from "../../../lib/logger";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
 import {
   resolveCiLiteDispatchSelection,
@@ -83,7 +84,15 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
         }
         params.setTargetRef(targetBranch);
 
-        const sourceHeadSha = await getBranchHeadSha(owner, repo, targetBranch).catch(() => null);
+        const sourceHeadSha = await getBranchHeadSha(owner, repo, targetBranch).catch((error: unknown) => {
+          logger.warn("[CiLiteDispatch] getBranchHeadSha failed, continuing without sourceHeadSha", {
+            owner,
+            repo,
+            targetBranch,
+            error,
+          });
+          return null;
+        });
 
         const operatorAccess = await params.resolveOperatorAccess("dispatch");
         const edgeUrl = await requireSupabaseEdgeUrl();
