@@ -239,3 +239,9 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
     return ok({ id: this.id, title: this.title, severity: this.severity });
   },
 };
+
+export const assetsAndFilesExtraChecks = {
+  checkLockfileConsistency,
+  checkGitignorePresent,
+  checkEasWithoutCredentialsForDebug,
+} as const;

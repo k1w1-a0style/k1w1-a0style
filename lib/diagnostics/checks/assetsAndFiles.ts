@@ -11,10 +11,14 @@ import {
   readNativeDirState,
 } from "./assetsAndFiles.helpers";
 import {
-  checkEasWithoutCredentialsForDebug,
-  checkGitignorePresent,
-  checkLockfileConsistency,
+  assetsAndFilesExtraChecks,
 } from "./assetsAndFiles.checks";
+
+const {
+  checkLockfileConsistency,
+  checkGitignorePresent,
+  checkEasWithoutCredentialsForDebug,
+} = assetsAndFilesExtraChecks;
 
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
