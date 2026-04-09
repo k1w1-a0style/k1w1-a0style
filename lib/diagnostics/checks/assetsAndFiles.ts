@@ -3,25 +3,19 @@ import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
   normalizePath, byPath, has, getText, ok, mkFix, mkJsonFix,
-  existsAny, parseJson, ensureEndsWithNewline,
+  existsAny, ensureEndsWithNewline,
   gitignoreAppendMissing, npmrcLockfileSetting,
 } from "../preflightHelpers";
-
-type EasWithoutCredentialsPatchProfile = Readonly<{
-  android: Readonly<{
-    withoutCredentials: true;
-  }>;
-}>;
-
-type EasProfileConfig = Readonly<{
-  android?: Readonly<{
-    withoutCredentials?: boolean;
-  }>;
-}>;
-
-type EasJson = Readonly<{
-  build?: Readonly<Record<string, EasProfileConfig | undefined>>;
-}>;
+import {
+  buildWithoutCredentialsPatch,
+  collectForbiddenFileHits,
+  collectMissingGitignoreEntries,
+  GITIGNORE_TEMPLATE,
+  parseAssetCandidates,
+  parseEasJson,
+  readNativeDirState,
+  readWithoutCredentialsEnabled,
+} from "./assetsAndFiles.helpers";
 
 export const checkAssetsExist: PreflightCheck = {
   id: "assets-exist",
@@ -48,17 +42,7 @@ export const checkAssetsExist: PreflightCheck = {
 
     const cfgText = getText(m, cfgPath);
 
-    const iconMatches = [...cfgText.matchAll(/"icon"\s*:\s*"([^"]+)"/g)]
-      .map((x) => x[1])
-      .filter(Boolean);
-
-    const splashMatches = [...cfgText.matchAll(/"image"\s*:\s*"([^"]+)"/g)]
-      .map((x) => x[1])
-      .filter(Boolean);
-
-    const candidates = [...new Set([...iconMatches, ...splashMatches])]
-      .map((p) => normalizePath(p.replace(/^\.\//, "")))
-      .filter((p) => p && !p.startsWith("http"));
+    const candidates = parseAssetCandidates(cfgText);
 
     if (!candidates.length) {
       return ok({
@@ -225,26 +209,7 @@ export const checkGitignorePresent: PreflightCheck = {
       const content = getText(m, ".gitignore");
 
       // keep this list small + relevant for exported projects
-      const misses: string[] = [];
-      const mustHave = [
-        "node_modules/",
-        ".expo/",
-        ".expo-shared/",
-        ".vscode/",
-        ".idea/",
-        ".env",
-        "dist/",
-        "build/",
-        "web-build/",
-        "*.log",
-      ];
-
-      const lowered = content.toLowerCase();
-      for (const entry of mustHave) {
-        const e = entry.toLowerCase().replace(/\/$/, "");
-        // naive but stable: substring check (works for typical ignore lines)
-        if (!lowered.includes(e)) misses.push(entry);
-      }
+      const misses = collectMissingGitignoreEntries(content);
 
       if (misses.length) {
         const next = gitignoreAppendMissing(content, misses);
@@ -271,45 +236,6 @@ export const checkGitignorePresent: PreflightCheck = {
       return ok({ id: this.id, title: this.title, severity: this.severity });
     }
 
-    const template = `# Dependencies
-node_modules/
-
-# Expo
-.expo/
-.expo-shared/
-dist/
-web-build/
-
-# Native
-android/
-ios/
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# IDE
-.vscode/
-.idea/
-
-# Metro
-.metro-health-check*
-
-# Debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-*.log
-
-# Misc
-.DS_Store
-
-# Env
-.env
-.env*.local
-`;
-
     return {
       id: this.id,
       title: this.title,
@@ -318,7 +244,7 @@ yarn-error.*
       message: ".gitignore fehlt im Projekt.",
       fix: {
         patch: mkFix(
-          [{ path: ".gitignore", content: template }],
+          [{ path: ".gitignore", content: GITIGNORE_TEMPLATE }],
           [],
           ".gitignore erzeugen",
         ),
@@ -327,54 +253,12 @@ yarn-error.*
   },
 };
 
-
-const FORBIDDEN_PATTERNS: Array<{ label: string; re: RegExp }> = [
-  { label: "Private Keys", re: /BEGIN (RSA|EC|OPENSSH|DSA) PRIVATE KEY/ },
-  { label: "Android Keystore", re: /\.jks$|\.keystore$/i },
-];
-
 export const checkForbiddenFiles: PreflightCheck = {
   id: "security-forbidden-files",
   title: "Security: verbotene/gefährliche Dateien",
   severity: "high",
   run(files) {
-    const hitsSet = new Set<string>();
-
-    for (const f of files) {
-      const p = normalizePath(f.path);
-      const content = f.content ?? "";
-
-      // fast path: forbidden by filename/extension
-      let matchedByName = false;
-      for (const pat of FORBIDDEN_PATTERNS) {
-        if (pat.re.test(p)) {
-          hitsSet.add(`${p} (${pat.label})`);
-          matchedByName = true;
-          break;
-        }
-      }
-
-      // huge content heuristic BEFORE scanning content (perf)
-      if (content.length > 2_000_000) {
-        hitsSet.add(
-          `${p} (sehr groß: ${Math.round(content.length / 1024 / 1024)}MB in content)`,
-        );
-        continue;
-      }
-
-      // if the filename already flagged it, don't add a duplicate from content scan
-      if (matchedByName) continue;
-
-      // now scan content (safe size)
-      for (const pat of FORBIDDEN_PATTERNS) {
-        if (pat.re.test(content)) {
-          hitsSet.add(`${p} (${pat.label})`);
-          break;
-        }
-      }
-    }
-
-    const hits = Array.from(hitsSet);
+    const hits = collectForbiddenFileHits(files);
 
     if (!hits.length) {
       return ok({ id: this.id, title: this.title, severity: this.severity });
@@ -398,15 +282,7 @@ export const checkNativeDirsManagedGuard: PreflightCheck = {
   title: "Native Ordner Konsistenz (Android-only)",
   severity: "normal",
   run(files) {
-    const m = byPath(files);
-
-    const hasAndroidDir = files.some((f) => f.path === "android" || f.path.startsWith("android/"));
-    const hasIosDir = files.some((f) => f.path === "ios" || f.path.startsWith("ios/"));
-
-    const androidLooksIncomplete =
-      hasAndroidDir && !(has(m, "android/app/build.gradle") || has(m, "android/app/build.gradle.kts"));
-
-    const iosLooksIncomplete = hasIosDir && !has(m, "ios/Podfile");
+    const { androidLooksIncomplete, iosLooksIncomplete } = readNativeDirState(files);
 
     if (androidLooksIncomplete || iosLooksIncomplete) {
       const details: string[] = [];
@@ -436,7 +312,7 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
     const m = byPath(files);
     if (!has(m, "eas.json")) return ok({ id: this.id, title: this.title, severity: this.severity });
 
-    const eas = parseJson<EasJson>(getText(m, "eas.json"));
+    const eas = parseEasJson(getText(m, "eas.json"));
     if (!eas) {
       return {
         id: this.id,
@@ -447,25 +323,15 @@ export const checkEasWithoutCredentialsForDebug: PreflightCheck = {
       };
     }
 
-    const build = eas.build ?? {};
-    const checkProfile = (name: string) => {
-      const v = build[name]?.android?.withoutCredentials;
-      return v === true;
-    };
-
-    const devOk = checkProfile("development");
-    const prevOk = checkProfile("preview");
+    const devOk = readWithoutCredentialsEnabled(eas, "development");
+    const prevOk = readWithoutCredentialsEnabled(eas, "preview");
 
     if (!devOk || !prevOk) {
       const missing: string[] = [];
       if (!devOk) missing.push('eas.json: build.development.android.withoutCredentials=true fehlt');
       if (!prevOk) missing.push('eas.json: build.preview.android.withoutCredentials=true fehlt');
 
-      const patchObj: Partial<
-        Record<"development" | "preview", EasWithoutCredentialsPatchProfile>
-      > = {};
-      if (!devOk) patchObj.development = { android: { withoutCredentials: true } };
-      if (!prevOk) patchObj.preview = { android: { withoutCredentials: true } };
+      const patchObj = buildWithoutCredentialsPatch({ devOk, previewOk: prevOk });
 
       return {
         id: this.id,
