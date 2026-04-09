@@ -61,6 +61,33 @@ export interface WorkflowJob {
   steps?: WorkflowJobStep[];
 }
 
+async function tryResolveWorkflowId(
+  owner: string,
+  repo: string,
+  workflowFileName: string,
+): Promise<Awaited<ReturnType<typeof resolveWorkflowId>> | null> {
+  try {
+    return await resolveWorkflowId(owner, repo, workflowFileName);
+  } catch (error) {
+    logger.warn("[GitHub workflows] resolveWorkflowId failed", {
+      owner,
+      repo,
+      workflowFileName,
+      error,
+    });
+    return null;
+  }
+}
+
+async function readResponseTextSafe(response: Response, context: string): Promise<string> {
+  try {
+    return await response.text();
+  } catch (error) {
+    logger.warn("[GitHub workflows] response.text failed", { context, error, status: response.status });
+    return "response_text_unavailable";
+  }
+}
+
 const resolveWorkflowId = async (
   owner: string,
   repo: string,
@@ -168,7 +195,7 @@ export const triggerWorkflow = async (
 
   let resolved: Awaited<ReturnType<typeof resolveWorkflowId>> | null = null;
   if (resp.status === 404) {
-    resolved = await resolveWorkflowId(owner, repo, workflowFileName).catch(() => null);
+    resolved = await tryResolveWorkflowId(owner, repo, workflowFileName);
     if (resolved?.id) {
       const dispatchByIdUrl = githubApiUrl(
         `/repos/${owner}/${repo}/actions/workflows/${resolved.id}/dispatches`,
@@ -185,7 +212,7 @@ export const triggerWorkflow = async (
     }
   }
 
-  const raw = await resp.text().catch(() => "");
+  const raw = await readResponseTextSafe(resp, "workflow_dispatch");
   debugLog("github:workflow", "Dispatch response", {
     status: resp.status,
     ok: resp.status === 204,
@@ -199,7 +226,7 @@ export const triggerWorkflow = async (
   if (status === 403) throw new Error("Keine Berechtigung für Workflow-Trigger.");
   if (status === 404) {
     if (!resolved) {
-      resolved = await resolveWorkflowId(owner, repo, workflowFileName).catch(() => null);
+      resolved = await tryResolveWorkflowId(owner, repo, workflowFileName);
     }
     const availableHint = resolved?.available?.length
       ? `Verfügbar: ${resolved.available.slice(0, 8).join(", ")}${resolved.available.length > 8 ? " …" : ""}`
@@ -271,7 +298,7 @@ export const getAllWorkflowRuns = async (
     if (status === 401) throw new Error("GitHub Token ungültig.");
     if (status === 403) throw new Error("Keine Berechtigung.");
     if (status === 404) throw new Error("Repository nicht gefunden.");
-    const text = await resp.text();
+    const text = await readResponseTextSafe(resp, "get_all_workflow_runs");
     throw new Error(`Workflow Runs Fehler (${status}): ${text}`);
   }
 

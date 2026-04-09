@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
 
 import { useProject } from "../../../contexts/ProjectContext";
@@ -38,6 +38,7 @@ import {
   refreshBuildScreenData,
 } from "./enhancedBuildScreenActions";
 import { useEnhancedBuildDerivedState } from "./useEnhancedBuildDerivedState";
+import { useBuildProfileSync, useModeFilterSync, useMountedFlag } from "./useEnhancedBuildScreenLifecycle";
 
 export const MAX_RUNS_DISPLAY = 10;
 // Source-contract marker: invariants still assert these canonical block reasons in this hook facade.
@@ -52,12 +53,7 @@ export function useEnhancedBuildScreen() {
 
   // P1: Avoid state updates / alerts after unmount.
   const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  useMountedFlag(isMountedRef);
 
   const projectContext = useProject();
   const projectData = projectContext?.projectData ?? null;
@@ -107,10 +103,7 @@ export function useEnhancedBuildScreen() {
   );
 
   // When the global preferred profile changes, keep filters aligned unless user explicitly chose "all".
-  useEffect(() => {
-    setActionsFilter((prev) => (prev === "all" ? prev : buildProfile));
-    setHistoryFilter((prev) => (prev === "all" ? prev : buildProfile));
-  }, [buildProfile]);
+  useModeFilterSync({ buildProfile, setActionsFilter, setHistoryFilter });
 
   const buildHistory = useBuildHistory();
 
@@ -124,12 +117,10 @@ export function useEnhancedBuildScreen() {
   }, [filteredHistory]);
 
   // Sync persisted profile when project loads or changes
-  useEffect(() => {
-    const p = projectData?.preferredBuildProfile;
-    if (p === "development" || p === "preview" || p === "production") {
-      setBuildProfile(p);
-    }
-  }, [projectData?.preferredBuildProfile]);
+  useBuildProfileSync({
+    preferredBuildProfile: projectData?.preferredBuildProfile,
+    setBuildProfile,
+  });
 
 
   const jobId = currentBuild?.jobId ?? null;

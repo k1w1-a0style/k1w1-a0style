@@ -19,6 +19,14 @@ import { unzipSync, strFromU8 } from "npm:fflate@0.8.2";
 
 export type Json = Record<string, unknown>;
 
+async function readBodyOrSentinel(response: Response, context: string): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return `response_text_unavailable:${context}`;
+  }
+}
+
 export function jsonOk(req: Request, body: unknown, status = 200) {
   return jsonResponse(body, req, status);
 }
@@ -180,7 +188,7 @@ export async function fetchLogsZip(
       }
 
       // If the run itself is 404, it's likely an invalid runId or missing permissions.
-      const body = await r1.text().catch(() => "");
+      const body = await readBodyOrSentinel(r1, "logs_lookup_404");
       throw {
         status: 404,
         body:
@@ -189,7 +197,7 @@ export async function fetchLogsZip(
       };
     }
 
-    const body = await r1.text().catch(() => "");
+    const body = await readBodyOrSentinel(r1, "logs_redirect");
     throw { status: r1.status, body };
   }
 
@@ -206,7 +214,7 @@ export async function fetchLogsZip(
     timeoutMessage: "GitHub logs archive download timed out after 15000ms",
   });
   if (!r2.ok) {
-    const body = await r2.text().catch(() => "");
+    const body = await readBodyOrSentinel(r2, "logs_archive_download");
     throw { status: r2.status, body };
   }
   const len2 = r2.headers.get("content-length");

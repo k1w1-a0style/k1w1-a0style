@@ -4,6 +4,14 @@ import { fetchWithTimeout } from "./fetchWithTimeout.ts";
 export const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_FETCH_TIMEOUT_MS = 15_000;
 
+async function readResponseTextOrSentinel(response: Response, context: string): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return `response_text_unavailable:${context}`;
+  }
+}
+
 /**
  * Shared GitHub helpers for Supabase Edge Functions
  * - Uses GitHub recommended headers
@@ -156,7 +164,7 @@ export async function githubFetchJson<T>(
 ): Promise<T> {
   const res = await githubFetchRaw(url, token, init);
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
+    const body = await readResponseTextOrSentinel(res, "github_fetch_json");
     throw new Error(`GitHub API ${res.status}: ${body}`);
   }
   return (await res.json()) as T;
