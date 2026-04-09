@@ -2,13 +2,15 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
+Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
 
-Zuletzt abgeschlossen: **Patch 762**
+Zuletzt abgeschlossen: **Patch 763**
 
 Der aktuelle Stand bestaetigt:
 - die drei verbleibenden Hotspots wurden jetzt restlos und verhaltensgleich zerlegt: `buildPipelineDiagnostics`, `_shared/auth`, `useAppInfoScreen`
 - die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
+- der Workflow-Contract-Check wurde gegen Text-/Formulierungsdrift robuster gemacht, ohne Auth-/RBAC-Inhalt aufzuweichen
+- produktive Runtime-Pfade sind erneut auf offensichtliche `console.log`-Reste geprueft (kein ungewollter Treffer ausser der zentralen Logger-Fassade)
 - verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
 - aktive Legacy-/Compat-Flaechen wurden stark reduziert
 - die kanonischen Repo-Checks sind vorhanden und dokumentiert

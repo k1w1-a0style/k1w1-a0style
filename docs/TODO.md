@@ -1,11 +1,16 @@
 # TODO
 
-Stand: **2026-04-08 (Patch 762, Hygiene-/Drift-Follow-up nach PR 591 abgeschlossen)**
+Stand: **2026-04-09 (Patch 763, Workflow-Contract-Robustheit + SoT-Drift-Nachzug)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `WorkflowContractFragility` (Patch 763): `scripts/check_workflow_edge_contracts.sh` wurde von unnötig exakten Vollsatz-Markern auf semantische Contract-Marker umgestellt (`require_operator_claim_contract`, Pattern-Buendel statt Copy-exakter Formulierungen), damit inhaltliche RBAC-/Operator-Vertraege weiter hart geprueft werden, aber kleine Text-/Copy-Anpassungen den Gate nicht mehr unnoetig brechen.
+- [x] `RefactorSoTDrift` Follow-up (Patch 763): Fuehrende SoT-Dokumente (`README`, `TODO`, `Review`, `INDEX`, `TESTING_GUIDE`, `FRESH_CHECKOUT`, `EDGE_FUNCTIONS_STATUS`, Checklog/Patchlog) auf den aktuellen Stand inkl. Workflow-Contract-Nachzug synchronisiert.
+- [x] `ProductConsoleLogHygiene` Nachpruefung (Patch 763): produktiver Runtime-Scope erneut gescannt; kein offensichtlicher direkter `console.log`-Rest ausser der bewusst zentralen Logger-Fassade (`lib/logger.ts`).
+- [x] `WorkflowHygieneNarrowFollowup` Bewertung (Patch 763): verbleibende `npm install`-Fallbacks in produktnahen Workflows sind aktuell bewusst fuer Lockfile-/Bootstrap-Fallbacks vorhanden; kein risikoarmer Mini-Fix ohne potenzielle CI-/Onboarding-Regressions wurde erzwungen.
 
 - [x] `BuildPipelineDiagnosticsRefactorFinal` (Patch 761): `lib/diagnostics/buildPipelineDiagnostics.ts` ist jetzt nur noch Orchestrator; Regel-/Profil-/Secret-/Workflow-/ProjectId-Checks und pure Helper liegen in dedizierten Modulen (`buildPipelineDiagnostics.checks.ts`, `.constants.ts`, `.helpers.ts`) ohne semantische Aenderung der bestehenden Severity-/Fix-Vertraege.
 - [x] `SharedAuthHotspotFinal` (Patch 761): `supabase/functions/_shared/auth.ts` wurde als stabile Public-Facade beibehalten, waehrend JWT-, Scoped-Guard-, Runtime-Secret-, Admin- und Rate-Limit-Logik in `auth/*` getrennt wurden; fail-closed Auth-/RBAC-/durable-fallback-Verhalten bleibt unveraendert.
@@ -77,10 +82,9 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 1. verify_jwt-Flag-Drift frueher sichtbar machen (aktueller Flag-Audit fuer `save_preview`/`k1w1-handler` ist erledigt; als kuenftige Betriebshygiene bleibt ein expliziter Re-Check pro Release sinnvoll)
 2. SilentCatchHygiene: produktnahe Pfade erneut gescannt (Patch 762) — keine verbleibenden stillen `.catch(() => {})` / `catch {}` im produktiven Runtime-Scope gefunden; nur Dokumentationsbeispiele enthalten den Pattern-Text
-3. `console.log` in Produktivpfaden weiter abbauen
-4. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
-5. Workflow-Hygiene-Nachzug nur mit engem Scope:
-   - `npm install`-Fallback in produktnahen Pfaden weiter reduzieren, ohne dev-Bootstrap kaputtzumachen
+3. Sehr grosse Hooks/Dateien als Wartungsrisiko schrittweise aufteilen (Master-Plan: `docs/reviews/hotspot_master_plan_2026-04-07.md`)
+4. Workflow-Hygiene-Nachzug nur mit engem Scope:
+   - verbleibende `npm install`-Fallbacks in produktnahen Pfaden weiter reduzieren, **nur** wenn lockfile-/bootstrap-sichere Alternative ohne CI-Onboarding-Risiko vorliegt
    - Repo-Writebacks/persisted Credentials weiter punktuell pruefen; CI-Lite-Autofix-Permission-Scope ist bereits auf `contents: write` reduziert
 
 ## 4) Benötigte externe Infos / Zugänge / Admin-Aktionen
