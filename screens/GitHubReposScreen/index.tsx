@@ -173,9 +173,9 @@ export default function GitHubReposScreen() {
     activeRepo,
     activeBranch,
     onNewRepo,
-    onRefresh: handleRefresh,
+    handleRefresh,
     syncStatus,
-    onCheckStatus: refreshSyncStatus,
+    refreshSyncStatus,
     tokenLoading,
     token,
     tokenError,
@@ -246,7 +246,8 @@ export default function GitHubReposScreen() {
     closeManageModal,
     confirmManageModal,
     userLogin,
-    vm,
+    handleSyncSecrets: vm.handleSyncSecrets,
+    isSyncingSecrets: vm.isSyncingSecrets,
   });
 
   return (

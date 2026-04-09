@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Linking } from "react-native";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
@@ -33,12 +32,9 @@ import {
 import {
   type ModeFilter,
 } from "./runFilterState";
-import {
-  persistPreferredBuildProfile,
-  refreshBuildScreenData,
-} from "./enhancedBuildScreenActions";
 import { useEnhancedBuildDerivedState } from "./useEnhancedBuildDerivedState";
 import { useBuildProfileSync, useModeFilterSync, useMountedFlag } from "./useEnhancedBuildScreenLifecycle";
+import { useBuildRefreshAction, useOpenRunAction, useSelectBuildProfileAction } from "./useEnhancedBuildScreenActions";
 
 export const MAX_RUNS_DISPLAY = 10;
 // Source-contract marker: invariants still assert these canonical block reasons in this hook facade.
@@ -144,20 +140,7 @@ export function useEnhancedBuildScreen() {
     refreshPreconditions,
   } = useBuildPreconditions(buildProfile, repoFullName, branchName, projectData);
 
-  const openRun = useCallback(async (url: string) => {
-    if (!url) return;
-    try {
-      const supported = await Linking.canOpenURL(url);
-      if (!supported) {
-        Alert.alert("Fehler", "URL kann nicht geöffnet werden.");
-        return;
-      }
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Fehler", "Konnte URL nicht öffnen.");
-    }
-  }, []);
-
+  const openRun = useOpenRunAction();
 
   const canFetch = repoValidation.valid;
   const owner = repoValidation.valid ? repoValidation.owner : "";
@@ -267,21 +250,15 @@ export function useEnhancedBuildScreen() {
     isMountedRef,
   });
 
-  const onRefresh = useCallback(async () => {
-    if (!canFetch || !hasGetWorkflowRuns) return;
-    if (isMountedRef.current) setRefreshing(true);
-    try {
-      await refreshBuildScreenData({
-        fetchRuns,
-        refreshHistory: buildHistory.refresh,
-        refreshPreconditions,
-      });
-    } finally {
-      if (isMountedRef.current) setRefreshing(false);
-    }
-  }, [canFetch, fetchRuns, hasGetWorkflowRuns, buildHistory, refreshPreconditions]);
-
-
+  const onRefresh = useBuildRefreshAction({
+    canFetch,
+    hasGetWorkflowRuns,
+    isMountedRef,
+    fetchRuns,
+    refreshHistory: buildHistory.refresh,
+    refreshPreconditions,
+    setRefreshing,
+  });
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;
@@ -289,22 +266,10 @@ export function useEnhancedBuildScreen() {
 
   const moreCount = countHiddenRuns(filteredRuns.length, MAX_RUNS_DISPLAY);
 
-  const onSelectBuildProfile = useCallback(
-    async (p: BuildProfile) => {
-      setBuildProfile(p);
-      try {
-        await persistPreferredBuildProfile({
-          profile: p,
-          setPreferredBuildProfile,
-        });
-      } catch (e) {
-        console.warn("[Build] Konnte Build-Profil nicht persistieren:", e);
-      }
-    },
-    [setPreferredBuildProfile],
-  );
-
-
+  const onSelectBuildProfile = useSelectBuildProfileAction({
+    setBuildProfile,
+    setPreferredBuildProfile,
+  });
 
   return composeEnhancedBuildScreenReturn({
     projectData,

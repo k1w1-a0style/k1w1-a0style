@@ -1,7 +1,6 @@
 import React from "react";
 import { ActivityIndicator, Alert, Text, View } from "react-native";
 
-import type { GitHubRepo } from "../../../hooks/useGitHubRepos";
 import { theme } from "../../../theme";
 import { styles } from "../styles";
 import { HeaderSection } from "./HeaderSection";
@@ -18,10 +17,15 @@ import { SecretsSection } from "./SecretsSection";
 import { LocalRemoteDiffSection } from "./LocalRemoteDiffSection";
 import { ManageTextModal } from "./ManageTextModal";
 import { getErrorMessage } from "../hooks/githubReposScreenErrorHelpers";
+import type { UseGitHubReposScreenModel } from "../hooks/useGitHubReposScreen.model";
 
-type VmLike = { handleDeleteRepo: (repo: GitHubRepo) => void; handleSyncSecrets: () => Promise<void> | void; isSyncingSecrets: boolean; };
+type HeaderParams = Pick<UseGitHubReposScreenModel,
+  "userLogin" | "activeRepo" | "activeBranch" | "handleRefresh" | "syncStatus" | "refreshSyncStatus" | "tokenLoading" | "token" | "tokenError" | "loadingRepos"
+> & {
+  onNewRepo: () => void;
+};
 
-export function buildListHeader(params: any) {
+export function buildListHeader(params: HeaderParams) {
   const s = styles;
   return (
     <>
@@ -30,9 +34,9 @@ export function buildListHeader(params: any) {
         activeRepo={params.activeRepo}
         activeBranch={params.activeBranch}
         onNewRepo={params.onNewRepo}
-        onRefresh={params.onRefresh}
+        onRefresh={params.handleRefresh}
         syncStatus={params.syncStatus}
-        onCheckStatus={params.onCheckStatus}
+        onCheckStatus={params.refreshSyncStatus}
       />
 
       <TokenStatusSection
@@ -42,7 +46,7 @@ export function buildListHeader(params: any) {
       />
 
       <View style={s.section}>
-        <View style={[s.rowBetween, { marginTop: 0 }]}>
+        <View style={[s.rowBetween, { marginTop: 0 }]}> 
           <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Repos</Text>
           {params.loadingRepos ? <ActivityIndicator size="small" color={theme.palette.primary} /> : null}
         </View>
@@ -51,11 +55,15 @@ export function buildListHeader(params: any) {
   );
 }
 
-export function buildListEmpty(params: any) {
+type EmptyParams = Pick<UseGitHubReposScreenModel, "loadingRepos" | "reposError"> & {
+  repoCount: number;
+};
+
+export function buildListEmpty(params: EmptyParams) {
   if (params.loadingRepos || params.repoCount > 0) return null;
   const s = styles;
   return (
-    <View style={[s.section, { alignItems: "center", paddingVertical: 24, gap: 8 }]}>
+    <View style={[s.section, { alignItems: "center", paddingVertical: 24, gap: 8 }]}> 
       <Text style={{ fontSize: 32, marginBottom: 4 }}>{params.reposError ? "⚠️" : "📁"}</Text>
       <Text style={{ fontSize: 14, fontWeight: "700", color: theme.palette.text.primary }}>
         {params.reposError ? "Repos konnten nicht geladen werden" : "Keine Repositories"}
@@ -74,7 +82,65 @@ export function buildListEmpty(params: any) {
   );
 }
 
-export function buildListFooter(params: any) {
+type FooterParams = Pick<UseGitHubReposScreenModel,
+  | "showNewRepo"
+  | "newRepoName"
+  | "setNewRepoName"
+  | "newRepoPrivate"
+  | "setNewRepoPrivate"
+  | "isCreating"
+  | "handleCreateRepo"
+  | "showRenameRepo"
+  | "activeRepo"
+  | "renameName"
+  | "setRenameName"
+  | "isRenaming"
+  | "handleRenameRepo"
+  | "activeBranch"
+  | "handleSelectBranch"
+  | "handleCreateBranch"
+  | "handleRenameBranch"
+  | "handleDeleteBranch"
+  | "loadBranches"
+  | "loadDefaultBranch"
+  | "easLinkStatus"
+  | "easProjectId"
+  | "setEasProjectId"
+  | "isEasLinking"
+  | "handleEasLinkStatusCheck"
+  | "handleEasLink"
+  | "handleOpenRepoOnGitHub"
+  | "projectFiles"
+  | "isPulling"
+  | "isPushing"
+  | "pullProgress"
+  | "handlePull"
+  | "handlePush"
+  | "pushModalVisible"
+  | "pushCommitMessage"
+  | "setPushCommitMessage"
+  | "pushSelectedPaths"
+  | "togglePushPath"
+  | "setAllPushPaths"
+  | "closePushModal"
+  | "confirmPushSelected"
+  | "pullModalVisible"
+  | "pullPreviewLoading"
+  | "pullPreview"
+  | "closePullModal"
+  | "applyPulledFiles"
+  | "manageModal"
+  | "manageValue"
+  | "manageBusy"
+  | "setManageValue"
+  | "closeManageModal"
+  | "confirmManageModal"
+  | "userLogin"
+  | "handleSyncSecrets"
+  | "isSyncingSecrets"
+>;
+
+export function buildListFooter(params: FooterParams) {
   return (
     <>
       {params.showNewRepo && (
@@ -164,7 +230,7 @@ export function buildListFooter(params: any) {
         onOpenRepoOnGitHub={params.handleOpenRepoOnGitHub}
       />
 
-      <SecretsSection activeRepo={params.activeRepo} onSyncSecrets={params.vm.handleSyncSecrets} syncing={params.vm.isSyncingSecrets} />
+      <SecretsSection activeRepo={params.activeRepo} onSyncSecrets={params.handleSyncSecrets} syncing={params.isSyncingSecrets} />
 
       <LocalRemoteDiffSection
         activeRepo={params.activeRepo}
