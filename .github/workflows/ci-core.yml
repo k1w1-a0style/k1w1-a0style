@@ -48,6 +48,10 @@ jobs:
       - name: Tests
         run: npm run test:silent
 
+      - name: Coverage (summary, non-blocking)
+        continue-on-error: true
+        run: npm run test:coverage -- --coverageReporters=text-summary --watchAll=false
+
       - name: Expo config smoke test (projectId present)
         shell: bash
         run: |
