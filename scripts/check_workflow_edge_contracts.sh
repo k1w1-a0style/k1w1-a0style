@@ -85,6 +85,7 @@ WIZARD_HELPERS="screens/CredentialsWizardScreen/hooks/credentialHelpers.ts"
 WIZARD_HOOK="screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts"
 SIGNING_GATE="screens/EnhancedBuildScreen/hooks/signingKeyGate.ts"
 PREVIEW_HOOK="hooks/usePreview.ts"
+PREVIEW_CREATION_HELPER="hooks/usePreviewCreation.ts"
 CI_LITE_MODAL="components/CiLiteHeaderButton/components/CiLiteModal.tsx"
 BUILD_START_SERVICE="project/services/buildStartService.ts"
 BUILD_POLLING_SERVICE="project/services/buildPollingService.ts"
@@ -98,7 +99,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$PREVIEW_CREATION_HELPER" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -195,8 +196,8 @@ require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
 forbid_fixed "$WIZARD_HOOK" "getLegacyEdgeAdminKey"
 require_fixed "$SIGNING_GATE" "getAndroidKeystoreExportAdminKey"
 forbid_fixed "$SIGNING_GATE" "getLegacyEdgeAdminKey"
-require_fixed "$PREVIEW_HOOK" 'Missing Supabase Preview JWT'
-require_fixed "$PREVIEW_HOOK" 'bearerJwt: userJwt'
+require_fixed "$PREVIEW_CREATION_HELPER" 'Missing Supabase Preview JWT'
+require_fixed "$PREVIEW_CREATION_HELPER" 'bearerJwt: userJwt'
 forbid_fixed "$PREVIEW_HOOK" 'isLegacyPreviewOperatorModeEnabled'
 forbid_fixed "$PREVIEW_HOOK" 'LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED'
 require_all_patterns "$CI_LITE_MODAL" "Workflow Admin Key" "scoped" "Sunset-Vertrag"

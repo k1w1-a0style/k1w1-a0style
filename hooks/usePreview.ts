@@ -27,11 +27,6 @@ import {
 } from "./usePreviewFlowHelpers";
 import { createLocalFallbackPreview, tryCreateSupabasePreview } from "./usePreviewCreation";
 
-// Contract marker for patch615 invariants:
-// save_preview must keep Supabase login JWT boundary ("Missing Supabase Preview JWT", "bearerJwt: userJwt").
-// bearerJwt: userJwt
-const PREVIEW_SUPABASE_JWT_CONTRACT_MARKER = "Missing Supabase Preview JWT";
-
 export interface UsePreviewReturn {
   state: PreviewState;
   fileMap: Record<string, string>;
@@ -175,7 +170,6 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         const files = normalizePreviewFilesForWeb(ensureMinimumPreviewFiles(fileMap));
 
         if (attemptSupabaseFirst && hasRemoteProjectFiles) {
-          void PREVIEW_SUPABASE_JWT_CONTRACT_MARKER;
           const { result } = await tryCreateSupabasePreview({
             projectData,
             files,
