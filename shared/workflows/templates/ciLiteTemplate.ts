@@ -48,7 +48,7 @@ jobs:
           payload_branch: \${{ github.event.client_payload.branch || '' }}
           payload_ref: \${{ github.event.client_payload.ref || '' }}
           input_ref: \${{ inputs.ref || '' }}
-          github_ref_name: \${{ github.event_name == 'repository_dispatch' && '' || github.ref_name || '' }}
+          github_ref_name: \${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
           default_ref: ""
           allowed_ref_regex: \${{ env.ALLOWED_REF_REGEX }}
 

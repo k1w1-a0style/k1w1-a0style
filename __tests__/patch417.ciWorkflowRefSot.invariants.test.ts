@@ -140,5 +140,7 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(managed).toContain("github.event.repository.default_branch");
     expect(managed).toContain("workflow_dispatch' && inputs.ref || github.ref");
     expect(managed).toContain('default_ref: ""');
+    expect(managed).toContain("github.event_name != 'repository_dispatch' && github.ref_name || ''");
+    expect(managed).toContain("github.event_name == 'repository_dispatch' && '' || github.ref_name");
   });
 });
