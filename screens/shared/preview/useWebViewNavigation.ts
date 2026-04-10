@@ -10,6 +10,7 @@ import { useCallback, useMemo } from 'react';
 import { Alert, Linking } from 'react-native';
 import { decidePreviewNavigation } from '../../../utils/previewNavigation';
 import { truncateUrl } from '../../../utils/url';
+import { redactPreviewUrl } from './previewUrlRedaction';
 
 export type WebViewMode = 'html' | 'url';
 
@@ -38,7 +39,10 @@ export function useWebViewNavigation({
       return `${u.protocol}//${u.host}`;
     } catch (error) {
       if (__DEV__) {
-        console.warn('[useWebViewNavigation] invalid preview URL for url-mode origin guard', { url, error });
+        console.warn('[useWebViewNavigation] invalid preview URL for url-mode origin guard', {
+          url: redactPreviewUrl(url),
+          error,
+        });
       }
       return null;
     }
@@ -65,7 +69,7 @@ export function useWebViewNavigation({
         setTimeout(() => {
           Alert.alert(
             'Navigation blockiert',
-            `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(requestUrl, 90)}`,
+            `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(redactPreviewUrl(requestUrl), 90)}`,
             [{ text: 'OK' }],
           );
         }, 0);
@@ -77,7 +81,7 @@ export function useWebViewNavigation({
           Linking.openURL(decision.url).catch(() => {
             Alert.alert(
               'Navigation blockiert',
-              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(decision.url, 90)}`,
+              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(redactPreviewUrl(decision.url), 90)}`,
               [{ text: 'OK' }],
             );
           });
@@ -89,17 +93,20 @@ export function useWebViewNavigation({
       if (confirmExternalLinks) {
         Alert.alert(
           'Externen Link öffnen?',
-          truncateUrl(decision.url, 160),
+          truncateUrl(redactPreviewUrl(decision.url), 160),
           [
             { text: 'Abbrechen', style: 'cancel' },
             {
               text: 'Öffnen',
               onPress: () => {
                 Linking.openURL(decision.url).catch((error) => {
-                  console.warn('[useWebViewNavigation] failed to open external URL', { url: decision.url, error });
+                  console.warn('[useWebViewNavigation] failed to open external URL', {
+                    url: redactPreviewUrl(decision.url),
+                    error,
+                  });
                   Alert.alert(
                     'Navigation blockiert',
-                    `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(decision.url, 90)}`,
+                    `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(redactPreviewUrl(decision.url), 90)}`,
                     [{ text: 'OK' }],
                   );
                 });
@@ -110,10 +117,13 @@ export function useWebViewNavigation({
       } else {
         setTimeout(() => {
           Linking.openURL(decision.url).catch((error) => {
-            console.warn('[useWebViewNavigation] failed to open external URL', { url: decision.url, error });
+            console.warn('[useWebViewNavigation] failed to open external URL', {
+              url: redactPreviewUrl(decision.url),
+              error,
+            });
             Alert.alert(
               'Navigation blockiert',
-              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(decision.url, 90)}`,
+              `Dieser Link kann nicht geöffnet werden:\n\n${truncateUrl(redactPreviewUrl(decision.url), 90)}`,
               [{ text: 'OK' }],
             );
           });
