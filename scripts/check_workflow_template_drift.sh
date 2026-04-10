@@ -97,6 +97,8 @@ grep -q 'yarn install --immutable' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Sha
 grep -q 'pnpm install --frozen-lockfile' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing pnpm install path"
 grep -q 'yarn install --immutable' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link template missing yarn install path"
 grep -q 'pnpm install --frozen-lockfile' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link template missing pnpm install path"
+grep -q 'yarn install --immutable' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing pnpm install path"
 grep -q 'github.event.client_payload.autofix' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch autofix passthrough"
 grep -q 'github.event.client_payload.strict_lockfile' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch strict_lockfile passthrough"
 
