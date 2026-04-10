@@ -148,7 +148,7 @@ jobs:
                 npm ci --no-audit --no-fund
                 ;;
               yarn)
-                echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
                 corepack enable || true
                 yarn install --immutable
                 ;;
