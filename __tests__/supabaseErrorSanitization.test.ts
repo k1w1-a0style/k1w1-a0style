@@ -20,7 +20,7 @@ describe("supabase edge error sanitization", () => {
     const inText = "Authorization: Bearer abc.def.ghi";
     const outText = sanitizeErrorText(inText);
     expect(outText).not.toContain("abc.def.ghi");
-    expect(outText).toContain("[REDACTED_SECRET]");
+    expect(outText).toContain("[REDACTED_TOKEN]");
   });
 
   test("sanitizeErrorText redacts GitHub tokens", () => {
@@ -43,6 +43,7 @@ describe("supabase edge error sanitization", () => {
     expect(outText).not.toContain("supersecret");
     expect(outText).not.toContain("abc123");
     expect(outText).not.toContain("hunter2");
+    expect(outText).toContain("[REDACTED_TOKEN]");
     expect(outText).toContain("[REDACTED_SECRET]");
   });
 

@@ -70,7 +70,13 @@ function applyCommonSecretRedactions(raw: string): string {
   s = s.replace(GITHUB_TOKEN_RE, REDACTED_TOKEN);
   // Keep the "Bearer" prefix to preserve context.
   s = s.replace(BEARER_RE, `Bearer ${REDACTED_TOKEN}`);
-  s = s.replace(BASIC_HEADER_SECRET_RE, (_full, prefix: string) => `${prefix}${REDACTED_SECRET}`);
+  s = s.replace(BASIC_HEADER_SECRET_RE, (_full, prefix: string, value: string) => {
+    const key = prefix.split(/[:=]/, 1)[0]?.trim().toLowerCase();
+    if (key === "authorization" && /^\s*bearer\b/i.test(value)) {
+      return `${prefix}Bearer ${REDACTED_TOKEN}`;
+    }
+    return `${prefix}${REDACTED_SECRET}`;
+  });
   s = s.replace(QUERY_SECRET_RE, (_full, prefix) => `${prefix}${REDACTED_SECRET}`);
   s = s.replace(BASIC_SECRET_ASSIGN_RE, (_full, prefix: string) => `${prefix}${REDACTED_SECRET}`);
   s = s.replace(LONG_SECRET_RE, REDACTED_SECRET);
