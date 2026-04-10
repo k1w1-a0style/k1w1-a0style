@@ -129,7 +129,9 @@ for wf in .github/workflows/eas-build.yml .github/workflows/eas-link.yml .github
 done
 
 grep -Fq "workflow_dispatch' && inputs.ref || github.ref" .github/workflows/ci.yml || fail "CI workflow lost documented branch-based CI-lite fallback contract"
-grep -Fq 'default_ref: work' .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow lost documented default_ref=work exception"
+grep -Fq 'default_ref: ""' .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow must not keep implicit default_ref fallback"
+forbid_fixed .github/workflows/k1w1-ci-lite.yml "github.event_name == 'repository_dispatch' && '' || github.ref_name"
+grep -Fq "github.event_name != 'repository_dispatch' && github.ref_name || ''" .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow must block repository_dispatch github.ref_name fallthrough"
 
 
 node <<'NODE'

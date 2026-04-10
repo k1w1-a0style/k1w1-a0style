@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 SKIP_COUNT=0
+SKIPPED_CHECKS=()
 
 run_repo_tsc() {
   if [[ -x "./node_modules/.bin/tsc" ]]; then
@@ -28,6 +29,7 @@ if [[ -f "node_modules/expo/tsconfig.base.json" ]]; then
 else
   echo "[verify:release] skip app typecheck (node_modules/expo/tsconfig.base.json fehlt im aktuellen Workspace)"
   SKIP_COUNT=$((SKIP_COUNT + 1))
+  SKIPPED_CHECKS+=("app typecheck")
 fi
 
 echo "[verify:release] strict typecheck"
@@ -85,9 +87,15 @@ if [[ -n "${EDGE_BASE_URL:-}" && -n "${EDGE_OPERATOR_JWT:-}" ]]; then
 else
   echo "[verify:release] skip live edge contracts (EDGE_BASE_URL / EDGE_OPERATOR_JWT not set)"
   SKIP_COUNT=$((SKIP_COUNT + 1))
+  SKIPPED_CHECKS+=("live edge contracts")
 fi
 
 if [[ "$SKIP_COUNT" -gt 0 ]]; then
+  echo "[verify:release] SKIPPED_CHECKS=${SKIPPED_CHECKS[*]}"
+  echo "[verify:release] WARNING: release evidence is partial until all skipped checks run."
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::warning title=verify:release partial evidence::Skipped checks: ${SKIPPED_CHECKS[*]}"
+  fi
   echo "[verify:release] OK_WITH_SKIPS ($SKIP_COUNT checks skipped; partial/local evidence only, not full release sign-off)"
 else
   echo "[verify:release] OK_FULL"
