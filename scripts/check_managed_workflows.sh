@@ -132,6 +132,9 @@ grep -Fq "workflow_dispatch' && inputs.ref || github.ref" .github/workflows/ci.y
 grep -Fq 'default_ref: ""' .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow must not keep implicit default_ref fallback"
 forbid_fixed .github/workflows/k1w1-ci-lite.yml "github.event_name == 'repository_dispatch' && '' || github.ref_name"
 grep -Fq "github.event_name != 'repository_dispatch' && github.ref_name || ''" .github/workflows/k1w1-ci-lite.yml || fail "CI Lite workflow must block repository_dispatch github.ref_name fallthrough"
+forbid_fixed .github/workflows/k1w1-ci-lite.yml "github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name"
+forbid_fixed .github/workflows/k1w1-ci-lite.yml "k1w1-ci-lite-\${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}"
+grep -Fq "github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref')" .github/workflows/k1w1-ci-lite.yml || fail "CI Lite metadata must be explicit and must not imply github.ref_name fallback"
 
 
 node <<'NODE'
