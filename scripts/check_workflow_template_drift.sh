@@ -49,6 +49,10 @@ assert_managed_file .github/workflows/k1w1-ci-lite.yml
 assert_managed_file .github/workflows/k1w1-ci-lite-autofix.yml
 assert_managed_file .github/workflows/deploy-supabase-functions.yml
 
+grep -q 'Coverage (summary, non-blocking)' .github/workflows/ci-core.yml || fail "CI Core missing non-blocking coverage step"
+grep -q 'continue-on-error: true' .github/workflows/ci-core.yml || fail "CI Core coverage step must stay non-blocking"
+grep -q 'npm run test:coverage -- --coverageReporters=text-summary --watchAll=false' .github/workflows/ci-core.yml || fail "CI Core coverage command drifted"
+
 EAS_VERSION="$(extract_version .github/workflows/eas-build.yml)"
 for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
   V="$(extract_version "$wf")"
