@@ -12,9 +12,11 @@ const JWT_RE = /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g;
 // Real tokens are longer, but redacting short ones is still safer than leaking.
 const GITHUB_TOKEN_RE = /\bgh[pous]_[A-Za-z0-9]{8,}\b/g;
 const BEARER_RE = /\bBearer\s+[^\s"']+/gi;
-const BASIC_HEADER_SECRET_RE = /\b(?:x-api-key|api-key|authorization|cookie|set-cookie)\s*[:=]\s*[^\s,;]+/gi;
+const BASIC_HEADER_SECRET_RE =
+  /\b((?:x-api-key|api-key|authorization|cookie|set-cookie)\s*[:=]\s*)([^\r\n]*)/gi;
 const QUERY_SECRET_RE = /([?&](?:token|access_token|refresh_token|id_token|api_key|apikey|client_secret|secret|password)=)([^&#\s]+)/gi;
-const BASIC_SECRET_ASSIGN_RE = /\b(?:token|secret|password|passphrase|api[_-]?key|client_secret)\s*[:=]\s*[^\s,;]+/gi;
+const BASIC_SECRET_ASSIGN_RE =
+  /\b((?:token|secret|password|passphrase|api[_-]?key|client_secret)\s*[:=]\s*)([^\s,;]+)/gi;
 
 const REDACTED_TOKEN = "[REDACTED_TOKEN]";
 const REDACTED_SECRET = "[REDACTED_SECRET]";
@@ -68,17 +70,9 @@ function applyCommonSecretRedactions(raw: string): string {
   s = s.replace(GITHUB_TOKEN_RE, REDACTED_TOKEN);
   // Keep the "Bearer" prefix to preserve context.
   s = s.replace(BEARER_RE, `Bearer ${REDACTED_TOKEN}`);
-  s = s.replace(BASIC_HEADER_SECRET_RE, (match) => {
-    const sep = match.includes(":") ? ":" : "=";
-    const key = match.split(sep)[0]?.trim() ?? "secret";
-    return `${key}${sep} ${REDACTED_SECRET}`;
-  });
+  s = s.replace(BASIC_HEADER_SECRET_RE, (_full, prefix: string) => `${prefix}${REDACTED_SECRET}`);
   s = s.replace(QUERY_SECRET_RE, (_full, prefix) => `${prefix}${REDACTED_SECRET}`);
-  s = s.replace(BASIC_SECRET_ASSIGN_RE, (match) => {
-    const sep = match.includes(":") ? ":" : "=";
-    const key = match.split(sep)[0]?.trim() ?? "secret";
-    return `${key}${sep} ${REDACTED_SECRET}`;
-  });
+  s = s.replace(BASIC_SECRET_ASSIGN_RE, (_full, prefix: string) => `${prefix}${REDACTED_SECRET}`);
   s = s.replace(LONG_SECRET_RE, REDACTED_SECRET);
   return s;
 }

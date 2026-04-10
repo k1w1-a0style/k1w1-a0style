@@ -20,7 +20,7 @@ describe("supabase edge error sanitization", () => {
     const inText = "Authorization: Bearer abc.def.ghi";
     const outText = sanitizeErrorText(inText);
     expect(outText).not.toContain("abc.def.ghi");
-    expect(outText).toContain("[REDACTED_TOKEN]");
+    expect(outText).toContain("[REDACTED_SECRET]");
   });
 
   test("sanitizeErrorText redacts GitHub tokens", () => {
@@ -43,8 +43,27 @@ describe("supabase edge error sanitization", () => {
     expect(outText).not.toContain("supersecret");
     expect(outText).not.toContain("abc123");
     expect(outText).not.toContain("hunter2");
-    expect(outText).toContain("[REDACTED_TOKEN]");
     expect(outText).toContain("[REDACTED_SECRET]");
+  });
+
+  test("sanitizeSecretsInText redacts entire Authorization/Cookie header values", () => {
+    const inText = [
+      "Authorization: Basic dXNlcjpwYXNz",
+      "cookie: a=1; session=secret; theme=dark",
+    ].join("\n");
+
+    const outText = sanitizeSecretsInText(inText);
+    expect(outText).toContain("Authorization: [REDACTED_SECRET]");
+    expect(outText).toContain("cookie: [REDACTED_SECRET]");
+    expect(outText).not.toContain("dXNlcjpwYXNz");
+    expect(outText).not.toContain("session=secret");
+  });
+
+  test("sanitizeSecretsInText does not leak values containing colons", () => {
+    const inText = "password=abc:def";
+    const outText = sanitizeSecretsInText(inText);
+    expect(outText).toBe("password=[REDACTED_SECRET]");
+    expect(outText).not.toContain("abc:def");
   });
 
   test("sanitizeUnknownForTransport walks objects/arrays", () => {

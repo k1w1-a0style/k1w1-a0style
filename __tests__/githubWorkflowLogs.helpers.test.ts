@@ -41,7 +41,6 @@ describe("github workflow logs helpers", () => {
 
     const out = redactSecrets(input);
     expect(out).toContain("<redacted-email>");
-    expect(out).toContain("[REDACTED_TOKEN]");
     expect(out).toContain("[REDACTED_SECRET]");
     expect(out).not.toContain("abc.def.ghi");
     expect(out).not.toContain("abcdef123456");
