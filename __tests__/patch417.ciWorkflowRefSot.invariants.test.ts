@@ -142,5 +142,8 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(managed).toContain('default_ref: ""');
     expect(managed).toContain("github.event_name != 'repository_dispatch' && github.ref_name || ''");
     expect(managed).toContain("github.event_name == 'repository_dispatch' && '' || github.ref_name");
+    expect(managed).toContain("github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name");
+    expect(managed).toContain("k1w1-ci-lite-\\${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}");
+    expect(managed).toContain("github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref')");
   });
 });

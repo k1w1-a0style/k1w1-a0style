@@ -6,7 +6,7 @@ export const WORKFLOW_K1W1_CI_LITE_TEMPLATE = `
 name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
 
 run-name: >-
-  CI Lite\${{ (github.event.client_payload.job_id || inputs.job_id) && format(' [{0}]', github.event.client_payload.job_id || inputs.job_id) || '' }} • \${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}
+  CI Lite\${{ (github.event.client_payload.job_id || inputs.job_id) && format(' [{0}]', github.event.client_payload.job_id || inputs.job_id) || '' }} • \${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref') }}
 
 on:
   repository_dispatch:
@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: k1w1-ci-lite-\${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}
+  group: k1w1-ci-lite-\${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref') }}
   cancel-in-progress: false
 
 jobs:
