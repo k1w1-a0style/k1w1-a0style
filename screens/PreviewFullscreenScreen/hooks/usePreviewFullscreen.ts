@@ -75,7 +75,7 @@ export function usePreviewFullscreen() {
     } catch (error) {
       logger.warn('[usePreviewFullscreen] invalid preview URL parsing failed', {
         url: redactPreviewUrl(url),
-        error: error instanceof Error ? error.message : String(error),
+        errorType: error instanceof Error ? error.name : typeof error,
       });
       return true;
     }

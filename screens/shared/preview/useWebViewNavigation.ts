@@ -41,7 +41,7 @@ export function useWebViewNavigation({
       if (__DEV__) {
         console.warn('[useWebViewNavigation] invalid preview URL for url-mode origin guard', {
           url: redactPreviewUrl(url),
-          error,
+          errorType: error instanceof Error ? error.name : typeof error,
         });
       }
       return null;
@@ -102,7 +102,7 @@ export function useWebViewNavigation({
                 Linking.openURL(decision.url).catch((error) => {
                   console.warn('[useWebViewNavigation] failed to open external URL', {
                     url: redactPreviewUrl(decision.url),
-                    error,
+                    errorType: error instanceof Error ? error.name : typeof error,
                   });
                   Alert.alert(
                     'Navigation blockiert',
@@ -119,7 +119,7 @@ export function useWebViewNavigation({
           Linking.openURL(decision.url).catch((error) => {
             console.warn('[useWebViewNavigation] failed to open external URL', {
               url: redactPreviewUrl(decision.url),
-              error,
+              errorType: error instanceof Error ? error.name : typeof error,
             });
             Alert.alert(
               'Navigation blockiert',
