@@ -237,17 +237,17 @@ jobs:
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
-                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                npm ci --no-audit --no-fund
                 ;;
               yarn)
-                echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                pnpm install --frozen-lockfile || pnpm install
+                pnpm install --frozen-lockfile
                 ;;
               *)
                 echo "::error::Unknown package manager '$PM'"
@@ -259,7 +259,7 @@ jobs:
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            npm install --no-audit --no-fund
           fi
 
       - name: Install EAS CLI (pinned)
@@ -553,17 +553,17 @@ jobs:
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
-                npm ci --no-audit --no-fund || npm ci --no-audit --no-fund --legacy-peer-deps
+                npm ci --no-audit --no-fund
                 ;;
               yarn)
-                echo "Using yarn install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                yarn install --frozen-lockfile || yarn install --immutable || yarn install
+                yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
                 corepack enable || true
-                pnpm install --frozen-lockfile || pnpm install
+                pnpm install --frozen-lockfile
                 ;;
               *)
                 echo "::error::Unknown package manager '$PM'"
@@ -575,7 +575,7 @@ jobs:
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
-            npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+            npm install --no-audit --no-fund
           fi
 
       - name: Install EAS CLI (pinned)

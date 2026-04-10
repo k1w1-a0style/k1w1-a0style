@@ -53,6 +53,7 @@ export function useBuildStatus(
   const callbacksRef = useRef<UseBuildStatusCallbacks | undefined>(callbacks);
   const pollingStartedAtRef = useRef<number | null>(null);
   const scheduleNextPollRef = useRef<((errorCountOverride?: number) => void) | null>(null);
+  const pollGenerationRef = useRef(0);
 
   const clearPollTimer = useCallback(() => {
     if (timerRef.current) {
@@ -94,7 +95,7 @@ export function useBuildStatus(
     [buildFailureDetails],
   );
 
-  const poll = useCallback(async () => {
+  const poll = useCallback(async (generation: number) => {
     if (!jobIdFromScreen) return;
     if (isRequestPendingRef.current) return;
     isRequestPendingRef.current = true;
@@ -112,7 +113,7 @@ export function useBuildStatus(
         timeoutMs: REQUEST_TIMEOUT_MS,
       });
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || generation !== pollGenerationRef.current) return;
 
       if (!result.ok) {
         logger.debug("[useBuildStatus] ❌ Error Response:", result.raw);
@@ -171,7 +172,7 @@ export function useBuildStatus(
 
       shouldScheduleNext = true;
     } catch (e: unknown) {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current || generation !== pollGenerationRef.current) return;
 
       const errorMsg = getErrorMessage(e);
       logger.debug("[useBuildStatus] ⚠️ Poll Error:", errorMsg);
@@ -197,7 +198,12 @@ export function useBuildStatus(
       }
     } finally {
       isRequestPendingRef.current = false;
-      if (shouldScheduleNext && isMountedRef.current && !isFinalStatus(statusRef.current)) {
+      if (
+        shouldScheduleNext &&
+        isMountedRef.current &&
+        generation === pollGenerationRef.current &&
+        !isFinalStatus(statusRef.current)
+      ) {
         scheduleNextPollRef.current?.(nextErrorCount);
       }
     }
@@ -215,7 +221,7 @@ export function useBuildStatus(
     clearPollTimer();
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      poll().catch(() => undefined);
+      poll(pollGenerationRef.current).catch(() => undefined);
     }, delay);
   }, [clearPollTimer, jobIdFromScreen, poll]);
 
@@ -227,6 +233,7 @@ export function useBuildStatus(
     isMountedRef.current = true;
 
     if (!jobIdFromScreen) {
+      pollGenerationRef.current += 1;
       clearPollTimer();
       statusRef.current = "idle";
       setStatus("idle");
@@ -241,6 +248,8 @@ export function useBuildStatus(
       return;
     }
 
+    pollGenerationRef.current += 1;
+    const generation = pollGenerationRef.current;
     errorCountRef.current = 0;
     setErrorCount(0);
     hasAlertedRef.current = false;
@@ -248,7 +257,7 @@ export function useBuildStatus(
     latestDetailsRef.current = null;
     pollingStartedAtRef.current = Date.now();
 
-    poll().catch(() => undefined);
+    poll(generation).catch(() => undefined);
 
     const sub = AppState.addEventListener("change", (state) => {
       if (state !== "active") {
@@ -257,11 +266,12 @@ export function useBuildStatus(
       }
 
       if (jobIdFromScreen && !timerRef.current && !isFinalStatus(statusRef.current)) {
-        poll().catch(() => undefined);
+        poll(pollGenerationRef.current).catch(() => undefined);
       }
     });
 
     return () => {
+      pollGenerationRef.current += 1;
       isMountedRef.current = false;
       sub.remove();
       clearPollTimer();

@@ -12,10 +12,11 @@ import { Alert, Linking, Share } from 'react-native';
 import type { WebView, WebViewNavigation } from 'react-native-webview';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { isHttpUrl, truncateUrl } from '../../../utils/url';
+import { isHttpUrl } from '../../../utils/url';
 import { getPreviewRemoteUrlStatus } from '../../../hooks/previewHelpers';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
+import { redactPreviewUrl } from '../../shared/preview/previewUrlRedaction';
 import { logger } from '../../../lib/logger';
 import type { RootStackParamList } from '../../../types/preview';
 
@@ -72,7 +73,10 @@ export function usePreviewFullscreen() {
       new URL(url);
       return false;
     } catch (error) {
-      console.warn('[usePreviewFullscreen] invalid preview URL parsing failed', { url, error });
+      logger.warn('[usePreviewFullscreen] invalid preview URL parsing failed', {
+        url: redactPreviewUrl(url),
+        errorType: error instanceof Error ? error.name : typeof error,
+      });
       return true;
     }
   }, [mode, url]);
@@ -96,7 +100,7 @@ export function usePreviewFullscreen() {
   // ─── Derived ───────────────────────────────────────────────────────────────
   const headerSubtitle = useMemo(() => {
     if (mode === 'html') return 'Lokaler HTML-/Eval-Fallback · nicht server-verifiziert';
-    if (mode === 'url' && url) return `Aktive Supabase-Preview · ${truncateUrl(url, 40)}`;
+    if (mode === 'url' && url) return `Aktive Supabase-Preview · ${redactPreviewUrl(url)}`;
     if (remoteUrlStatus === 'insecure') return 'Remote-Preview blockiert · unsicherer Link';
     if (remoteUrlStatus === 'invalid') return 'Remote-Preview blockiert · ungültige URL';
     return 'Keine Preview aktiv';

@@ -49,6 +49,10 @@ assert_managed_file .github/workflows/k1w1-ci-lite.yml
 assert_managed_file .github/workflows/k1w1-ci-lite-autofix.yml
 assert_managed_file .github/workflows/deploy-supabase-functions.yml
 
+grep -q 'Coverage (summary, non-blocking)' .github/workflows/ci-core.yml || fail "CI Core missing non-blocking coverage step"
+grep -q 'continue-on-error: true' .github/workflows/ci-core.yml || fail "CI Core coverage step must stay non-blocking"
+grep -q 'npm run test:coverage -- --coverageReporters=text-summary --watchAll=false' .github/workflows/ci-core.yml || fail "CI Core coverage command drifted"
+
 EAS_VERSION="$(extract_version .github/workflows/eas-build.yml)"
 for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml; do
   V="$(extract_version "$wf")"
@@ -93,8 +97,12 @@ grep -q 'WORKFLOW_K1W1_TRIGGERED_BUILD = WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE'
 
 grep -q 'package_manager=yarn' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing yarn package-manager handling"
 grep -q 'package_manager=pnpm' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing pnpm package-manager handling"
-grep -q 'yarn install --frozen-lockfile' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing yarn install path"
+grep -q 'yarn install --immutable' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing yarn install path"
 grep -q 'pnpm install --frozen-lockfile' "$EAS_BUILD_RELEASE_SHARED_FILE" || fail "Shared EAS/release templates missing pnpm install path"
+grep -q 'yarn install --immutable' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link template missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' "$EAS_LINK_SHARED_FILE" || fail "Shared EAS Link template missing pnpm install path"
+grep -q 'yarn install --immutable' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing yarn install path"
+grep -q 'pnpm install --frozen-lockfile' .github/workflows/eas-link.yml || fail "Live EAS Link workflow missing pnpm install path"
 grep -q 'github.event.client_payload.autofix' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch autofix passthrough"
 grep -q 'github.event.client_payload.strict_lockfile' "$TRIGGERED_BUILD_SHARED_FILE" || fail "Shared triggered-build template missing repository_dispatch strict_lockfile passthrough"
 
