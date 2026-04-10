@@ -17,9 +17,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     subject: getRequestRateLimitSubject(req),
     max: 20,
     windowMs: 60_000,
+    // AI route: fail closed when the durable counter store is unavailable.
+    enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
+  // Defense-in-depth: local limiter still smooths bursts per warm instance,
+  // while durable limiter above is the source of truth across instances.
   const rl = rateLimit(req, "k1w1-handler", 20, 60_000);
   if (rl) return rl;
 
@@ -43,7 +47,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const errorPayload = {
         ok: false as const,
         code: "invalid_request_payload" as const,
-        error: isTooLarge ? "Request too large." : "Invalid request payload.",
+        error: isTooLarge ? "Request zu gross." : "Ungueltige Request-Nutzlast.",
         status: isTooLarge ? 413 : 400,
       };
       return new Response(JSON.stringify(errorPayload), {

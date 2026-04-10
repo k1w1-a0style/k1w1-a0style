@@ -96,7 +96,10 @@ export function resolveRuntimeModelId(provider: RuntimeProvider, visibleModel: s
 export function assertRuntimeModelSupported(provider: RuntimeProvider, visibleModel: string): RuntimeModelResolution {
   const resolved = resolveRuntimeModelId(provider, visibleModel);
   if (resolved.status === 'unsupported') {
-    throw new Error(`${provider}_model_unsupported (model=${resolved.visibleModel}): ${resolved.note ?? 'unsupported'}`);
+    const allowedModels = Object.keys(PROVIDER_RUNTIME_MODEL_MAP[provider] ?? {}).sort();
+    throw new Error(
+      `${provider}_model_unsupported (model=${resolved.visibleModel}): ${resolved.note ?? 'unsupported'}; allowed_models=${JSON.stringify(allowedModels)}`,
+    );
   }
   return resolved;
 }
