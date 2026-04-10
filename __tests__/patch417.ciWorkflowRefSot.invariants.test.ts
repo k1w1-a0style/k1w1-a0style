@@ -52,6 +52,9 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(ciCore).toContain('required: true');
     expect(ciCore).toContain('ref: ${{ inputs.ref }}');
     expect(ciCore).not.toContain('ref: ${{ inputs.ref || github.ref }}');
+    expect(ciCore).toContain('Coverage (summary, non-blocking)');
+    expect(ciCore).toContain('continue-on-error: true');
+    expect(ciCore).toContain('npm run test:coverage -- --coverageReporters=text-summary --watchAll=false');
 
     expect(ci).toContain('required: true');
     expect(ci).not.toContain('default: ""');
@@ -118,6 +121,8 @@ describe("Patch 417 CI utility workflow ref SoT invariants", () => {
     expect(guard).toContain('Shared WORKFLOW_EAS_LINK_TEMPLATE drifted from live .github/workflows/eas-link.yml');
     expect(guard).toContain('Shared WORKFLOW_K1W1_TRIGGERED_BUILD_TEMPLATE drifted from live .github/workflows/k1w1-triggered-build.yml');
     expect(guard).toContain('templates/expo-sdk54-base.json EAS Link entry drifted from live .github/workflows/eas-link.yml');
+    expect(guard).toContain('Live EAS Link workflow missing yarn install path');
+    expect(guard).toContain('Live EAS Link workflow missing pnpm install path');
   });
 
   it("keeps managed-workflow guardrails against implicit ref fallbacks", () => {
