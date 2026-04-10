@@ -27,7 +27,7 @@
     "audit:imports": "bash scripts/refactor/pr8-context-import-audit.sh",
     "preflight:fast": "npm run typecheck && npm run edge:check && npm run lint:ci && npm run audit:types && npm run audit:imports",
     "docs:lint": "node scripts/docsLint.js",
-    "lint:edge": "eslint \"supabase/functions/**/*.ts\"",
+    "lint:edge": "eslint supabase/functions --ext .ts",
     "edge:check": "npm run lint:edge && npm run typecheck:edge",
     "typecheck:edge": "tsc -p supabase/functions/tsconfig.json --noEmit",
     "edge:check:live": "bash scripts/check_edge_live_contracts.sh",
@@ -113,13 +113,18 @@
   },
   "overrides": {
     "@isaacs/brace-expansion": "5.0.1",
+    "@tootallnate/once": "3.0.1",
     "@xmldom/xmldom": "^0.9.0",
+    "ajv@6": "6.14.0",
     "ajv@8": "8.18.0",
     "brace-expansion@1": "1.1.13",
     "brace-expansion@2": "2.0.3",
+    "flatted": "3.4.2",
+    "handlebars": "4.7.9",
     "lodash": "^4.18.1",
     "minimatch@10": "10.2.3",
     "minimatch@3": "3.1.4",
+    "minimatch@7": "7.4.8",
     "minimatch@9": "9.0.7",
     "node-forge": "1.4.0",
     "picomatch@2": "2.3.2",
@@ -127,6 +132,7 @@
     "picomatch@4": "4.0.4",
     "tar": "^7.5.12",
     "undici": "^6.24.0",
+    "yaml@1": "1.10.3",
     "yaml@2": "2.8.3"
   }
 }
