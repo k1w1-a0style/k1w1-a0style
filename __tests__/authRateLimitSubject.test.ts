@@ -1,7 +1,7 @@
 import { getRequestClientIp, getRequestRateLimitSubject } from "../supabase/functions/_shared/auth";
 
 describe("auth rate limit subject helpers", () => {
-  it("prefers JWT sub when available", () => {
+  it("uses canonical client ip even when a JWT is present", () => {
     const req = new Request("https://example.test", {
       headers: {
         Authorization: "Bearer xxx." + btoa(JSON.stringify({ sub: "user-123" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") + ".sig",
@@ -9,7 +9,7 @@ describe("auth rate limit subject helpers", () => {
       },
     });
 
-    expect(getRequestRateLimitSubject(req)).toBe("sub:user-123");
+    expect(getRequestRateLimitSubject(req)).toBe("ip:203.0.113.9");
   });
 
   it("falls back to canonical client ip", () => {

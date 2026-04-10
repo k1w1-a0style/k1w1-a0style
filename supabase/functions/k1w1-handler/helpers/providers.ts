@@ -3,7 +3,7 @@ import { fetchWithTimeout } from "../../_shared/fetchWithTimeout.ts";
 import { providerHttpError } from "./errors.ts";
 import { joinSystemMessages, resolveDefaultModelForQuality, resolveProviderModelForRuntime, toGeminiContents, toPlainPrompt } from "./request.ts";
 import { asRecord, readAnthropicTextParts, readGeminiTextParts } from "./textParts.ts";
-import { DEFAULT_MODELS, PROVIDER_UPSTREAM_TIMEOUT_MS } from "./types.ts";
+import { DEFAULT_MODELS, DEFAULT_PROVIDER_TEMPERATURE, PROVIDER_UPSTREAM_TIMEOUT_MS } from "./types.ts";
 import type { HandlerRequestBody } from "./types.ts";
 
 export async function callGroq(
@@ -35,7 +35,7 @@ export async function callGroq(
       body: JSON.stringify({
         model: modelId,
         messages: body.messages,
-        temperature: 0.2,
+        temperature: DEFAULT_PROVIDER_TEMPERATURE,
         max_tokens: 2048,
       }),
     });
@@ -153,7 +153,7 @@ export async function callOpenAI(
     body: JSON.stringify({
       model,
       messages: body.messages,
-      temperature: 0.2,
+      temperature: DEFAULT_PROVIDER_TEMPERATURE,
       max_tokens: 2048,
     }),
   });
@@ -215,7 +215,7 @@ export async function callAnthropic(
       system: system || undefined,
       messages: safeMessages,
       max_tokens: 2048,
-      temperature: 0.2,
+      temperature: DEFAULT_PROVIDER_TEMPERATURE,
     }),
   });
 
@@ -260,7 +260,7 @@ export async function callHuggingFace(
       parameters: {
         return_full_text: false,
         max_new_tokens: 1024,
-        temperature: 0.2,
+        temperature: DEFAULT_PROVIDER_TEMPERATURE,
       },
     }),
   });

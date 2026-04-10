@@ -12,6 +12,7 @@
     "lint": "expo lint",
     "lint:ci": "eslint .",
     "typecheck": "tsc --noEmit",
+    "typecheck:all": "npm run typecheck && npm run typecheck:edge",
     "test": "jest",
     "test:silent": "jest --silent --workerIdleMemoryLimit=512MB",
     "test:watch": "jest --watch",

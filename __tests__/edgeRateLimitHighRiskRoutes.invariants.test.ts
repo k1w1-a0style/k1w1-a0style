@@ -8,6 +8,7 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     const src = read("supabase/functions/k1w1-handler/index.ts");
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "k1w1-handler"');
+    expect(src).toContain("enforceDurable: true");
     expect(src).toContain('rateLimit(req, "k1w1-handler", 20, 60_000)');
   });
 

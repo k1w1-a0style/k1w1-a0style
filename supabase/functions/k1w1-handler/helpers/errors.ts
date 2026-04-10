@@ -16,6 +16,7 @@ export interface K1w1HandlerErrorPayload {
   error: string;
   provider?: string;
   model?: string;
+  allowed_models?: string[];
   status: number;
 }
 
@@ -47,6 +48,26 @@ function safeModelLabel(model: string | undefined): string | undefined {
   if (typeof model !== "string") return undefined;
   const trimmed = model.trim();
   return trimmed ? trimmed.slice(0, 120) : undefined;
+}
+
+function parseAllowedModelsFromReason(reason: string): string[] | undefined {
+  const marker = "allowed_models=";
+  const markerIndex = reason.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+  const raw = reason.slice(markerIndex + marker.length).trim();
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+    const models = parsed
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+    return models.length > 0 ? models : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function parseProviderHttpErrorMessage(message: string): {
@@ -106,13 +127,13 @@ function buildClientErrorPayload(
   } else if (code === "provider_upstream_error") {
     error = `${label} hat den KI-Request serverseitig nicht erfolgreich verarbeitet.`;
   } else if (code === "invalid_request_payload") {
-    error = "Invalid request payload.";
+    error = "Ungueltige Request-Nutzlast.";
   } else if (code === "unsupported_provider") {
     error = normalizedProvider
       ? `Der Provider "${normalizedProvider}" wird vom k1w1-handler nicht unterstuetzt.`
       : "Der angeforderte KI-Provider wird vom k1w1-handler nicht unterstuetzt.";
   } else if (code === "unknown_internal_error") {
-    error = "Internal Server Error";
+    error = "Interner Serverfehler.";
   }
 
   return {
@@ -201,8 +222,13 @@ export function classifyK1w1HandlerError(
     const model = safeModelLabel(unsupportedModelMatch.groups.model) ?? fallbackModel;
     const payload = buildClientErrorPayload("provider_model_not_found", 404, provider, model);
     const reason = String(unsupportedModelMatch.groups.reason ?? "").trim();
+    const allowedModels = parseAllowedModelsFromReason(reason);
+    if (allowedModels) {
+      payload.allowed_models = allowedModels;
+    }
     if (reason) {
-      payload.error = `${payload.error} Hinweis: ${reason}`;
+      const humanHint = reason.split("allowed_models=")[0]?.trim().replace(/[;,\s]*$/, "");
+      payload.error = humanHint ? `${payload.error} Hinweis: ${humanHint}` : payload.error;
     }
     return payload;
   }

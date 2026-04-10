@@ -245,9 +245,9 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     jest.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response("write boom", { status: 500 }))
-      .mockResolvedValueOnce(new Response(null, { status: 201 }))
-      .mockResolvedValueOnce(new Response("read boom", { status: 500 }));
+      .mockResolvedValueOnce(new Response("rpc boom", { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: true, current_count: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ nope: true }), { status: 200 }));
 
     const writeResult = await withEnv(
       {
@@ -262,7 +262,20 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
       }),
     );
 
-    const readResult = await withEnv(
+    const successResult = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "trigger-eas-build",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+      }),
+    );
+
+    const invalidResponseResult = await withEnv(
       {
         SUPABASE_URL: "https://example.supabase.co",
         SUPABASE_SERVICE_ROLE_KEY: "srv-key",
@@ -276,7 +289,8 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     );
 
     expect(writeResult).toBeNull();
-    expect(readResult).toBeNull();
+    expect(successResult).toBeNull();
+    expect(invalidResponseResult).toBeNull();
   });
 
   it("uses durable counter storage for high-risk route rate limits", async () => {
@@ -285,10 +299,8 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     const fetchSpy = jest.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(null, { status: 201 }))
-      .mockResolvedValueOnce(new Response("[]", {
+      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: false, current_count: 4 }), {
         status: 200,
-        headers: { "content-range": "0-0/4" },
       }));
 
     const result = await withEnv(
@@ -306,11 +318,8 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
 
     expect(result?.status).toBe(429);
     expect(await result?.text()).toContain("rate_limited");
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
-      expect.objectContaining({ signal: expect.any(AbortSignal) }),
-    );
-    expect(fetchSpy.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });

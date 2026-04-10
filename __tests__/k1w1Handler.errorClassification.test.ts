@@ -59,4 +59,21 @@ describe('k1w1-handler error classification', () => {
     });
     expect(payload.error).toContain('nicht verfuegbar');
   });
+
+  it('liefert bei unbekanntem Modell eine strukturierte allowed_models Liste', () => {
+    const payload = classifyK1w1HandlerError(
+      new Error('openai_model_unsupported (model=foo-unknown): model unsupported; allowed_models=["gpt-4o","gpt-5.4"]'),
+    );
+
+    expect(payload).toMatchObject({
+      ok: false,
+      code: 'provider_model_not_found',
+      provider: 'openai',
+      model: 'foo-unknown',
+      status: 404,
+      allowed_models: ['gpt-4o', 'gpt-5.4'],
+    });
+    expect(payload.error).toContain('nicht verfuegbar');
+    expect(payload.error).not.toContain('allowed_models=');
+  });
 });

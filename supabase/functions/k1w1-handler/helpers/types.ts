@@ -18,3 +18,7 @@ export interface HandlerRequestBody {
 export const DEFAULT_MODELS = SHARED_PROVIDER_DEFAULTS;
 
 export const PROVIDER_UPSTREAM_TIMEOUT_MS = 45_000;
+
+// Intentional baseline across providers for deterministic tool-oriented responses.
+// Keep centralized so tuning is explicit and consistent.
+export const DEFAULT_PROVIDER_TEMPERATURE = 0.2;

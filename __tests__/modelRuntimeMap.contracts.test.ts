@@ -51,9 +51,14 @@ describe('model runtime mapping contracts', () => {
   });
 
   it('rejects unsupported ids explicitly via assertion helper', () => {
-    expect(() => assertRuntimeModelSupported('openai', 'non-existent-visible-id')).toThrow(
-      /openai_model_unsupported/i,
-    );
+    expect(() => assertRuntimeModelSupported('openai', 'non-existent-visible-id')).toThrow(/openai_model_unsupported/i);
+    try {
+      assertRuntimeModelSupported('openai', 'non-existent-visible-id');
+    } catch (error) {
+      const msg = String((error as Error)?.message ?? '');
+      expect(msg).toContain('allowed_models=');
+      expect(msg).toContain('"gpt-5.3-codex"');
+    }
   });
 
   it('keeps every visible default model covered by runtime mapping', () => {

@@ -1,5 +1,4 @@
 import { errorResponse } from "../cors.ts";
-import { getJwtPayload } from "./jwt.ts";
 import { getRuntimeEnv, getServiceRoleSecret, getSupabaseUrlSecret } from "./runtime.ts";
 
 function normalizeClientIpCandidate(input: string | null | undefined): string | null {
@@ -40,9 +39,6 @@ export function getRequestClientIp(req: Request): string {
 }
 
 export function getRequestRateLimitSubject(req: Request): string {
-  const payload = getJwtPayload(req);
-  const subject = typeof payload?.sub === "string" ? payload.sub.trim() : "";
-  if (subject) return `sub:${subject.slice(0, 200)}`;
   return `ip:${getRequestClientIp(req)}`;
 }
 
@@ -131,42 +127,46 @@ export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimi
     });
   }
 
-  const nowIso = new Date().toISOString();
-  const windowStartIso = new Date(Date.now() - cfg.windowMs).toISOString();
-  const restBase = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/edge_rate_limit_events`;
+  const rpcUrl = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/enforce_edge_rate_limit`;
 
   try {
-    const insertRes = await fetchWithEdgeTimeout(restBase, {
+    const rpcRes = await fetchWithEdgeTimeout(rpcUrl, {
       method: "POST",
       headers: {
         apikey: serviceKey,
         authorization: `Bearer ${serviceKey}`,
         "content-type": "application/json",
-        prefer: "return=minimal",
       },
-      body: JSON.stringify({ scope: cfg.scope, subject: cfg.subject, created_at: nowIso }),
+      body: JSON.stringify({
+        p_scope: cfg.scope,
+        p_subject: cfg.subject,
+        p_max: cfg.max,
+        p_window_ms: cfg.windowMs,
+      }),
     });
 
-    if (!insertRes.ok) {
-      console.warn("[durable-rate-limit] falling back to local limiter because durable store write failed", { scope: cfg.scope, status: insertRes.status, ...localFallbackRisk });
-      return strictFailure("durable_store_write_failed", { status: insertRes.status });
+    if (!rpcRes.ok) {
+      console.warn("[durable-rate-limit] falling back to local limiter because durable store rpc failed", {
+        scope: cfg.scope,
+        status: rpcRes.status,
+        ...localFallbackRisk,
+      });
+      return strictFailure("durable_store_rpc_failed", { status: rpcRes.status });
     }
 
-    const countUrl = `${restBase}?scope=eq.${encodeURIComponent(cfg.scope)}&subject=eq.${encodeURIComponent(cfg.subject)}&created_at=gte.${encodeURIComponent(windowStartIso)}&select=id`;
-    const countRes = await fetchWithEdgeTimeout(countUrl, {
-      method: "GET",
-      headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, range: "0-0", prefer: "count=exact" },
-    });
-
-    if (!countRes.ok) {
-      console.warn("[durable-rate-limit] falling back to local limiter because durable store read failed", { scope: cfg.scope, status: countRes.status, ...localFallbackRisk });
-      return strictFailure("durable_store_read_failed", { status: countRes.status });
+    const rpcJson = await rpcRes.json().catch((): unknown => null);
+    const allowed = typeof (rpcJson as { allowed?: unknown } | null)?.allowed === "boolean"
+      ? (rpcJson as { allowed: boolean }).allowed
+      : null;
+    if (allowed === null) {
+      console.warn("[durable-rate-limit] falling back to local limiter because durable store rpc response was invalid", {
+        scope: cfg.scope,
+        ...localFallbackRisk,
+      });
+      return strictFailure("durable_store_rpc_invalid_response");
     }
 
-    const countHeader = countRes.headers.get("content-range") || "";
-    const totalStr = countHeader.split("/")[1];
-    const total = Number(totalStr);
-    if (Number.isFinite(total) && total > cfg.max) {
+    if (!allowed) {
       return errorResponse("rate_limited", req, 429, { scope: cfg.scope, max: cfg.max, windowMs: cfg.windowMs, mode: "durable" });
     }
 
