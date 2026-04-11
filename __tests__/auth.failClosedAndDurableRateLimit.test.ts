@@ -246,7 +246,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
 
     jest.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("rpc boom", { status: 500 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: true, current_count: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: true, current_count: 1 }]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ nope: true }), { status: 200 }));
 
     const writeResult = await withEnv(
@@ -299,7 +299,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     const fetchSpy = jest.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ allowed: false, current_count: 4 }), {
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: false, current_count: 4 }]), {
         status: 200,
       }));
 
@@ -317,10 +317,65 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     );
 
     expect(result?.status).toBe(429);
-    expect(await result?.text()).toContain("rate_limited");
+    const payload = await result?.json();
+    expect(payload).toEqual(expect.objectContaining({
+      error: "rate_limited",
+      details: expect.objectContaining({ currentCount: 4 }),
+    }));
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("accepts single-row array response in strict durable mode without 503", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    jest.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: true, current_count: 2 }]), { status: 200 }));
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "k1w1-handler",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+        enforceDurable: true,
+      }),
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("fails closed for invalid durable rpc response shape in strict durable mode", async () => {
+    const req = new Request("http://localhost/edge", {
+      headers: { "x-forwarded-for": "1.2.3.4" },
+    });
+
+    jest.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: true }]), { status: 200 }));
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "k1w1-handler",
+        subject: "1.2.3.4",
+        max: 3,
+        windowMs: 60_000,
+        enforceDurable: true,
+      }),
+    );
+
+    expect(result?.status).toBe(503);
+    await expect(result?.text()).resolves.toContain("rate_limit_unavailable");
   });
 });
