@@ -113,9 +113,9 @@ function buildClientErrorPayload(
   if (code === "provider_env_missing") {
     error = `${label} ist serverseitig nicht konfiguriert.`;
   } else if (code === "provider_http_401") {
-    error = `${label} lehnt den Server-Request ab (401). Bitte Provider-Key oder Account-Berechtigungen pruefen.`;
+    error = `${label} lehnt die Server-Anfrage ab (401). Bitte Provider-Key oder Account-Berechtigungen pruefen.`;
   } else if (code === "provider_http_403") {
-    error = `${label} verweigert den Zugriff auf den angeforderten KI-Request (403).`;
+    error = `${label} verweigert den Zugriff auf die angeforderte KI-Anfrage (403).`;
   } else if (code === "provider_http_404") {
     error = `${label} konnte die angeforderte Ressource nicht finden (404).`;
   } else if (code === "provider_http_429") {
@@ -125,9 +125,9 @@ function buildClientErrorPayload(
       ? `Das Modell "${safeModel}" ist bei ${label} nicht verfuegbar oder wird dort nicht unterstuetzt.`
       : `${label} meldet, dass das angeforderte Modell nicht verfuegbar ist.`;
   } else if (code === "provider_upstream_error") {
-    error = `${label} hat den KI-Request serverseitig nicht erfolgreich verarbeitet.`;
+    error = `${label} hat die KI-Anfrage serverseitig nicht erfolgreich verarbeitet.`;
   } else if (code === "invalid_request_payload") {
-    error = "Ungueltige Request-Nutzlast.";
+    error = "Ungueltige Anfrage-Nutzlast.";
   } else if (code === "unsupported_provider") {
     error = normalizedProvider
       ? `Der Provider "${normalizedProvider}" wird vom k1w1-handler nicht unterstuetzt.`

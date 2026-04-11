@@ -28,7 +28,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   if (rl) return rl;
 
   if (req.method !== "POST") {
-    return new Response("Method not allowed", {
+    return new Response("Methode nicht erlaubt", {
       status: 405,
       headers: responseCorsHeaders,
     });
@@ -47,7 +47,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const errorPayload = {
         ok: false as const,
         code: "invalid_request_payload" as const,
-        error: isTooLarge ? "Request zu gross." : "Ungueltige Request-Nutzlast.",
+        error: isTooLarge ? "Anfrage zu gross." : "Ungueltige Anfrage-Nutzlast.",
         status: isTooLarge ? 413 : 400,
       };
       return new Response(JSON.stringify(errorPayload), {
