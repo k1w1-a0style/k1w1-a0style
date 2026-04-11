@@ -11,10 +11,6 @@ if [[ -f ".env.edge.live" ]]; then
   set +a
 fi
 
-if [[ -z "${EDGE_OPERATOR_JWT:-}" && -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
-  export EDGE_OPERATOR_JWT="${SUPABASE_SERVICE_ROLE_KEY}"
-fi
-
 echo "[edge-live] env readiness"
 bash scripts/check_edge_live_env_readiness.sh
 

@@ -183,4 +183,4 @@ Important:
 - Never commit secret VALUES.
 - Workflows/scripts must map these names explicitly into env.
 - Local shell scripts cannot read GitHub secret values automatically.
-- If EDGE_OPERATOR_JWT is missing, live-check scripts may fall back to SUPABASE_SERVICE_ROLE_KEY when supported.
+- EDGE_OPERATOR_JWT must be a real, verifiable bearer JWT for operator route checks; do not assume service-role fallback.

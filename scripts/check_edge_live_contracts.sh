@@ -16,18 +16,6 @@ looks_like_jwt() {
   [[ -n "$token" && "$token" == *.*.* ]]
 }
 
-pick_operator_jwt() {
-  if looks_like_jwt "${EDGE_OPERATOR_JWT:-}"; then
-    printf '%s' "${EDGE_OPERATOR_JWT}"
-    return 0
-  fi
-  if looks_like_jwt "${SUPABASE_SERVICE_ROLE_KEY:-}"; then
-    printf '%s' "${SUPABASE_SERVICE_ROLE_KEY}"
-    return 0
-  fi
-  return 1
-}
-
 if [[ -z "$EDGE_BASE_URL" ]]; then
   echo "Missing EDGE_BASE_URL (expected: https://<project>.supabase.co/functions/v1)" >&2
   exit 1
@@ -38,9 +26,9 @@ if ! [[ "${EDGE_BASE_URL}" =~ ^https://[^[:space:]]+/functions/v1/?$ ]]; then
   exit 1
 fi
 
-ACTIVE_OPERATOR_JWT="$(pick_operator_jwt || true)"
+ACTIVE_OPERATOR_JWT="${EDGE_OPERATOR_JWT:-}"
 if ! looks_like_jwt "$ACTIVE_OPERATOR_JWT"; then
-  echo "Missing usable operator JWT. Set EDGE_OPERATOR_JWT or SUPABASE_SERVICE_ROLE_KEY." >&2
+  echo "Missing usable EDGE_OPERATOR_JWT. Service-role fallback is intentionally disabled." >&2
   exit 1
 fi
 
@@ -74,26 +62,6 @@ request() {
   "$CURL_BIN" "${curl_args[@]}"
 }
 
-request_with_operator_retry() {
-  local method="$1"
-  local url="$2"
-  local body_file="$3"
-  local out_prefix="$4"
-
-  local status
-  status="$(request "$method" "$url" "$body_file" "$out_prefix" "$ACTIVE_OPERATOR_JWT")"
-
-  if [[ "$status" == "401" ]] && grep -Eiq 'invalid token|protected header|jwt' "$TMP_DIR/${out_prefix}.body"; then
-    if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] && [[ "$ACTIVE_OPERATOR_JWT" != "${SUPABASE_SERVICE_ROLE_KEY}" ]] && looks_like_jwt "${SUPABASE_SERVICE_ROLE_KEY}"; then
-      echo "Retrying $out_prefix with SUPABASE_SERVICE_ROLE_KEY fallback..." >&2
-      ACTIVE_OPERATOR_JWT="${SUPABASE_SERVICE_ROLE_KEY}"
-      status="$(request "$method" "$url" "$body_file" "$out_prefix" "$ACTIVE_OPERATOR_JWT")"
-    fi
-  fi
-
-  printf '%s' "$status"
-}
-
 assert_body_contains() {
   local file="$1"
   local needle="$2"
@@ -120,8 +88,11 @@ assert_body_not_contains() {
 
 printf '{"broken":' > "$TMP_DIR/k1w1-invalid.json"
 
-k1w1_status="$(request_with_operator_retry POST "$EDGE_BASE_URL/k1w1-handler" "$TMP_DIR/k1w1-invalid.json" "k1w1-handler")"
+k1w1_status="$(request POST "$EDGE_BASE_URL/k1w1-handler" "$TMP_DIR/k1w1-invalid.json" "k1w1-handler" "$ACTIVE_OPERATOR_JWT")"
 if [[ "$k1w1_status" != "400" ]]; then
+  if [[ "$k1w1_status" == "401" ]]; then
+    echo "k1w1-handler auth failed with 401. EDGE_OPERATOR_JWT is not acceptable for verified bearer JWT auth." >&2
+  fi
   echo "k1w1-handler contract failed: expected HTTP 400 for invalid JSON, got $k1w1_status" >&2
   echo "--- headers ---" >&2
   cat "$TMP_DIR/k1w1-handler.headers" >&2 || true
@@ -158,7 +129,7 @@ cat > "$TMP_DIR/save-preview-payload.json" <<'JSON'
 }
 JSON
 
-save_preview_status="$(request_with_operator_retry POST "$EDGE_BASE_URL/save_preview" "$TMP_DIR/save-preview-payload.json" "save_preview")"
+save_preview_status="$(request POST "$EDGE_BASE_URL/save_preview" "$TMP_DIR/save-preview-payload.json" "save_preview" "$ACTIVE_OPERATOR_JWT")"
 if [[ "$save_preview_status" != "200" ]]; then
   echo "save_preview contract failed: expected HTTP 200 for valid JWT + minimal payload, got $save_preview_status" >&2
   echo "--- headers ---" >&2

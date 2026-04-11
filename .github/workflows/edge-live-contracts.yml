@@ -34,10 +34,8 @@ jobs:
         shell: bash
         run: |
           [ -z "${EDGE_BASE_URL:-}" ] && echo "::error::EDGE_BASE_URL fehlt" && exit 1
-          if [ -z "${EDGE_OPERATOR_JWT:-}" ] && [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-            echo "::error::EDGE_OPERATOR_JWT oder SUPABASE_SERVICE_ROLE_KEY fehlt"
-            exit 1
-          fi
+          [ -z "${EDGE_OPERATOR_JWT:-}" ] && echo "::error::EDGE_OPERATOR_JWT fehlt" && exit 1
+          [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY fehlt" && exit 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
