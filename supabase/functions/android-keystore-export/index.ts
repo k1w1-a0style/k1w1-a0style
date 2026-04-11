@@ -52,21 +52,24 @@ Deno.serve(async (req) => {
   if (rl) return rl;
 
   try {
+    const secureError = (message: string, status: number, details?: unknown) =>
+      errorResponse(message, req, status, details, { noStore: true });
+    const secureJson = (body: unknown, status = 200) =>
+      jsonResponse(body, req, status, { noStore: true });
+
     const supabaseUrl = getSupabaseUrl();
     const serviceKey = getServiceRoleKey(req);
     const masterKey = getSigningMasterKey();
 
     if (!supabaseUrl || !serviceKey) {
-      return errorResponse(
+      return secureError(
         "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY",
-        req,
         500,
       );
     }
     if (!masterKey || masterKey.trim().length < 24) {
-      return errorResponse(
+      return secureError(
         "Missing SIGNING_MASTER_KEY (must be set as Supabase Edge Secret)",
-        req,
         500,
       );
     }
@@ -74,20 +77,19 @@ Deno.serve(async (req) => {
     const parsedBody = await parseJsonBody(req, 20_000);
     if (isParsedJsonBodyError(parsedBody)) {
       const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
-      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+      return secureError(status === 413 ? "Request too large" : "Invalid JSON body", status);
     }
     const body = parsedBody.body;
     const repo = safeString(body?.repo);
 
     if (!repoOk(repo)) {
-      return errorResponse(
+      return secureError(
         "Invalid repo format. Expected 'owner/name'.",
-        req,
         400,
       );
     }
     if (!isAllowedGithubRepo(repo)) {
-      return errorResponse("Repo not allowed", req, 403, { repo });
+      return secureError("Repo not allowed", 403, { repo });
     }
     const resolvedMode = resolveMode(body?.mode);
 
@@ -101,19 +103,19 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (error) {
-      return errorResponse("DB read failed", req, 500);
+      return secureError("DB read failed", 500);
     }
-    if (!data) return errorResponse("No signing record for repo", req, 404, { repo });
+    if (!data) return secureError("No signing record for repo", 404, { repo });
 
     const bucket = String(data.storage_bucket || "").trim();
     const path = String(data.storage_path || "").trim();
     if (!bucket || !path) {
-      return errorResponse("Invalid signing record (missing bucket/path)", req, 500);
+      return secureError("Invalid signing record (missing bucket/path)", 500);
     }
 
     const { data: file, error: dlErr } = await supabase.storage.from(bucket).download(path);
     if (dlErr || !file) {
-      return errorResponse("Storage download failed", req, 500);
+      return secureError("Storage download failed", 500);
     }
 
     const encrypted = await file.text();
@@ -134,13 +136,13 @@ Deno.serve(async (req) => {
         user_agent: userAgent,
       });
       if (auditError) {
-        return errorResponse("Audit log write failed", req, 503);
+        return secureError("Audit log write failed", 503);
       }
     } catch {
-      return errorResponse("Audit log write failed", req, 503);
+      return secureError("Audit log write failed", 503);
     }
 
-    return jsonResponse(
+    return secureJson(
       {
         ok: true,
         repo,
@@ -149,12 +151,13 @@ Deno.serve(async (req) => {
         keystorePassword: parsed.keystorePassword,
         keyPassword: parsed.keyPassword,
       },
-      req,
     );
   } catch (e) {
     const safeMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
     return errorResponse("Unhandled error", req, 500, {
       message: safeMessage,
+    }, {
+      noStore: true,
     });
   }
 });

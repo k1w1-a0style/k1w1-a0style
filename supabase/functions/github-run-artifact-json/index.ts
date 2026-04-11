@@ -71,34 +71,36 @@ Deno.serve(async (req: Request) => {
   if (rl) return rl;
 
   try {
+    const secureError = (message: string, status: number, details?: unknown) =>
+      errorResponse(message, req, status, details, { noStore: true });
     const token = getGithubToken();
     if (!token) {
-      return errorResponse("Missing GitHub token for artifact lookup", req, 500);
+      return secureError("Missing GitHub token for artifact lookup", 500);
     }
 
     const parsedBody = await parseJsonBody(req, 20_000);
     if (isParsedJsonBodyError(parsedBody)) {
       const status = parsedBody.error.toLowerCase().includes("too large") ? 413 : 400;
-      return errorResponse(status === 413 ? "Request too large" : "Invalid JSON body", req, status);
+      return secureError(status === 413 ? "Request too large" : "Invalid JSON body", status);
     }
 
     const body = parsedBody.body as ReqBody;
     const { githubRepo, runId, artifactName, filePath } = body;
 
     if (!isSafeGitHubRepoFullName(githubRepo)) {
-      return errorResponse("Invalid githubRepo", req, 400);
+      return secureError("Invalid githubRepo", 400);
     }
     if (!isAllowedGithubRepo(githubRepo)) {
-      return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
+      return secureError("githubRepo not allowed", 403, { githubRepo });
     }
     if (!Number.isFinite(runId) || runId <= 0) {
-      return errorResponse("Invalid runId", req, 400);
+      return secureError("Invalid runId", 400);
     }
     if (!artifactName || typeof artifactName !== "string") {
-      return errorResponse("Invalid artifactName", req, 400);
+      return secureError("Invalid artifactName", 400);
     }
     if (!filePath || typeof filePath !== "string" || filePath.includes("..") || filePath.startsWith("/")) {
-      return errorResponse("Invalid filePath", req, 400);
+      return secureError("Invalid filePath", 400);
     }
 
     const artifactsUrl = `https://api.github.com/repos/${githubRepo}/actions/runs/${runId}/artifacts`;
@@ -107,20 +109,20 @@ Deno.serve(async (req: Request) => {
     const artifact = artifacts.find((a) => a.name === artifactName);
 
     if (!artifact) {
-      return errorResponse(`Artifact not found: ${artifactName}`, req, 404, { runId });
+      return secureError(`Artifact not found: ${artifactName}`, 404, { runId });
     }
     if (artifact.expired) {
-      return errorResponse(`Artifact expired: ${artifactName}`, req, 410, { runId });
+      return secureError(`Artifact expired: ${artifactName}`, 410, { runId });
     }
 
     const zipRes = await githubFetchRaw(artifact.archive_download_url, token);
     if (!zipRes.ok) {
-      return errorResponse(`Failed to download artifact zip (${zipRes.status})`, req, 502, { runId });
+      return secureError(`Failed to download artifact zip (${zipRes.status})`, 502, { runId });
     }
 
     const contentLength = Number(zipRes.headers.get("content-length") ?? "");
     if (Number.isFinite(contentLength) && contentLength > MAX_ARTIFACT_ARCHIVE_BYTES) {
-      return errorResponse("Artifact zip too large", req, 413, {
+      return secureError("Artifact zip too large", 413, {
         runId,
         artifactId: artifact.id,
         maxBytes: MAX_ARTIFACT_ARCHIVE_BYTES,
@@ -129,7 +131,7 @@ Deno.serve(async (req: Request) => {
 
     const zipBytes = new Uint8Array(await zipRes.arrayBuffer());
     if (zipBytes.byteLength > MAX_ARTIFACT_ARCHIVE_BYTES) {
-      return errorResponse("Artifact zip too large", req, 413, {
+      return secureError("Artifact zip too large", 413, {
         runId,
         artifactId: artifact.id,
         maxBytes: MAX_ARTIFACT_ARCHIVE_BYTES,
@@ -140,12 +142,12 @@ Deno.serve(async (req: Request) => {
     try {
       files = unzipSync(zipBytes);
     } catch (e) {
-      return errorResponse(`Failed to unzip artifact: ${String(e)}`, req, 502, { runId });
+      return secureError(`Failed to unzip artifact: ${String(e)}`, 502, { runId });
     }
 
     const found = pickFileFromZip(files, filePath);
     if (!found) {
-      return errorResponse(`File not found in artifact zip: ${filePath}`, req, 404, {
+      return secureError(`File not found in artifact zip: ${filePath}`, 404, {
         runId,
         artifactId: artifact.id,
         artifactName: artifact.name,
@@ -155,7 +157,7 @@ Deno.serve(async (req: Request) => {
 
     const text = strFromU8(found);
     if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_TEXT_BYTES) {
-      return errorResponse("Artifact payload too large", req, 413, {
+      return secureError("Artifact payload too large", 413, {
         runId,
         artifactId: artifact.id,
         maxBytes: MAX_RESPONSE_TEXT_BYTES,
@@ -181,8 +183,11 @@ Deno.serve(async (req: Request) => {
       },
       req,
       200,
+      { noStore: true },
     );
   } catch (e) {
-    return errorResponse(String(e instanceof Error ? e.message : e), req, 500);
+    return errorResponse(String(e instanceof Error ? e.message : e), req, 500, undefined, {
+      noStore: true,
+    });
   }
 });

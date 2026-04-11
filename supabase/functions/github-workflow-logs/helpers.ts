@@ -29,11 +29,11 @@ async function readBodyOrSentinel(response: Response, context: string): Promise<
 }
 
 export function jsonOk(req: Request, body: unknown, status = 200) {
-  return jsonResponse(body, req, status);
+  return jsonResponse(body, req, status, { noStore: true });
 }
 
 export function jsonErr(req: Request, error: string, details?: unknown, status = 400) {
-  return errorResponse(error, req, status, details);
+  return errorResponse(error, req, status, details, { noStore: true });
 }
 
 export function asString(v: unknown): string | undefined {
