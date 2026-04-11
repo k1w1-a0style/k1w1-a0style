@@ -1,0 +1,54 @@
+name: Edge Live Contracts
+
+run-name: >-
+  Edge Live Contracts •
+  ${{ github.event_name == 'workflow_dispatch' && (inputs.ref || github.ref_name) || github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref/Branch für manuellen Lauf"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  live-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      EDGE_BASE_URL: ${{ secrets.EDGE_BASE_URL }}
+      EDGE_OPERATOR_JWT: ${{ secrets.EDGE_OPERATOR_JWT }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Verify required live env
+        shell: bash
+        run: |
+          [ -z "${EDGE_BASE_URL:-}" ] && echo "::error::EDGE_BASE_URL fehlt" && exit 1
+          if [ -z "${EDGE_OPERATOR_JWT:-}" ] && [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+            echo "::error::EDGE_OPERATOR_JWT oder SUPABASE_SERVICE_ROLE_KEY fehlt"
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Make scripts executable
+        run: chmod +x scripts/check_edge_live_env_readiness.sh scripts/check_edge_live_contracts.sh scripts/check_release_readiness.sh scripts/run-edge-live-checks.sh
+
+      - name: Run live checks
+        run: bash scripts/run-edge-live-checks.sh

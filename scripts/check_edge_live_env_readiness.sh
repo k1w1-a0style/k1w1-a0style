@@ -1,26 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-missing=()
+if [[ -f ".env.edge.live" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source .env.edge.live
+  set +a
+fi
+
+looks_like_jwt() {
+  local token="${1:-}"
+  [[ -n "$token" && "$token" == *.*.* ]]
+}
 
 if [[ -z "${EDGE_BASE_URL:-}" ]]; then
-  missing+=("EDGE_BASE_URL")
-fi
-if [[ -z "${EDGE_OPERATOR_JWT:-}" ]]; then
-  missing+=("EDGE_OPERATOR_JWT")
+  echo "Missing EDGE_BASE_URL (expected: https://<project>.supabase.co/functions/v1)" >&2
+  exit 1
 fi
 
-if (( ${#missing[@]} == 0 )); then
-  echo "Live-edge env readiness: OK (EDGE_BASE_URL + EDGE_OPERATOR_JWT gesetzt)"
-  exit 0
+if ! [[ "${EDGE_BASE_URL}" =~ ^https://[^[:space:]]+/functions/v1/?$ ]]; then
+  echo "Invalid EDGE_BASE_URL: ${EDGE_BASE_URL}" >&2
+  echo "Expected something like: https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1" >&2
+  exit 1
 fi
 
-echo "Live-edge env readiness: SKIP (fehlende Variablen: ${missing[*]})"
-echo "Hinweis: Fuer echten Live-Vertragslauf setze die fehlenden Variablen und starte scripts/check_release_readiness.sh erneut."
-echo "Minimal erforderlich (Live-Checks): EDGE_BASE_URL, EDGE_OPERATOR_JWT"
-echo "Lokaler Lauf (nur fuer aktuelle Shell):"
-echo "  export EDGE_BASE_URL=\"https://<project>.supabase.co/functions/v1\""
-echo "  export EDGE_OPERATOR_JWT=\"<frischer build_admin jwt>\""
-echo "  bash scripts/check_edge_live_contracts.sh"
-echo "CI/Runner: Werte als Secret/Masked Env setzen, nicht in Dateien committen."
-exit 0
+if ! looks_like_jwt "${EDGE_OPERATOR_JWT:-}"; then
+  if looks_like_jwt "${SUPABASE_SERVICE_ROLE_KEY:-}"; then
+    export EDGE_OPERATOR_JWT="${SUPABASE_SERVICE_ROLE_KEY}"
+  fi
+fi
+
+if ! looks_like_jwt "${EDGE_OPERATOR_JWT:-}"; then
+  echo "Missing valid EDGE_OPERATOR_JWT and no usable SUPABASE_SERVICE_ROLE_KEY fallback found." >&2
+  exit 1
+fi
+
+echo "Live-edge env readiness: OK (EDGE_BASE_URL + usable operator JWT vorhanden)"

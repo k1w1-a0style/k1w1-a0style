@@ -1,0 +1,47 @@
+name: Edge Function Smoke Test
+
+run-name: >-
+  Edge Function Smoke Test •
+  ${{ github.event_name == 'workflow_dispatch' && (inputs.ref || github.ref_name) || github.event.workflow_run.head_branch || github.ref_name }}
+
+on:
+  workflow_run:
+    workflows: ["Deploy Supabase (Edge Functions)"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref/Branch für manuellen Lauf"
+        required: false
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      EDGE_BASE_URL: https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY fehlt" && exit 1
+          [ -z "${SUPABASE_ANON_KEY:-}" ] && echo "::warning::SUPABASE_ANON_KEY fehlt - anon-Block wird übersprungen"
+
+      - name: Make script executable
+        run: chmod +x scripts/edge-fn-smoke-test.sh
+
+      - name: Run smoke test
+        run: bash scripts/edge-fn-smoke-test.sh

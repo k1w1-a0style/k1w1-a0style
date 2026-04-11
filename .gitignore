@@ -12,3 +12,7 @@ k1w1-patch-*/
 k1w1-patch-*.patch
 
 *.zip
+
+# local live env
+.env.edge.live
+.env.edge.live.bak.*

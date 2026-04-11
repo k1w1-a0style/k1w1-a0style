@@ -172,3 +172,15 @@ Pflicht im Abschlussbericht:
 
 - Erst Code + Docs durchsuchen.
 - Dann eine Hypothese formulieren und minimal testen.
+## Live Edge Secrets
+For live edge contract checks, the repository uses these GitHub Actions secret names:
+- EDGE_BASE_URL
+- EDGE_OPERATOR_JWT
+- SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_ANON_KEY
+
+Important:
+- Never commit secret VALUES.
+- Workflows/scripts must map these names explicitly into env.
+- Local shell scripts cannot read GitHub secret values automatically.
+- If EDGE_OPERATOR_JWT is missing, live-check scripts may fall back to SUPABASE_SERVICE_ROLE_KEY when supported.
