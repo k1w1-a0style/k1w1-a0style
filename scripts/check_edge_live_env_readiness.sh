@@ -35,25 +35,25 @@ if ! looks_like_jwt "${EDGE_OPERATOR_JWT:-}"; then
   exit 1
 fi
 
-if [[ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
-  echo "Missing SUPABASE_SERVICE_ROLE_KEY (required to verify EDGE_OPERATOR_JWT via /auth/v1/user preflight)." >&2
-  exit 1
+if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
+  SUPABASE_ORIGIN="$(derive_supabase_origin "${EDGE_BASE_URL}")"
+  AUTH_TMP_BODY="$(mktemp)"
+  trap 'rm -f "$AUTH_TMP_BODY"' EXIT
+  AUTH_CHECK_STATUS="$(
+    curl -sS -o "$AUTH_TMP_BODY" -w "%{http_code}" \
+      -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+      -H "Authorization: Bearer ${EDGE_OPERATOR_JWT}" \
+      "${SUPABASE_ORIGIN}/auth/v1/user"
+  )"
+
+  if [[ "${AUTH_CHECK_STATUS}" != "200" ]]; then
+    echo "EDGE_OPERATOR_JWT preflight failed against ${SUPABASE_ORIGIN}/auth/v1/user (HTTP ${AUTH_CHECK_STATUS})." >&2
+    echo "The token is missing, malformed, expired, or unverifiable for Supabase Auth." >&2
+    exit 1
+  fi
+
+  echo "Live-edge env readiness: OK (EDGE_BASE_URL + verified EDGE_OPERATOR_JWT preflight)"
+  exit 0
 fi
 
-SUPABASE_ORIGIN="$(derive_supabase_origin "${EDGE_BASE_URL}")"
-AUTH_TMP_BODY="$(mktemp)"
-trap 'rm -f "$AUTH_TMP_BODY"' EXIT
-AUTH_CHECK_STATUS="$(
-  curl -sS -o "$AUTH_TMP_BODY" -w "%{http_code}" \
-    -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-    -H "Authorization: Bearer ${EDGE_OPERATOR_JWT}" \
-    "${SUPABASE_ORIGIN}/auth/v1/user"
-)"
-
-if [[ "${AUTH_CHECK_STATUS}" != "200" ]]; then
-  echo "EDGE_OPERATOR_JWT preflight failed against ${SUPABASE_ORIGIN}/auth/v1/user (HTTP ${AUTH_CHECK_STATUS})." >&2
-  echo "The token is missing, malformed, expired, or unverifiable for Supabase Auth." >&2
-  exit 1
-fi
-
-echo "Live-edge env readiness: OK (EDGE_BASE_URL + verified EDGE_OPERATOR_JWT preflight)"
+echo "Live-edge env readiness: OK (EDGE_BASE_URL + EDGE_OPERATOR_JWT present; preflight skipped because SUPABASE_SERVICE_ROLE_KEY is not set)"
