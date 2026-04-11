@@ -91,6 +91,23 @@ export type DurableRateLimitConfig = {
 
 const DEFAULT_EDGE_FETCH_TIMEOUT_MS = 8_000;
 
+type DurableRateLimitRpcRow = {
+  allowed: boolean;
+  current_count: number;
+};
+
+function parseDurableRateLimitRpcRow(rpcJson: unknown): DurableRateLimitRpcRow | null {
+  const candidate = Array.isArray(rpcJson) ? (rpcJson.length === 1 ? rpcJson[0] : null) : rpcJson;
+  if (!candidate || typeof candidate !== "object") return null;
+
+  const allowed = (candidate as { allowed?: unknown }).allowed;
+  const currentCount = (candidate as { current_count?: unknown }).current_count;
+  if (typeof allowed !== "boolean") return null;
+  if (typeof currentCount !== "number" || !Number.isFinite(currentCount) || currentCount < 0) return null;
+
+  return { allowed, current_count: currentCount };
+}
+
 async function fetchWithEdgeTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = DEFAULT_EDGE_FETCH_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -155,10 +172,8 @@ export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimi
     }
 
     const rpcJson = await rpcRes.json().catch((): unknown => null);
-    const allowed = typeof (rpcJson as { allowed?: unknown } | null)?.allowed === "boolean"
-      ? (rpcJson as { allowed: boolean }).allowed
-      : null;
-    if (allowed === null) {
+    const parsed = parseDurableRateLimitRpcRow(rpcJson);
+    if (!parsed) {
       console.warn("[durable-rate-limit] falling back to local limiter because durable store rpc response was invalid", {
         scope: cfg.scope,
         ...localFallbackRisk,
@@ -166,8 +181,14 @@ export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimi
       return strictFailure("durable_store_rpc_invalid_response");
     }
 
-    if (!allowed) {
-      return errorResponse("rate_limited", req, 429, { scope: cfg.scope, max: cfg.max, windowMs: cfg.windowMs, mode: "durable" });
+    if (!parsed.allowed) {
+      return errorResponse("rate_limited", req, 429, {
+        scope: cfg.scope,
+        max: cfg.max,
+        windowMs: cfg.windowMs,
+        currentCount: parsed.current_count,
+        mode: "durable",
+      });
     }
 
     return null;
