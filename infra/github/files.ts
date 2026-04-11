@@ -2,6 +2,7 @@ export { createOrUpdateFile, deleteRepoFile, getRepoFileText } from "./files/con
 export {
   pushFilesToRepo,
   pushFilesToRepoAdvanced,
+  applyRepoFilePatchAtomic,
   listRepoBlobEntries,
   listRepoBlobPaths,
   compareLocalFilesWithRepo,

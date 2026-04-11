@@ -164,6 +164,147 @@ export const pushFilesToRepoAdvanced = async (
   }
 };
 
+export const applyRepoFilePatchAtomic = async (
+  owner: string,
+  repo: string,
+  patch: {
+    upsert?: ProjectFile[];
+    delete?: string[];
+  },
+  options?: {
+    branch?: string;
+    message?: string;
+  },
+) => {
+  const token = await getGitHubToken();
+  if (!token) throw new Error("GitHub token fehlt.");
+
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+
+  const targetBranch = await resolveTargetBranch(owner, repo, options?.branch);
+  const message = (options?.message || "").trim() || "chore: sync patch";
+
+  const upserts = [...(patch.upsert ?? [])]
+    .map((f) => {
+      const originalPath = String(f.path || "").trim();
+      const path = normalizeRepoPath(originalPath);
+      if (originalPath && !path) throw new Error(`Ungültiger Repo-Pfad: ${originalPath}`);
+      return { path, content: String(f.content ?? "") };
+    })
+    .filter((f) => !!f.path)
+    .filter((f) => !f.path.startsWith(".github/workflows/") || MANAGED_WORKFLOWS.has(f.path))
+    .sort((a, b) => a.path.localeCompare(b.path));
+
+  const deletes = [...(patch.delete ?? [])]
+    .map((p) => normalizeRepoPath(String(p || "").trim()))
+    .filter((p): p is string => !!p)
+    .filter((p) => !p.startsWith(".github/workflows/") || MANAGED_WORKFLOWS.has(p))
+    .sort((a, b) => a.localeCompare(b));
+
+  const seen = new Set<string>();
+  const treeEntries: Array<Record<string, unknown>> = [];
+  for (const file of upserts) {
+    if (seen.has(file.path)) continue;
+    seen.add(file.path);
+    treeEntries.push({
+      path: file.path,
+      mode: "100644",
+      type: "blob",
+      content: file.content,
+    });
+  }
+  for (const path of deletes) {
+    if (seen.has(path)) continue;
+    seen.add(path);
+    treeEntries.push({ path, sha: null });
+  }
+
+  if (!treeEntries.length) return;
+
+  await githubLimiter.checkLimit();
+  const branchResp = await fetchGitHub(
+    githubApiUrl(`/repos/${owner}/${repo}/branches/${encodeURIComponent(targetBranch)}`),
+    { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
+  );
+  const branchJson = (await readJsonSafe<GitHubBranchPayload & GitHubMessagePayload>(branchResp)) ?? {};
+  if (!branchResp.ok) {
+    throw new Error(branchJson.message || `Branch-Abruf fehlgeschlagen (${branchResp.status})`);
+  }
+  const baseCommitSha = String(branchJson.commit?.sha || "").trim();
+  if (!baseCommitSha) throw new Error("Konnte Basis-Commit für Push nicht ermitteln.");
+
+  await githubLimiter.checkLimit();
+  const baseCommitResp = await fetchGitHub(
+    githubApiUrl(`/repos/${owner}/${repo}/git/commits/${encodeURIComponent(baseCommitSha)}`),
+    { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` } },
+  );
+  const baseCommitJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(baseCommitResp)) ?? {};
+  if (!baseCommitResp.ok) {
+    throw new Error(baseCommitJson.message || `Commit-Abruf fehlgeschlagen (${baseCommitResp.status})`);
+  }
+  const baseTreeSha = String(baseCommitJson.tree?.sha || "").trim();
+  if (!baseTreeSha) throw new Error("Konnte Basis-Tree für Push nicht ermitteln.");
+
+  await githubLimiter.checkLimit();
+  const createTreeResp = await fetchGitHub(
+    githubApiUrl(`/repos/${owner}/${repo}/git/trees`),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
+    },
+  );
+  const createTreeJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(createTreeResp)) ?? {};
+  if (!createTreeResp.ok) {
+    throw new Error(createTreeJson.message || `Tree-Erstellung fehlgeschlagen (${createTreeResp.status})`);
+  }
+
+  const newTreeSha = String(createTreeJson.sha || "").trim();
+  if (!newTreeSha) throw new Error("Tree-Erstellung lieferte keine SHA.");
+
+  await githubLimiter.checkLimit();
+  const createCommitResp = await fetchGitHub(
+    githubApiUrl(`/repos/${owner}/${repo}/git/commits`),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        message,
+        tree: newTreeSha,
+        parents: [baseCommitSha],
+      }),
+    },
+  );
+  const createCommitJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(createCommitResp)) ?? {};
+  if (!createCommitResp.ok) {
+    throw new Error(createCommitJson.message || `Commit-Erstellung fehlgeschlagen (${createCommitResp.status})`);
+  }
+
+  const newCommitSha = String(createCommitJson.sha || "").trim();
+  if (!newCommitSha) throw new Error("Commit-Erstellung lieferte keine SHA.");
+
+  await githubLimiter.checkLimit();
+  const updateRefResp = await fetchGitHub(
+    githubApiUrl(`/repos/${owner}/${repo}/git/refs/heads/${encodeGitHubPath(targetBranch)}`),
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ sha: newCommitSha, force: false }),
+    },
+  );
+  const updateRefJson = (await readJsonSafe<GitHubMessagePayload>(updateRefResp)) ?? {};
+  if (!updateRefResp.ok) {
+    if (updateRefResp.status === 422) {
+      throw new Error("Push abgebrochen: Branch wurde parallel geändert. Bitte erneut synchronisieren.");
+    }
+    throw new Error(updateRefJson.message || `Branch-Update fehlgeschlagen (${updateRefResp.status})`);
+  }
+};
+
 export const listRepoBlobEntries = async (params: {
   owner: string;
   repo: string;
