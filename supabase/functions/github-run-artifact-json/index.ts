@@ -28,6 +28,9 @@ type Artifact = {
   expired: boolean;
 };
 
+const MAX_ARTIFACT_ARCHIVE_BYTES = 10 * 1024 * 1024;
+const MAX_RESPONSE_TEXT_BYTES = 1024 * 1024;
+
 function normalizeZipPath(p: string): string {
   return p.replace(/^\.\//, "").replace(/\\/g, "/");
 }
@@ -115,7 +118,23 @@ Deno.serve(async (req: Request) => {
       return errorResponse(`Failed to download artifact zip (${zipRes.status})`, req, 502, { runId });
     }
 
+    const contentLength = Number(zipRes.headers.get("content-length") ?? "");
+    if (Number.isFinite(contentLength) && contentLength > MAX_ARTIFACT_ARCHIVE_BYTES) {
+      return errorResponse("Artifact zip too large", req, 413, {
+        runId,
+        artifactId: artifact.id,
+        maxBytes: MAX_ARTIFACT_ARCHIVE_BYTES,
+      });
+    }
+
     const zipBytes = new Uint8Array(await zipRes.arrayBuffer());
+    if (zipBytes.byteLength > MAX_ARTIFACT_ARCHIVE_BYTES) {
+      return errorResponse("Artifact zip too large", req, 413, {
+        runId,
+        artifactId: artifact.id,
+        maxBytes: MAX_ARTIFACT_ARCHIVE_BYTES,
+      });
+    }
 
     let files: Record<string, Uint8Array>;
     try {
@@ -135,6 +154,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const text = strFromU8(found);
+    if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_TEXT_BYTES) {
+      return errorResponse("Artifact payload too large", req, 413, {
+        runId,
+        artifactId: artifact.id,
+        maxBytes: MAX_RESPONSE_TEXT_BYTES,
+      });
+    }
 
     let parsed: unknown = null;
     try {

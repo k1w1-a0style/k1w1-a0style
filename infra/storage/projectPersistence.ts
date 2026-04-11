@@ -144,11 +144,10 @@ export const exportProjectAsZipFile = async (
   logger.info('🎯 Export-Anfrage für:', project.name);
   const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
   const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
+  const tempDir = CACHE_DIR + 'projekt-export/';
+  const zipPath = FileSystem.cacheDirectory + `${projectName}.zip`;
 
   try {
-    const tempDir = CACHE_DIR + 'projekt-export/';
-    const zipPath = FileSystem.cacheDirectory + `${projectName}.zip`;
-
     await FileSystem.deleteAsync(tempDir, { idempotent: true });
     await FileSystem.deleteAsync(zipPath, { idempotent: true });
     await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
@@ -193,8 +192,6 @@ export const exportProjectAsZipFile = async (
       UTI: 'com.pkware.zip-archive',
     });
 
-    await FileSystem.deleteAsync(tempDir, { idempotent: true });
-
     return {
       projectName: project.name || 'Unbenannt',
       fileCount: (project.files || []).length,
@@ -204,6 +201,13 @@ export const exportProjectAsZipFile = async (
     logger.error("[projectStorage] Fehler beim ZIP-Export", { err: error });
     const errorMessage = error instanceof Error ? error.message : 'ZIP-Export fehlgeschlagen';
     throw new Error(errorMessage);
+  } finally {
+    await FileSystem.deleteAsync(tempDir, { idempotent: true }).catch((cleanupError: unknown) => {
+      logger.warn("[projectStorage] Temp-Dir cleanup failed", { err: cleanupError });
+    });
+    await FileSystem.deleteAsync(zipPath, { idempotent: true }).catch((cleanupError: unknown) => {
+      logger.warn("[projectStorage] Temp-ZIP cleanup failed", { err: cleanupError });
+    });
   }
 };
 

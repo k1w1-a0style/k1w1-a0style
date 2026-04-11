@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      EDGE_BASE_URL: https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1
+      EDGE_BASE_URL: ${{ secrets.EDGE_BASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
@@ -37,6 +37,7 @@ jobs:
       - name: Verify required secrets
         shell: bash
         run: |
+          [ -z "${EDGE_BASE_URL:-}" ] && echo "::error::EDGE_BASE_URL fehlt" && exit 1
           [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ] && echo "::error::SUPABASE_SERVICE_ROLE_KEY fehlt" && exit 1
           [ -z "${SUPABASE_ANON_KEY:-}" ] && echo "::warning::SUPABASE_ANON_KEY fehlt - anon-Block wird übersprungen"
 

@@ -22,11 +22,23 @@ import {
   isAllowedGithubRepo,
 } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
+import { buildDispatchFailurePatch } from "../_shared/buildJobConsistency.ts";
 
 function isTriggerValidationError(
   result: ReturnType<typeof validateTriggerBuildRequest>,
 ): result is Extract<ReturnType<typeof validateTriggerBuildRequest>, { ok: false }> {
   return !result.ok;
+}
+
+async function resolveCommitSha(githubRepo: string, branch: string): Promise<string | null> {
+  const [owner, repo] = githubRepo.split("/");
+  const commitResp = await githubFetch(
+    `${GITHUB_API_BASE}/repos/${owner}/${repo}/commits/${encodeURIComponent(branch)}`,
+    { method: "GET" },
+  );
+  if (!commitResp.ok) return null;
+  const json = await commitResp.json().catch(() => null) as { sha?: unknown } | null;
+  return typeof json?.sha === "string" && json.sha.trim() ? json.sha.trim() : null;
 }
 
 /**
@@ -97,6 +109,8 @@ Deno.serve(async (req) => {
       return errorResponse("branch/ref not allowed", req, 403, { branch });
     }
 
+    const sourceCommitSha = await resolveCommitSha(githubRepo, branch);
+
     // Create job row
     const insertRes = await supabase
       .from("build_jobs")
@@ -105,6 +119,7 @@ Deno.serve(async (req) => {
         github_repo: githubRepo,
         build_profile: buildProfile,
         branch,
+        source_commit_sha: sourceCommitSha,
       })
       .select("id")
       .single();
@@ -125,10 +140,11 @@ Deno.serve(async (req) => {
         github_repo: githubRepo,
         repo: githubRepo,
         branch,
-        ref: branch,
+        ref: sourceCommitSha ?? branch,
         build_profile: buildProfile,
         buildProfile: buildProfile,
         job_id: jobId,
+        source_commit_sha: sourceCommitSha,
       },
     };
 
@@ -139,6 +155,10 @@ Deno.serve(async (req) => {
 
     if (!r.ok) {
       const txt = await r.text();
+      await supabase
+        .from("build_jobs")
+        .update(buildDispatchFailurePatch({ statusCode: r.status, sourceCommitSha }))
+        .eq("id", jobId);
       return errorResponse("GitHub dispatch failed", req, 502, sanitizeGitHubFailure(r, txt));
     }
 
@@ -149,6 +169,7 @@ Deno.serve(async (req) => {
         githubRepo,
         branch,
         buildProfile,
+        source_commit_sha: sourceCommitSha,
       },
       req,
       200,

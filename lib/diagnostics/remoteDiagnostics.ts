@@ -2,8 +2,6 @@
 // Extracted from buildPipelineDiagnostics.ts: remote diagnostics functions.
 
 import { triggerWorkflow } from "../../infra/github/githubService";
-import { ensureSupabaseClient } from "../supabase";
-import type { PreflightPatch } from "./preflightTypes";
 import { safeTrim } from "./diagnosticTypes";
 
 
@@ -42,23 +40,8 @@ export const fetchLatestRemoteDiagnosticsReport = async (params: {
   githubRepo: string; // "owner/repo"
   branch?: string | null;
 }) => {
-  const ref = safeTrim(params.branch);
-  if (!ref) throw new Error("Kein Branch ausgewählt.");
-  const supabase = await ensureSupabaseClient();
-
-  const { data, error } = await supabase
-    .from("diagnostics_reports")
-    .select(
-      "id,github_repo,branch,status,project_id,workflow_run_id,commit_sha,errors,created_at",
-    )
-    .eq("github_repo", params.githubRepo)
-    .eq("branch", ref)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data as RemoteDiagnosticsReport | null;
-
-}
-
+  void params;
+  throw new Error(
+    "Remote diagnostics DB reads are disabled by contract. Use workflow artifacts/edge endpoints for operator-scoped retrieval.",
+  );
+};

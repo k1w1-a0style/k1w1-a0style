@@ -10,7 +10,12 @@ import {
   rateLimit,
   requireDurableRateLimit,
 } from "../_shared/auth.ts";
+import { githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import {
+  mapGitHubRunToBuildStatus,
+  shouldReconcileBuildStatus,
+} from "../_shared/buildJobConsistency.ts";
 
 type BuildJobRow = {
   id: number;
@@ -99,6 +104,35 @@ Deno.serve(async (req) => {
     if (!res.data) return errorResponse("Not found", req, 404, { jobId });
 
     const job = res.data as BuildJobRow;
+    let reconciledStatus: "completed" | "error" | null = null;
+    let reconciledFromGitHub = false;
+    if (job.github_repo && job.github_run_id) {
+      const [owner, repo] = job.github_repo.split("/");
+      const runResp = await githubFetch(
+        `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${job.github_run_id}`,
+        { method: "GET" },
+      );
+      if (runResp.ok) {
+        const runJson = await runResp.json().catch(() => null) as {
+          status?: string | null;
+          conclusion?: string | null;
+        } | null;
+        const mapped = mapGitHubRunToBuildStatus(runJson?.status, runJson?.conclusion);
+        const current = (job.status ?? "").toLowerCase();
+        if (shouldReconcileBuildStatus(current, mapped)) {
+          reconciledStatus = mapped;
+          reconciledFromGitHub = true;
+          await supabase
+            .from("build_jobs")
+            .update({
+              status: mapped,
+              completed_at: new Date().toISOString(),
+              error_message: mapped === "error" ? (job.error_message ?? "Reconciled from GitHub terminal state") : job.error_message,
+            })
+            .eq("id", job.id);
+        }
+      }
+    }
 
     const githubRunUrl =
       job.github_run_id && job.github_repo
@@ -151,7 +185,8 @@ Deno.serve(async (req) => {
     return jsonResponse(
       {
         ok: true,
-        status: job.status ?? null,
+        status: reconciledStatus ?? job.status ?? null,
+        reconciled_from_github: reconciledFromGitHub,
         runId: job.github_run_id ?? null,
         build_url: buildUrl,
         download_url: downloadUrl,
@@ -159,7 +194,7 @@ Deno.serve(async (req) => {
         urls,
         job: {
           id: job.id,
-          status: job.status,
+          status: reconciledStatus ?? job.status,
           github_repo: job.github_repo ?? null,
           github_run_id: job.github_run_id ?? null,
           build_profile: job.build_profile ?? null,
