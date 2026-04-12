@@ -27,3 +27,29 @@ export function shouldReconcileBuildStatus(
   const current = (currentStatus ?? "").toLowerCase();
   return !["completed", "error", "failed", "cancelled"].includes(current);
 }
+
+export function resolveDispatchRef(branch: string, sourceCommitSha?: string | null): string {
+  const sha = (sourceCommitSha ?? "").trim();
+  return sha || branch;
+}
+
+export function buildReconciliationPatch(input: {
+  currentStatus?: string | null;
+  runStatus?: string | null;
+  runConclusion?: string | null;
+  existingErrorMessage?: string | null;
+  nowIso?: string;
+}): { nextStatus: "completed" | "error"; patch: Record<string, unknown> } | null {
+  const mapped = mapGitHubRunToBuildStatus(input.runStatus, input.runConclusion);
+  if (!shouldReconcileBuildStatus(input.currentStatus, mapped) || !mapped) return null;
+  return {
+    nextStatus: mapped,
+    patch: {
+      status: mapped,
+      completed_at: input.nowIso ?? new Date().toISOString(),
+      error_message: mapped === "error"
+        ? (input.existingErrorMessage ?? "Reconciled from GitHub terminal state")
+        : input.existingErrorMessage ?? null,
+    },
+  };
+}

@@ -22,7 +22,7 @@ import {
   isAllowedGithubRepo,
 } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-import { buildDispatchFailurePatch } from "../_shared/buildJobConsistency.ts";
+import { buildDispatchFailurePatch, resolveDispatchRef } from "../_shared/buildJobConsistency.ts";
 
 function isTriggerValidationError(
   result: ReturnType<typeof validateTriggerBuildRequest>,
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         github_repo: githubRepo,
         repo: githubRepo,
         branch,
-        ref: sourceCommitSha ?? branch,
+        ref: resolveDispatchRef(branch, sourceCommitSha),
         build_profile: buildProfile,
         buildProfile: buildProfile,
         job_id: jobId,

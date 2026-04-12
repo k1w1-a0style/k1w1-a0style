@@ -13,8 +13,7 @@ import {
 import { githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import {
-  mapGitHubRunToBuildStatus,
-  shouldReconcileBuildStatus,
+  buildReconciliationPatch,
 } from "../_shared/buildJobConsistency.ts";
 
 type BuildJobRow = {
@@ -117,18 +116,18 @@ Deno.serve(async (req) => {
           status?: string | null;
           conclusion?: string | null;
         } | null;
-        const mapped = mapGitHubRunToBuildStatus(runJson?.status, runJson?.conclusion);
-        const current = (job.status ?? "").toLowerCase();
-        if (shouldReconcileBuildStatus(current, mapped)) {
-          reconciledStatus = mapped;
+        const reconciliation = buildReconciliationPatch({
+          currentStatus: job.status,
+          runStatus: runJson?.status,
+          runConclusion: runJson?.conclusion,
+          existingErrorMessage: job.error_message,
+        });
+        if (reconciliation) {
+          reconciledStatus = reconciliation.nextStatus;
           reconciledFromGitHub = true;
           await supabase
             .from("build_jobs")
-            .update({
-              status: mapped,
-              completed_at: new Date().toISOString(),
-              error_message: mapped === "error" ? (job.error_message ?? "Reconciled from GitHub terminal state") : job.error_message,
-            })
+            .update(reconciliation.patch)
             .eq("id", job.id);
         }
       }
