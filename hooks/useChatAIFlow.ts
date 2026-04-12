@@ -256,10 +256,13 @@ export function useChatAIFlow({
           return true;
         }
 
-        pendingPlanRef.current = null;
-        safe(() => setPendingPlan(null));
-        await processAIRequest(handoff.combinedRequest, false, true);
-        return true;
+        const handoffOk = await processAIRequest(handoff.combinedRequest, false, true);
+        if (handoffOk) {
+          pendingPlanRef.current = null;
+          safe(() => setPendingPlan(null));
+          return true;
+        }
+        return false;
       }
 
       return processAIRequest(sanitizedAiContent, false, false);

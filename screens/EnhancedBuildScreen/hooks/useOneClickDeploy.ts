@@ -17,6 +17,7 @@ import type { BuildProfile } from "../types";
 import { readBuildReadinessState } from "./buildReadinessState";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 
 export type DeployStepId =
   | "signing_key"
@@ -197,7 +198,7 @@ export function useOneClickDeploy(
       });
       if (abortRef.current) return;
 
-      const files = Array.isArray(projectData?.files) ? projectData.files : [];
+      const files = getMaterializedProjectFiles(projectData);
       let readinessReason: string | null = null;
       if (files.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
       else if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;

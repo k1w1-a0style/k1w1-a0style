@@ -4,20 +4,37 @@ import { Alert } from "react-native";
 import { logger } from "../../lib/logger";
 import type { LastPreviewMeta, PreferredPreviewMode, ProjectFile, TemplateId } from "../../shared/types/project";
 import { validateFileContent, validateFilePath } from "../../lib/validators";
+import { materializeProjectFiles } from "../../lib/projectMaterializer";
 import { applyProjectFileUpdates, mergeProjectFiles } from "../../project/domain/projectFileMutations";
-import { removeProjectFilesByPaths } from "../projectContextHelpers";
+import { normalizeProjectSlug, removeProjectFilesByPaths } from "../projectContextHelpers";
 import { resolveLinkedBranchForRepoSelection } from "../projectContextStateHelpers";
 import type { ProjectFileCommandsInput } from "./projectContext.contracts";
 
 export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInput) {
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
+      const sanitizedUpdates: ProjectFile[] = [];
+      for (const candidate of files) {
+        const pathValidation = validateFilePath(candidate.path);
+        if (!pathValidation.valid) {
+          throw new Error(`Ungültiger Dateipfad (${candidate.path}): ${pathValidation.errors.join(", ")}`);
+        }
+        const normalizedPath = pathValidation.normalized || candidate.path;
+        const contentValidation = validateFileContent(candidate.content);
+        if (!contentValidation.valid) {
+          throw new Error(
+            `Ungültiger Dateiinhalt (${normalizedPath}): ${contentValidation.error || "Datei ist zu groß"}`,
+          );
+        }
+        sanitizedUpdates.push({ path: normalizedPath, content: candidate.content });
+      }
+
       await updateProject((prev) => {
-        const mergedFiles = mergeProjectFiles(prev.files, files);
+        const mergedFiles = mergeProjectFiles(prev.files, sanitizedUpdates);
         logger.info(
-          `📝 Dateien aktualisiert: ${files.length} geändert, ${mergedFiles.length} gesamt`,
+          `📝 Dateien aktualisiert: ${sanitizedUpdates.length} geändert, ${mergedFiles.length} gesamt`,
         );
-        return applyProjectFileUpdates(prev, files, newName);
+        return applyProjectFileUpdates(prev, sanitizedUpdates, newName);
       });
     },
     [updateProject],
@@ -111,7 +128,19 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
   );
 
   const setProjectName = useCallback(async (newName: string) => {
-    await updateProject((prev) => ({ ...prev, name: newName }));
+    await updateProject((prev) => {
+      const slug = normalizeProjectSlug(newName);
+      return {
+        ...prev,
+        name: newName,
+        slug,
+        files: materializeProjectFiles(prev.files, {
+          name: newName,
+          slug,
+          packageName: prev.packageName,
+        }),
+      };
+    });
   }, [updateProject]);
 
   const setLastPreview = useCallback(async (preview: LastPreviewMeta | null) => {
@@ -119,7 +148,15 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
   }, [updateProject]);
 
   const setPackageName = useCallback(async (packageName: string) => {
-    await updateProject((prev) => ({ ...prev, packageName }));
+    await updateProject((prev) => ({
+      ...prev,
+      packageName,
+      files: materializeProjectFiles(prev.files, {
+        name: prev.name,
+        slug: prev.slug ?? prev.name,
+        packageName,
+      }),
+    }));
   }, [updateProject]);
 
   const setLinkedRepo = useCallback(

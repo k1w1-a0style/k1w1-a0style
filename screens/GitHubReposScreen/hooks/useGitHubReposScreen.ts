@@ -9,6 +9,7 @@ import { useGitHubRepos } from "../../../hooks/useGitHubRepos";
 import { normalizeProjectFiles } from "../utils/projectFiles";
 import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
 import type { TemplateId, CoreTemplateId, ProjectFile } from "../../../shared/types/project";
+import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 
 import { getCoreFileContent, CORE_TEMPLATE_FILES } from "./templateFiles";
 import { useGitHubRepoCrud } from "./useGitHubRepoCrud";
@@ -36,8 +37,8 @@ export function useGitHubReposScreen(): UseGitHubReposScreenModel {
   // Local project files are the source of truth for what exists "locally" inside the app.
   // Expose them so the RepoScreen can show local↔remote diffs and wire push/pull UX.
   const normalizedLocalFiles = useMemo<ProjectFile[]>(
-    () => normalizeProjectFiles(projectData?.files),
-    [projectData?.files],
+    () => normalizeProjectFiles(getMaterializedProjectFiles(projectData)),
+    [projectData],
   );
 
   const projectFiles = normalizedLocalFiles;

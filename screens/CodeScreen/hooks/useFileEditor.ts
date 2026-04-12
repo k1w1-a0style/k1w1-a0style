@@ -82,7 +82,7 @@ export interface UseFileEditorReturn {
 const MAX_SAVE_VALIDATE_CHARS = 200_000;
 
 export const useFileEditor = (): UseFileEditorReturn => {
-  const { updateProjectFiles } = useProject();
+  const { projectData, updateProjectFiles } = useProject();
 
   const [selectedFile, setSelectedFile] = useState<ProjectFile | null>(null);
   const [editingContent, setEditingContent] = useState<string>("");
@@ -98,6 +98,24 @@ export const useFileEditor = (): UseFileEditorReturn => {
     if (!selectedFile) return false;
     return editingContent !== selectedOriginalContent;
   }, [editingContent, selectedFile, selectedOriginalContent]);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+    const liveFile = (projectData?.files ?? []).find((file) => file.path === selectedFile.path);
+    if (!liveFile) {
+      setSelectedFile(null);
+      setEditingContent("");
+      setSyntaxErrors([]);
+      return;
+    }
+    const nextLiveContent = toContentString(liveFile);
+    if (nextLiveContent !== editingContent) {
+      setEditingContent(nextLiveContent);
+    }
+    if (liveFile.content !== selectedFile.content) {
+      setSelectedFile({ ...liveFile });
+    }
+  }, [editingContent, projectData?.files, selectedFile]);
 
   // Live validation (debounced + deferred via InteractionManager).
   useEffect(() => {
@@ -153,6 +171,13 @@ export const useFileEditor = (): UseFileEditorReturn => {
     if (!selectedFile) return false;
 
     try {
+      const stillExists = (projectData?.files ?? []).some((file) => file.path === selectedFile.path);
+      if (!stillExists) {
+        Alert.alert("Datei nicht mehr vorhanden", "Die Datei wurde extern gelöscht. Bitte neu auswählen.");
+        setSelectedFile(null);
+        setEditingContent("");
+        return false;
+      }
 
       if (editingContent.length > MAX_SAVE_VALIDATE_CHARS) {
         const choice = await alertAsync(
@@ -209,7 +234,7 @@ export const useFileEditor = (): UseFileEditorReturn => {
       Alert.alert("Fehler", "Datei konnte nicht gespeichert werden.");
       return false;
     }
-  }, [editingContent, selectedFile, updateProjectFiles]);
+  }, [editingContent, projectData?.files, selectedFile, updateProjectFiles]);
 
   const handleSaveFile = useCallback(() => {
     void saveSelectedFile();

@@ -44,8 +44,6 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     null,
   );
 
-  const lastSelectedPathRef = useRef<string | null>(null);
-
   const actionInFlightRef = useRef(false);
 
   const handleItemPress = useCallback(
@@ -62,12 +60,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
         }
 
         if (node.file) {
-          const nextPath = node.file.path;
-          if (lastSelectedPathRef.current === nextPath && selectedFile) return;
-          lastSelectedPathRef.current = nextPath;
-
           const contentString = toContentString(node.file);
-          setSelectedFile(node.file);
+          setSelectedFile({ ...node.file });
           setEditingContent(contentString);
           // Switching to preview ensures validation is cleared by the editor hook.
           setViewMode("preview");
@@ -78,7 +72,6 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     },
     [
       confirmLoseChanges,
-      selectedFile,
       selectionMode,
       setCurrentFolderPath,
       setEditingContent,

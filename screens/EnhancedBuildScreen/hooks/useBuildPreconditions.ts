@@ -7,6 +7,7 @@ import { readBuildReadinessState } from "./buildReadinessState";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 
 async function readTokenOrUnavailable(read: () => Promise<string | null>): Promise<string | null> {
   try {
@@ -57,7 +58,7 @@ export function useBuildPreconditions(
       }
     };
 
-    const files = Array.isArray(projectData?.files) ? projectData.files : [];
+    const files = getMaterializedProjectFiles(projectData);
     const hasFiles = files.length > 0;
     const filesReason = hasFiles
       ? null
