@@ -56,4 +56,4 @@ if [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]]; then
   exit 0
 fi
 
-echo "Live-edge env readiness: OK (EDGE_BASE_URL + EDGE_OPERATOR_JWT present; preflight skipped because SUPABASE_SERVICE_ROLE_KEY is not set)"
+echo "Live-edge env readiness: SKIP (EDGE_BASE_URL + EDGE_OPERATOR_JWT present; preflight skipped because SUPABASE_SERVICE_ROLE_KEY is not set)"

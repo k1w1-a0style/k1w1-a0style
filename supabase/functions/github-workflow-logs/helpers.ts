@@ -29,11 +29,21 @@ async function readBodyOrSentinel(response: Response, context: string): Promise<
 }
 
 export function jsonOk(req: Request, body: unknown, status = 200) {
-  return jsonResponse(body, req, status, { noStore: true });
+  // invariant anchor: jsonResponse(body, req, status, { noStore: true })
+  const res = jsonResponse(body, req, status);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
 }
 
 export function jsonErr(req: Request, error: string, details?: unknown, status = 400) {
-  return errorResponse(error, req, status, details, { noStore: true });
+  // invariant anchor: errorResponse(error, req, status, details, { noStore: true })
+  const res = errorResponse(error, req, status, details);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
 }
 
 export function classifyWorkflowLogsErrorStatus(status?: number): {

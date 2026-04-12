@@ -91,7 +91,9 @@ Deno.serve(async (req: Request) => {
       return secureError("Invalid githubRepo", 400);
     }
     if (!isAllowedGithubRepo(githubRepo)) {
-      return secureError("githubRepo not allowed", 403, { githubRepo });
+      return errorResponse("githubRepo not allowed", req, 403, { githubRepo }, {
+        noStore: true,
+      });
     }
     if (!Number.isFinite(runId) || runId <= 0) {
       return secureError("Invalid runId", 400);

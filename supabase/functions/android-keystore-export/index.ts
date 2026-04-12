@@ -89,7 +89,14 @@ Deno.serve(async (req) => {
       );
     }
     if (!isAllowedGithubRepo(repo)) {
-      return secureError("Repo not allowed", 403, { repo });
+      const denyRepo = () => {
+        return errorResponse("Repo not allowed", req, 403, { repo });
+      };
+      const denied = denyRepo();
+      denied.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      denied.headers.set("Pragma", "no-cache");
+      denied.headers.set("Expires", "0");
+      return denied;
     }
     const resolvedMode = resolveMode(body?.mode);
 
