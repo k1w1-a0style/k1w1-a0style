@@ -38,6 +38,9 @@ export function getIconPreviewFromProjectFiles(projectFiles: ProjectFileLike[]):
   }
 
   let base64Data = iconFile.content;
+  if (base64Data.startsWith("base64:")) {
+    base64Data = base64Data.slice("base64:".length);
+  }
   if (base64Data.startsWith("data:image/")) {
     base64Data = base64Data.split(",")[1] ?? "";
   }
@@ -47,6 +50,17 @@ export function getIconPreviewFromProjectFiles(projectFiles: ProjectFileLike[]):
   }
 
   return null;
+}
+
+export function toProjectBinaryBase64(content: string): string {
+  const trimmed = String(content || "").trim();
+  const withoutDataUri = trimmed.startsWith("data:image/")
+    ? trimmed.split(",")[1] ?? ""
+    : trimmed;
+  const normalized = withoutDataUri.startsWith("base64:")
+    ? withoutDataUri.slice("base64:".length)
+    : withoutDataUri;
+  return `base64:${normalized}`;
 }
 
 export function getAssetsStatusFromProjectFiles(projectFiles: ProjectFileLike[]): {

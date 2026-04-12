@@ -12,6 +12,11 @@ export type SyncStatus = {
   remoteOnly: number;
   skipped: number;
   error: number;
+  checkedLocalFiles: number;
+  totalLocalFiles: number;
+  isPartial: boolean;
+  partialReason: string | null;
+  countsAreLowerBounds: boolean;
   checkedAt: number | null;
 };
 
@@ -22,6 +27,11 @@ export const EMPTY_SYNC_STATUS: SyncStatus = {
   remoteOnly: 0,
   skipped: 0,
   error: 0,
+  checkedLocalFiles: 0,
+  totalLocalFiles: 0,
+  isPartial: false,
+  partialReason: null,
+  countsAreLowerBounds: false,
   checkedAt: null,
 };
 
@@ -78,7 +88,12 @@ export function useGitHubReposSyncStatus(deps: Deps) {
         localFiles: normalizedLocalFiles,
         maxLocalFiles: 40,
       });
-      commitSyncStatus({ checking: false, ...stats, checkedAt: Date.now() });
+      const partialReason = stats.isPartial
+        ? stats.checkedLocalFiles < stats.totalLocalFiles
+          ? `Nur ${stats.checkedLocalFiles}/${stats.totalLocalFiles} lokale Dateien geprüft (lokales Limit aktiv). Kein Full-Sync-Schluss möglich.`
+          : "Vergleich enthält unsichere Zählungen (z. B. Hash-Fehler). Kein Full-Sync-Schluss möglich."
+        : null;
+      commitSyncStatus({ checking: false, ...stats, partialReason, checkedAt: Date.now() });
     } catch {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: false, error: 1, checkedAt: Date.now() });
     }

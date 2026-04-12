@@ -32,6 +32,8 @@ export function useLocalRemoteDiffModel(params: Params) {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<DiffItem[]>([]);
   const [note, setNote] = useState<string>("");
+  const [partialReason, setPartialReason] = useState<string | null>(null);
+  const [countsAreLowerBounds, setCountsAreLowerBounds] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [inlineMode, setInlineMode] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -76,6 +78,8 @@ export function useLocalRemoteDiffModel(params: Params) {
   const resetContextState = useCallback(() => {
     setItems([]);
     setNote("");
+    setPartialReason(null);
+    setCountsAreLowerBounds(false);
     setLoading(false);
     setSelected({});
     setInlineOpenPath(null);
@@ -119,6 +123,8 @@ export function useLocalRemoteDiffModel(params: Params) {
       setLoading(true);
       setItems([]);
       setNote("");
+      setPartialReason(null);
+      setCountsAreLowerBounds(false);
       setSelected({});
       setInlineOpenPath(null);
       setInlineOpenAll(false);
@@ -132,6 +138,8 @@ export function useLocalRemoteDiffModel(params: Params) {
     if (local.length > MAX) {
       commitIfMounted(() => {
         setNote(`Es werden nur die ersten ${MAX} lokalen Dateien geprüft (Rate-Limit Schutz).`);
+        setPartialReason(`Vergleich ist teilweise: ${MAX}/${local.length} lokale Dateien geprüft.`);
+        setCountsAreLowerBounds(true);
       });
     }
 
@@ -184,6 +192,10 @@ export function useLocalRemoteDiffModel(params: Params) {
           setNote((prev) =>
             prev ? prev : `Remote-only ist auf ${MAX_REMOTE_ONLY} Einträge begrenzt (Übersicht + Rate-Limit Schutz).`,
           );
+          setPartialReason((prev) =>
+            prev || "Vergleich ist teilweise: Remote-only Liste wurde gekürzt.",
+          );
+          setCountsAreLowerBounds(true);
         });
       }
     } catch {
@@ -231,6 +243,7 @@ export function useLocalRemoteDiffModel(params: Params) {
 
   const summary = useMemo<DiffSummary>(() => {
     const c = (s: DiffItem["status"]) => items.filter((i) => i.status === s).length;
+    const isPartial = !!partialReason;
     return {
       same: c("same"),
       modified: c("modified"),
@@ -239,8 +252,11 @@ export function useLocalRemoteDiffModel(params: Params) {
       skipped: c("skipped"),
       error: c("error"),
       total: items.length,
+      isPartial,
+      countsAreLowerBounds: isPartial && countsAreLowerBounds,
+      partialReason,
     };
-  }, [items]);
+  }, [items, partialReason, countsAreLowerBounds]);
 
   const visibleItems = useMemo(() => {
     if (showAll) return items;

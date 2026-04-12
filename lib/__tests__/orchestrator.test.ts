@@ -49,7 +49,7 @@ beforeEach(() => {
     },
     auth: {
       getSession: jest.fn().mockResolvedValue({
-        data: { session: { access_token: 'supabase-operator-jwt-token' } },
+        data: { session: { access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl' } },
       }),
     },
   } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
@@ -103,7 +103,7 @@ describe('Orchestrator', () => {
             quality: 'speed',
             messages: testMessages,
           },
-          headers: { Authorization: 'Bearer supabase-operator-jwt-token' },
+          headers: { Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl' },
         }),
       );
       expect(fetchSpy).not.toHaveBeenCalledWith(

@@ -7,7 +7,7 @@ import { useProject } from "../../../contexts/ProjectContext";
 import { useAI } from "../../../contexts/AIContext";
 import { useGitHub } from "../../../contexts/GitHubContext";
 
-import { countMessages, getApiKeysCount, getAssetsStatusFromProjectFiles, getIconPreviewFromProjectFiles, getPackageNameFromProjectFiles, toProjectFiles } from "./useAppInfoScreen.helpers";
+import { countMessages, getApiKeysCount, getAssetsStatusFromProjectFiles, getIconPreviewFromProjectFiles, getPackageNameFromProjectFiles, toProjectBinaryBase64, toProjectFiles } from "./useAppInfoScreen.helpers";
 import { useAppInfoApiConfigFlow } from "./useAppInfoApiConfigFlow";
 import { useAppInfoSecureBackupFlow } from "./useAppInfoSecureBackupFlow";
 import { getImportExportErrorMessage } from "./importExportErrorHelpers";
@@ -99,11 +99,12 @@ export function useAppInfoScreen() {
   }, [packageName, setPackageName]);
 
   const runApplyIconToAssets = useCallback(async (base64Content: string) => {
+    const binaryContent = toProjectBinaryBase64(base64Content);
     await updateProjectFiles([
-      { path: "assets/icon.png", content: base64Content },
-      { path: "assets/adaptive-icon.png", content: base64Content },
-      { path: "assets/splash.png", content: base64Content },
-      { path: "assets/favicon.png", content: base64Content },
+      { path: "assets/icon.png", content: binaryContent },
+      { path: "assets/adaptive-icon.png", content: binaryContent },
+      { path: "assets/splash.png", content: binaryContent },
+      { path: "assets/favicon.png", content: binaryContent },
     ]);
 
     Alert.alert(

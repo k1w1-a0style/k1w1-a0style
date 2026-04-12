@@ -392,6 +392,10 @@ export const compareLocalFilesWithRepo = async (params: {
   remoteOnly: number;
   skipped: number;
   error: number;
+  checkedLocalFiles: number;
+  totalLocalFiles: number;
+  isPartial: boolean;
+  countsAreLowerBounds: boolean;
 }> => {
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
@@ -413,13 +417,17 @@ export const compareLocalFilesWithRepo = async (params: {
     remoteShaByPath.set(p, entry.sha);
   }
 
-  const localFiles = [...params.localFiles]
+  const normalizedLocalFiles = [...params.localFiles]
     .map((f) => ({
       path: normalizeRepoPath(String(f.path || "").trim()),
       content: String(f.content ?? ""),
     }))
-    .filter((f) => !!f.path)
-    .slice(0, localLimit);
+    .filter((f) => !!f.path);
+
+  const totalLocalFiles = normalizedLocalFiles.length;
+  const localFiles = normalizedLocalFiles.slice(0, localLimit);
+  const checkedLocalFiles = localFiles.length;
+  const localScanTruncated = checkedLocalFiles < totalLocalFiles;
 
   let modified = 0;
   let localOnly = 0;
@@ -457,5 +465,19 @@ export const compareLocalFilesWithRepo = async (params: {
     if (!localPaths.has(remotePath)) remoteOnly++;
   }
 
-  return { modified, localOnly, remoteOnly, skipped, error: errorCount };
+  const hasCountUncertainty = errorCount > 0;
+  const isPartial = localScanTruncated || hasCountUncertainty;
+  const countsAreLowerBounds = localScanTruncated || hasCountUncertainty;
+
+  return {
+    modified,
+    localOnly,
+    remoteOnly,
+    skipped,
+    error: errorCount,
+    checkedLocalFiles,
+    totalLocalFiles,
+    isPartial,
+    countsAreLowerBounds,
+  };
 };

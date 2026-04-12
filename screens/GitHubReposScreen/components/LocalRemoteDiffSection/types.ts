@@ -30,6 +30,9 @@ export type DiffSummary = {
   skipped: number;
   error: number;
   total: number;
+  isPartial: boolean;
+  countsAreLowerBounds: boolean;
+  partialReason: string | null;
 };
 
 export type DiffPreviewState = {
