@@ -22,8 +22,8 @@ import {
   isAllowedGithubRepo,
 } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
-import { buildDispatchFailurePatch, resolveDispatchRef } from "../_shared/buildJobConsistency.ts";
 import { resolveCommitShaBestEffort } from "./helpers.ts";
+import { runTriggerBuildFlow } from "./flow.ts";
 
 function isTriggerValidationError(
   result: ReturnType<typeof validateTriggerBuildRequest>,
@@ -110,72 +110,60 @@ Deno.serve(async (req) => {
       return errorResponse("branch/ref not allowed", req, 403, { branch });
     }
 
-    const sourceCommitSha = await resolveCommitShaBestEffort({
-      githubRepo,
-      branch,
-      fetchCommitSha: ({ githubRepo: repoName, branch: branchName }) =>
-        resolveCommitSha(repoName, branchName),
-    });
-
-    // Create job row
-    const insertRes = await supabase
-      .from("build_jobs")
-      .insert({
-        status: "queued",
-        github_repo: githubRepo,
-        build_profile: buildProfile,
-        branch,
-        source_commit_sha: sourceCommitSha,
-      })
-      .select("id")
-      .single();
-
-    if (insertRes.error) {
-      return errorResponse("Failed to create build job", req, 500, {
-        message: sanitizeErrorText(insertRes.error.message),
-        code: insertRes.error.code,
-      });
-    }
-
-    const jobId = insertRes.data.id;
-
-    const [owner, repo] = githubRepo.split("/");
-    const payload = {
-      event_type: "trigger-eas-build",
-      client_payload: {
-        github_repo: githubRepo,
-        repo: githubRepo,
-        branch,
-        ref: resolveDispatchRef(branch, sourceCommitSha),
-        build_profile: buildProfile,
-        buildProfile: buildProfile,
-        job_id: jobId,
-        source_commit_sha: sourceCommitSha,
+    const flow = await runTriggerBuildFlow(
+      { githubRepo, buildProfile, branch },
+      {
+        resolveCommitSha: async (repoName, branchName) =>
+          await resolveCommitShaBestEffort({
+            githubRepo: repoName,
+            branch: branchName,
+            fetchCommitSha: ({ githubRepo: r, branch: b }) => resolveCommitSha(r, b),
+          }),
+        insertBuildJob: async (row) => {
+          const insertRes = await supabase
+            .from("build_jobs")
+            .insert({
+              status: "queued",
+              ...row,
+            })
+            .select("id")
+            .single();
+          if (insertRes.error) {
+            throw new Error(`insert_failed:${sanitizeErrorText(insertRes.error.message)}`);
+          }
+          return { id: insertRes.data.id };
+        },
+        dispatchBuild: async ({ githubRepo: repoName, payload }) => {
+          const [owner, repo] = repoName.split("/");
+          const r = await githubFetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/dispatches`, {
+            method: "POST",
+            body: JSON.stringify(payload),
+          });
+          return {
+            ok: r.ok,
+            status: r.status,
+            bodyText: await r.text().catch(() => ""),
+          };
+        },
+        patchBuildJobOnDispatchFailure: async (id, patch) => {
+          await supabase.from("build_jobs").update(patch).eq("id", id);
+        },
       },
-    };
+    );
 
-    const r = await githubFetch(`${GITHUB_API_BASE}/repos/${owner}/${repo}/dispatches`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-
-    if (!r.ok) {
-      const txt = await r.text();
-      await supabase
-        .from("build_jobs")
-        .update(buildDispatchFailurePatch({ statusCode: r.status, sourceCommitSha }))
-        .eq("id", jobId);
-      return errorResponse("GitHub dispatch failed", req, 502, sanitizeGitHubFailure(r, txt));
+    if (!flow.ok) {
+      const failedResponse = new Response(flow.bodyText, { status: flow.status });
+      return errorResponse("GitHub dispatch failed", req, 502, sanitizeGitHubFailure(failedResponse, flow.bodyText));
     }
 
     return jsonResponse(
       {
         ok: true,
-        jobId,
+        jobId: flow.jobId,
         githubRepo,
         branch,
         buildProfile,
-        source_commit_sha: sourceCommitSha,
+        source_commit_sha: flow.sourceCommitSha,
       },
       req,
       200,
