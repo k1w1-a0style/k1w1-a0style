@@ -54,7 +54,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 TRIGGER_EDGE="supabase/functions/trigger-eas-build/index.ts"
+TRIGGER_FLOW="supabase/functions/trigger-eas-build/flow.ts"
+TRIGGER_ROUTE_CORE="supabase/functions/trigger-eas-build/routeCore.ts"
 CHECK_EDGE="supabase/functions/check-eas-build/index.ts"
+CHECK_ROUTE_CORE="supabase/functions/check-eas-build/routeCore.ts"
 ARTIFACT_EDGE="supabase/functions/github-run-artifact-json/index.ts"
 RUNS_EDGE="supabase/functions/github-workflow-runs/index.ts"
 LOGS_EDGE="supabase/functions/github-workflow-logs/index.ts"
@@ -99,22 +102,24 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$CHECK_EDGE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$PREVIEW_CREATION_HELPER" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$TRIGGER_FLOW" "$TRIGGER_ROUTE_CORE" "$CHECK_EDGE" "$CHECK_ROUTE_CORE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$PREVIEW_CREATION_HELPER" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
-require_fixed "$TRIGGER_EDGE" 'event_type: "trigger-eas-build"'
-require_fixed "$TRIGGER_EDGE" 'job_id: jobId'
-require_fixed "$TRIGGER_EDGE" 'build_profile: buildProfile'
-require_fixed "$TRIGGER_EDGE" 'buildProfile: buildProfile'
-require_fixed "$TRIGGER_EDGE" 'resolveDispatchRef'
-require_fixed "$TRIGGER_EDGE" 'ref: resolveDispatchRef(branch, sourceCommitSha)'
-require_fixed "$TRIGGER_EDGE" 'branch,'
-require_fixed "$TRIGGER_EDGE" 'source_commit_sha: sourceCommitSha'
-require_fixed "$TRIGGER_EDGE" 'isAllowedGitRef,'
-require_fixed "$TRIGGER_EDGE" 'if (!isAllowedGitRef(branch)) {'
-require_pattern "$TRIGGER_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
-require_pattern "$CHECK_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_fixed "$TRIGGER_FLOW" 'event_type: "trigger-eas-build"'
+require_fixed "$TRIGGER_FLOW" 'job_id: inserted.id'
+require_fixed "$TRIGGER_FLOW" 'build_profile: input.buildProfile'
+require_fixed "$TRIGGER_FLOW" 'buildProfile: input.buildProfile'
+require_fixed "$TRIGGER_FLOW" 'resolveDispatchRef'
+require_fixed "$TRIGGER_FLOW" 'ref: resolveDispatchRef(input.branch, sourceCommitSha)'
+require_fixed "$TRIGGER_ROUTE_CORE" 'branch,'
+require_fixed "$TRIGGER_FLOW" 'source_commit_sha: sourceCommitSha'
+require_fixed "$TRIGGER_FLOW" 'buildDispatchFailurePatch({ statusCode: dispatch.status, sourceCommitSha })'
+require_fixed "$TRIGGER_ROUTE_CORE" 'isAllowedGitRef,'
+require_fixed "$TRIGGER_ROUTE_CORE" 'if (!isAllowedGitRef(branch)) {'
+require_fixed "$TRIGGER_ROUTE_CORE" 'runTriggerBuildFlow'
+require_pattern "$TRIGGER_ROUTE_CORE" 'requireScopedEdgeAuth\(req,\s*\{'
+require_pattern "$CHECK_ROUTE_CORE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$ARTIFACT_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$RUNS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$LOGS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
@@ -123,12 +128,12 @@ require_pattern "$KEYSTORE_GENERATE_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$KEYSTORE_STATUS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$DISPATCH_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 
-require_fixed "$TRIGGER_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$TRIGGER_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
-require_fixed "$TRIGGER_EDGE" 'requireWorkflowOperatorJwtRole(req, "trigger-eas-build")'
-require_fixed "$CHECK_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$CHECK_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
-require_fixed "$CHECK_EDGE" 'requireWorkflowOperatorJwtRole(req, "check-eas-build")'
+require_fixed "$TRIGGER_ROUTE_CORE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
+require_fixed "$TRIGGER_ROUTE_CORE" 'allowJwtAuthHeaderWithAdmin: true'
+require_fixed "$TRIGGER_ROUTE_CORE" 'requireWorkflowOperatorJwtRole(req, "trigger-eas-build")'
+require_fixed "$CHECK_ROUTE_CORE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
+require_fixed "$CHECK_ROUTE_CORE" 'allowJwtAuthHeaderWithAdmin: true'
+require_fixed "$CHECK_ROUTE_CORE" 'requireWorkflowOperatorJwtRole(req, "check-eas-build")'
 require_fixed "$ARTIFACT_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
 require_fixed "$ARTIFACT_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$ARTIFACT_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-run-artifact-json")'
@@ -150,14 +155,14 @@ forbid_fixed "$DISPATCH_EDGE" "ensureWorkflowFileExists("
 forbid_fixed "$DISPATCH_EDGE" "bootstrapped:"
 forbid_fixed "$DISPATCH_EDGE" "k1w1: add managed workflow"
 forbid_fixed "$DISPATCH_EDGE" "k1w1: update managed workflow"
-forbid_fixed "$TRIGGER_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
-forbid_fixed "$CHECK_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
+forbid_fixed "$TRIGGER_ROUTE_CORE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
+forbid_fixed "$CHECK_ROUTE_CORE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$ARTIFACT_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$RUNS_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$LOGS_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
 forbid_fixed "$DISPATCH_EDGE" 'ciBearerSecretEnv: "K1W1_EDGE_WORKFLOW_CI_BEARER"'
-forbid_fixed "$TRIGGER_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
-forbid_fixed "$CHECK_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
+forbid_fixed "$TRIGGER_ROUTE_CORE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
+forbid_fixed "$CHECK_ROUTE_CORE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 forbid_fixed "$ARTIFACT_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 forbid_fixed "$RUNS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 forbid_fixed "$LOGS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
@@ -281,13 +286,13 @@ require_fixed "$EAS_WF" 'status:"error"'
 require_fixed "$EAS_WF" 'source_commit_sha'
 require_fixed "$EAS_WF" 'build_url:(process.argv[3]||null)'
 
-require_fixed "$CHECK_EDGE" 'source_commit_sha'
-require_fixed "$CHECK_EDGE" 'const urls = {'
-require_fixed "$CHECK_EDGE" 'githubRun: githubRunUrl'
-require_fixed "$CHECK_EDGE" 'artifacts: artifactsUrl'
-require_fixed "$CHECK_EDGE" 'const artifact ='
-require_fixed "$CHECK_EDGE" 'job: {'
-require_fixed "$CHECK_EDGE" 'artifact,'
+require_fixed "$CHECK_ROUTE_CORE" 'source_commit_sha'
+require_fixed "$CHECK_ROUTE_CORE" 'const urls = {'
+require_fixed "$CHECK_ROUTE_CORE" 'githubRun: githubRunUrl'
+require_fixed "$CHECK_ROUTE_CORE" 'artifacts: artifactsUrl'
+require_fixed "$CHECK_ROUTE_CORE" 'const artifact ='
+require_fixed "$CHECK_ROUTE_CORE" 'job: {'
+require_fixed "$CHECK_ROUTE_CORE" 'artifact,'
 
 require_fixed "$ARTIFACT_EDGE" 'text,'
 require_fixed "$ARTIFACT_EDGE" 'json: parsed'
