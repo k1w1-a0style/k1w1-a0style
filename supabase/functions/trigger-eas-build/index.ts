@@ -23,6 +23,7 @@ import {
 } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import { buildDispatchFailurePatch, resolveDispatchRef } from "../_shared/buildJobConsistency.ts";
+import { resolveCommitShaBestEffort } from "./helpers.ts";
 
 function isTriggerValidationError(
   result: ReturnType<typeof validateTriggerBuildRequest>,
@@ -109,7 +110,12 @@ Deno.serve(async (req) => {
       return errorResponse("branch/ref not allowed", req, 403, { branch });
     }
 
-    const sourceCommitSha = await resolveCommitSha(githubRepo, branch);
+    const sourceCommitSha = await resolveCommitShaBestEffort({
+      githubRepo,
+      branch,
+      fetchCommitSha: ({ githubRepo: repoName, branch: branchName }) =>
+        resolveCommitSha(repoName, branchName),
+    });
 
     // Create job row
     const insertRes = await supabase

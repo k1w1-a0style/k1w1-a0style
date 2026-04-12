@@ -15,6 +15,7 @@ import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import {
   buildReconciliationPatch,
 } from "../_shared/buildJobConsistency.ts";
+import { fetchReconciliationRunStateBestEffort } from "./helpers.ts";
 
 type BuildJobRow = {
   id: number;
@@ -39,6 +40,7 @@ type ReconciliationInfo = {
   attempted: boolean;
   reconciled: boolean;
   upstream_status: number | null;
+  upstream_error: string | null;
 };
 
 function isValidationError(
@@ -115,24 +117,25 @@ Deno.serve(async (req) => {
       attempted: false,
       reconciled: false,
       upstream_status: null,
+      upstream_error: null,
     };
     if (job.github_repo && job.github_run_id) {
       const [owner, repo] = job.github_repo.split("/");
-      const runResp = await githubFetch(
-        `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${job.github_run_id}`,
-        { method: "GET" },
-      );
-      reconciliationInfo.attempted = true;
-      reconciliationInfo.upstream_status = runResp.status;
-      if (runResp.ok) {
-        const runJson = await runResp.json().catch(() => null) as {
-          status?: string | null;
-          conclusion?: string | null;
-        } | null;
+      const runState = await fetchReconciliationRunStateBestEffort({
+        enabled: true,
+        fetchRun: async () => await githubFetch(
+          `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${job.github_run_id}`,
+          { method: "GET" },
+        ),
+      });
+      reconciliationInfo.attempted = runState.attempted;
+      reconciliationInfo.upstream_status = runState.upstream_status;
+      reconciliationInfo.upstream_error = runState.upstream_error;
+      if (!runState.upstream_error && runState.runStatus) {
         const reconciliation = buildReconciliationPatch({
           currentStatus: job.status,
-          runStatus: runJson?.status,
-          runConclusion: runJson?.conclusion,
+          runStatus: runState.runStatus,
+          runConclusion: runState.runConclusion,
           existingErrorMessage: job.error_message,
         });
         if (reconciliation) {
