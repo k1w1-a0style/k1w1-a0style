@@ -47,4 +47,22 @@ describe("check-eas-build reconciliation best-effort run lookup", () => {
     expect(state.attempted).toBe(false);
     expect(state.upstream_error).toBeNull();
   });
+
+  it("keeps degraded truth when upstream returns non-OK status", async () => {
+    const state = await fetchReconciliationRunStateBestEffort({
+      enabled: true,
+      fetchRun: async () => ({
+        status: 503,
+        ok: false,
+        json: async () => ({ status: "completed", conclusion: "success" }),
+      }),
+    });
+    expect(state).toEqual({
+      attempted: true,
+      upstream_status: 503,
+      runStatus: null,
+      runConclusion: null,
+      upstream_error: null,
+    });
+  });
 });
