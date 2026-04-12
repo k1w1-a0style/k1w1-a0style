@@ -35,6 +35,12 @@ type BuildJobRow = {
   updated_at?: string | null;
 };
 
+type ReconciliationInfo = {
+  attempted: boolean;
+  reconciled: boolean;
+  upstream_status: number | null;
+};
+
 function isValidationError(
   result: ReturnType<typeof validateCheckBuildRequest>,
 ): result is Extract<ReturnType<typeof validateCheckBuildRequest>, { ok: false }> {
@@ -105,12 +111,19 @@ Deno.serve(async (req) => {
     const job = res.data as BuildJobRow;
     let reconciledStatus: "completed" | "error" | null = null;
     let reconciledFromGitHub = false;
+    const reconciliationInfo: ReconciliationInfo = {
+      attempted: false,
+      reconciled: false,
+      upstream_status: null,
+    };
     if (job.github_repo && job.github_run_id) {
       const [owner, repo] = job.github_repo.split("/");
       const runResp = await githubFetch(
         `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/runs/${job.github_run_id}`,
         { method: "GET" },
       );
+      reconciliationInfo.attempted = true;
+      reconciliationInfo.upstream_status = runResp.status;
       if (runResp.ok) {
         const runJson = await runResp.json().catch(() => null) as {
           status?: string | null;
@@ -125,6 +138,7 @@ Deno.serve(async (req) => {
         if (reconciliation) {
           reconciledStatus = reconciliation.nextStatus;
           reconciledFromGitHub = true;
+          reconciliationInfo.reconciled = true;
           await supabase
             .from("build_jobs")
             .update(reconciliation.patch)
@@ -186,6 +200,7 @@ Deno.serve(async (req) => {
         ok: true,
         status: reconciledStatus ?? job.status ?? null,
         reconciled_from_github: reconciledFromGitHub,
+        reconciliation: reconciliationInfo,
         runId: job.github_run_id ?? null,
         build_url: buildUrl,
         download_url: downloadUrl,
