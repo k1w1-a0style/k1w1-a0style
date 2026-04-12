@@ -3,6 +3,7 @@ import {
   credKeyForUiMode,
   resolveProjectCredentialScope,
   diagnosticLastOkKeyForSelection,
+  diagnosticReadinessRecordKeyForSelection,
   legacyClientServiceRoleStorageKeys,
   STORAGE_KEYS,
 } from "../lib/storageKeys";
@@ -67,6 +68,15 @@ describe("storageKeys project credential scope", () => {
     expect(diagnosticLastOkKeyForSelection({ linkedRepo: "", linkedBranch: "main" })).toBe(
       "diagnostic_last_ok",
     );
+  });
+
+  it("builds scoped structured diagnostic readiness key for repo + branch", () => {
+    expect(
+      diagnosticReadinessRecordKeyForSelection({
+        linkedRepo: "Owner/Repo ",
+        linkedBranch: "feature/x",
+      }),
+    ).toBe("diagnostic_readiness_record::owner%2Frepo::feature%2Fx");
   });
 
 });

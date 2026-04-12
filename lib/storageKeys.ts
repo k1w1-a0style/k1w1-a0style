@@ -37,6 +37,7 @@ export const STORAGE_KEYS = {
 
   // Diagnostic run result (shared between DiagnosticScreen and BuildPreconditions)
   DIAGNOSTIC_LAST_OK: "diagnostic_last_ok",
+  DIAGNOSTIC_READINESS_RECORD: "diagnostic_readiness_record",
 
   // Chat privacy/retention settings
   CHAT_PERSIST_HISTORY: "k1w1_chat_persist_history",
@@ -184,6 +185,19 @@ export function diagnosticLastOkKeyForSelection(params: {
   const branch = String(params.linkedBranch ?? "").trim();
   if (!repo || !branch) return STORAGE_KEYS.DIAGNOSTIC_LAST_OK;
   return `${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
+}
+
+/**
+ * Structured diagnostic readiness record scoped to the selected repo/branch.
+ */
+export function diagnosticReadinessRecordKeyForSelection(params: {
+  linkedRepo?: string | null;
+  linkedBranch?: string | null;
+}): string {
+  const repo = String(params.linkedRepo ?? "").trim().toLowerCase();
+  const branch = String(params.linkedBranch ?? "").trim();
+  if (!repo || !branch) return STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD;
+  return `${STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
 }
 
 /**

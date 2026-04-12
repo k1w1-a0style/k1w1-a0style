@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
+import { readDiagnosticReadinessRecord } from "../../../lib/diagnosticReadinessRecord";
 import { logger } from "../../../lib/logger";
 import { diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
 import {
@@ -70,7 +71,19 @@ export async function readBuildReadinessState(params: {
     linkedBranch: branchName,
   });
 
-  const [diagScopedVal, persistedCiLite] = await Promise.all([
+  const [diagRecord, diagScopedVal, persistedCiLite] = await Promise.all([
+    readDiagnosticReadinessRecord({
+      linkedRepo: repoFullName,
+      linkedBranch: branchName,
+      storageGetItem,
+    }).catch((error: unknown) => {
+      logger.warn("[EnhancedBuild] structured diagnostic record read failed", {
+        repoFullName,
+        branchName,
+        error,
+      });
+      return null;
+    }),
     storageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
       logger.warn("[EnhancedBuild] diagnostic storage read failed", { key: scopedDiagnosticKey, error });
       return null;
@@ -86,7 +99,9 @@ export async function readBuildReadinessState(params: {
     }),
   ]);
 
-  const diagVal = diagScopedVal;
+  const diagVal = diagRecord
+    ? (diagRecord.diagnosticOk && diagRecord.includePipelineChecks ? "true" : "false")
+    : diagScopedVal;
   const diagnosticContract = normalizeVerificationContract({
     explicitState: diagVal === "true" ? "verified" : "unknown",
   });
@@ -97,10 +112,12 @@ export async function readBuildReadinessState(params: {
   });
   const diagnosticReason = diagnosticContract.isVerified
     ? null
-    : describeReadinessContract({
-        area: "diagnostic",
-        state: diagnosticContract.state,
-      });
+    : diagRecord && !diagRecord.includePipelineChecks
+      ? "Diagnose ohne Pipeline-Checks – bitte mit Pipeline-Checks erneut ausführen."
+      : describeReadinessContract({
+          area: "diagnostic",
+          state: diagnosticContract.state,
+        });
   const reason = ciLiteContract.isVerified
     ? null
     : describeReadinessContract({
