@@ -36,6 +36,10 @@ export const useEnhancedBuildDerivedState = (params: {
   runId: number | null;
   status: BuildStatus;
   hasTokens: boolean;
+  hasWorkflowAdminKey: boolean;
+  workflowAdminKeyReason: string | null;
+  hasOperatorJwt: boolean;
+  operatorJwtReason: string | null;
   hasSigningKey: boolean;
   signingKeyReason: string | null;
   hasDiagOk: boolean;
@@ -54,6 +58,8 @@ export const useEnhancedBuildDerivedState = (params: {
     if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
     if (!params.branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!params.hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
+    if (!params.hasWorkflowAdminKey) return params.workflowAdminKeyReason || "Workflow-Admin-Key fehlt";
+    if (!params.hasOperatorJwt) return params.operatorJwtReason || "Supabase Operator-JWT fehlt";
     if (!params.hasProjectFiles) return params.projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!params.hasDiagOk) return params.diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
     if (!params.hasCiLiteOk) {
@@ -71,13 +77,15 @@ export const useEnhancedBuildDerivedState = (params: {
       repoValidationValid: repoValidation.valid,
       branchName: params.branchName,
       hasTokens: params.hasTokens,
+      hasWorkflowAdminKey: params.hasWorkflowAdminKey,
+      hasOperatorJwt: params.hasOperatorJwt,
       hasDiagOk: params.hasDiagOk,
       hasCiLiteOk: params.hasCiLiteOk,
       repoSyncState: params.repoSyncState,
       hasSigningKey: params.hasSigningKey,
       buildBlockedReason,
     });
-  }, [repoValidation.valid, params.branchName, params.hasTokens, params.hasDiagOk, params.hasCiLiteOk, params.repoSyncState, params.hasSigningKey, buildBlockedReason]);
+  }, [repoValidation.valid, params.branchName, params.hasTokens, params.hasWorkflowAdminKey, params.hasOperatorJwt, params.hasDiagOk, params.hasCiLiteOk, params.repoSyncState, params.hasSigningKey, buildBlockedReason]);
 
   const {
     shouldLoadLogs,
@@ -110,6 +118,10 @@ export const useEnhancedBuildDerivedState = (params: {
       hasSigningKey: params.hasSigningKey,
       signingKeyReason: params.signingKeyReason,
       hasTokens: params.hasTokens,
+      hasWorkflowAdminKey: params.hasWorkflowAdminKey,
+      workflowAdminKeyReason: params.workflowAdminKeyReason,
+      hasOperatorJwt: params.hasOperatorJwt,
+      operatorJwtReason: params.operatorJwtReason,
       hasDiagOk: params.hasDiagOk,
       diagnosticReason: params.diagnosticReason,
       hasCiLiteOk: params.hasCiLiteOk,
@@ -120,7 +132,7 @@ export const useEnhancedBuildDerivedState = (params: {
       repoSyncReason: params.repoSyncReason,
       projectFilesCount: params.projectData?.files?.length ?? 0,
     });
-  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
+  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.hasWorkflowAdminKey, params.workflowAdminKeyReason, params.hasOperatorJwt, params.operatorJwtReason, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
 
   return {
     repoValidation,

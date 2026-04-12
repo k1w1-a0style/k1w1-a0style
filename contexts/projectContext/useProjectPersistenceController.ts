@@ -117,8 +117,8 @@ export function useProjectPersistenceController({
       await runWithProjectLock(async () => {
         persistenceSchedulerRef.current.invalidatePendingSnapshot();
         persistenceWriteBlockedRef.current = false;
-        setProjectData(nextProject);
         await persistProjectToStorage(nextProject, { force: true });
+        setProjectData(nextProject);
       });
     },
     [persistProjectToStorage, runWithProjectLock, setProjectData],

@@ -19,6 +19,7 @@ export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
     STORAGE_KEYS.CONN_REPO_SLUG,
     STORAGE_KEYS.CONN_REPO_BRANCH,
     STORAGE_KEYS.DIAGNOSTIC_LAST_OK,
+    STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD,
     STORAGE_KEYS.CI_LITE_LINT_OK,
     STORAGE_KEYS.CI_LITE_TYPECHECK_OK,
     STORAGE_KEYS.CI_LITE_LAST_RUN_AT,
@@ -41,6 +42,7 @@ export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PREVIEW}_detail::`,
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PRODUCTION}_detail::`,
     `${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}::`,
+    `${STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD}::`,
     `${STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT}::`,
   ];
   const dynamicKeys = allKeys.filter((key) =>

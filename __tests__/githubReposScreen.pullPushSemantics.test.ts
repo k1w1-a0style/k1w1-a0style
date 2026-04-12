@@ -142,6 +142,22 @@ describe("GitHubReposScreen pull/push semantics helpers", () => {
     });
   });
 
+  test("mirror strategy applies explicit delete semantics for local-only files", () => {
+    const result = resolvePullApplySemantics({
+      localFiles: [
+        { path: "App.tsx", content: "local" },
+        { path: "local-only.ts", content: "remove-me" },
+      ],
+      remoteFiles: [{ path: "App.tsx", content: "remote" }],
+      strategy: "mirror",
+    });
+
+    expect(result.outcome).toBe("applied");
+    expect(result.summary.localOnlyCount).toBe(1);
+    expect(result.mergedFiles).toEqual([{ path: "App.tsx", content: "remote" }]);
+    expect(result.messageTitle).toContain("Full Sync");
+  });
+
   test("successful pull apply remains cleanly successful and consistent", async () => {
     const order: string[] = [];
 

@@ -1,10 +1,20 @@
 import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
 
+jest.mock("libsodium-wrappers-sumo", () => ({}), { virtual: true });
+
 describe("readBuildReadinessState", () => {
   it("marks CI-Lite as blocked when the recorded SHA is missing", async () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
-      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 1,
+        repo: "owner/repo",
+        branch: "main",
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date(now).toISOString(),
+      }),
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_repo: "owner/repo",
@@ -30,7 +40,15 @@ describe("readBuildReadinessState", () => {
   it("marks CI-Lite as blocked when branch HEAD changed since the last green run", async () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
-      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 1,
+        repo: "owner/repo",
+        branch: "main",
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date(now).toISOString(),
+      }),
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_repo: "owner/repo",
@@ -114,7 +132,15 @@ describe("readBuildReadinessState", () => {
     const now = Date.now();
     const sha = "c".repeat(40);
     const storageMap: Record<string, string> = {
-      "diagnostic_last_ok::owner%2Frepo::main": "true",
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 1,
+        repo: "owner/repo",
+        branch: "main",
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date(now).toISOString(),
+      }),
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_repo: "owner/repo",
@@ -138,5 +164,31 @@ describe("readBuildReadinessState", () => {
     expect(result.ciLiteState).toBe("verified");
     expect(result.ciLiteReason).toBeNull();
     expect(result.ciLiteStale).toBe(false);
+  });
+
+  it("blocks diagnostic readiness when record exists but pipeline checks were excluded", async () => {
+    const storageMap: Record<string, string> = {
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 1,
+        repo: "owner/repo",
+        branch: "main",
+        diagnosticOk: true,
+        includePipelineChecks: false,
+        focusedModes: ["preview"],
+        checkedAt: new Date().toISOString(),
+      }),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticReason).toMatch(/ohne Pipeline-Checks/i);
   });
 });

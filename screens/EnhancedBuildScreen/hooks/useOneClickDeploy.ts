@@ -17,6 +17,7 @@ import type { BuildProfile } from "../types";
 import { readBuildReadinessState } from "./buildReadinessState";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
+import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 
 export type DeployStepId =
   | "signing_key"
@@ -197,9 +198,10 @@ export function useOneClickDeploy(
       });
       if (abortRef.current) return;
 
-      const files = Array.isArray(projectData?.files) ? projectData.files : [];
+      const sourceFiles = getSourceProjectFiles(projectData);
+      const files = getMaterializedProjectFiles(projectData);
       let readinessReason: string | null = null;
-      if (files.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
+      if (sourceFiles.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
       else if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;
       else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
 
@@ -209,7 +211,7 @@ export function useOneClickDeploy(
         return;
       }
 
-      if (files.length > 0) {
+      if (sourceFiles.length > 0) {
         const syncState = await getRepoSyncState({
           linkedRepo: repoFullName,
           linkedBranch: branchName,

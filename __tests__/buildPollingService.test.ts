@@ -12,7 +12,7 @@ jest.mock("../lib/supabase", () => ({
   ensureSupabaseClient: jest.fn(async () => ({
     auth: {
       getSession: jest.fn(async () => ({
-        data: { session: { access_token: "supabase-operator-jwt-token" } },
+        data: { session: { access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature" } },
       })),
     },
   })),
@@ -93,7 +93,7 @@ describe("buildPollingService", () => {
 
     const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [RequestInfo | URL, RequestInit];
     expect((init.headers as Record<string, string>)?.Authorization).toBe(
-      "Bearer supabase-operator-jwt-token",
+      "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature",
     );
     expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBe("workflow-key");
   });

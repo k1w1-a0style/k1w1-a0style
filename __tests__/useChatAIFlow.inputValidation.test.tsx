@@ -285,4 +285,25 @@ describe("useChatAIFlow input validation", () => {
       }),
     );
   });
+
+  it("keeps pendingPlan when builder handoff fails", async () => {
+    mockedRunOrchestrator.mockReset();
+    mockedRunOrchestrator
+      .mockResolvedValueOnce(makeOrchestratorResult({ text: "Plan: Schritt 1" }))
+      .mockResolvedValueOnce({ ok: false, error: "builder down" } as OrchestratorResult);
+
+    const { result } = createFlow();
+
+    await act(async () => {
+      const planned = await result.current.handleSendWithMeta("Bitte erstelle eine Analyse mit Vorschlägen.");
+      expect(planned).toBe(true);
+    });
+    expect(result.current.pendingPlan).not.toBeNull();
+
+    await act(async () => {
+      const handoff = await result.current.handleSendWithMeta("weiter");
+      expect(handoff).toBe(false);
+    });
+    expect(result.current.pendingPlan).not.toBeNull();
+  });
 });

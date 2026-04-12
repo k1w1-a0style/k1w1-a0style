@@ -5,6 +5,7 @@ import type { PullPreviewState } from "./useGitHubReposPushPull";
 import type { SyncStatus } from "./useGitHubReposSyncStatus";
 import type { ManageModalConfig } from "./useGitHubRepoCrud";
 import type { RepoFilterType } from "./templateFiles";
+import type { PullApplyStrategy } from "../utils/pullApplySemantics";
 
 export type UseGitHubReposScreenModel = {
   projectFiles: ProjectFile[];
@@ -82,7 +83,7 @@ export type UseGitHubReposScreenModel = {
   pullPreviewLoading: boolean;
   pullPreview: PullPreviewState | null;
   closePullModal: () => void;
-  applyPulledFiles: (strategy: "overwrite" | "skipConflicts") => Promise<void>;
+  applyPulledFiles: (strategy: PullApplyStrategy) => Promise<void>;
 
   syncStatus: SyncStatus;
   refreshSyncStatus: () => Promise<void>;

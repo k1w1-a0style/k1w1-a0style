@@ -1,7 +1,7 @@
 import { computeProjectFilesSignature } from "../../../lib/repoSyncOrchestration";
 import type { ProjectFile } from "../../../shared/types/project";
 
-export type PullApplyStrategy = "overwrite" | "skipConflicts";
+export type PullApplyStrategy = "overwrite" | "skipConflicts" | "mirror";
 export type PullApplyOutcome = "applied" | "noop" | "partial";
 
 export type PullApplySemantics = {
@@ -17,6 +17,7 @@ export type PullApplySemantics = {
     remoteOnlyCount: number;
     unchangedCount: number;
     skippedConflictCount: number;
+    localOnlyCount: number;
   };
 };
 
@@ -40,6 +41,7 @@ export function resolvePullApplySemantics(params: {
   let conflictCount = 0;
   let remoteOnlyCount = 0;
   let unchangedCount = 0;
+  let localOnlyCount = 0;
 
   for (const file of remoteFiles) {
     const path = String(file?.path ?? "").trim();
@@ -61,7 +63,11 @@ export function resolvePullApplySemantics(params: {
 
   const mergedFiles: ProjectFile[] = [];
   for (const [path, localFile] of localMap.entries()) {
-    if (!remoteMap.has(path)) mergedFiles.push(localFile);
+    const missingRemote = !remoteMap.has(path);
+    if (missingRemote) localOnlyCount += 1;
+    if (!missingRemote || strategy !== "mirror") {
+      if (missingRemote) mergedFiles.push(localFile);
+    }
   }
   for (const [path, remoteFile] of remoteMap.entries()) {
     const localFile = localMap.get(path);
@@ -95,6 +101,7 @@ export function resolvePullApplySemantics(params: {
         remoteOnlyCount,
         unchangedCount,
         skippedConflictCount,
+        localOnlyCount,
       },
     };
   }
@@ -113,6 +120,29 @@ export function resolvePullApplySemantics(params: {
         remoteOnlyCount,
         unchangedCount,
         skippedConflictCount,
+        localOnlyCount,
+      },
+    };
+  }
+
+  if (strategy === "mirror") {
+    return {
+      mergedFiles,
+      outcome: "applied",
+      localWriteRequired,
+      shouldMarkSyncSignature: true,
+      messageTitle: "✅ Full Sync angewendet",
+      messageBody:
+        localOnlyCount > 0
+          ? "Der lokale Stand wurde vollständig auf den Remote-Stand gespiegelt (inkl. expliziter Löschungen lokaler-only Dateien)."
+          : "Der lokale Stand wurde vollständig auf den Remote-Stand gespiegelt.",
+      summary: {
+        remoteCount: remoteMap.size,
+        conflictCount,
+        remoteOnlyCount,
+        unchangedCount,
+        skippedConflictCount,
+        localOnlyCount,
       },
     };
   }
@@ -133,6 +163,7 @@ export function resolvePullApplySemantics(params: {
       remoteOnlyCount,
       unchangedCount,
       skippedConflictCount,
+      localOnlyCount,
     },
   };
 }

@@ -69,4 +69,31 @@ describe("useEnhancedBuildStartController", () => {
 
     expect(startBuild).toHaveBeenCalledTimes(1);
   });
+
+  test("blocks explicit duplicate start when status is queued", async () => {
+    const startBuild = jest.fn(async () => {});
+    const { result } = renderHook(() =>
+      useEnhancedBuildStartController({
+        hasStartBuild: true,
+        startBuild,
+        buildProfile: "preview",
+        repoValidationValid: true,
+        buildBlockedReason: null,
+        sanitizeUiMessage: (s) => s,
+        status: "queued",
+        isMountedRef,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.onStartBuild();
+    });
+
+    expect(startBuild).not.toHaveBeenCalled();
+    expect(result.current.canStartBuildUi).toBe(false);
+    expect(Alert.alert).toHaveBeenCalledWith(
+      "Build läuft bereits",
+      "Ein neuer Build-Start ist während queued/running blockiert.",
+    );
+  });
 });

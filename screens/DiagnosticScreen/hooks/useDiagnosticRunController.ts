@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
-import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
+import { buildDiagnosticReadinessRecord } from "../../../lib/diagnosticReadinessRecord";
+import { STORAGE_KEYS, diagnosticLastOkKeyForSelection, diagnosticReadinessRecordKeyForSelection } from "../../../lib/storageKeys";
 import { runCleanupTask } from "../../../lib/safeCleanup";
 import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 import { runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
@@ -116,13 +117,33 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
               linkedRepo,
               linkedBranch,
             });
+            const readinessRecordKey = diagnosticReadinessRecordKeyForSelection({
+              linkedRepo,
+              linkedBranch,
+            });
+            const readinessRecord = buildDiagnosticReadinessRecord({
+              repo: linkedRepo ?? "",
+              branch: linkedBranch ?? "",
+              diagnosticOk: !hasFails,
+              includePipelineChecks,
+              focusedModes: focusedProfiles,
+            });
             await runCleanupTask(
-              () => AsyncStorage.setItem(scopedDiagnosticKey, diagValue),
+              async () => {
+                await AsyncStorage.multiSet([
+                  [scopedDiagnosticKey, diagValue],
+                  [readinessRecordKey, JSON.stringify(readinessRecord)],
+                ]);
+              },
               `[DiagnosticScreen] persist scoped diagnostic flag failed for key=${scopedDiagnosticKey}`,
             );
           } else {
             await runCleanupTask(
-              () => AsyncStorage.removeItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK),
+              () =>
+                AsyncStorage.multiRemove([
+                  STORAGE_KEYS.DIAGNOSTIC_LAST_OK,
+                  STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD,
+                ]),
               `[DiagnosticScreen] remove unscoped diagnostic flag failed for key=${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}`,
             );
           }

@@ -11,6 +11,22 @@ import { useBuildPreconditions } from "../screens/EnhancedBuildScreen/hooks/useB
 jest.mock("../infra/github/githubService", () => ({
   getGitHubToken: jest.fn(async () => "gh"),
   getExpoToken: jest.fn(async () => "expo"),
+  getWorkflowAdminKey: jest.fn(async () => "adminkey"),
+}));
+
+jest.mock("../lib/supabase", () => ({
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: {
+          session: {
+            access_token:
+              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature",
+          },
+        },
+      })),
+    },
+  })),
 }));
 
 jest.mock("../screens/EnhancedBuildScreen/hooks/signingKeyGate", () => ({
@@ -50,6 +66,9 @@ function Harness() {
 
 describe("useBuildPreconditions empty project guard", () => {
   it("marks an empty project as not build-ready before repo sync becomes relevant", async () => {
+    const { getRepoSyncState } = jest.requireMock("../lib/repoSyncOrchestration") as {
+      getRepoSyncState: jest.Mock;
+    };
     const screen = render(<Harness />);
 
     await waitFor(() => {
@@ -57,6 +76,7 @@ describe("useBuildPreconditions empty project guard", () => {
       expect(String(screen.getByTestId("projectFilesReason").props.children)).toMatch(/Projekt ist leer/i);
       expect(screen.getByTestId("repoSyncState").props.children).toBe("unknown");
     });
+    expect(getRepoSyncState).not.toHaveBeenCalled();
   });
 
   it("fails closed when a refresh throws after an earlier green snapshot", async () => {
