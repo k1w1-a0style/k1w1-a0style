@@ -14,7 +14,7 @@ import { getGithubToken, githubFetch, GITHUB_API_BASE, isAllowedGithubRepo } fro
 import { sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
   jsonOk, jsonErr, asNumber, parseGithubRepo, type Json,
-  redactSecrets, fetchLogsZip, zipToText, MAX_CHARS,
+  redactSecrets, fetchLogsZip, zipToText, MAX_CHARS, classifyWorkflowLogsErrorStatus,
 } from "./helpers.ts";
 
 type NotReadyPayload = { ok: false; reason: string; status?: string };
@@ -190,11 +190,16 @@ Deno.serve(async (req) => {
       return jsonOk(req, errorLike.body, errorLike.status ?? 200);
     }
     if (typeof errorLike.status === "number") {
+      const classified = classifyWorkflowLogsErrorStatus(errorLike.status);
       return jsonErr(
         req,
-        "GitHub workflow logs fetch failed",
-        { status: errorLike.status, body: errorLike.body ?? "" },
-        502,
+        classified.error,
+        {
+          code: classified.code,
+          upstream_status: errorLike.status,
+          body: errorLike.body ?? "",
+        },
+        classified.status,
       );
     }
     return jsonErr(

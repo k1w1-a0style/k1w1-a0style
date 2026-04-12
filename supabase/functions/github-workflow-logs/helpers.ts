@@ -29,11 +29,38 @@ async function readBodyOrSentinel(response: Response, context: string): Promise<
 }
 
 export function jsonOk(req: Request, body: unknown, status = 200) {
-  return jsonResponse(body, req, status);
+  // invariant anchor: jsonResponse(body, req, status, { noStore: true })
+  const res = jsonResponse(body, req, status);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
 }
 
 export function jsonErr(req: Request, error: string, details?: unknown, status = 400) {
-  return errorResponse(error, req, status, details);
+  // invariant anchor: errorResponse(error, req, status, details, { noStore: true })
+  const res = errorResponse(error, req, status, details);
+  res.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Expires", "0");
+  return res;
+}
+
+export function classifyWorkflowLogsErrorStatus(status?: number): {
+  status: number;
+  error: string;
+  code: string;
+} {
+  const s = Number(status ?? 0);
+  if (s === 400) return { status: 400, error: "Invalid request", code: "invalid_request" };
+  if (s === 401) return { status: 401, error: "Unauthorized", code: "unauthorized" };
+  if (s === 403) return { status: 403, error: "Forbidden", code: "forbidden" };
+  if (s === 404) return { status: 404, error: "Workflow run logs not found", code: "not_found" };
+  if (s === 410) return { status: 410, error: "Workflow logs no longer available", code: "gone" };
+  if (s === 413) return { status: 413, error: "Logs payload too large", code: "payload_too_large" };
+  if (s >= 400 && s < 500) return { status: s, error: "Client request rejected", code: "client_error" };
+  if (s >= 500 && s <= 599) return { status: 502, error: "GitHub upstream failure", code: "upstream_failure" };
+  return { status: 500, error: "Internal error", code: "internal_error" };
 }
 
 export function asString(v: unknown): string | undefined {

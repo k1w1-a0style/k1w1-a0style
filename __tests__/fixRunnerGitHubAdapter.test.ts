@@ -2,8 +2,7 @@ import { dispatchWorkflowFix, syncPatchToGitHub } from "../screens/DiagnosticScr
 import { makePreflightPatch, makeProjectRef } from "./helpers/preflightTestHelpers";
 
 jest.mock("../infra/github/githubService", () => ({
-  createOrUpdateFile: jest.fn(async () => undefined),
-  deleteRepoFile: jest.fn(async () => undefined),
+  applyRepoFilePatchAtomic: jest.fn(async () => undefined),
   triggerWorkflow: jest.fn(async () => undefined),
 }));
 
@@ -12,12 +11,10 @@ jest.mock("../lib/repoSyncOrchestration", () => ({
 }));
 
 const {
-  createOrUpdateFile,
-  deleteRepoFile,
+  applyRepoFilePatchAtomic,
   triggerWorkflow,
 } = jest.requireMock("../infra/github/githubService") as {
-  createOrUpdateFile: jest.Mock;
-  deleteRepoFile: jest.Mock;
+  applyRepoFilePatchAtomic: jest.Mock;
   triggerWorkflow: jest.Mock;
 };
 
@@ -30,7 +27,7 @@ describe("fixRunnerGitHubAdapter", () => {
     jest.clearAllMocks();
   });
 
-  test("syncPatchToGitHub syncs upsert and delete files and marks signature", async () => {
+  test("syncPatchToGitHub syncs a pinned snapshot atomically and marks signature", async () => {
     const projectRef = makeProjectRef({
       id: "p1",
       name: "demo",
@@ -48,32 +45,25 @@ describe("fixRunnerGitHubAdapter", () => {
       projectRef,
     });
 
-    expect(createOrUpdateFile).toHaveBeenCalledWith(
+    expect(applyRepoFilePatchAtomic).toHaveBeenCalledWith(
       "owner",
       "repo",
-      "app.json",
-      "{}",
-      "Diagnostics: Sync",
-      "main",
-    );
-    expect(deleteRepoFile).toHaveBeenCalledWith(
-      "owner",
-      "repo",
-      "package.json",
-      "Diagnostics: Sync",
-      "main",
+      {
+        upsert: [{ path: "app.json", content: "{}" }],
+        delete: ["package.json"],
+      },
+      { branch: "main", message: "Diagnostics: Sync" },
     );
     expect(markRepoSyncSignature).toHaveBeenCalled();
   });
 
-  test("dispatchWorkflowFix applies bootstrap patch on 404 and retries", async () => {
+  test("dispatchWorkflowFix surfaces truthful missing_workflow error on 404", async () => {
     triggerWorkflow
-      .mockRejectedValueOnce(new Error("404 not found"))
-      .mockResolvedValueOnce(undefined);
+      .mockRejectedValueOnce(new Error("404 not found"));
 
     const applyPatch = jest.fn(async () => undefined);
 
-    await dispatchWorkflowFix({
+    await expect(dispatchWorkflowFix({
       owner: "owner",
       repo: "repo",
       workflowFileName: "wf.yml",
@@ -81,9 +71,35 @@ describe("fixRunnerGitHubAdapter", () => {
       inputs: {},
       fallbackPatch: makePreflightPatch({ upsert: [{ path: "wf.yml", content: "x" }] }),
       applyPatch,
+    })).rejects.toThrow(/missing_workflow/i);
+
+    expect(applyPatch).not.toHaveBeenCalled();
+    expect(triggerWorkflow).toHaveBeenCalledTimes(1);
+  });
+
+  test("syncPatchToGitHub fails honestly when local project drifts during sync", async () => {
+    const projectRef = makeProjectRef({
+      id: "p1",
+      name: "demo",
+      files: [{ path: "app.json", content: "{}" }],
+    });
+    applyRepoFilePatchAtomic.mockImplementationOnce(async () => {
+      projectRef.current = {
+        ...projectRef.current!,
+        files: [{ path: "app.json", content: "{\"changed\":true}" }],
+      };
     });
 
-    expect(applyPatch).toHaveBeenCalledWith("Bootstrap wf.yml", expect.any(Object));
-    expect(triggerWorkflow).toHaveBeenCalledTimes(2);
+    await expect(syncPatchToGitHub({
+      label: "Sync",
+      patch: makePreflightPatch({
+        upsert: [{ path: "app.json", content: "{}" }],
+      }),
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      projectRef,
+    })).rejects.toThrow(/während GitHub-Sync geändert/i);
+
+    expect(markRepoSyncSignature).not.toHaveBeenCalled();
   });
 });

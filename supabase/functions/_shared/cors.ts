@@ -114,11 +114,18 @@ export function jsonResponse(
   data: unknown,
   req: Request,
   status: number = 200,
+  options?: { noStore?: boolean },
 ): Response {
   const origin = req.headers.get("origin");
+  const headers = getCorsHeaders(origin);
+  if (options?.noStore) {
+    headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+    headers.Pragma = "no-cache";
+    headers.Expires = "0";
+  }
   return new Response(JSON.stringify(data), {
     status,
-    headers: getCorsHeaders(origin),
+    headers,
   });
 }
 
@@ -130,6 +137,7 @@ export function errorResponse(
   req: Request,
   status: number = 400,
   details?: unknown,
+  options?: { noStore?: boolean },
 ): Response {
   const safeError = sanitizeErrorText(error);
   const safeDetails = details === undefined ? undefined : sanitizeUnknownForTransport(details);
@@ -141,5 +149,6 @@ export function errorResponse(
     },
     req,
     status,
+    options,
   );
 }
