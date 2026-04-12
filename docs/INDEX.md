@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-12 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
+Stand: **2026-04-12 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

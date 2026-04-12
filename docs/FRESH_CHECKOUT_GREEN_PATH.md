@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-12 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
+Stand: **2026-04-12 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
