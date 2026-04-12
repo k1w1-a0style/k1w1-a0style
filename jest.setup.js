@@ -17,6 +17,17 @@ jest.mock("react-native/Libraries/Animated/NativeAnimatedHelper", () => ({}), {
 jest.mock("expo-secure-store");
 
 jest.mock("uuid", () => ({ v4: () => "test-uuid" }));
+jest.mock(
+  "libsodium-wrappers-sumo",
+  () => ({
+    __esModule: true,
+    default: {
+      ready: Promise.resolve(),
+      crypto_box_seal: jest.fn((message) => message),
+    },
+  }),
+  { virtual: true },
+);
 
 // 🔥 react-native-webview in Tests immer mocken
 jest.mock("react-native-webview");

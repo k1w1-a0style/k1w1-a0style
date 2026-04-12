@@ -15,8 +15,17 @@ type HeaderSectionProps = {
     modified: number;
     localOnly: number;
     remoteOnly: number;
+    remoteOnlyIsExact: boolean;
+    remoteOnlyUnknownDueToLocalTruncation: boolean;
+    dirtyLowerBound: number;
+    hasUncertainDirtyCount: boolean;
     skipped: number;
     error: number;
+    checkedLocalFiles: number;
+    totalLocalFiles: number;
+    isPartial: boolean;
+    partialReason: string | null;
+    countsAreLowerBounds: boolean;
     checkedAt: number | null;
   };
   onCheckStatus?: () => void;
@@ -31,8 +40,23 @@ export const HeaderSection = memo(function HeaderSection({
   syncStatus,
   onCheckStatus,
 }: HeaderSectionProps) {
-  const dirtyCount =
+  const isPartial = !!syncStatus?.isPartial;
+  const exactDirtyCount =
     (syncStatus?.modified || 0) + (syncStatus?.localOnly || 0) + (syncStatus?.remoteOnly || 0);
+  const dirtyLowerBound = syncStatus?.dirtyLowerBound || 0;
+  const canShowDirtyLowerBound = !!syncStatus?.hasUncertainDirtyCount && dirtyLowerBound > 0;
+  const isDirty = exactDirtyCount > 0 || dirtyLowerBound > 0;
+  const statusLabel = syncStatus?.checking
+    ? "prüfe…"
+    : isPartial
+      ? canShowDirtyLowerBound
+        ? `dirty ≥${dirtyLowerBound}`
+        : isDirty
+          ? "Abweichungen gefunden"
+          : "teilweise geprüft"
+      : isDirty
+        ? `dirty ${exactDirtyCount}`
+        : "clean";
   const lastCheckedLabel = syncStatus?.checkedAt
     ? `Zuletzt geprüft: ${new Date(syncStatus.checkedAt).toLocaleTimeString()}`
     : "Noch nicht frisch geprüft";
@@ -64,13 +88,13 @@ export const HeaderSection = memo(function HeaderSection({
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: theme.palette.border,
-                  backgroundColor: dirtyCount
+                  backgroundColor: isDirty
                     ? "rgba(255, 99, 71, 0.12)"
                     : "rgba(0, 255, 160, 0.10)",
                 }}
               >
                 <Text style={{ fontSize: 10, color: theme.palette.text.secondary }}>
-                  {syncStatus?.checking ? "prüfe…" : dirtyCount ? `dirty ${dirtyCount}` : "clean"}
+                  {statusLabel}
                 </Text>
               </View>
             ) : null}
@@ -79,7 +103,9 @@ export const HeaderSection = memo(function HeaderSection({
 
         {!!activeRepo && (
           <Text style={[styles.subtitle, { marginTop: 4 }]} numberOfLines={1}>
-            {syncStatus?.checking ? "Statusprüfung läuft… (frischer Check)" : lastCheckedLabel}
+            {syncStatus?.checking
+              ? "Statusprüfung läuft… (frischer Check)"
+              : syncStatus?.partialReason || lastCheckedLabel}
           </Text>
         )}
       </View>

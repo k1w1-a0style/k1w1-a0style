@@ -44,7 +44,7 @@ const mockInvoke = jest.fn();
 const mockSupabase: any = {
   auth: {
     getSession: jest.fn(async () => ({
-      data: { session: { access_token: "supabase-operator-jwt-token" } },
+      data: { session: { access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl" } },
     })),
   },
   functions: {
@@ -149,7 +149,7 @@ describe("startBuildJob (integration)", () => {
     const [fnName, opts] = mockInvoke.mock.calls[0];
 
     expect(typeof fnName).toBe("string");
-    expect(opts?.headers?.Authorization).toBe("Bearer supabase-operator-jwt-token");
+    expect(opts?.headers?.Authorization).toBe("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl");
     expect(opts?.headers?.["x-k1w1-admin-key"]).toBe("adminkey");
     expect(opts?.body).toEqual({
       githubRepo: "k1w1-a0style/musik-player",

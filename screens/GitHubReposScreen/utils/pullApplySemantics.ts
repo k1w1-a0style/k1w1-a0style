@@ -21,6 +21,13 @@ export type PullApplySemantics = {
   };
 };
 
+export function shouldConfirmMirrorDelete(params: {
+  strategy: PullApplyStrategy;
+  semantics: PullApplySemantics;
+}): boolean {
+  return params.strategy === "mirror" && params.semantics.summary.localOnlyCount > 0;
+}
+
 export function resolvePullApplySemantics(params: {
   localFiles: ProjectFile[];
   remoteFiles: ProjectFile[];
@@ -175,12 +182,20 @@ export async function executePullApply(params: {
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
   markSyncSignature: (files: ProjectFile[]) => Promise<void>;
   refreshSyncStatus: () => Promise<void>;
+  confirmMirrorDelete?: (semantics: PullApplySemantics) => Promise<boolean>;
 }): Promise<PullApplySemantics> {
   const semantics = resolvePullApplySemantics({
     localFiles: params.localFiles,
     remoteFiles: params.remoteFiles,
     strategy: params.strategy,
   });
+
+  if (shouldConfirmMirrorDelete({ strategy: params.strategy, semantics })) {
+    const confirmed = await (params.confirmMirrorDelete?.(semantics) ?? Promise.resolve(false));
+    if (!confirmed) {
+      throw new Error("Mirror apply canceled by user.");
+    }
+  }
 
   if (semantics.localWriteRequired) {
     await params.updateProjectFiles(semantics.mergedFiles);

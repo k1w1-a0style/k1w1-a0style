@@ -10,8 +10,17 @@ export type SyncStatus = {
   modified: number;
   localOnly: number;
   remoteOnly: number;
+  remoteOnlyIsExact: boolean;
+  remoteOnlyUnknownDueToLocalTruncation: boolean;
+  dirtyLowerBound: number;
+  hasUncertainDirtyCount: boolean;
   skipped: number;
   error: number;
+  checkedLocalFiles: number;
+  totalLocalFiles: number;
+  isPartial: boolean;
+  partialReason: string | null;
+  countsAreLowerBounds: boolean;
   checkedAt: number | null;
 };
 
@@ -20,8 +29,17 @@ export const EMPTY_SYNC_STATUS: SyncStatus = {
   modified: 0,
   localOnly: 0,
   remoteOnly: 0,
+  remoteOnlyIsExact: true,
+  remoteOnlyUnknownDueToLocalTruncation: false,
+  dirtyLowerBound: 0,
+  hasUncertainDirtyCount: false,
   skipped: 0,
   error: 0,
+  checkedLocalFiles: 0,
+  totalLocalFiles: 0,
+  isPartial: false,
+  partialReason: null,
+  countsAreLowerBounds: false,
   checkedAt: null,
 };
 
@@ -78,7 +96,26 @@ export function useGitHubReposSyncStatus(deps: Deps) {
         localFiles: normalizedLocalFiles,
         maxLocalFiles: 40,
       });
-      commitSyncStatus({ checking: false, ...stats, checkedAt: Date.now() });
+      const partialReason = stats.isPartial
+        ? stats.checkedLocalFiles < stats.totalLocalFiles
+          ? `Nur ${stats.checkedLocalFiles}/${stats.totalLocalFiles} lokale Dateien geprüft (lokales Limit aktiv). Kein Full-Sync-Schluss möglich.`
+          : "Vergleich enthält unsichere Zählungen (z. B. Hash-Fehler). Kein Full-Sync-Schluss möglich."
+        : null;
+      const dirtyLowerBound = stats.modified + stats.localOnly + (stats.remoteOnlyIsExact ? stats.remoteOnly : 0);
+      const hasUncertainDirtyCount = !stats.remoteOnlyIsExact;
+      const normalizedPartialReason = stats.isPartial
+        ? hasUncertainDirtyCount && dirtyLowerBound > 0
+          ? "Abweichungen im Teilumfang gefunden. Kein Full-Sync-Schluss möglich."
+          : partialReason
+        : null;
+      commitSyncStatus({
+        checking: false,
+        ...stats,
+        dirtyLowerBound,
+        hasUncertainDirtyCount,
+        partialReason: normalizedPartialReason,
+        checkedAt: Date.now(),
+      });
     } catch {
       commitSyncStatus({ ...EMPTY_SYNC_STATUS, checking: false, error: 1, checkedAt: Date.now() });
     }

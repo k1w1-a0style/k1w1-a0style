@@ -30,6 +30,11 @@ export type DiffSummary = {
   skipped: number;
   error: number;
   total: number;
+  isPartial: boolean;
+  countsAreLowerBounds: boolean;
+  partialReason: string | null;
+  remoteOnlySemantics: "exact" | "lower_bound" | "unknown";
+  dirtyLowerBound: number;
 };
 
 export type DiffPreviewState = {

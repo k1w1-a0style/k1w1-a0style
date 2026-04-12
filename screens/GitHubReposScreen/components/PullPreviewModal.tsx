@@ -121,7 +121,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
               )}
 
               <Text style={{ fontSize: 11, marginTop: 10, color: theme.palette.text.muted, lineHeight: 16 }}>
-                Merge/Overwrite übernimmt Remote-Version bei Konflikten. Skip behält lokale Version bei Konflikten und markiert den Stand bewusst nicht als vollständig synchron. Full Sync spiegelt den Remote-Stand exakt und löscht lokale-only Dateien explizit.
+                Merge Overwrite ersetzt Konflikte mit Remote-Version. Merge Skip behält lokale Konflikte und markiert den Stand bewusst nicht als vollständigen Sync. Full Sync / Mirror spiegelt exakt und kann lokale-only Dateien löschen (destruktiv, nur mit Bestätigung).
               </Text>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
@@ -130,7 +130,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
                   onPress={onSkipConflicts}
                   disabled={!!busy || !preview}
                 >
-                  <Text style={styles.buttonTextSecondary}>{busy ? "…" : "Skip Konflikte"}</Text>
+                  <Text style={styles.buttonTextSecondary}>{busy ? "…" : "Merge Skip"}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -138,7 +138,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
                   onPress={onOverwrite}
                   disabled={!!busy || !preview}
                 >
-                  <Text style={styles.buttonText}>{busy ? "…" : "Overwrite"}</Text>
+                  <Text style={styles.buttonText}>{busy ? "…" : "Merge Overwrite"}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -146,7 +146,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
                   onPress={onMirror}
                   disabled={!!busy || !preview}
                 >
-                  <Text style={styles.buttonText}>{busy ? "…" : "Full Sync"}</Text>
+                  <Text style={styles.buttonText}>{busy ? "…" : "Full Sync / Mirror"}</Text>
                 </TouchableOpacity>
               </View>
             </>

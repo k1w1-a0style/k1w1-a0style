@@ -9,6 +9,97 @@ import { encodeGitBlobContentSha } from "./hash";
 import { getErrorMessage, readJsonSafe, resolveTargetBranch } from "./shared";
 import type { GitHubBranchPayload, GitHubCommitPayload, GitHubMessagePayload, GitHubTreePayload, RepoBlobEntry } from "./types";
 
+const BINARY_FILE_EXTENSIONS = new Set([
+  "png", "jpg", "jpeg", "webp", "gif", "bmp", "ico",
+  "mp3", "wav", "m4a", "mp4", "mov", "mkv",
+  "zip", "jar", "keystore", "jks", "cer", "der", "p12",
+  "ttf", "otf", "woff", "woff2",
+]);
+
+function isBinaryRepoPath(path: string): boolean {
+  const normalized = normalizeRepoPath(path).toLowerCase();
+  const ext = normalized.includes(".") ? normalized.split(".").pop() || "" : "";
+  return BINARY_FILE_EXTENSIONS.has(ext);
+}
+
+function stripProjectBinaryPrefix(content: string): string {
+  return content.startsWith("base64:") ? content.slice("base64:".length).trim() : content;
+}
+
+function assertBase64Payload(path: string, payload: string): void {
+  if (!payload) {
+    throw new Error(`Binärdatei ${path} enthält keinen Base64-Inhalt.`);
+  }
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(payload)) {
+    throw new Error(`Binärdatei ${path} enthält ungültiges Base64.`);
+  }
+}
+
+async function createBinaryBlob(params: {
+  owner: string;
+  repo: string;
+  path: string;
+  content: string;
+  headers: Record<string, string>;
+}): Promise<string> {
+  const base64Payload = stripProjectBinaryPrefix(params.content);
+  if (!isBinaryRepoPath(params.path)) {
+    throw new Error(`base64:-Inhalt auf Nicht-Binärpfad nicht erlaubt: ${params.path}`);
+  }
+  assertBase64Payload(params.path, base64Payload);
+
+  await githubLimiter.checkLimit();
+  const blobResp = await fetchGitHub(
+    githubApiUrl(`/repos/${params.owner}/${params.repo}/git/blobs`),
+    {
+      method: "POST",
+      headers: params.headers,
+      body: JSON.stringify({ content: base64Payload, encoding: "base64" }),
+    },
+  );
+  const blobJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(blobResp)) ?? {};
+  if (!blobResp.ok) {
+    throw new Error(blobJson.message || `Blob-Erstellung fehlgeschlagen (${blobResp.status})`);
+  }
+  const blobSha = String(blobJson.sha || "").trim();
+  if (!blobSha) throw new Error(`Blob-Erstellung lieferte keine SHA (${params.path}).`);
+  return blobSha;
+}
+
+async function buildTreeEntries(params: {
+  owner: string;
+  repo: string;
+  files: Array<{ path: string; content: string }>;
+  headers: Record<string, string>;
+}): Promise<Array<Record<string, unknown>>> {
+  const entries: Array<Record<string, unknown>> = [];
+  for (const file of params.files) {
+    if (file.content.startsWith("base64:")) {
+      const sha = await createBinaryBlob({
+        owner: params.owner,
+        repo: params.repo,
+        path: file.path,
+        content: file.content,
+        headers: params.headers,
+      });
+      entries.push({
+        path: file.path,
+        mode: "100644",
+        type: "blob",
+        sha,
+      });
+      continue;
+    }
+    entries.push({
+      path: file.path,
+      mode: "100644",
+      type: "blob",
+      content: file.content,
+    });
+  }
+  return entries;
+}
+
 export const pushFilesToRepo = async (
   owner: string,
   repo: string,
@@ -101,12 +192,12 @@ export const pushFilesToRepoAdvanced = async (
   const baseTreeSha = String(baseCommitJson.tree?.sha || "").trim();
   if (!baseTreeSha) throw new Error("Konnte Basis-Tree für Push nicht ermitteln.");
 
-  const treeEntries = normalizedFiles.map((f) => ({
-    path: f.path,
-    mode: "100644",
-    type: "blob",
-    content: f.content,
-  }));
+  const treeEntries = await buildTreeEntries({
+    owner,
+    repo,
+    files: normalizedFiles,
+    headers,
+  });
 
   await githubLimiter.checkLimit();
   const createTreeResp = await fetchGitHub(
@@ -207,15 +298,19 @@ export const applyRepoFilePatchAtomic = async (
 
   const seen = new Set<string>();
   const treeEntries: Array<Record<string, unknown>> = [];
-  for (const file of upserts) {
-    if (seen.has(file.path)) continue;
-    seen.add(file.path);
-    treeEntries.push({
-      path: file.path,
-      mode: "100644",
-      type: "blob",
-      content: file.content,
-    });
+  const upsertEntries = await buildTreeEntries({
+    owner,
+    repo,
+    files: upserts,
+    headers,
+  });
+
+  for (const file of upsertEntries) {
+    const path = String(file.path || "").trim();
+    if (!path) continue;
+    if (seen.has(path)) continue;
+    seen.add(path);
+    treeEntries.push(file);
   }
   for (const path of deletes) {
     if (seen.has(path)) continue;
@@ -272,11 +367,7 @@ export const applyRepoFilePatchAtomic = async (
     {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        message,
-        tree: newTreeSha,
-        parents: [baseCommitSha],
-      }),
+      body: JSON.stringify({ message, tree: newTreeSha, parents: [baseCommitSha] }),
     },
   );
   const createCommitJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(createCommitResp)) ?? {};
@@ -390,8 +481,14 @@ export const compareLocalFilesWithRepo = async (params: {
   modified: number;
   localOnly: number;
   remoteOnly: number;
+  remoteOnlyIsExact: boolean;
+  remoteOnlyUnknownDueToLocalTruncation: boolean;
   skipped: number;
   error: number;
+  checkedLocalFiles: number;
+  totalLocalFiles: number;
+  isPartial: boolean;
+  countsAreLowerBounds: boolean;
 }> => {
   const token = await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
@@ -413,13 +510,17 @@ export const compareLocalFilesWithRepo = async (params: {
     remoteShaByPath.set(p, entry.sha);
   }
 
-  const localFiles = [...params.localFiles]
+  const normalizedLocalFiles = [...params.localFiles]
     .map((f) => ({
       path: normalizeRepoPath(String(f.path || "").trim()),
       content: String(f.content ?? ""),
     }))
-    .filter((f) => !!f.path)
-    .slice(0, localLimit);
+    .filter((f) => !!f.path);
+
+  const totalLocalFiles = normalizedLocalFiles.length;
+  const localFiles = normalizedLocalFiles.slice(0, localLimit);
+  const checkedLocalFiles = localFiles.length;
+  const localScanTruncated = checkedLocalFiles < totalLocalFiles;
 
   let modified = 0;
   let localOnly = 0;
@@ -453,9 +554,29 @@ export const compareLocalFilesWithRepo = async (params: {
   }
 
   let remoteOnly = 0;
-  for (const remotePath of remoteShaByPath.keys()) {
-    if (!localPaths.has(remotePath)) remoteOnly++;
+  const remoteOnlyUnknownDueToLocalTruncation = localScanTruncated;
+  const remoteOnlyIsExact = !remoteOnlyUnknownDueToLocalTruncation;
+  if (remoteOnlyIsExact) {
+    for (const remotePath of remoteShaByPath.keys()) {
+      if (!localPaths.has(remotePath)) remoteOnly++;
+    }
   }
 
-  return { modified, localOnly, remoteOnly, skipped, error: errorCount };
+  const hasCountUncertainty = errorCount > 0;
+  const isPartial = localScanTruncated || hasCountUncertainty;
+  const countsAreLowerBounds = localScanTruncated || hasCountUncertainty;
+
+  return {
+    modified,
+    localOnly,
+    remoteOnly,
+    remoteOnlyIsExact,
+    remoteOnlyUnknownDueToLocalTruncation,
+    skipped,
+    error: errorCount,
+    checkedLocalFiles,
+    totalLocalFiles,
+    isPartial,
+    countsAreLowerBounds,
+  };
 };
