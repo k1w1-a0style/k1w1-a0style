@@ -89,7 +89,9 @@ export function useGitHubReposSyncStatus(deps: Deps) {
         maxLocalFiles: 40,
       });
       const partialReason = stats.isPartial
-        ? `Nur ${stats.checkedLocalFiles}/${stats.totalLocalFiles} lokale Dateien geprüft (lokales Limit aktiv).`
+        ? stats.checkedLocalFiles < stats.totalLocalFiles
+          ? `Nur ${stats.checkedLocalFiles}/${stats.totalLocalFiles} lokale Dateien geprüft (lokales Limit aktiv). Kein Full-Sync-Schluss möglich.`
+          : "Vergleich enthält unsichere Zählungen (z. B. Hash-Fehler). Kein Full-Sync-Schluss möglich."
         : null;
       commitSyncStatus({ checking: false, ...stats, partialReason, checkedAt: Date.now() });
     } catch {

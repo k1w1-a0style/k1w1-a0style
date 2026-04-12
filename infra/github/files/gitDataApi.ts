@@ -465,8 +465,9 @@ export const compareLocalFilesWithRepo = async (params: {
     if (!localPaths.has(remotePath)) remoteOnly++;
   }
 
-  const isPartial = localScanTruncated;
-  const countsAreLowerBounds = localScanTruncated;
+  const hasCountUncertainty = errorCount > 0;
+  const isPartial = localScanTruncated || hasCountUncertainty;
+  const countsAreLowerBounds = localScanTruncated || hasCountUncertainty;
 
   return {
     modified,

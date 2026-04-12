@@ -4,6 +4,7 @@ import {
   getAssetsStatusFromProjectFiles,
   getIconPreviewFromProjectFiles,
   getPackageNameFromProjectFiles,
+  toProjectBinaryBase64,
   toProjectFiles,
 } from "../screens/AppInfoScreen/hooks/useAppInfoScreen.helpers";
 
@@ -31,6 +32,9 @@ describe("useAppInfoScreen helper contracts", () => {
 
     expect(getPackageNameFromProjectFiles(projectFiles)).toBe("demo.app");
     expect(getIconPreviewFromProjectFiles(projectFiles)).toBe(`data:image/png;base64,${base64}`);
+    expect(getIconPreviewFromProjectFiles([{ path: "assets/icon.png", content: `base64:${base64}` }])).toBe(
+      `data:image/png;base64,${base64}`,
+    );
     expect(getAssetsStatusFromProjectFiles(projectFiles)).toEqual({
       icon: true,
       adaptiveIcon: true,
@@ -40,6 +44,13 @@ describe("useAppInfoScreen helper contracts", () => {
 
     expect(getPackageNameFromProjectFiles([{ path: "package.json", content: "{" }])).toBe("meine-app");
     expect(getIconPreviewFromProjectFiles([{ path: "assets/icon.png", content: "invalid" }])).toBeNull();
+  });
+
+  test("normalizes binary asset payloads into project base64 format", () => {
+    const raw = "QUJD";
+    expect(toProjectBinaryBase64(raw)).toBe("base64:QUJD");
+    expect(toProjectBinaryBase64("base64:QUJD")).toBe("base64:QUJD");
+    expect(toProjectBinaryBase64("data:image/png;base64,QUJD")).toBe("base64:QUJD");
   });
 
   test("message/api key counters stay deterministic", () => {
