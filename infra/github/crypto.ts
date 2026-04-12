@@ -1,5 +1,5 @@
-import { seal } from "tweetsodium";
 import { Buffer } from "buffer";
+import sodium from "libsodium-wrappers-sumo";
 
 // ✅ FIX: Buffer Polyfill Check (lazy + zuverlässig)
 export const ensureBuffer = () => {
@@ -22,10 +22,14 @@ export const encodeGitHubFileContent = (content: string): string => {
   return Buffer.from(trimmed, "utf8").toString("base64");
 };
 
-export const encryptSecret = (publicKey: string, value: string): string => {
+export const encryptSecret = async (publicKey: string, value: string): Promise<string> => {
   ensureBuffer();
+  await sodium.ready;
+  if (!sodium.crypto_box_seal) {
+    throw new Error("libsodium crypto_box_seal ist nicht verfügbar.");
+  }
   const messageBytes = Buffer.from(value);
   const keyBytes = Buffer.from(publicKey, "base64");
-  const encryptedBytes = seal(messageBytes, keyBytes);
+  const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes);
   return Buffer.from(encryptedBytes).toString("base64");
 };
