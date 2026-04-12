@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import { pushFilesToRepoAdvanced } from "../../../infra/github/githubService";
 import { markRepoSyncSignature } from "../../../lib/repoSyncOrchestration";
 import { executePullApply } from "../utils/pullApplySemantics";
+import type { PullApplyStrategy } from "../utils/pullApplySemantics";
 import { resolvePushPreparation } from "../utils/pushSelectionSemantics";
 import { splitFullName } from "../utils/repos";
 import {
@@ -227,7 +228,7 @@ export function useGitHubReposPushPull(deps: Deps) {
     setPullProgress("");
   }, [pullPreviewLoading, isPulling]);
 
-  const applyPulledFiles = useCallback(async (strategy: "overwrite" | "skipConflicts") => {
+  const applyPulledFiles = useCallback(async (strategy: PullApplyStrategy) => {
     if (!pullPreview?.remote) return;
 
     setIsPulling(true);

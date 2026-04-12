@@ -20,11 +20,12 @@ type Props = {
   onCancel: () => void;
   onOverwrite: () => void;
   onSkipConflicts: () => void;
+  onMirror: () => void;
   busy?: boolean;
 };
 
 export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
-  const { visible, loading, preview, pullProgress, onCancel, onOverwrite, onSkipConflicts, busy } = props;
+  const { visible, loading, preview, pullProgress, onCancel, onOverwrite, onSkipConflicts, onMirror, busy } = props;
 
   const counts = useMemo(() => {
     return {
@@ -120,7 +121,7 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
               )}
 
               <Text style={{ fontSize: 11, marginTop: 10, color: theme.palette.text.muted, lineHeight: 16 }}>
-                Overwrite übernimmt Remote-Version bei Konflikten. Skip behält lokale Version bei Konflikten und markiert den Stand bewusst nicht als vollständig synchron.
+                Merge/Overwrite übernimmt Remote-Version bei Konflikten. Skip behält lokale Version bei Konflikten und markiert den Stand bewusst nicht als vollständig synchron. Full Sync spiegelt den Remote-Stand exakt und löscht lokale-only Dateien explizit.
               </Text>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
@@ -138,6 +139,14 @@ export const PullPreviewModal = memo(function PullPreviewModal(props: Props) {
                   disabled={!!busy || !preview}
                 >
                   <Text style={styles.buttonText}>{busy ? "…" : "Overwrite"}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.buttonDanger, { flex: 1 }, busy && styles.buttonDisabled]}
+                  onPress={onMirror}
+                  disabled={!!busy || !preview}
+                >
+                  <Text style={styles.buttonText}>{busy ? "…" : "Full Sync"}</Text>
                 </TouchableOpacity>
               </View>
             </>

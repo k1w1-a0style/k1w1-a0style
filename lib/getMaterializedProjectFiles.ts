@@ -11,10 +11,14 @@ type MinimalProjectData = {
 export const getMaterializedProjectFiles = (
   projectData: MinimalProjectData | null | undefined,
 ): ProjectFile[] => {
-  const files = Array.isArray(projectData?.files) ? projectData.files : [];
+  const files = getSourceProjectFiles(projectData);
   return materializeProjectFiles(files, {
     name: projectData?.name,
     slug: projectData?.slug ?? projectData?.name,
     packageName: projectData?.packageName,
   });
 };
+
+export const getSourceProjectFiles = (
+  projectData: MinimalProjectData | null | undefined,
+): ProjectFile[] => (Array.isArray(projectData?.files) ? projectData.files : []);

@@ -221,6 +221,7 @@ export function buildListFooter(params: FooterParams) {
         onCancel={params.closePullModal}
         onOverwrite={() => params.applyPulledFiles("overwrite")}
         onSkipConflicts={() => params.applyPulledFiles("skipConflicts")}
+        onMirror={() => params.applyPulledFiles("mirror")}
         busy={params.isPulling}
       />
 

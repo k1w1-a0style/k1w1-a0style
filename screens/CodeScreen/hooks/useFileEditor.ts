@@ -1,7 +1,7 @@
 // screens/CodeScreen/hooks/useFileEditor.ts
 // Handles: selected file state, editing content, dirty tracking,
 //          live syntax validation (deferred), and saving.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Alert, InteractionManager } from "react-native";
 
@@ -88,6 +88,8 @@ export const useFileEditor = (): UseFileEditorReturn => {
   const [editingContent, setEditingContent] = useState<string>("");
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [syntaxErrors, setSyntaxErrors] = useState<ValidationError[]>([]);
+  const editingContentRef = useRef("");
+  editingContentRef.current = editingContent;
 
   const selectedOriginalContent = useMemo(
     () => (selectedFile ? toContentString(selectedFile) : ""),
@@ -108,14 +110,18 @@ export const useFileEditor = (): UseFileEditorReturn => {
       setSyntaxErrors([]);
       return;
     }
-    const nextLiveContent = toContentString(liveFile);
-    if (nextLiveContent !== editingContent) {
-      setEditingContent(nextLiveContent);
+    const previousSourceContent = toContentString(selectedFile);
+    const nextSourceContent = toContentString(liveFile);
+    if (nextSourceContent === previousSourceContent) return;
+
+    const currentEditorContent = editingContentRef.current;
+    const hasLocalUnsavedEdits = currentEditorContent !== previousSourceContent;
+
+    setSelectedFile({ ...liveFile });
+    if (!hasLocalUnsavedEdits) {
+      setEditingContent(nextSourceContent);
     }
-    if (liveFile.content !== selectedFile.content) {
-      setSelectedFile({ ...liveFile });
-    }
-  }, [editingContent, projectData?.files, selectedFile]);
+  }, [projectData?.files, selectedFile]);
 
   // Live validation (debounced + deferred via InteractionManager).
   useEffect(() => {

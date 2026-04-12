@@ -7,7 +7,7 @@ import { readBuildReadinessState } from "./buildReadinessState";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
+import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { hasAllowedOperatorRole } from "../../../lib/auth/operatorJwt";
 
@@ -64,8 +64,9 @@ export function useBuildPreconditions(
       }
     };
 
+    const sourceFiles = getSourceProjectFiles(projectData);
     const files = getMaterializedProjectFiles(projectData);
-    const hasFiles = files.length > 0;
+    const hasFiles = sourceFiles.length > 0;
     const filesReason = hasFiles
       ? null
       : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";

@@ -49,6 +49,21 @@ describe("useFileEditor behavior", () => {
     expect(result.current.selectedFile?.content).toBe("new external content");
   });
 
+  it("does not overwrite local unsaved edits when there is no external file change", async () => {
+    const { result, rerender } = renderHook(() => useFileEditor());
+
+    await act(async () => {
+      result.current.setSelectedFile({ path: "App.tsx", content: "persisted" });
+      result.current.setEditingContent("local unsaved typing");
+    });
+
+    // Re-render without any project-file mutation.
+    rerender({});
+
+    expect(result.current.editingContent).toBe("local unsaved typing");
+    expect(result.current.isDirty).toBe(true);
+  });
+
   it("clears editor state when selected file is deleted externally", async () => {
     const { result, rerender } = renderHook(() => useFileEditor());
 

@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react-native";
 
 import { useBuildPreconditions } from "../screens/EnhancedBuildScreen/hooks/useBuildPreconditions";
-import { getGitHubToken, getExpoToken } from "../infra/github/githubService";
+import { getGitHubToken, getExpoToken, getWorkflowAdminKey } from "../infra/github/githubService";
 import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
 import { readSigningKeyGateState } from "../screens/EnhancedBuildScreen/hooks/signingKeyGate";
 
@@ -15,6 +15,22 @@ jest.mock("@react-navigation/native", () => ({
 jest.mock("../infra/github/githubService", () => ({
   getGitHubToken: jest.fn(async () => "ghp_test"),
   getExpoToken: jest.fn(async () => "expo_test"),
+  getWorkflowAdminKey: jest.fn(async () => "adminkey"),
+}));
+
+jest.mock("../lib/supabase", () => ({
+  ensureSupabaseClient: jest.fn(async () => ({
+    auth: {
+      getSession: jest.fn(async () => ({
+        data: {
+          session: {
+            access_token:
+              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature",
+          },
+        },
+      })),
+    },
+  })),
 }));
 
 jest.mock("../screens/EnhancedBuildScreen/hooks/buildReadinessState", () => ({
@@ -33,12 +49,14 @@ const readBuildReadinessStateMock = readBuildReadinessState as jest.MockedFuncti
 const readSigningKeyGateStateMock = readSigningKeyGateState as jest.MockedFunction<typeof readSigningKeyGateState>;
 const getGitHubTokenMock = getGitHubToken as jest.MockedFunction<typeof getGitHubToken>;
 const getExpoTokenMock = getExpoToken as jest.MockedFunction<typeof getExpoToken>;
+const getWorkflowAdminKeyMock = getWorkflowAdminKey as jest.MockedFunction<typeof getWorkflowAdminKey>;
 
 describe("useBuildPreconditions selection truthfulness", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     getGitHubTokenMock.mockResolvedValue("ghp_test");
     getExpoTokenMock.mockResolvedValue("expo_test");
+    getWorkflowAdminKeyMock.mockResolvedValue("adminkey");
     readSigningKeyGateStateMock.mockResolvedValue({
       hasSigningKey: true,
       reason: null,
