@@ -65,6 +65,28 @@ describe("auth rate limit subject helpers", () => {
     expect(trustedSubject).toBe("ip:198.51.100.8");
   });
 
+  it("derives client ip from the untrusted edge of the chain based on trusted proxy hops", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "x-forwarded-for": "203.0.113.7, 198.51.100.8, 10.0.0.1",
+      },
+    });
+
+    const ip = withEnv({ K1W1_TRUSTED_PROXY_HOPS: "2" }, () => getRequestClientIp(req));
+    expect(ip).toBe("203.0.113.7");
+  });
+
+  it("ignores spoofed leftmost x-forwarded-for values when trusted proxy hops are configured", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "x-forwarded-for": "198.51.100.200, 198.51.100.8, 10.0.0.1",
+      },
+    });
+
+    const ip = withEnv({ K1W1_TRUSTED_PROXY_HOPS: "1" }, () => getRequestClientIp(req));
+    expect(ip).toBe("198.51.100.8");
+  });
+
   it("degrades safely when trusted proxy hops are misconfigured", () => {
     const req = new Request("https://example.test", {
       headers: {

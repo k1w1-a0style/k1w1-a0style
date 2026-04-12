@@ -8,6 +8,7 @@
 - `supabase/functions/_shared/auth/rateLimit.ts`
   - removed trust derivation from `x-k1w1-trusted-proxy` request header.
   - `x-forwarded-for` is now only considered when `K1W1_TRUSTED_PROXY_HOPS` is configured server-side as a positive integer.
+  - client IP is derived from the untrusted edge of the forwarded chain (`entries.length - (trustedProxyHops + 1)`), so prepended spoof values do not control the subject.
   - invalid/missing proxy-hop configuration degrades fail-safe (no forwarded trust).
 - `__tests__/authRateLimitSubject.test.ts`
   - former client-marker acceptance case now asserts fail-safe rejection.
