@@ -1,12 +1,13 @@
 # TODO
 
-Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
+Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
 
+- [x] `StartupEdgeHintSoftening` (Patch 775): fehlende Edge-URL wird beim Boot nicht mehr als prominenter Loading-Warnzustand angezeigt; stattdessen gibt es einen kleinen, nicht-blockierenden Hinweis direkt in der Supabase-Karte unter Verbindungen.
 - [x] `GitHubSecretCryptoModernization` (Patch 774): `tweetsodium` durch aktiv gepflegtes `libsodium-wrappers-sumo` ersetzt; GitHub-Secret-Sealed-Box-Vertrag bleibt verhaltensgleich (`crypto_box_seal`).
 - [x] `SigningAndroidRlsPolicyPrecision` (Patch 774): alte grobe Deny-Policy (`PUBLIC`) fuer `signing_android` durch explizite deny-Policy nur fuer `anon, authenticated` ersetzt.
 - [x] `SecurityDefinerSearchPathHardeningFollowup` (Patch 774): `enforce_edge_rate_limit(...)` und `insert_diagnostic_upload(jsonb)` auf `search_path = public, pg_temp` nachgezogen.

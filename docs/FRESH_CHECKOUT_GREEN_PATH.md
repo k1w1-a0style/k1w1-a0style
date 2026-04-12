@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
+Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

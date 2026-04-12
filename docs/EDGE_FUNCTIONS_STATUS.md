@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
+Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
 
 ## Aktiv und workflow-relevant
 

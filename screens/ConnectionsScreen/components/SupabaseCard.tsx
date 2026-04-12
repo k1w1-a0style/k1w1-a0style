@@ -68,6 +68,12 @@ export function SupabaseCard(props: {
         onChangeText={onChangeSupabaseUrl}
         placeholder="https://xxxxx.supabase.co"
       />
+      {!supabaseUrl.trim() ? (
+        <Text style={[styles.hint, { marginTop: 6 }]}>
+          Hinweis: Ohne Supabase-URL laufen Edge-Aufrufe nicht. Du kannst den Hinweis
+          ignorieren und spaeter unter Verbindungen vervollstaendigen.
+        </Text>
+      ) : null}
 
       <InputRow
         styles={styles}
