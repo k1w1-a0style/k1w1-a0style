@@ -84,7 +84,7 @@ export const syncRepoSecrets = async (
     const value = payload[field as keyof RepoSecretsPayload];
     if (!value) continue;
 
-    const encrypted_value = encryptSecret(key, value);
+    const encrypted_value = await encryptSecret(key, value);
 
     await githubLimiter.checkLimit();
 

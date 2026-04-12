@@ -2,11 +2,15 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-12 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
+Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
 
-Zuletzt abgeschlossen: **Patch 773**
+Zuletzt abgeschlossen: **Patch 774**
 
 Der aktuelle Stand bestaetigt:
+- `tweetsodium` wurde fuer GitHub-Secret-Encryption durch `libsodium-wrappers-sumo` ersetzt (sealed-box Contract unveraendert, aktiver Maintainer-Stack)
+- `signing_android` nutzt jetzt eine explizite deny-Policy nur fuer `anon, authenticated` statt grobem PUBLIC-Vertrag
+- security-definer RPC-Haertung ist fuer `enforce_edge_rate_limit(...)` und `insert_diagnostic_upload(...)` via `search_path = public, pg_temp` reasserted
+- App-Startup meldet fehlende Edge-URL sichtbar und hat einen robusten Timeout-Hinweis gegen unendlichen Initial-Spinner
 - Preview-Secret-SoT ist auf den realen hash-only Vertrag synchronisiert (kein aktiver Raw-Fallback-Story-Drift in den Kern-Dokumenten)
 - `check_docs_contracts.js` haertet den Preview-Secret-Vertrag semantisch (aktive Sektionen: `hash-only` Pflicht, Legacy-Raw-Fallback verboten)
 - der verbliebene Preview-QR-UI-Rest ist entfernt; es gibt keinen irrefuehrenden QR-Action-Pfad mehr

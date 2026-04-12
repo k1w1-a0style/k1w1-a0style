@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-12 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
+Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
 
 ## Aktiv und workflow-relevant
 

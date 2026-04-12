@@ -3,7 +3,7 @@ import "./polyfills";
 import "react-native-get-random-values";
 import "react-native-reanimated";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   LogBox,
   StyleSheet,
@@ -51,6 +51,8 @@ import PreviewFullscreenScreen from "./screens/PreviewFullscreenScreen";
 import CustomHeader from "./components/CustomHeader";
 import { CustomDrawerContent } from "./components/CustomDrawer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { logger } from "./lib/logger";
+import { getSupabaseEdgeUrl } from "./lib/supabaseEdge";
 
 LogBox.ignoreLogs([
   // Patch 616: Keep this as a temporary, narrowly scoped dev-noise suppressor
@@ -63,6 +65,7 @@ LogBox.ignoreLogs([
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
+const APP_BOOT_LOADING_TIMEOUT_MS = 20_000;
 
 const TabNavigator = () => {
   const insets = useSafeAreaInsets();
@@ -193,12 +196,58 @@ const DrawerRoot = () => {
 
 const AppNavigation = () => {
   const { isLoading } = useProject();
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  const [edgeConfigWarning, setEdgeConfigWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      setLoadingTimedOut(true);
+      logger.warn("[AppNavigation] Projekt-Initialisierung laeuft laenger als erwartet.", {
+        timeoutMs: APP_BOOT_LOADING_TIMEOUT_MS,
+      });
+    }, APP_BOOT_LOADING_TIMEOUT_MS);
+    return () => clearTimeout(timeoutId);
+  }, [isLoading]);
+
+  useEffect(() => {
+    let active = true;
+    const validateEdgeConfig = async () => {
+      try {
+        const edgeUrl = (await getSupabaseEdgeUrl()).trim();
+        if (!active || edgeUrl) return;
+        const warning = "Supabase Edge URL fehlt. Bitte in Verbindungen konfigurieren.";
+        setEdgeConfigWarning(warning);
+        logger.warn("[AppNavigation] Missing Supabase Edge URL at startup.");
+      } catch (error) {
+        if (!active) return;
+        setEdgeConfigWarning("Supabase Edge URL konnte beim Start nicht geprüft werden.");
+        logger.warn("[AppNavigation] Supabase Edge URL validation failed", { error });
+      }
+    };
+    void validateEdgeConfig();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const loadingMessage = useMemo(
+    () =>
+      loadingTimedOut
+        ? "Laden dauert ungewoehnlich lang. Bitte Verbindungen pruefen oder App neu starten."
+        : "Projekt wird geladen…",
+    [loadingTimedOut],
+  );
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.palette.primary} />
-        <Text style={styles.loadingText}>Projekt wird geladen…</Text>
+        <Text style={styles.loadingText}>{loadingMessage}</Text>
+        {edgeConfigWarning ? <Text style={styles.loadingHint}>{edgeConfigWarning}</Text> : null}
       </View>
     );
   }
@@ -254,5 +303,12 @@ const styles = StyleSheet.create({
     color: theme.palette.text.secondary,
     fontSize: 16,
     fontWeight: "700",
+  },
+  loadingHint: {
+    marginTop: 10,
+    color: theme.palette.warning,
+    fontSize: 13,
+    textAlign: "center",
+    maxWidth: 340,
   },
 });

@@ -1,11 +1,16 @@
 # TODO
 
-Stand: **2026-04-12 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
+Stand: **2026-04-12 (Patch 774, SecurityDeepFixPass)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `GitHubSecretCryptoModernization` (Patch 774): `tweetsodium` durch aktiv gepflegtes `libsodium-wrappers-sumo` ersetzt; GitHub-Secret-Sealed-Box-Vertrag bleibt verhaltensgleich (`crypto_box_seal`).
+- [x] `SigningAndroidRlsPolicyPrecision` (Patch 774): alte grobe Deny-Policy (`PUBLIC`) fuer `signing_android` durch explizite deny-Policy nur fuer `anon, authenticated` ersetzt.
+- [x] `SecurityDefinerSearchPathHardeningFollowup` (Patch 774): `enforce_edge_rate_limit(...)` und `insert_diagnostic_upload(jsonb)` auf `search_path = public, pg_temp` nachgezogen.
+- [x] `StartupOperabilityGuard` (Patch 774): App-Startup validiert fehlende Edge-URL sichtbar und zeigt bei haengender Initialisierung einen klaren Timeout-Hinweis statt endlosem Spinner.
 
 - [x] `ResidualRestblockFinalization` (Patch 770): finaler Scope-Rescan fuer alle 5 verbleibenden Hotspots abgeschlossen; kein weiterer sicherer Mehrwert-Split in `useCiLiteWorkflow.ts`, `useEnhancedBuildScreen.ts`, `useCredentialsWizardScreen.ts` und `infra/github/workflows.ts` erzwungen (bewusst schlanke Orchestratoren).
 - [x] `ChatScreenHookResidualFollowup` (Patch 770): Scroll-Retry-/Primary-Catch in `useChatScreen.ts` meldet Fehler jetzt sichtbar (`logger.warn(...)`) statt still.
