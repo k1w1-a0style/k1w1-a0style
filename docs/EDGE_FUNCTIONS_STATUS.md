@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
+Stand: **2026-04-12 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
 
 ## Aktiv und workflow-relevant
 

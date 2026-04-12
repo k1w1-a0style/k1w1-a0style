@@ -117,7 +117,7 @@ describe("Edge direct-import invariants", () => {
     },
     {
       name: "trigger-eas-build",
-      index: "supabase/functions/trigger-eas-build/index.ts",
+      index: "supabase/functions/trigger-eas-build/routeCore.ts",
       imports: ["handleCors", "requireScopedEdgeAuth", "rateLimit", "getGithubToken"],
     },
   ];

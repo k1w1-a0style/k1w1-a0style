@@ -38,8 +38,8 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   const sharedAuth = "supabase/functions/_shared/auth.ts";
   const authRuntime = "supabase/functions/_shared/auth/runtime.ts";
   const authAdmin = "supabase/functions/_shared/auth/admin.ts";
-  const checkIndex = "supabase/functions/check-eas-build/index.ts";
-  const triggerIndex = "supabase/functions/trigger-eas-build/index.ts";
+  const checkRouteCore = "supabase/functions/check-eas-build/routeCore.ts";
+  const triggerRouteCore = "supabase/functions/trigger-eas-build/routeCore.ts";
   const previewHelpers = "supabase/functions/preview_page/helpers.ts";
   const savePreviewIndex = "supabase/functions/save_preview/index.ts";
   const sharedGithub = "supabase/functions/_shared/github.ts";
@@ -58,19 +58,19 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   });
 
   it("removes direct Deno.env reads from the targeted build/preview files", () => {
-    for (const rel of [checkIndex, triggerIndex, previewHelpers, savePreviewIndex]) {
+    for (const rel of [checkRouteCore, triggerRouteCore, previewHelpers, savePreviewIndex]) {
       expect(read(rel)).not.toContain("Deno.env.get(");
     }
   });
 
   it("uses the shared helper line consistently across the targeted build/preview paths", () => {
-    expect(read(checkIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
-    expect(read(checkIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
+    expect(read(checkRouteCore)).toContain("const supabaseUrl = getSupabaseUrl();");
+    expect(read(checkRouteCore)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
 
-    expect(read(triggerIndex)).toContain("isAllowedGitRef");
-    expect(read(triggerIndex)).toContain("const supabaseUrl = getSupabaseUrl();");
-    expect(read(triggerIndex)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
-    expect(read(triggerIndex)).toContain("const GITHUB_TOKEN = getGithubToken();");
+    expect(read(triggerRouteCore)).toContain("isAllowedGitRef");
+    expect(read(triggerRouteCore)).toContain("const supabaseUrl = getSupabaseUrl();");
+    expect(read(triggerRouteCore)).toContain("const serviceRoleKey = getServiceRoleKey(req);");
+    expect(read(triggerRouteCore)).toContain("const GITHUB_TOKEN = getGithubToken();");
 
     expect(read(sharedGithub)).toContain('import { getRuntimeEnv } from "./auth.ts";');
     expect(read(sharedGithub)).toContain("export function isAllowedGitRef(");
@@ -97,8 +97,8 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
   });
 
   it("keeps build/preview guard contracts on the existing paths", () => {
-    expect(read(checkIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(triggerIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(checkRouteCore)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(triggerRouteCore)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).toContain('requireVerifiedJwt(req, "save_preview")');
     expect(read(savePreviewIndex)).not.toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');

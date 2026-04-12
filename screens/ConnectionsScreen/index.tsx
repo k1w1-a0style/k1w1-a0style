@@ -23,21 +23,20 @@ export default function ConnectionsScreen() {
   const debugEntries = useDebugEntries();
   const {
     navigation,
-    busy,
-    hydrated,
+    ui,
+    connection,
+    tokens,
+    visibility,
+    supabase,
+    eas,
+    actions,
+  } = useConnectionsScreen();
 
-    isEasInitRunning,
-
-    // Repo/Status
+  const { busy, hydrated, isEasInitRunning, isTestingEas } = ui;
+  const {
     status,
     repoLine,
     selectionSource,
-    supabaseUrl,
-    easProjectId,
-    easLastVerifiedAt,
-    easState,
-
-    // Connection lights
     githubOk,
     githubUser,
     githubScopes,
@@ -46,8 +45,8 @@ export default function ConnectionsScreen() {
     expoOk,
     expoUser,
     easOk,
-
-    // Tokens
+  } = connection;
+  const {
     githubToken,
     setGithubToken,
     expoToken,
@@ -56,7 +55,8 @@ export default function ConnectionsScreen() {
     setWorkflowAdminKey,
     androidKeystoreExportAdminKey,
     setAndroidKeystoreExportAdminKey,
-
+  } = tokens;
+  const {
     showGitHub,
     setShowGitHub,
     showExpo,
@@ -65,30 +65,27 @@ export default function ConnectionsScreen() {
     setShowWorkflowAdmin,
     showKeystoreAdmin,
     setShowKeystoreAdmin,
-
     showSupabaseAnon,
     setShowSupabaseAnon,
-
-    // Supabase
+  } = visibility;
+  const {
     supabaseRaw,
     setSupabaseRaw,
+    supabaseUrl,
     setSupabaseUrl,
     supabaseAnonKey,
     setSupabaseAnonKey,
-
-    // EAS
+  } = supabase;
+  const {
+    easProjectId,
     setEasProjectId,
+    easState,
+    easLastVerifiedAt,
+    testEas,
     onLinkExisting,
     onCreateAndLink,
-    testEas,
-    isTestingEas,
-
-    // Actions
-    saveAll,
-    testGitHub,
-    testSupabase,
-    testExpo,
-  } = useConnectionsScreen();
+  } = eas;
+  const { saveAll, testGitHub, testSupabase, testExpo } = actions;
 
   const syncSummaryLines = useMemo(() => {
     const easSummary = resolveEasVerificationPresentation({

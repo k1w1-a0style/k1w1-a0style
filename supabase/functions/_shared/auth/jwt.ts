@@ -54,18 +54,23 @@ type VerifiedJwtUser = {
   app_metadata?: { role?: unknown; [key: string]: unknown };
 };
 
+type VerifiedJwtContext = {
+  payload: JwtPayload | null;
+  user: VerifiedJwtUser;
+};
+
 function readNonEmptyRole(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function getRoleFromVerifiedContext(user: VerifiedJwtUser | null, payload: JwtPayload | null): string {
-  const jwtRole = readNonEmptyRole(payload?.role);
+function getRoleFromVerifiedContext(ctx: VerifiedJwtContext): string {
+  const jwtRole = readNonEmptyRole(ctx.payload?.role);
   if (jwtRole) return jwtRole;
-  const jwtAppRole = readNonEmptyRole(payload?.app_metadata?.role);
+  const jwtAppRole = readNonEmptyRole(ctx.payload?.app_metadata?.role);
   if (jwtAppRole) return jwtAppRole;
-  const userAppRole = readNonEmptyRole(user?.app_metadata?.role);
+  const userAppRole = readNonEmptyRole(ctx.user?.app_metadata?.role);
   if (userAppRole) return userAppRole;
-  return readNonEmptyRole(user?.role);
+  return readNonEmptyRole(ctx.user?.role);
 }
 
 const DEFAULT_EDGE_FETCH_TIMEOUT_MS = 8_000;
@@ -81,7 +86,7 @@ async function fetchWithEdgeTimeout(input: RequestInfo | URL, init: RequestInit,
 }
 
 type VerifiedJwtLookupResult =
-  | { ok: true; user: VerifiedJwtUser }
+  | { ok: true; context: VerifiedJwtContext }
   | { ok: false; reason: "invalid_or_unverifiable" | "server_misconfigured" };
 
 async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookupResult> {
@@ -104,7 +109,13 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookup
     if (!res.ok) return { ok: false, reason: "invalid_or_unverifiable" };
     const user = await res.json().catch((): unknown => null);
     if (!user || typeof user !== "object") return { ok: false, reason: "invalid_or_unverifiable" };
-    return { ok: true, user: user as VerifiedJwtUser };
+    return {
+      ok: true,
+      context: {
+        payload: decodeJwtPayload(token),
+        user: user as VerifiedJwtUser,
+      },
+    };
   } catch {
     return { ok: false, reason: "invalid_or_unverifiable" };
   }
@@ -144,7 +155,7 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
     return errorResponse("Unauthorized: missing or unverifiable JWT.", req, 401, { scope: cfg.scope });
   }
 
-  const role = getRoleFromVerifiedContext(verified.user, getJwtPayload(req));
+  const role = getRoleFromVerifiedContext(verified.context);
   if (!role || !cfg.allowedRoles.includes(role)) {
     return errorResponse("Forbidden: verified JWT role is not allowed for this route.", req, 403, { scope: cfg.scope, allowedRoles: cfg.allowedRoles });
   }

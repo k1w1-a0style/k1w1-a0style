@@ -52,7 +52,6 @@ Deno.serve(async (req: Request) => {
   const authError = requireScopedEdgeAuth(req, {
     scope: "github-run-artifact-json",
     allowAdmin: true,
-    allowJwtAuthHeaderWithAdmin: true,
     adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
   });
   if (authError) return authError;

@@ -6,12 +6,11 @@ import { getStrictEnvSecret } from "./runtime.ts";
 export type ScopedEdgeAuthConfig = {
   scope: string;
   allowAdmin: boolean;
-  allowJwtAuthHeaderWithAdmin?: boolean;
   adminSecretEnv?: string;
 };
 
 export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): Response | null {
-  const { scope, allowAdmin, allowJwtAuthHeaderWithAdmin = false, adminSecretEnv } = cfg;
+  const { scope, allowAdmin, adminSecretEnv } = cfg;
 
   if (!allowAdmin) {
     return errorResponse("Auth misconfiguration: no auth mode enabled for this route.", req, 500, { scope });
@@ -36,9 +35,6 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
     });
   }
 
-  if (adminHeader && hasAuthHeader && !allowJwtAuthHeaderWithAdmin) {
-    return errorResponse("Unauthorized: send either admin key OR bearer token, not both.", req, 401, { scope });
-  }
 
   if (adminHeader) {
     if (!allowAdmin || !adminSecret) {
@@ -49,9 +45,9 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
   }
 
   if (hasAuthHeader) {
-    return errorResponse("Unauthorized: bearer auth requires x-k1w1-admin-key on this route.", req, 401, {
+    return errorResponse("Unauthorized: bearer auth on this route always requires x-k1w1-admin-key.", req, 401, {
       scope,
-      required: "x-k1w1-admin-key",
+      required: ["x-k1w1-admin-key", "Authorization: Bearer <jwt>"],
     });
   }
 

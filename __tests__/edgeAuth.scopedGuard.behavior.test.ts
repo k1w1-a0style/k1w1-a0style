@@ -52,7 +52,7 @@ describe("requireScopedEdgeAuth behavior", () => {
     await expect(res?.text()).resolves.toContain("invalid Authorization header format");
   });
 
-  it("rejects mixed admin key and bearer token when dual mode is disabled", async () => {
+  it("accepts mixed bearer+admin header when admin key is valid", () => {
     const req = new Request("https://example.test/edge", {
       headers: {
         authorization: "Bearer token-1",
@@ -64,13 +64,11 @@ describe("requireScopedEdgeAuth behavior", () => {
       requireScopedEdgeAuth(req, {
         scope: "workflow-test",
         allowAdmin: true,
-        allowJwtAuthHeaderWithAdmin: false,
         adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
       }),
     );
 
-    expect(res?.status).toBe(401);
-    await expect(res?.text()).resolves.toContain("either admin key OR Bearer");
+    expect(res).toBeNull();
   });
 
   it("rejects bearer-only auth for scoped admin routes", async () => {
@@ -84,13 +82,12 @@ describe("requireScopedEdgeAuth behavior", () => {
       requireScopedEdgeAuth(req, {
         scope: "workflow-test",
         allowAdmin: true,
-        allowJwtAuthHeaderWithAdmin: true,
         adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
       }),
     );
 
     expect(res?.status).toBe(401);
-    await expect(res?.text()).resolves.toContain("requires x-k1w1-admin-key");
+    await expect(res?.text()).resolves.toContain("always requires x-k1w1-admin-key");
   });
 
   it("accepts valid scoped admin key", () => {

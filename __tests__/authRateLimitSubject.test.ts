@@ -12,25 +12,26 @@ describe("auth rate limit subject helpers", () => {
     expect(getRequestRateLimitSubject(req)).toBe("ip:203.0.113.9");
   });
 
-  it("falls back to canonical client ip", () => {
+  it("does not trust x-forwarded-for without an explicit trusted proxy boundary", () => {
     const req = new Request("https://example.test", {
       headers: {
         "x-forwarded-for": "198.51.100.8:443, 10.0.0.1",
       },
     });
 
-    expect(getRequestClientIp(req)).toBe("198.51.100.8");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:198.51.100.8");
+    expect(getRequestClientIp(req)).toBe("unknown");
+    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
   });
 
-  it("rejects invalid spoofed forwarded values", () => {
+  it("accepts x-forwarded-for only with an explicit trusted-proxy marker", () => {
     const req = new Request("https://example.test", {
       headers: {
-        "x-forwarded-for": "evil.example.com",
+        "x-k1w1-trusted-proxy": "1",
+        "x-forwarded-for": "198.51.100.8:443, 10.0.0.1",
       },
     });
 
-    expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
+    expect(getRequestClientIp(req)).toBe("198.51.100.8");
+    expect(getRequestRateLimitSubject(req)).toBe("ip:198.51.100.8");
   });
 });

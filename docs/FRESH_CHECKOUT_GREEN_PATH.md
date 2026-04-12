@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
+Stand: **2026-04-12 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 
