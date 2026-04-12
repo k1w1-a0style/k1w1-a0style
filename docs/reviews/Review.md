@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-09 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
+Stand: **2026-04-09 (Patch 773, RateLimitTrustedProxyHeaderBypassFix)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus

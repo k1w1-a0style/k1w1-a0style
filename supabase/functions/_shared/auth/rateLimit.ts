@@ -29,23 +29,31 @@ function normalizeClientIpCandidate(input: string | null | undefined): string | 
   return null;
 }
 
-function shouldTrustForwardedForHeader(req: Request): boolean {
-  const explicitTrustedProxyHeader = req.headers.get("x-k1w1-trusted-proxy");
-  if (explicitTrustedProxyHeader === "1") return true;
+function getTrustedProxyHops(): number | null {
+  const trustedProxyHopsRaw = (getRuntimeEnv("K1W1_TRUSTED_PROXY_HOPS") ?? "").trim();
+  if (!/^\d+$/.test(trustedProxyHopsRaw)) return null;
+  const trustedProxyHops = Number(trustedProxyHopsRaw);
+  if (!Number.isInteger(trustedProxyHops) || trustedProxyHops <= 0) return null;
+  return trustedProxyHops;
+}
 
-  const trustedProxyHops = Number((getRuntimeEnv("K1W1_TRUSTED_PROXY_HOPS") ?? "0").trim());
-  return Number.isFinite(trustedProxyHops) && trustedProxyHops > 0;
+function getClientIpFromForwardedFor(forwardedFor: string, trustedProxyHops: number): string | null {
+  const entries = forwardedFor.split(",").map((entry) => entry.trim()).filter(Boolean);
+  const clientIndex = entries.length - (trustedProxyHops + 1);
+  if (clientIndex < 0) return null;
+  const candidate = entries[clientIndex];
+  return normalizeClientIpCandidate(candidate);
 }
 
 export function getRequestClientIp(req: Request): string {
   const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
   if (cf) return cf;
 
-  if (shouldTrustForwardedForHeader(req)) {
+  const trustedProxyHops = getTrustedProxyHops();
+  if (trustedProxyHops) {
     const forwarded = req.headers.get("x-forwarded-for") ?? "";
-    const forwardedFirst = forwarded.split(",")[0]?.trim();
-    const normalizedForwarded = normalizeClientIpCandidate(forwardedFirst);
-    if (normalizedForwarded) return normalizedForwarded;
+    const forwardedClientIp = getClientIpFromForwardedFor(forwarded, trustedProxyHops);
+    if (forwardedClientIp) return forwardedClientIp;
   }
 
   return "unknown";
