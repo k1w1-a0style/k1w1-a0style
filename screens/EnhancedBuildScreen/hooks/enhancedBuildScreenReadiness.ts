@@ -14,6 +14,8 @@ export function resolveBuildBlockedAction(params: {
   repoValidationValid: boolean;
   branchName: string;
   hasTokens: boolean;
+  hasWorkflowAdminKey: boolean;
+  hasOperatorJwt: boolean;
   hasDiagOk: boolean;
   hasCiLiteOk: boolean;
   repoSyncState: RepoSyncState;
@@ -24,6 +26,8 @@ export function resolveBuildBlockedAction(params: {
     repoValidationValid,
     branchName,
     hasTokens,
+    hasWorkflowAdminKey,
+    hasOperatorJwt,
     hasDiagOk,
     hasCiLiteOk,
     repoSyncState,
@@ -43,6 +47,16 @@ export function resolveBuildBlockedAction(params: {
     return {
       title: "Tokens fehlen",
       detail: buildBlockedReason || "GitHub- und Expo-Token zuerst im Verbindungen-Screen setzen.",
+      ctaLabel: "Verbindungen öffnen",
+      screen: "Connections",
+    };
+  }
+  if (!hasWorkflowAdminKey || !hasOperatorJwt) {
+    return {
+      title: "Operator-Auth fehlt",
+      detail:
+        buildBlockedReason ||
+        "Workflow-Admin-Key und Supabase Operator-JWT (build_admin/service_role) sind Pflicht.",
       ctaLabel: "Verbindungen öffnen",
       screen: "Connections",
     };
@@ -90,6 +104,10 @@ export function createChecklistItems(params: {
   hasSigningKey: boolean;
   signingKeyReason: string | null;
   hasTokens: boolean;
+  hasWorkflowAdminKey: boolean;
+  workflowAdminKeyReason: string | null;
+  hasOperatorJwt: boolean;
+  operatorJwtReason: string | null;
   hasDiagOk: boolean;
   diagnosticReason: string | null;
   hasCiLiteOk: boolean;
@@ -107,6 +125,10 @@ export function createChecklistItems(params: {
     hasSigningKey,
     signingKeyReason,
     hasTokens,
+    hasWorkflowAdminKey,
+    workflowAdminKeyReason,
+    hasOperatorJwt,
+    operatorJwtReason,
     hasDiagOk,
     diagnosticReason,
     hasCiLiteOk,
@@ -135,6 +157,22 @@ export function createChecklistItems(params: {
       label: "Tokens vorhanden (GitHub + Expo)",
       status: hasTokens ? "ok" : "fail",
       detail: hasTokens ? undefined : "Im Verbindungen-Screen setzen",
+    },
+    {
+      id: "workflow_admin_key",
+      label: "Workflow-Admin-Key vorhanden",
+      status: hasWorkflowAdminKey ? "ok" : "fail",
+      detail: hasWorkflowAdminKey
+        ? "Lokaler Workflow-Admin-Key verfügbar"
+        : (workflowAdminKeyReason || "Workflow-Admin-Key im Verbindungen-Screen setzen"),
+    },
+    {
+      id: "operator_jwt",
+      label: "Operator JWT vorhanden",
+      status: hasOperatorJwt ? "ok" : "fail",
+      detail: hasOperatorJwt
+        ? "Supabase Operator-Login aktiv"
+        : (operatorJwtReason || "Supabase Login mit build_admin/service_role erforderlich"),
     },
     {
       id: "diagnostic",

@@ -9,6 +9,8 @@ describe("enhancedBuildScreenReadiness", () => {
       repoValidationValid: false,
       branchName: "",
       hasTokens: false,
+      hasWorkflowAdminKey: false,
+      hasOperatorJwt: false,
       hasDiagOk: false,
       hasCiLiteOk: false,
       repoSyncState: "unknown",
@@ -25,6 +27,8 @@ describe("enhancedBuildScreenReadiness", () => {
       repoValidationValid: true,
       branchName: "feature/a",
       hasTokens: true,
+      hasWorkflowAdminKey: true,
+      hasOperatorJwt: true,
       hasDiagOk: false,
       hasCiLiteOk: true,
       repoSyncState: "in_sync",
@@ -44,6 +48,10 @@ describe("enhancedBuildScreenReadiness", () => {
       hasSigningKey: true,
       signingKeyReason: null,
       hasTokens: true,
+      hasWorkflowAdminKey: true,
+      workflowAdminKeyReason: null,
+      hasOperatorJwt: true,
+      operatorJwtReason: null,
       hasDiagOk: true,
       diagnosticReason: null,
       hasCiLiteOk: true,
@@ -58,5 +66,23 @@ describe("enhancedBuildScreenReadiness", () => {
     const repoSync = items.find((item) => item.id === "repo_sync");
     expect(repoSync?.status).toBe("pending");
     expect(repoSync?.detail).toContain("sobald Dateien im Projekt vorhanden sind");
+  });
+
+  test("routes to Connections when operator auth prerequisites are missing", () => {
+    const action = resolveBuildBlockedAction({
+      repoValidationValid: true,
+      branchName: "main",
+      hasTokens: true,
+      hasWorkflowAdminKey: false,
+      hasOperatorJwt: true,
+      hasDiagOk: true,
+      hasCiLiteOk: true,
+      repoSyncState: "in_sync",
+      hasSigningKey: true,
+      buildBlockedReason: "Workflow-Admin-Key fehlt",
+    });
+
+    expect(action?.screen).toBe("Connections");
+    expect(action?.title).toContain("Operator-Auth");
   });
 });

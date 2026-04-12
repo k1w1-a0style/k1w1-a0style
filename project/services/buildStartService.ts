@@ -12,6 +12,7 @@ import {
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
+import { hasAllowedOperatorRole } from "../../lib/auth/operatorJwt";
 import {
   assertBuildReadiness as assertBuildReadinessContract,
   type BuildReadinessDeps,
@@ -178,6 +179,11 @@ export async function startBuildJob(params: {
   if (!accessToken) {
     throw new Error(
       "Build-Start blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+    );
+  }
+  if (!hasAllowedOperatorRole(accessToken)) {
+    throw new Error(
+      "Build-Start blockiert: JWT-Rolle ungueltig. Erforderlich ist role=build_admin (oder service_role fuer Server-Caller).",
     );
   }
   if (!workflowAdminKey) {

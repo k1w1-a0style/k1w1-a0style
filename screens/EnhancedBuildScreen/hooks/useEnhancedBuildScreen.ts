@@ -126,6 +126,10 @@ export function useEnhancedBuildScreen() {
   // === Checklist + Build-Preconditions ===
   const {
     hasTokens,
+    hasWorkflowAdminKey,
+    workflowAdminKeyReason,
+    hasOperatorJwt,
+    operatorJwtReason,
     hasSigningKey,
     signingKeyReason,
     hasDiagOk,
@@ -193,6 +197,10 @@ export function useEnhancedBuildScreen() {
     runId,
     status,
     hasTokens,
+    hasWorkflowAdminKey,
+    workflowAdminKeyReason,
+    hasOperatorJwt,
+    operatorJwtReason,
     hasSigningKey,
     signingKeyReason,
     hasDiagOk,

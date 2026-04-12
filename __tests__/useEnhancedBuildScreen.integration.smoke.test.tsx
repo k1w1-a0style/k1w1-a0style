@@ -54,6 +54,10 @@ jest.mock("../hooks/useGitHubActionsLogs", () => ({
 jest.mock("../screens/EnhancedBuildScreen/hooks/useBuildPreconditions", () => ({
   useBuildPreconditions: () => ({
     hasTokens: true,
+    hasWorkflowAdminKey: true,
+    workflowAdminKeyReason: null,
+    hasOperatorJwt: true,
+    operatorJwtReason: null,
     hasSigningKey: true,
     signingKeyReason: null,
     hasDiagOk: true,

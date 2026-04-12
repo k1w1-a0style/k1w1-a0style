@@ -34,6 +34,7 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState<number>(0);
+  const isStatusRunning = status === "queued" || status === "building";
 
   const onStartBuild = useCallback(async () => {
     if (!repoValidationValid) {
@@ -47,6 +48,10 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
     }
     if (buildBlockedReason) {
       Alert.alert("Nicht bereit", sanitizeUiMessage(buildBlockedReason));
+      return;
+    }
+    if (isStatusRunning) {
+      Alert.alert("Build läuft bereits", "Ein neuer Build-Start ist während queued/running blockiert.");
       return;
     }
 
@@ -90,7 +95,7 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
       }
       buildInFlightRef.current = false;
     }
-  }, [repoValidationValid, buildBlockedReason, hasStartBuild, startBuild, buildProfile, sanitizeUiMessage, isMountedRef]);
+  }, [repoValidationValid, buildBlockedReason, hasStartBuild, isStatusRunning, startBuild, buildProfile, sanitizeUiMessage, isMountedRef]);
 
   useEffect(() => {
     const active = isBuildActive(status, buildStartTime);
@@ -125,9 +130,10 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
       hasStartBuild &&
       !buildLoading &&
       !buildInFlight &&
+      !isStatusRunning &&
       !buildBlockedReason
     );
-  }, [hasStartBuild, buildLoading, buildInFlight, buildBlockedReason]);
+  }, [hasStartBuild, buildLoading, buildInFlight, isStatusRunning, buildBlockedReason]);
 
   return {
     buildLoading,

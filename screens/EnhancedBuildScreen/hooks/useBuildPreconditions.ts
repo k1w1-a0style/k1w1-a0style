@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 
 import type { BuildProfile } from "../types";
-import { getExpoToken, getGitHubToken } from "../../../infra/github/githubService";
+import { getExpoToken, getGitHubToken, getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { readBuildReadinessState } from "./buildReadinessState";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
+import { ensureSupabaseClient } from "../../../lib/supabase";
+import { hasAllowedOperatorRole } from "../../../lib/auth/operatorJwt";
 
 async function readTokenOrUnavailable(read: () => Promise<string | null>): Promise<string | null> {
   try {
@@ -36,6 +38,10 @@ export function useBuildPreconditions(
   }, []);
 
   const [hasTokens, setHasTokens] = useState(false);
+  const [hasWorkflowAdminKey, setHasWorkflowAdminKey] = useState(false);
+  const [workflowAdminKeyReason, setWorkflowAdminKeyReason] = useState<string | null>(null);
+  const [hasOperatorJwt, setHasOperatorJwt] = useState(false);
+  const [operatorJwtReason, setOperatorJwtReason] = useState<string | null>(null);
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [signingKeyReason, setSigningKeyReason] = useState<string | null>(null);
   const [hasDiagOk, setHasDiagOk] = useState(false);
@@ -71,6 +77,32 @@ export function useBuildPreconditions(
         readTokenOrUnavailable(getExpoToken),
       ]);
       applyIfCurrent(() => setHasTokens(!!(gh && expo)));
+
+      const [workflowAdminKey, operatorJwt] = await Promise.all([
+        readTokenOrUnavailable(getWorkflowAdminKey),
+        readTokenOrUnavailable(async () => {
+          const supabase = await ensureSupabaseClient();
+          const session = await supabase.auth.getSession();
+          return session?.data?.session?.access_token ?? null;
+        }),
+      ]);
+      applyIfCurrent(() => {
+        setHasWorkflowAdminKey(Boolean(workflowAdminKey));
+        setWorkflowAdminKeyReason(
+          workflowAdminKey
+            ? null
+            : "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen",
+        );
+        const hasValidOperatorJwt = hasAllowedOperatorRole(operatorJwt);
+        setHasOperatorJwt(hasValidOperatorJwt);
+        setOperatorJwtReason(
+          !operatorJwt
+            ? "Supabase Operator-JWT fehlt – Login mit build_admin/service_role erforderlich"
+            : !hasValidOperatorJwt
+              ? "Supabase JWT-Rolle ungültig – build_admin/service_role erforderlich"
+              : null,
+        );
+      });
 
       const signingGate = await readSigningKeyGateState({
         buildProfile,
@@ -135,6 +167,10 @@ export function useBuildPreconditions(
       applyIfCurrent(() => {
         setHasSigningKey(false);
         setSigningKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Signing Key erneut prüfen");
+        setHasWorkflowAdminKey(false);
+        setWorkflowAdminKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Workflow-Admin-Key erneut prüfen");
+        setHasOperatorJwt(false);
+        setOperatorJwtReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Supabase Operator-Login erneut prüfen");
         setHasDiagOk(false);
         setDiagnosticState("unknown");
         setDiagnosticReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Diagnostik erneut prüfen");
@@ -167,6 +203,10 @@ export function useBuildPreconditions(
 
   return {
     hasTokens,
+    hasWorkflowAdminKey,
+    workflowAdminKeyReason,
+    hasOperatorJwt,
+    operatorJwtReason,
     hasSigningKey,
     hasDiagOk,
     signingKeyReason,

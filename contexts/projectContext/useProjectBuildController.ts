@@ -95,6 +95,10 @@ export function useProjectBuildController({ projectData }: ProjectBuildControlle
   const startBuild = useCallback(
     async (buildProfile?: string) => {
       try {
+        const activeStatus = currentBuildRef.current?.status;
+        if (activeStatus === "queued" || activeStatus === "building") {
+          throw new Error("Build bereits aktiv (queued/running). Neuer Start ist blockiert.");
+        }
         // Invariant contract marker: "Kein GitHub-Repo verknüpft."
         const buildStartContext = resolveBuildStartContext({
           project: projectData,
