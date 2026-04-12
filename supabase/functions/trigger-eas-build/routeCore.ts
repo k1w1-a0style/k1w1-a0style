@@ -57,7 +57,6 @@ export async function handleTriggerEasBuildRequest(
     const auth = requireScopedEdgeAuth(req, {
       scope: "trigger-eas-build",
       allowAdmin: true,
-      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;

@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-09 (Patch 771, PreviewSecretSoTFinalize + QRResidualCleanup)**
+Stand: **2026-04-12 (Patch 772, EdgeAuthRateLimitConnectionsHardening)**
 
-Zuletzt abgeschlossen: **Patch 771**
+Zuletzt abgeschlossen: **Patch 772**
 
 Der aktuelle Stand bestaetigt:
 - Preview-Secret-SoT ist auf den realen hash-only Vertrag synchronisiert (kein aktiver Raw-Fallback-Story-Drift in den Kern-Dokumenten)

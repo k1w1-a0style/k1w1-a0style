@@ -23,6 +23,6 @@ describe("patch549 keystore export JWT/RBAC hardening invariants", () => {
     const route = read("supabase/functions/android-keystore-export/index.ts");
     expect(route).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
     expect(route).toContain('allowedRoles: ["service_role"]');
-    expect(route).toContain("allowJwtAuthHeaderWithAdmin: true");
+    expect(route).not.toContain("allowJwtAuthHeaderWithAdmin");
   });
 });

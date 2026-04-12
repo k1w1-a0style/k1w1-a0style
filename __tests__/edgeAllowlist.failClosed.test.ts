@@ -45,7 +45,7 @@ describe("edge allowlist fail-closed invariants", () => {
   });
 
   it("keeps trigger/dispatch ref allowlist fail-closed when regex env is missing", () => {
-    const trigger = read("supabase/functions/trigger-eas-build/index.ts");
+    const trigger = read("supabase/functions/trigger-eas-build/routeCore.ts");
     const dispatch = read("supabase/functions/github-workflow-dispatch/index.ts");
     const shared = read("supabase/functions/_shared/github.ts");
 

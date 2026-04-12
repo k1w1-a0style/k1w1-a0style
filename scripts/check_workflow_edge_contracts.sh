@@ -129,22 +129,16 @@ require_pattern "$KEYSTORE_STATUS_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 require_pattern "$DISPATCH_EDGE" 'requireScopedEdgeAuth\(req,\s*\{'
 
 require_fixed "$TRIGGER_ROUTE_CORE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$TRIGGER_ROUTE_CORE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$TRIGGER_ROUTE_CORE" 'requireWorkflowOperatorJwtRole(req, "trigger-eas-build")'
 require_fixed "$CHECK_ROUTE_CORE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$CHECK_ROUTE_CORE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$CHECK_ROUTE_CORE" 'requireWorkflowOperatorJwtRole(req, "check-eas-build")'
 require_fixed "$ARTIFACT_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$ARTIFACT_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$ARTIFACT_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-run-artifact-json")'
 require_fixed "$RUNS_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$RUNS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$RUNS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-runs")'
 require_fixed "$LOGS_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$LOGS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$LOGS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-logs")'
 require_fixed "$DISPATCH_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$DISPATCH_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")'
 require_fixed "$DISPATCH_EDGE" 'isAllowedGitRef,'
 require_fixed "$DISPATCH_EDGE" 'if (!isAllowedGitRef(ref)) {'
@@ -168,13 +162,11 @@ forbid_fixed "$RUNS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_B
 forbid_fixed "$LOGS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 forbid_fixed "$DISPATCH_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 require_fixed "$KEYSTORE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
-require_fixed "$KEYSTORE_GENERATE_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")'
 forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'safeString(body?.branch) || "main"'
 forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'const branch = safeString(body?.branch)'
 forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'Invalid branch.'
-require_fixed "$KEYSTORE_STATUS_EDGE" 'allowJwtAuthHeaderWithAdmin: true'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "android-keystore-status")'
 forbid_fixed "$K1W1_HANDLER_EDGE" 'requireScopedEdgeAuth(req, {'
@@ -248,6 +240,7 @@ awk '/^\[functions\.android-keystore-export\]/{flag=1; next} /^\[functions\./{fl
 [ ! -f "$KEYSTORE_GENERATE_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-generate ($KEYSTORE_GENERATE_LOCAL_CONFIG)"
 [ ! -f "$KEYSTORE_STATUS_LOCAL_CONFIG" ] || fail "Split-brain risk: local config must not exist for android-keystore-status ($KEYSTORE_STATUS_LOCAL_CONFIG)"
 
+forbid_fixed "$AUTH_SHARED_SCOPED" "allowJwtAuthHeaderWithAdmin"
 require_fixed "$AUTH_SHARED" 'requireScopedEdgeAuth'
 require_fixed "$AUTH_SHARED" 'requireWorkflowOperatorJwtRole'
 require_fixed "$AUTH_SHARED" 'requirePrivilegedOperatorJwtRole'
@@ -268,7 +261,6 @@ require_fixed "$AUTH_SHARED_ADMIN" "export function requireSigningAdminKey(req: 
 require_fixed "$AUTH_SHARED_ADMIN" 'missing: ["K1W1_EDGE_ADMIN_KEY"]'
 
 require_fixed "$AUTH_SHARED_SCOPED" '"Missing required auth secrets for this Edge Function."'
-require_fixed "$AUTH_SHARED_SCOPED" '"Unauthorized: send either admin key OR bearer token, not both."'
 require_fixed "$AUTH_SHARED_SCOPED" '"Unauthorized: missing authentication header."'
 
 require_fixed "$TRIGGER_WF" "job_id: \${{ steps.resolve.outputs.job_id }}"

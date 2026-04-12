@@ -6,8 +6,8 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 describe("patch415 edge auth guard invariants", () => {
   const sharedAuth = "supabase/functions/_shared/auth.ts";
   const workflowScoped = [
-    "supabase/functions/trigger-eas-build/index.ts",
-    "supabase/functions/check-eas-build/index.ts",
+    "supabase/functions/trigger-eas-build/routeCore.ts",
+    "supabase/functions/check-eas-build/routeCore.ts",
     "supabase/functions/github-workflow-dispatch/index.ts",
     "supabase/functions/github-workflow-runs/index.ts",
     "supabase/functions/github-workflow-logs/index.ts",
@@ -24,7 +24,6 @@ describe("patch415 edge auth guard invariants", () => {
     expect(jwt).toContain("export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
     expect(jwt).toContain("export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {");
     expect(scoped).toContain('"Missing required auth secrets for this Edge Function."');
-    expect(scoped).toContain('"Unauthorized: send either admin key OR bearer token, not both."');
     expect(scoped).toContain('"Unauthorized: missing authentication header."');
     expect(scoped).toContain('accepted.push("x-k1w1-admin-key")');
   });
@@ -34,7 +33,7 @@ describe("patch415 edge auth guard invariants", () => {
       const src = read(rel);
       expect(src).toContain("requireScopedEdgeAuth");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
-            expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+            expect(src).not.toContain("allowJwtAuthHeaderWithAdmin");
       expect(src).not.toContain("ciBearerSecretEnv:");
       expect(src).not.toContain("isScopedCiBearerRequest(");
       expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
@@ -74,7 +73,7 @@ describe("patch415 edge auth guard invariants", () => {
     for (const src of [generateSrc, statusSrc]) {
       expect(src).toContain("requireScopedEdgeAuth(req, {");
       expect(src).toContain("allowAdmin: true");
-            expect(src).toContain("allowJwtAuthHeaderWithAdmin: true");
+            expect(src).not.toContain("allowJwtAuthHeaderWithAdmin");
       expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
       expect(src).not.toContain("requireAdminKey(req)");
       expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");

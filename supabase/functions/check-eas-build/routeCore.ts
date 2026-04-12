@@ -70,7 +70,6 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
     const auth = requireScopedEdgeAuth(req, {
       scope: "check-eas-build",
       allowAdmin: true,
-      allowJwtAuthHeaderWithAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
