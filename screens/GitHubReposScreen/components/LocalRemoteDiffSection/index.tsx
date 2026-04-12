@@ -66,13 +66,18 @@ export function LocalRemoteDiffSection(props: LocalRemoteDiffSectionProps) {
 
       {items.length ? (
         <Text style={{ fontSize: 12, marginTop: 10, color: theme.palette.text.secondary, lineHeight: 18 }}>
-          ✅ {summary.same} • ✏️ {summary.modified} • ➕ {summary.localOnly} • ⬇️ {summary.remoteOnly} • ⏭️ {summary.skipped} • ⚠️ {summary.error}
+          {summary.countsAreLowerBounds ? "≥ " : ""}✅ {summary.same} • {summary.countsAreLowerBounds ? "≥ " : ""}✏️ {summary.modified} • {summary.countsAreLowerBounds ? "≥ " : ""}➕ {summary.localOnly} • {summary.countsAreLowerBounds ? "≥ " : ""}⬇️ {summary.remoteOnly} • {summary.countsAreLowerBounds ? "≥ " : ""}⏭️ {summary.skipped} • {summary.countsAreLowerBounds ? "≥ " : ""}⚠️ {summary.error}
         </Text>
       ) : (
         <Text style={{ fontSize: 12, marginTop: 10, color: theme.palette.text.secondary, lineHeight: 18 }}>
           Drück Refresh für einen Vergleich (lokale Dateien gegen GitHub Datei-Inhalt).
         </Text>
       )}
+      {summary.isPartial ? (
+        <Text style={{ fontSize: 11, marginTop: 6, color: theme.palette.text.muted, lineHeight: 16 }}>
+          {summary.partialReason || "Vergleich ist teilweise. Aus diesem Ergebnis darf kein Full-Sync-Fazit abgeleitet werden."}
+        </Text>
+      ) : null}
 
       <LocalRemoteDiffList
         items={items}

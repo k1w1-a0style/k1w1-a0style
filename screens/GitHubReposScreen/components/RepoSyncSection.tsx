@@ -46,6 +46,9 @@ export const RepoSyncSection = memo(function RepoSyncSection(props: RepoSyncSect
         Repo: {activeRepo || "(nicht gewählt)"}
         {activeRepo ? ` • Branch: ${activeBranch || "(default)"}` : ""}
       </Text>
+      <Text style={{ fontSize: 11, marginTop: 8, color: theme.palette.text.muted, lineHeight: 16 }}>
+        Pull öffnet den Dialog mit Merge Overwrite / Merge Skip / Full Sync (Mirror). Mirror ist destruktiv und löscht lokale-only Dateien nur nach expliziter Bestätigung.
+      </Text>
 
       <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
         <TouchableOpacity
@@ -56,7 +59,7 @@ export const RepoSyncSection = memo(function RepoSyncSection(props: RepoSyncSect
           accessibilityLabel="Pull von GitHub"
         >
           <Ionicons name="download-outline" size={16} color={pullDisabled ? theme.palette.text.muted : theme.palette.text.primary} />
-          <Text style={[styles.buttonTextSecondary, { color: pullDisabled ? theme.palette.text.muted : theme.palette.text.primary }]}>Pull</Text>
+          <Text style={[styles.buttonTextSecondary, { color: pullDisabled ? theme.palette.text.muted : theme.palette.text.primary }]}>Pull (Dialog)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -67,7 +70,7 @@ export const RepoSyncSection = memo(function RepoSyncSection(props: RepoSyncSect
           accessibilityLabel="Push nach GitHub"
         >
           <Ionicons name="cloud-upload-outline" size={16} color={pushDisabled ? theme.palette.text.muted : theme.palette.primary} />
-          <Text style={[styles.buttonText, { color: pushDisabled ? theme.palette.text.muted : theme.palette.primary }]}>Push</Text>
+          <Text style={[styles.buttonText, { color: pushDisabled ? theme.palette.text.muted : theme.palette.primary }]}>Push (Merge)</Text>
         </TouchableOpacity>
       </View>
 

@@ -246,6 +246,20 @@ export function useGitHubReposPushPull(deps: Deps) {
           });
         },
         refreshSyncStatus,
+        confirmMirrorDelete: async (semantics) => {
+          if (strategy !== "mirror" || semantics.summary.localOnlyCount <= 0) return true;
+          return await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "⚠️ Full Sync / Mirror löscht lokale-only Dateien",
+              `Mirror würde ${semantics.summary.localOnlyCount} lokale-only Datei(en) löschen. Fortfahren?`,
+              [
+                { text: "Abbrechen", style: "cancel", onPress: () => resolve(false) },
+                { text: "Ja, löschen und spiegeln", style: "destructive", onPress: () => resolve(true) },
+              ],
+              { cancelable: false },
+            );
+          });
+        },
       });
 
       setPullModalVisible(false);
@@ -253,6 +267,10 @@ export function useGitHubReposPushPull(deps: Deps) {
       setPullProgress("");
       Alert.alert(semantics.messageTitle, semantics.messageBody);
     } catch (e: unknown) {
+      if (getErrorMessage(e, "").includes("Mirror apply canceled by user.")) {
+        Alert.alert("ℹ️ Mirror abgebrochen", "Full Sync wurde ohne Änderungen beendet.");
+        return;
+      }
       Alert.alert("❌ Pull Anwenden fehlgeschlagen", getErrorMessage(e, ""));
     } finally {
       setIsPulling(false);

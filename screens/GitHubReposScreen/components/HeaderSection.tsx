@@ -17,6 +17,11 @@ type HeaderSectionProps = {
     remoteOnly: number;
     skipped: number;
     error: number;
+    checkedLocalFiles: number;
+    totalLocalFiles: number;
+    isPartial: boolean;
+    partialReason: string | null;
+    countsAreLowerBounds: boolean;
     checkedAt: number | null;
   };
   onCheckStatus?: () => void;
@@ -33,6 +38,18 @@ export const HeaderSection = memo(function HeaderSection({
 }: HeaderSectionProps) {
   const dirtyCount =
     (syncStatus?.modified || 0) + (syncStatus?.localOnly || 0) + (syncStatus?.remoteOnly || 0);
+  const isPartial = !!syncStatus?.isPartial;
+  const isDirty = dirtyCount > 0;
+  const countPrefix = syncStatus?.countsAreLowerBounds ? "≥" : "";
+  const statusLabel = syncStatus?.checking
+    ? "prüfe…"
+    : isPartial
+      ? isDirty
+        ? `dirty ${countPrefix}${dirtyCount}`
+        : "teilweise geprüft"
+      : isDirty
+        ? `dirty ${dirtyCount}`
+        : "clean";
   const lastCheckedLabel = syncStatus?.checkedAt
     ? `Zuletzt geprüft: ${new Date(syncStatus.checkedAt).toLocaleTimeString()}`
     : "Noch nicht frisch geprüft";
@@ -64,13 +81,13 @@ export const HeaderSection = memo(function HeaderSection({
                   borderRadius: 999,
                   borderWidth: 1,
                   borderColor: theme.palette.border,
-                  backgroundColor: dirtyCount
+                  backgroundColor: isDirty
                     ? "rgba(255, 99, 71, 0.12)"
                     : "rgba(0, 255, 160, 0.10)",
                 }}
               >
                 <Text style={{ fontSize: 10, color: theme.palette.text.secondary }}>
-                  {syncStatus?.checking ? "prüfe…" : dirtyCount ? `dirty ${dirtyCount}` : "clean"}
+                  {statusLabel}
                 </Text>
               </View>
             ) : null}
@@ -79,7 +96,9 @@ export const HeaderSection = memo(function HeaderSection({
 
         {!!activeRepo && (
           <Text style={[styles.subtitle, { marginTop: 4 }]} numberOfLines={1}>
-            {syncStatus?.checking ? "Statusprüfung läuft… (frischer Check)" : lastCheckedLabel}
+            {syncStatus?.checking
+              ? "Statusprüfung läuft… (frischer Check)"
+              : syncStatus?.partialReason || lastCheckedLabel}
           </Text>
         )}
       </View>

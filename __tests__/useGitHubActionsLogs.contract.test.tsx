@@ -32,7 +32,7 @@ jest.mock('../lib/supabase', () => ({
   ensureSupabaseClient: jest.fn(async () => ({
     auth: {
       getSession: jest.fn(async () => ({
-        data: { session: { access_token: 'supabase-operator-jwt-token' } },
+        data: { session: { access_token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl' } },
       })),
     },
   })),
@@ -96,11 +96,11 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(runsBody).toEqual({ githubRepo: 'owner/repo', workflowId: 'k1w1-ci-lite.yml' });
     expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
     expect(runsHeaders).toMatchObject({
-      Authorization: 'Bearer supabase-operator-jwt-token',
+      Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl',
       'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
     expect(logsHeaders).toMatchObject({
-      Authorization: 'Bearer supabase-operator-jwt-token',
+      Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl',
       'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
     expect(runsBody).not.toHaveProperty('githubToken');
