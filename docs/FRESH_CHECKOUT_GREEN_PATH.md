@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

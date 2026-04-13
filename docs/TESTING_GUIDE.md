@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

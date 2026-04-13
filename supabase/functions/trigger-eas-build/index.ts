@@ -10,7 +10,7 @@ async function resolveCommitSha(githubRepo: string, branch: string): Promise<str
     { method: "GET" },
   );
   if (!commitResp.ok) return null;
-  const json = await commitResp.json().catch(() => null) as { sha?: unknown } | null;
+  const json = await commitResp.json().catch((): null => null) as { sha?: unknown } | null;
   return typeof json?.sha === "string" && json.sha.trim() ? json.sha.trim() : null;
 }
 
@@ -42,4 +42,3 @@ Deno.serve((req) => handleTriggerEasBuildRequest(req, {
       fetchCommitSha: ({ githubRepo: r, branch: b }) => resolveCommitSha(r, b),
     }),
 }));
-

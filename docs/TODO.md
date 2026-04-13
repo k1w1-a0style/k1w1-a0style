@@ -1,11 +1,14 @@
 # TODO
 
-Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `EdgeTypecheckBlockerClosure` (Patch 777): offene TS-Fehler in `check-eas-build`/`trigger-eas-build` behoben (Catch-Return-Typing, stabile Supabase-Client-Contracts, sauberes Union-Narrowing und Job-ID-Validierung im Trigger-Flow).
+- [x] `ReleaseReadinessLiveEnvSkipFix` (Patch 777): `check_edge_live_env_readiness.sh` behandelt fehlende lokale Live-Env jetzt als SKIP statt Hard-Fail, sodass `verify:release` ohne Live-Secrets wieder korrekt mit `OK_WITH_SKIPS` endet.
 
 - [x] `PreviewEvalFailClosedAndExplicitOptIn` (Patch 776): `buildSandpackHtml(...)` verlangt jetzt zwei explizite Freigaben (`allowUnsafeLocalEval` + `allowExternalCdnInUnsafeLocalEval`); fehlt eine davon, bleibt der lokale Eval-/CDN-Pfad fail-closed mit gesperrtem Hinweis-HTML.
 - [x] `PreviewCreationDevOnlyGate` (Patch 776): `usePreviewCreation` aktiviert lokalen Eval/CDN-Pfad nur noch mit `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL=true` und gleichzeitigem Dev/Test-Runtime-Guard.

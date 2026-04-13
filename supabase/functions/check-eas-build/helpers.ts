@@ -30,7 +30,7 @@ export async function fetchReconciliationRunStateBestEffort(params: {
       upstream_error: null,
     };
     if (!response.ok) return out;
-    const runJson = await response.json().catch(() => null) as {
+    const runJson = await response.json().catch((): null => null) as {
       status?: string | null;
       conclusion?: string | null;
     } | null;

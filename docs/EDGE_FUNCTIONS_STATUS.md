@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 
 ## Aktiv und workflow-relevant
 

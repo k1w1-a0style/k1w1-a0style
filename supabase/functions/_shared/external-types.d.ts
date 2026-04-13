@@ -14,6 +14,7 @@ declare module "@supabase/supabase-js" {
     select(columns?: string): SupabaseQueryBuilderLike;
     eq(column: string, value: unknown): SupabaseQueryBuilderLike;
     insert(values: unknown): SupabaseQueryBuilderLike;
+    update(values: unknown): SupabaseQueryBuilderLike;
     upsert(values: unknown, options?: unknown): SupabaseQueryBuilderLike;
     single(): Promise<SupabaseResponseLike<Record<string, unknown>>>;
     maybeSingle(): Promise<SupabaseResponseLike<Record<string, unknown> | null>>;

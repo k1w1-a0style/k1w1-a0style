@@ -2,11 +2,13 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 
-Zuletzt abgeschlossen: **Patch 776**
+Zuletzt abgeschlossen: **Patch 777**
 
 Der aktuelle Stand bestaetigt:
+- `typecheck:edge` ist wieder gruen; die offenen Typfehler in `check-eas-build`/`trigger-eas-build` wurden entlang der realen Supabase-Query-Contracts behoben
+- `verify:release` laeuft im lokalen Setup wieder bis zum erwarteten `OK_WITH_SKIPS` durch (ohne Live-Env kein harter Abbruch mehr im Live-Readiness-Skript)
 - lokaler Preview-Eval ist jetzt doppelt fail-closed: neben `allowUnsafeLocalEval` braucht der Builder auch ein explizites CDN-Opt-in; ohne beide Flags wird nur ein gesperrter Hinweis-HTML-Pfad erzeugt
 - der App-Lokalpfad setzt dieses Eval/CDN-Opt-in nur noch bei explizitem Env-Flag `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL=true` **und** Dev/Test-Runtime (normaler Betrieb bleibt gesperrt)
 - `useAppInfoScreen` materialisiert abgeleitete `projectFiles` nicht mehr am gesamten `projectData`-Objekt, sondern nur an den echten Materialisierungs-Inputs (`files`, `name`, `slug`, `packageName`)
