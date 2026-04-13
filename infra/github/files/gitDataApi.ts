@@ -3,11 +3,54 @@ import { githubApiUrl } from "../../../shared/constants/github";
 import { logger } from "../../../lib/logger";
 import { githubLimiter } from "../rateLimit";
 import { MANAGED_WORKFLOWS, encodeGitHubPath, normalizeRepoPath } from "../utils";
+import { encodeGitHubFileContent } from "../crypto";
 import { getGitHubToken } from "../tokenStore";
 import { fetchGitHub } from "../utils";
 import { encodeGitBlobContentSha } from "./hash";
 import { getErrorMessage, readJsonSafe, resolveTargetBranch } from "./shared";
 import type { GitHubBranchPayload, GitHubCommitPayload, GitHubMessagePayload, GitHubTreePayload, RepoBlobEntry } from "./types";
+
+const BASE64_PREFIX = "base64:";
+
+const validateProjectBase64Content = (content: string, path: string) => {
+  const payload = content.slice(BASE64_PREFIX.length).trim();
+  if (!payload) {
+    throw new Error(`Binärdatei ohne Base64-Daten: ${path}`);
+  }
+  if (payload.length % 4 !== 0 || !/^[A-Za-z0-9+/=]+$/.test(payload)) {
+    throw new Error(`Ungültiges base64:-Format für Binärdatei: ${path}`);
+  }
+};
+
+const createBlobFromProjectContent = async (
+  owner: string,
+  repo: string,
+  path: string,
+  content: string,
+  headers: Record<string, string>,
+): Promise<string> => {
+  const raw = String(content ?? "");
+  if (raw.startsWith(BASE64_PREFIX)) {
+    validateProjectBase64Content(raw, path);
+  }
+
+  await githubLimiter.checkLimit();
+  const blobResp = await fetchGitHub(githubApiUrl(`/repos/${owner}/${repo}/git/blobs`), {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      content: encodeGitHubFileContent(raw),
+      encoding: "base64",
+    }),
+  });
+  const blobJson = (await readJsonSafe<GitHubCommitPayload & GitHubMessagePayload>(blobResp)) ?? {};
+  if (!blobResp.ok) {
+    throw new Error(blobJson.message || `Blob-Erstellung fehlgeschlagen (${blobResp.status})`);
+  }
+  const blobSha = String(blobJson.sha || "").trim();
+  if (!blobSha) throw new Error(`Blob-Erstellung lieferte keine SHA (${path}).`);
+  return blobSha;
+};
 
 export const pushFilesToRepo = async (
   owner: string,
@@ -101,12 +144,16 @@ export const pushFilesToRepoAdvanced = async (
   const baseTreeSha = String(baseCommitJson.tree?.sha || "").trim();
   if (!baseTreeSha) throw new Error("Konnte Basis-Tree für Push nicht ermitteln.");
 
-  const treeEntries = normalizedFiles.map((f) => ({
-    path: f.path,
-    mode: "100644",
-    type: "blob",
-    content: f.content,
-  }));
+  const treeEntries: Array<Record<string, string>> = [];
+  for (const file of normalizedFiles) {
+    const blobSha = await createBlobFromProjectContent(owner, repo, file.path, file.content, headers);
+    treeEntries.push({
+      path: file.path,
+      mode: "100644",
+      type: "blob",
+      sha: blobSha,
+    });
+  }
 
   await githubLimiter.checkLimit();
   const createTreeResp = await fetchGitHub(
@@ -210,11 +257,12 @@ export const applyRepoFilePatchAtomic = async (
   for (const file of upserts) {
     if (seen.has(file.path)) continue;
     seen.add(file.path);
+    const blobSha = await createBlobFromProjectContent(owner, repo, file.path, file.content, headers);
     treeEntries.push({
       path: file.path,
       mode: "100644",
       type: "blob",
-      content: file.content,
+      sha: blobSha,
     });
   }
   for (const path of deletes) {

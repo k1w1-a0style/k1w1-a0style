@@ -34,6 +34,8 @@ export function useLocalRemoteDiffModel(params: Params) {
   const [note, setNote] = useState<string>("");
   const [partialReason, setPartialReason] = useState<string | null>(null);
   const [countsAreLowerBounds, setCountsAreLowerBounds] = useState(false);
+  const [localComparedCountsAreLowerBounds, setLocalComparedCountsAreLowerBounds] = useState(false);
+  const [remoteOnlyCountIsLowerBound, setRemoteOnlyCountIsLowerBound] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [inlineMode, setInlineMode] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -80,6 +82,8 @@ export function useLocalRemoteDiffModel(params: Params) {
     setNote("");
     setPartialReason(null);
     setCountsAreLowerBounds(false);
+    setLocalComparedCountsAreLowerBounds(false);
+    setRemoteOnlyCountIsLowerBound(false);
     setLoading(false);
     setSelected({});
     setInlineOpenPath(null);
@@ -125,6 +129,8 @@ export function useLocalRemoteDiffModel(params: Params) {
       setNote("");
       setPartialReason(null);
       setCountsAreLowerBounds(false);
+      setLocalComparedCountsAreLowerBounds(false);
+      setRemoteOnlyCountIsLowerBound(false);
       setSelected({});
       setInlineOpenPath(null);
       setInlineOpenAll(false);
@@ -135,11 +141,16 @@ export function useLocalRemoteDiffModel(params: Params) {
 
     const MAX = 60;
     const slice = local.slice(0, MAX);
-    if (local.length > MAX) {
+    const localSliceIsTruncated = local.length > MAX;
+    if (localSliceIsTruncated) {
       commitIfMounted(() => {
         setNote(`Es werden nur die ersten ${MAX} lokalen Dateien geprüft (Rate-Limit Schutz).`);
-        setPartialReason(`Vergleich ist teilweise: ${MAX}/${local.length} lokale Dateien geprüft.`);
+        setPartialReason(
+          `Vergleich ist teilweise: ${MAX}/${local.length} lokale Dateien geprüft. Abweichungen wurden nur im Teilumfang geprüft; kein Full-Sync-Schluss möglich.`,
+        );
         setCountsAreLowerBounds(true);
+        setLocalComparedCountsAreLowerBounds(true);
+        setRemoteOnlyCountIsLowerBound(false);
       });
     }
 
@@ -187,15 +198,18 @@ export function useLocalRemoteDiffModel(params: Params) {
           if (added >= MAX_REMOTE_ONLY) break;
         }
       }
-      if (remoteSet.size > localPaths.size && added >= MAX_REMOTE_ONLY) {
+      const remoteOnlyListIsTruncated = remoteSet.size > localPaths.size && added >= MAX_REMOTE_ONLY;
+      if (remoteOnlyListIsTruncated) {
         commitIfMounted(() => {
           setNote((prev) =>
             prev ? prev : `Remote-only ist auf ${MAX_REMOTE_ONLY} Einträge begrenzt (Übersicht + Rate-Limit Schutz).`,
           );
-          setPartialReason((prev) =>
-            prev || "Vergleich ist teilweise: Remote-only Liste wurde gekürzt.",
-          );
+          setPartialReason((prev) => {
+            if (prev) return `${prev} Remote-only Liste wurde zusätzlich gekürzt.`;
+            return "Vergleich ist teilweise: Remote-only Liste wurde gekürzt.";
+          });
           setCountsAreLowerBounds(true);
+          setRemoteOnlyCountIsLowerBound(!localSliceIsTruncated);
         });
       }
     } catch {
@@ -254,9 +268,11 @@ export function useLocalRemoteDiffModel(params: Params) {
       total: items.length,
       isPartial,
       countsAreLowerBounds: isPartial && countsAreLowerBounds,
+      localComparedCountsAreLowerBounds: isPartial && localComparedCountsAreLowerBounds,
+      remoteOnlyCountIsLowerBound: isPartial && remoteOnlyCountIsLowerBound,
       partialReason,
     };
-  }, [items, partialReason, countsAreLowerBounds]);
+  }, [items, partialReason, countsAreLowerBounds, localComparedCountsAreLowerBounds, remoteOnlyCountIsLowerBound]);
 
   const visibleItems = useMemo(() => {
     if (showAll) return items;

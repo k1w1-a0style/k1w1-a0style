@@ -32,6 +32,8 @@ export type DiffSummary = {
   total: number;
   isPartial: boolean;
   countsAreLowerBounds: boolean;
+  localComparedCountsAreLowerBounds: boolean;
+  remoteOnlyCountIsLowerBound: boolean;
   partialReason: string | null;
 };
 

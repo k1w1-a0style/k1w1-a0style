@@ -66,7 +66,7 @@ export function LocalRemoteDiffSection(props: LocalRemoteDiffSectionProps) {
 
       {items.length ? (
         <Text style={{ fontSize: 12, marginTop: 10, color: theme.palette.text.secondary, lineHeight: 18 }}>
-          {summary.countsAreLowerBounds ? "≥ " : ""}✅ {summary.same} • {summary.countsAreLowerBounds ? "≥ " : ""}✏️ {summary.modified} • {summary.countsAreLowerBounds ? "≥ " : ""}➕ {summary.localOnly} • {summary.countsAreLowerBounds ? "≥ " : ""}⬇️ {summary.remoteOnly} • {summary.countsAreLowerBounds ? "≥ " : ""}⏭️ {summary.skipped} • {summary.countsAreLowerBounds ? "≥ " : ""}⚠️ {summary.error}
+          {summary.localComparedCountsAreLowerBounds ? "≥ " : ""}✅ {summary.same} • {summary.localComparedCountsAreLowerBounds ? "≥ " : ""}✏️ {summary.modified} • {summary.localComparedCountsAreLowerBounds ? "≥ " : ""}➕ {summary.localOnly} • {summary.remoteOnlyCountIsLowerBound ? "≥ " : ""}⬇️ {summary.remoteOnly} • {summary.localComparedCountsAreLowerBounds ? "≥ " : ""}⏭️ {summary.skipped} • {summary.localComparedCountsAreLowerBounds ? "≥ " : ""}⚠️ {summary.error}
         </Text>
       ) : (
         <Text style={{ fontSize: 12, marginTop: 10, color: theme.palette.text.secondary, lineHeight: 18 }}>
