@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

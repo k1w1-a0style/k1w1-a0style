@@ -14,6 +14,12 @@ import {
   getErrorStatusCode,
 } from "./usePreviewFlowHelpers";
 
+function isExplicitUnsafeLocalPreviewEvalEnabled(): boolean {
+  const envOptIn = process.env.EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL === "true";
+  const isDevRuntime = (typeof __DEV__ !== "undefined" && __DEV__) || process.env.NODE_ENV === "test";
+  return envOptIn && isDevRuntime;
+}
+
 export type PreviewStateSetters = {
   setLastPreviewState: (value: PreviewResult | null) => void;
   setRemoteFailure: (value: string | null) => void;
@@ -123,8 +129,8 @@ export const createLocalFallbackPreview = async ({
       title: projectData.name || "Preview",
       files,
       dependencies,
-      allowUnsafeLocalEval:
-        (typeof __DEV__ !== "undefined" && __DEV__) || process.env.NODE_ENV === "test",
+      allowUnsafeLocalEval: isExplicitUnsafeLocalPreviewEvalEnabled(),
+      allowExternalCdnInUnsafeLocalEval: isExplicitUnsafeLocalPreviewEvalEnabled(),
     });
   } catch (e) {
     logger.error("[usePreview] buildSandpackHtml failed", { err: e });

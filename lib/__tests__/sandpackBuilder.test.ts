@@ -23,6 +23,7 @@ it("labels the generated preview as a non-primary local fallback", () => {
       "/App.tsx": "export default function App() { return <div>Hello</div>; }",
     },
     allowUnsafeLocalEval: true,
+    allowExternalCdnInUnsafeLocalEval: true,
   });
 
   expect(html).toContain("Lokaler HTML-/Eval-Fallback");
@@ -52,9 +53,24 @@ it("renders eval/cdn runtime only with explicit opt-in", () => {
       "/App.tsx": "export default function App() { return <div>Hello</div>; }",
     },
     allowUnsafeLocalEval: true,
+    allowExternalCdnInUnsafeLocalEval: true,
   });
 
   expect(html).toContain("script-src 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://esm.sh");
   expect(html).toContain("https://unpkg.com/@babel/standalone/babel.min.js");
   expect(html).toContain('"react": "https://esm.sh/react@19.1.0"');
+});
+
+it("fails closed when eval is enabled but external CDN opt-in is missing", () => {
+  const html = buildSandpackHtml({
+    title: "Preview",
+    files: {
+      "/App.tsx": "export default function App() { return <div>Hello</div>; }",
+    },
+    allowUnsafeLocalEval: true,
+  });
+
+  expect(html).toContain("Lokaler Eval-Pfad blockiert");
+  expect(html).not.toContain("unsafe-eval");
+  expect(html).not.toContain("@babel/standalone");
 });

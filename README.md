@@ -2,11 +2,15 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
 
-Zuletzt abgeschlossen: **Patch 775**
+Zuletzt abgeschlossen: **Patch 776**
 
 Der aktuelle Stand bestaetigt:
+- lokaler Preview-Eval ist jetzt doppelt fail-closed: neben `allowUnsafeLocalEval` braucht der Builder auch ein explizites CDN-Opt-in; ohne beide Flags wird nur ein gesperrter Hinweis-HTML-Pfad erzeugt
+- der App-Lokalpfad setzt dieses Eval/CDN-Opt-in nur noch bei explizitem Env-Flag `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL=true` **und** Dev/Test-Runtime (normaler Betrieb bleibt gesperrt)
+- `useAppInfoScreen` materialisiert abgeleitete `projectFiles` nicht mehr am gesamten `projectData`-Objekt, sondern nur an den echten Materialisierungs-Inputs (`files`, `name`, `slug`, `packageName`)
+- `android/app/debug.keystore` ist aus dem Repo entfernt; `android/.gitignore` blockiert erneutes Einchecken lokaler Debug-Signing-Artefakte
 - `tweetsodium` wurde fuer GitHub-Secret-Encryption durch `libsodium-wrappers-sumo` ersetzt (sealed-box Contract unveraendert, aktiver Maintainer-Stack)
 - `signing_android` nutzt jetzt eine explizite deny-Policy nur fuer `anon, authenticated` statt grobem PUBLIC-Vertrag
 - security-definer RPC-Haertung ist fuer `enforce_edge_rate_limit(...)` und `insert_diagnostic_upload(...)` via `search_path = public, pg_temp` reasserted

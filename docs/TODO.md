@@ -1,11 +1,16 @@
 # TODO
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 776, PreviewEvalFailClosedAndAppInfoMemoNarrowing)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `PreviewEvalFailClosedAndExplicitOptIn` (Patch 776): `buildSandpackHtml(...)` verlangt jetzt zwei explizite Freigaben (`allowUnsafeLocalEval` + `allowExternalCdnInUnsafeLocalEval`); fehlt eine davon, bleibt der lokale Eval-/CDN-Pfad fail-closed mit gesperrtem Hinweis-HTML.
+- [x] `PreviewCreationDevOnlyGate` (Patch 776): `usePreviewCreation` aktiviert lokalen Eval/CDN-Pfad nur noch mit `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL=true` und gleichzeitigem Dev/Test-Runtime-Guard.
+- [x] `AppInfoProjectFilesMemoNarrowing` (Patch 776): `useAppInfoScreen` haengt die `projectFiles`-Ableitung nur noch an die tatsaechlichen Materialisierungs-Inputs (`files`, `name`, `slug`, `packageName`) statt am gesamten `projectData`-Objekt.
+- [x] `AndroidDebugKeystoreHygiene` (Patch 776): `android/app/debug.keystore` aus VCS entfernt und in `android/.gitignore` als lokales, nicht-versioniertes Debug-Artefakt fixiert.
 
 - [x] `StartupEdgeHintSoftening` (Patch 775): fehlende Edge-URL wird beim Boot nicht mehr als prominenter Loading-Warnzustand angezeigt; stattdessen gibt es einen kleinen, nicht-blockierenden Hinweis direkt in der Supabase-Karte unter Verbindungen.
 - [x] `GitHubSecretCryptoModernization` (Patch 774): `tweetsodium` durch aktiv gepflegtes `libsodium-wrappers-sumo` ersetzt; GitHub-Secret-Sealed-Box-Vertrag bleibt verhaltensgleich (`crypto_box_seal`).
