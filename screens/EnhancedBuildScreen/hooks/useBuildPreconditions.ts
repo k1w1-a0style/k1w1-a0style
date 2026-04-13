@@ -94,13 +94,15 @@ export function useBuildPreconditions(
             ? null
             : "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen",
         );
+        // Client-side convenience/readiness precheck only (decode-only JWT payload read).
+        // Authoritative auth remains server-/edge-side.
         const hasValidOperatorJwt = hasAllowedOperatorRole(operatorJwt);
         setHasOperatorJwt(hasValidOperatorJwt);
         setOperatorJwtReason(
           !operatorJwt
             ? "Supabase Operator-JWT fehlt – Login mit build_admin/service_role erforderlich"
             : !hasValidOperatorJwt
-              ? "Supabase JWT-Rolle ungültig – build_admin/service_role erforderlich"
+              ? "Supabase JWT-Payload-Rolle nicht build_admin/service_role – clientseitiger Precheck nicht erfüllt (serverseitige Edge-Prüfung bleibt maßgeblich)"
               : null,
         );
       });

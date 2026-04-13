@@ -4,7 +4,7 @@ describe("operatorJwt", () => {
   const buildAdminJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature";
   const invalidRoleJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoidXNlciJ9.signature";
 
-  it("reads role from JWT payload", () => {
+  it("reads role from JWT payload only (no signature verification)", () => {
     expect(readOperatorJwtRole(buildAdminJwt)).toBe("build_admin");
   });
 
