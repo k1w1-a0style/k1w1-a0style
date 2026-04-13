@@ -449,4 +449,45 @@ describe("LocalRemoteDiffSection truthfulness", () => {
     expect(screen.getByText("Push (1)")).toBeTruthy();
     expect(screen.queryByText("Lokale Dateien wurden geändert. Vergleich neu laden.")).toBeNull();
   });
+
+  it("does not render remote-only as a lower-bound count when local files are sliced", async () => {
+    mockGetRepoFileText.mockImplementation(({ path }: { path: string }) => Promise.resolve(`local ${path}`));
+    mockListRepoBlobPaths.mockResolvedValue(["file-60.ts"]);
+
+    const projectFiles = Array.from({ length: 61 }, (_, index) => ({
+      path: `file-${index}.ts`,
+      content: `local file-${index}.ts`,
+    }));
+
+    const screen = renderSection({ projectFiles });
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+
+    await waitFor(() => {
+      expect(screen.getByText("file-60.ts")).toBeTruthy();
+    });
+
+    expect(
+      screen.getByText(/kein Full-Sync-Schluss möglich/i),
+    ).toBeTruthy();
+    expect(screen.queryByText(/≥ ⬇️ 1/)).toBeNull();
+    expect(screen.getByText(/⬇️ 1/)).toBeTruthy();
+  });
+
+  it("still renders remote-only as lower-bound when only remote-only list is truncated", async () => {
+    mockGetRepoFileText.mockResolvedValue("same");
+    mockListRepoBlobPaths.mockResolvedValue(
+      Array.from({ length: 121 }, (_, index) => `remote-only-${index}.ts`),
+    );
+
+    const screen = renderSection({
+      projectFiles: [{ path: "tracked.ts", content: "same" }],
+    });
+    fireEvent.press(screen.getByTestId("local-remote-diff-refresh"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Remote-only Liste wurde gekürzt/i)).toBeTruthy();
+    });
+
+    expect(screen.getByText(/≥ ⬇️ 120/)).toBeTruthy();
+  });
 });

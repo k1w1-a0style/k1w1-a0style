@@ -71,6 +71,7 @@ describe("GitHub repo infra hardening", () => {
     (global.fetch as jest.MockedFunction<typeof fetch>)
       .mockResolvedValueOnce(createResponse({ ok: true, json: { commit: { sha: "base-commit" } } }))
       .mockResolvedValueOnce(createResponse({ ok: true, json: { tree: { sha: "base-tree" } } }))
+      .mockResolvedValueOnce(createResponse({ ok: true, json: { sha: "blob-sha-app" } }))
       .mockResolvedValueOnce(createResponse({ ok: true, json: { sha: "new-tree" } }))
       .mockResolvedValueOnce(createResponse({ ok: true, json: { sha: "new-commit" } }))
       .mockResolvedValueOnce(createResponse({ ok: true, json: {} }));
@@ -80,9 +81,16 @@ describe("GitHub repo infra hardening", () => {
       { path: ".github/workflows/custom.yml", content: "name: custom" },
     ]);
 
-    expect(global.fetch).toHaveBeenCalledTimes(5);
+    expect(global.fetch).toHaveBeenCalledTimes(6);
 
-    const treeCall = (global.fetch as jest.Mock).mock.calls[2];
+    const blobCall = (global.fetch as jest.Mock).mock.calls[2];
+    const blobBody = JSON.parse(String((blobCall?.[1] as RequestInit | undefined)?.body ?? "{}"));
+    expect(blobBody).toEqual({
+      content: "ZXhwb3J0IGRlZmF1bHQgMTs=",
+      encoding: "base64",
+    });
+
+    const treeCall = (global.fetch as jest.Mock).mock.calls[3];
     const treeBody = JSON.parse(String((treeCall?.[1] as RequestInit | undefined)?.body ?? "{}"));
 
     expect(treeBody.tree).toEqual([
@@ -90,7 +98,7 @@ describe("GitHub repo infra hardening", () => {
         path: "src/App.tsx",
         mode: "100644",
         type: "blob",
-        content: "export default 1;",
+        sha: "blob-sha-app",
       },
     ]);
   });

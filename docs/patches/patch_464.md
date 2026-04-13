@@ -9,7 +9,7 @@ Kleiner Nachfix im bereits gehärteten GitHubReposScreen: Legacy-/Storage-Daten 
   - Filtert defensiv alle ungültigen Einträge (`null`, primitive Werte, Objekte ohne string-`path`, leere `path`-Strings).
   - Behält Typing-Richtung bei (kein `any[]`-Fallback), normalisiert `path` (`trim`) und `content` robust auf String.
 - `screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts`
-  - Lokale Dateien laufen jetzt zentral über `normalizeProjectFiles(projectData?.files)`.
+  - Lokale Dateien laufen jetzt zentral über `normalizeProjectFiles(getMaterializedProjectFiles(projectData))`.
   - Push-/Selection-Pfade (`handlePush`, `openPushModalForPaths`, `confirmPushSelected`) nutzen ausschließlich die bereits validierte Liste.
   - Kein Broad Refactor, nur gezielter Austausch der lokalen Datei-Quelle.
 - `__tests__/projectFiles.normalize.regression.test.ts`
