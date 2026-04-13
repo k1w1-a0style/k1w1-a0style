@@ -434,9 +434,7 @@ export const compareLocalFilesWithRepo = async (params: {
   let skipped = 0;
   let errorCount = 0;
 
-  const localPaths = new Set<string>();
   for (const lf of localFiles) {
-    localPaths.add(lf.path);
     if (lf.path.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(lf.path)) {
       skipped++;
       continue;
@@ -460,9 +458,11 @@ export const compareLocalFilesWithRepo = async (params: {
     }
   }
 
+  const allLocalPaths = new Set(normalizedLocalFiles.map((file) => file.path));
+
   let remoteOnly = 0;
   for (const remotePath of remoteShaByPath.keys()) {
-    if (!localPaths.has(remotePath)) remoteOnly++;
+    if (!allLocalPaths.has(remotePath)) remoteOnly++;
   }
 
   const hasCountUncertainty = errorCount > 0;

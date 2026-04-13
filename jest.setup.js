@@ -21,6 +21,8 @@ jest.mock(
   "libsodium-wrappers-sumo",
   () => ({
     __esModule: true,
+    ready: Promise.resolve(),
+    crypto_box_seal: jest.fn((message) => message),
     default: {
       ready: Promise.resolve(),
       crypto_box_seal: jest.fn((message) => message),

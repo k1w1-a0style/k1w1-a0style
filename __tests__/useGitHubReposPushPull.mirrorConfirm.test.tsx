@@ -57,5 +57,4 @@ describe("useGitHubReposPushPull mirror confirmation", () => {
     expect(mockMarkRepoSyncSignature).not.toHaveBeenCalled();
     expect(refreshSyncStatus).not.toHaveBeenCalled();
   });
-
 });
