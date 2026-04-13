@@ -41,7 +41,18 @@ function useAppMetadataState(projectName: string | undefined, projectFiles: Retu
 
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
-  const projectFiles = useMemo(() => toProjectFiles(getMaterializedProjectFiles(projectData)), [projectData]);
+  const projectFiles = useMemo(
+    () =>
+      toProjectFiles(
+        getMaterializedProjectFiles({
+          files: projectData?.files,
+          name: projectData?.name,
+          slug: projectData?.slug,
+          packageName: projectData?.packageName,
+        }),
+      ),
+    [projectData?.files, projectData?.name, projectData?.slug, projectData?.packageName],
+  );
   const { config, setConfig } = useAI();
   const { activeRepo, activeBranch, recentRepos, addRecentRepo, clearRecentRepos } = useGitHub();
 

@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

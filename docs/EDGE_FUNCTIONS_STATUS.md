@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 
 ## Aktiv und workflow-relevant
 

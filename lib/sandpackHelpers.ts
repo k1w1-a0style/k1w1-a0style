@@ -11,6 +11,8 @@ export interface SandpackOptions {
   dependencies?: Record<string, string>;
   /** Explicit opt-in: local unsafe eval/CDN fallback is only allowed in dev/test contexts. */
   allowUnsafeLocalEval?: boolean;
+  /** Explicit opt-in: external CDN imports for local eval runtime stay disabled unless this is true. */
+  allowExternalCdnInUnsafeLocalEval?: boolean;
   /** Sandpack Client Version (unused, kept for compatibility) */
   sandpackVersion?: string;
   /** Zeige Datei-Explorer in der Preview */

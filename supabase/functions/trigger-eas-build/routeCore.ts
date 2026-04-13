@@ -21,17 +21,19 @@ import {
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import { runTriggerBuildFlow } from "./flow.ts";
 
-type TriggerBuildRouteDeps = {
-  createSupabaseClient: (url: string, key: string) => {
-    from: (table: string) => {
-      insert: (row: Record<string, unknown>) => {
-        select: (columns: string) => {
-          single: () => Promise<{ data: { id: number }; error: { message: string } | null }>;
-        };
+type SupabaseClientContract = {
+  from: (table: string) => {
+    insert: (row: Record<string, unknown>) => {
+      select: (columns: string) => {
+        single: () => Promise<{ data: Record<string, unknown>; error: { message?: string } | null }>;
       };
-      update: (patch: Record<string, unknown>) => { eq: (field: string, id: number) => Promise<unknown> };
     };
+    update: (patch: Record<string, unknown>) => { eq: (field: string, id: number) => PromiseLike<unknown> };
   };
+};
+
+type TriggerBuildRouteDeps = {
+  createSupabaseClient: (url: string, key: string) => SupabaseClientContract;
   githubDispatch: (params: { githubRepo: string; payload: Record<string, unknown> }) => Promise<{
     ok: boolean;
     status: number;
@@ -110,7 +112,11 @@ export async function handleTriggerEasBuildRequest(
         insertBuildJob: async (row) => {
           const insertRes = await supabase.from("build_jobs").insert({ status: "queued", ...row }).select("id").single();
           if (insertRes.error) throw new Error(`insert_failed:${sanitizeErrorText(insertRes.error.message)}`);
-          return { id: insertRes.data.id };
+          const insertedId = Number(insertRes.data.id);
+          if (!Number.isFinite(insertedId) || insertedId <= 0) {
+            throw new Error("insert_failed:invalid_job_id");
+          }
+          return { id: insertedId };
         },
         dispatchBuild: async ({ githubRepo: repoName, payload }) => await deps.githubDispatch({ githubRepo: repoName, payload }),
         patchBuildJobOnDispatchFailure: async (id, patch) => {
@@ -119,7 +125,7 @@ export async function handleTriggerEasBuildRequest(
       },
     );
 
-    if (!flow.ok) {
+    if (flow.ok === false) {
       const failedResponse = new Response(flow.bodyText, { status: flow.status });
       return errorResponse("GitHub dispatch failed", req, 502, sanitizeGitHubFailure(failedResponse, flow.bodyText));
     }
@@ -138,4 +144,3 @@ export async function handleTriggerEasBuildRequest(
     });
   }
 }
-

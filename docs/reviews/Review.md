@@ -1,11 +1,11 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-12 (Patch 775, StartupEdgeHintSoftening)**
+Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Aktueller Gesamtstatus
 
-> Letzter Voll-Gate im aktuellen Durchlauf: lokale Vollchecks plus Live-Edge-Contracts liefen mit gesetzten Live-Variablen vollstaendig gruen (`OK_FULL`), inklusive `k1w1-handler`, `preview_page` und `save_preview`.
+> Letzter lokaler Gate-Run im aktuellen Durchlauf endet erwartungsgemaess bei `OK_WITH_SKIPS`, solange `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` nicht gesetzt sind; ein echtes `OK_FULL` bleibt weiterhin an gueltige Live-Env + Operator-JWT gebunden.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 

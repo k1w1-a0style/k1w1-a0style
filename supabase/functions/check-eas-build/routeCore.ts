@@ -12,6 +12,15 @@ import {
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import { buildReconciliationPatch } from "../_shared/buildJobConsistency.ts";
 
+type SupabaseClientContract = {
+  from: (table: string) => {
+    select: (cols: string) => {
+      eq: (field: string, value: number) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+    };
+    update: (patch: Record<string, unknown>) => { eq: (field: string, value: number) => PromiseLike<unknown> };
+  };
+};
+
 type BuildJobRow = {
   id: number;
   status?: string | null;
@@ -39,14 +48,7 @@ type ReconciliationInfo = {
 };
 
 type CheckBuildRouteDeps = {
-  createSupabaseClient: (url: string, key: string) => {
-    from: (table: string) => {
-      select: (cols: string) => {
-        eq: (field: string, value: number) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
-      };
-      update: (patch: Record<string, unknown>) => { eq: (field: string, value: number) => Promise<unknown> };
-    };
-  };
+  createSupabaseClient: (url: string, key: string) => SupabaseClientContract;
   fetchRunState: (params: { githubRepo: string; runId: number }) => Promise<{
     attempted: boolean;
     upstream_status: number | null;
@@ -198,4 +200,3 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
     });
   }
 }
-
