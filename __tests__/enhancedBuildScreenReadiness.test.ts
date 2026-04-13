@@ -83,6 +83,49 @@ describe("enhancedBuildScreenReadiness", () => {
     });
 
     expect(action?.screen).toBe("Connections");
-    expect(action?.title).toContain("Operator-Auth");
+    expect(action?.title).toContain("Operator-Precheck");
+  });
+
+  test("uses explicit client-side precheck wording for operator JWT checklist and blocked action", () => {
+    const action = resolveBuildBlockedAction({
+      repoValidationValid: true,
+      branchName: "main",
+      hasTokens: true,
+      hasWorkflowAdminKey: true,
+      hasOperatorJwt: false,
+      hasDiagOk: true,
+      hasCiLiteOk: true,
+      repoSyncState: "in_sync",
+      hasSigningKey: true,
+      buildBlockedReason: null,
+    });
+    expect(action?.detail).toContain("nur clientseitige Readiness");
+    expect(action?.detail).toContain("server-/edge-seitige Autorisierung");
+
+    const items = createChecklistItems({
+      buildProfile: "preview",
+      repoFullName: "o/r",
+      branchName: "main",
+      hasSigningKey: true,
+      signingKeyReason: null,
+      hasTokens: true,
+      hasWorkflowAdminKey: true,
+      workflowAdminKeyReason: null,
+      hasOperatorJwt: true,
+      operatorJwtReason: null,
+      hasDiagOk: true,
+      diagnosticReason: null,
+      hasCiLiteOk: true,
+      ciLiteReason: null,
+      hasProjectFiles: true,
+      projectFilesReason: null,
+      repoSyncState: "in_sync",
+      repoSyncReason: null,
+      projectFilesCount: 3,
+    });
+    const operatorJwt = items.find((item) => item.id === "operator_jwt");
+    expect(operatorJwt?.label).toContain("Precheck (clientseitig)");
+    expect(operatorJwt?.detail).toContain("decode-only");
+    expect(operatorJwt?.detail).toContain("maßgeblich");
   });
 });

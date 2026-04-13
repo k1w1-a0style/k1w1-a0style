@@ -59,7 +59,9 @@ export const useEnhancedBuildDerivedState = (params: {
     if (!params.branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!params.hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!params.hasWorkflowAdminKey) return params.workflowAdminKeyReason || "Workflow-Admin-Key fehlt";
-    if (!params.hasOperatorJwt) return params.operatorJwtReason || "Supabase Operator-JWT fehlt";
+    if (!params.hasOperatorJwt) {
+      return params.operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig); server-/edge-seitige Autorisierung bleibt maßgeblich";
+    }
     if (!params.hasProjectFiles) return params.projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!params.hasDiagOk) return params.diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
     if (!params.hasCiLiteOk) {
