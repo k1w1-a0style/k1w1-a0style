@@ -4,7 +4,7 @@ describe("Patch 462 GitHubReposScreen rest-fixes invariants", () => {
   it("keeps typed local file handling without root any-cast", () => {
     const src = read("screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts");
 
-    expect(src).toContain("normalizeProjectFiles(projectData?.files)");
+    expect(src).toContain("normalizeProjectFiles(getMaterializedProjectFiles(projectData))");
     expect(src).not.toContain("const list = (projectData?.files ?? []) as " + "any[];");
   });
 
