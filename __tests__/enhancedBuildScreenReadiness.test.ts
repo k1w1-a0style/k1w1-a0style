@@ -99,7 +99,7 @@ describe("enhancedBuildScreenReadiness", () => {
       hasSigningKey: true,
       buildBlockedReason: null,
     });
-    expect(action?.detail).toContain("nur clientseitige Readiness");
+    expect(action?.detail).toContain("ohne Signaturprüfung");
     expect(action?.detail).toContain("server-/edge-seitige Autorisierung");
 
     const items = createChecklistItems({
@@ -126,6 +126,7 @@ describe("enhancedBuildScreenReadiness", () => {
     const operatorJwt = items.find((item) => item.id === "operator_jwt");
     expect(operatorJwt?.label).toContain("Precheck (clientseitig)");
     expect(operatorJwt?.detail).toContain("decode-only");
+    expect(operatorJwt?.detail).toContain("ohne Signaturprüfung");
     expect(operatorJwt?.detail).toContain("maßgeblich");
   });
 });

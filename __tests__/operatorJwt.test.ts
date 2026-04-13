@@ -2,6 +2,7 @@ import { hasAllowedOperatorRole, readOperatorJwtRole } from "../lib/auth/operato
 
 describe("operatorJwt", () => {
   const buildAdminJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature";
+  const buildAdminJwtWithDifferentSignature = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.anything";
   const invalidRoleJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoidXNlciJ9.signature";
   const appMetadataRoleJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBfbWV0YWRhdGEiOnsicm9sZSI6InNlcnZpY2Vfcm9sZSJ9fQ.signature";
   const invalidPayloadJwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.bm90LWpzb24.signature";
@@ -12,6 +13,7 @@ describe("operatorJwt", () => {
 
   it("accepts only build_admin or service_role", () => {
     expect(hasAllowedOperatorRole(buildAdminJwt)).toBe(true);
+    expect(hasAllowedOperatorRole(buildAdminJwtWithDifferentSignature)).toBe(true);
     expect(hasAllowedOperatorRole(appMetadataRoleJwt)).toBe(true);
     expect(hasAllowedOperatorRole(invalidRoleJwt)).toBe(false);
     expect(readOperatorJwtRole(invalidPayloadJwt)).toBeNull();
