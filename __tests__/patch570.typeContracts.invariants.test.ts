@@ -11,7 +11,7 @@ describe("Patch 570 type/error contract invariants", () => {
     expect(src).toContain("function getErrorMessage(error: unknown, fallback: string): string");
     expect(apiFlowSrc).toContain("function isAbortLikeError(error: unknown): boolean");
     expect(secureFlowSrc).toContain("function isAbortLikeError(error: unknown): boolean");
-    expect(src).toContain("toProjectFiles(projectData?.files)");
+    expect(src).toContain("toProjectFiles(getMaterializedProjectFiles(projectData))");
     expect(helpersSrc).toContain("export function toProjectFiles(value: unknown)");
     expect(src).not.toContain(asAnySnippet("projectData"));
     expect(src).not.toContain(catchAnySnippet("error"));

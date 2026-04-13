@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useAI } from "../../../contexts/AIContext";
 import { useGitHub } from "../../../contexts/GitHubContext";
+import { getMaterializedProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 
 import { countMessages, getApiKeysCount, getAssetsStatusFromProjectFiles, getIconPreviewFromProjectFiles, getPackageNameFromProjectFiles, toProjectBinaryBase64, toProjectFiles } from "./useAppInfoScreen.helpers";
 import { useAppInfoApiConfigFlow } from "./useAppInfoApiConfigFlow";
@@ -40,7 +41,7 @@ function useAppMetadataState(projectName: string | undefined, projectFiles: Retu
 
 export function useAppInfoScreen() {
   const { projectData, setProjectName, updateProjectFiles, setPackageName, setLinkedRepo } = useProject();
-  const projectFiles = useMemo(() => toProjectFiles(projectData?.files), [projectData?.files]);
+  const projectFiles = useMemo(() => toProjectFiles(getMaterializedProjectFiles(projectData)), [projectData]);
   const { config, setConfig } = useAI();
   const { activeRepo, activeBranch, recentRepos, addRecentRepo, clearRecentRepos } = useGitHub();
 
