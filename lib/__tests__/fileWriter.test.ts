@@ -9,7 +9,7 @@ import { findProjectFile } from '../../__tests__/helpers/projectTestHelpers';
  * @jest-environment node
  */
 
-import { applyFilesToProject } from '../fileWriter';
+import { applyFileOpsToProject, applyFilesToProject } from '../fileWriter';
 
 describe('FileWriter', () => {
   describe('applyFilesToProject', () => {
@@ -253,6 +253,35 @@ describe('FileWriter', () => {
         expect(result.skipped).toHaveLength(1);
         expect(result.created).toHaveLength(0);
       });
+    });
+  });
+
+  describe('applyFileOpsToProject', () => {
+    it('removes deleted files from resulting project state', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/keep.ts', content: 'export const keep = true;' },
+        { path: 'src/remove.ts', content: 'export const remove = true;' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], { deletePaths: ['src/remove.ts'] });
+
+      expect(findProjectFile(result.files, 'src/remove.ts')).toBeUndefined();
+      expect(result.deleted).toEqual(['src/remove.ts']);
+    });
+
+    it('applies rename as a move so old path does not linger', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/entry.ts', content: 'export * from "./legacy";' },
+        { path: 'src/legacy.ts', content: 'export const legacy = true;' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        renames: [{ from: 'src/legacy.ts', to: 'src/core.ts' }],
+      });
+
+      expect(findProjectFile(result.files, 'src/legacy.ts')).toBeUndefined();
+      expect(findProjectFile(result.files, 'src/core.ts')?.content).toContain('legacy = true');
+      expect(result.renamed).toEqual([{ from: 'src/legacy.ts', to: 'src/core.ts' }]);
     });
   });
 });

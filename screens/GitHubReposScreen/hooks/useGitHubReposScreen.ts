@@ -3,6 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import { useGitHubRepos } from "../../../hooks/useGitHubRepos";
@@ -49,6 +50,7 @@ export function useGitHubReposScreen(): UseGitHubReposScreenModel {
 
   const [refreshing, setRefreshing] = useState(false);
   const hasAutoLoaded = useRef(false);
+  const lastAutoLoadedTokenRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const refreshGen = useRef(0);
 
@@ -60,6 +62,7 @@ export function useGitHubReposScreen(): UseGitHubReposScreenModel {
     userLoading,
     easProjectId,
     setEasProjectId,
+    refreshBootstrapState,
   } = useGitHubReposScreenBootstrap();
 
   useEffect(() => {
@@ -111,10 +114,26 @@ export function useGitHubReposScreen(): UseGitHubReposScreenModel {
 
   // Auto-load repos once token exists
   useEffect(() => {
-    if (!token || hasAutoLoaded.current) return;
+    if (!token) {
+      hasAutoLoaded.current = false;
+      lastAutoLoadedTokenRef.current = null;
+      return;
+    }
+    if (hasAutoLoaded.current && lastAutoLoadedTokenRef.current === token) return;
     hasAutoLoaded.current = true;
+    lastAutoLoadedTokenRef.current = token;
     loadRepos();
   }, [token, loadRepos]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBootstrapState();
+      if (token) {
+        void loadRepos();
+      }
+      return undefined;
+    }, [token, loadRepos, refreshBootstrapState]),
+  );
 
   const handleRefresh = useCallback(async () => {
     if (!token) return;

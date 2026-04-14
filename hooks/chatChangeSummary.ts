@@ -13,7 +13,14 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
   const provider = pendingChange.aiResponse?.provider || "unbekannt";
   const keysRotated = pendingChange.aiResponse?.keysRotated;
 
-  const { created, updated, skipped, errors } = pendingChange;
+  const {
+    created,
+    updated,
+    skipped,
+    deleted = [],
+    renamed = [],
+    errors,
+  } = pendingChange;
   const sourceSummary = pendingChange.sourceSummary ?? "Dateiliste stammt aus dem Builder-Flow.";
 
   const summaryText =
@@ -23,6 +30,8 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
     `🧠 Quelle: ${sourceSummary}\n` +
     `🆕 Neue Dateien: ${created.length}\n` +
     `✏️ Geänderte Dateien: ${updated.length}\n` +
+    `🗑️ Gelöschte Dateien: ${deleted.length}\n` +
+    `🔀 Umbenannt: ${renamed.length}\n` +
     `⏭️ Übersprungen: ${skipped.length}\n` +
     `🚫 Geblockt/Hinweise: ${errors?.length ?? 0}`;
 
@@ -34,6 +43,14 @@ export function buildChangeConfirmationText(pendingChange: PendingChange): strin
   if (updated.length) {
     lines.push("✏️ Geänderte Dateien:");
     updated.forEach((p) => lines.push(`  • ${p}`));
+  }
+  if (deleted.length) {
+    lines.push("🗑️ Gelöschte Dateien:");
+    deleted.forEach((p) => lines.push(`  • ${p}`));
+  }
+  if (renamed.length) {
+    lines.push("🔀 Umbenannte Dateien:");
+    renamed.forEach(({ from, to }) => lines.push(`  • ${from} → ${to}`));
   }
   if (skipped.length) {
     lines.push("⏭️ Übersprungene Dateien:");

@@ -1,6 +1,10 @@
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { Alert, Linking } from "react-native";
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: () => undefined,
+}));
+
 jest.mock("../screens/EnhancedBuildScreen/hooks/buildScreenHelpers", () => {
   const actual = jest.requireActual("../screens/EnhancedBuildScreen/hooks/buildScreenHelpers");
   return {

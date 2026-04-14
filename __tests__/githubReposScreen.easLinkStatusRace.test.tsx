@@ -3,6 +3,10 @@ import { act, cleanup, renderHook } from "@testing-library/react-native";
 import { useGitHubReposScreen } from "../screens/GitHubReposScreen/hooks/useGitHubReposScreen";
 import { checkRepoEasLinkStatus, getEasLinkPresentation } from "../screens/GitHubReposScreen/utils/easLinkContract";
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: () => undefined,
+}));
+
 const mockGetItem = jest.fn(async (_key?: string) => "11111111-1111-1111-1111-111111111111");
 const mockSetItem = jest.fn(async (_key?: string, _value?: string) => undefined);
 const mockRemoveItem = jest.fn(async (_key?: string) => undefined);

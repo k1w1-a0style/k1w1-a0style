@@ -29,7 +29,14 @@ export type ApplyFilesResult = {
   created: string[];
   updated: string[];
   skipped: string[];
+  deleted?: string[];
+  renamed?: Array<{ from: string; to: string }>;
   errors?: string[];
+};
+
+export type FileMutationOps = {
+  deletePaths?: string[];
+  renames?: Array<{ from: string; to: string }>;
 };
 
 export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFile[]): ApplyFilesResult {
@@ -123,5 +130,60 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
     updated,
     skipped,
     errors: errors.length ? errors : undefined,
+  };
+}
+
+export function applyFileOpsToProject(
+  existing: ProjectFile[],
+  incoming: ProjectFile[],
+  ops?: FileMutationOps,
+): ApplyFilesResult {
+  const normalizedDeletes = Array.from(
+    new Set(
+      (ops?.deletePaths ?? [])
+        .map((p) => normalizePath(String(p ?? "")))
+        .filter(Boolean),
+    ),
+  );
+  const normalizedRenames = (ops?.renames ?? [])
+    .map((entry) => ({
+      from: normalizePath(String(entry?.from ?? "")),
+      to: normalizePath(String(entry?.to ?? "")),
+    }))
+    .filter((entry): entry is { from: string; to: string } => Boolean(entry.from && entry.to && entry.from !== entry.to));
+
+  if (normalizedDeletes.length === 0 && normalizedRenames.length === 0) {
+    return applyFilesToProject(existing, incoming);
+  }
+
+  const working = new Map<string, ProjectFile>();
+  for (const file of existing ?? []) {
+    const path = normalizePath(String(file.path ?? ""));
+    if (!path) continue;
+    working.set(path, { path, content: String(file.content ?? "") });
+  }
+
+  for (const path of normalizedDeletes) {
+    working.delete(path);
+  }
+
+  for (const rename of normalizedRenames) {
+    const source = working.get(rename.from);
+    working.delete(rename.from);
+    if (!source) continue;
+    if (!working.has(rename.to)) {
+      working.set(rename.to, { path: rename.to, content: source.content });
+    }
+  }
+
+  const merged = applyFilesToProject(Array.from(working.values()), incoming);
+  const mergedPaths = new Set(merged.files.map((f) => normalizePath(String(f.path ?? ""))));
+  const deleted = normalizedDeletes.filter((path) => !mergedPaths.has(path));
+  const renamed = normalizedRenames.filter((entry) => !mergedPaths.has(entry.from) && mergedPaths.has(entry.to));
+
+  return {
+    ...merged,
+    deleted,
+    renamed,
   };
 }

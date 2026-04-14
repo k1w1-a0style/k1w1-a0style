@@ -6,6 +6,10 @@ const mockGetGitHubToken = jest.fn(async () => "ghp_test");
 const mockGetGitHubUser = jest.fn(async () => ({ login: "operator" }));
 const mockGetItem = jest.fn(async (_key?: string) => "11111111-1111-1111-1111-111111111111");
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: () => undefined,
+}));
+
 jest.mock("../infra/github/githubService", () => ({
   getGitHubToken: () => mockGetGitHubToken(),
 }));
@@ -41,5 +45,33 @@ describe("useGitHubReposScreenBootstrap", () => {
     expect(result.current.tokenError).toBeNull();
     expect(mockGetGitHubToken).toHaveBeenCalledTimes(1);
     expect(mockGetGitHubUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes bootstrap values when explicitly reloaded", async () => {
+    mockGetGitHubToken
+      .mockResolvedValueOnce("ghp_old")
+      .mockResolvedValueOnce("ghp_new");
+    mockGetGitHubUser
+      .mockResolvedValueOnce({ login: "old-user" })
+      .mockResolvedValueOnce({ login: "new-user" });
+    mockGetItem
+      .mockResolvedValueOnce("11111111-1111-1111-1111-111111111111")
+      .mockResolvedValueOnce("22222222-2222-2222-2222-222222222222");
+
+    const { result } = renderHook(() => useGitHubReposScreenBootstrap());
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await result.current.refreshBootstrapState();
+    });
+
+    expect(result.current.token).toBe("ghp_new");
+    expect(result.current.userLogin).toBe("new-user");
+    expect(result.current.easProjectId).toBe("22222222-2222-2222-2222-222222222222");
   });
 });

@@ -84,10 +84,10 @@ export function useEnhancedBuildRuns(params: UseEnhancedBuildRunsParams) {
       setRuns(Array.isArray(list) ? list : []);
       if (!list || list.length === 0) setError("Keine Workflow Runs gefunden.");
     } catch (e) {
-      if (isMountedRef.current) {
-        setRuns([]);
-        setError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Runs nicht laden");
-      }
+      if (reqId !== runsReqIdRef.current) return;
+      if (!isMountedRef.current) return;
+      setRuns([]);
+      setError(e instanceof Error ? sanitizeUiMessage(e.message) : "Konnte Runs nicht laden");
     } finally {
       if (reqId === runsReqIdRef.current && isMountedRef.current) setLoadingRuns(false);
     }

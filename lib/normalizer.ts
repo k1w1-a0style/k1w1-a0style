@@ -171,9 +171,42 @@ function unwrapToParsable(raw: unknown): unknown {
 
 export type NormalizeAiResponseResult = {
   files: Array<{ path: string; content: string }>;
+  deletePaths?: string[];
+  renames?: Array<{ from: string; to: string }>;
   parseError?: string;
   responseText?: string;
 };
+
+function normalizeDeleteList(parsed: unknown): string[] {
+  const obj = asRecord(parsed);
+  if (!obj) return [];
+  const candidate = obj.delete ?? obj.deletes ?? obj.remove ?? obj.removed ?? obj.deletePaths;
+  if (!Array.isArray(candidate)) return [];
+  return Array.from(
+    new Set(
+      candidate
+        .map((entry) => normalizePath(String(entry ?? "").trim()))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+  );
+}
+
+function normalizeRenames(parsed: unknown): Array<{ from: string; to: string }> {
+  const obj = asRecord(parsed);
+  if (!obj) return [];
+  const candidate = obj.rename ?? obj.renames;
+  if (!Array.isArray(candidate)) return [];
+
+  const out: Array<{ from: string; to: string }> = [];
+  for (const entry of candidate) {
+    const rec = asRecord(entry);
+    const from = normalizePath(String(rec?.from ?? rec?.oldPath ?? rec?.source ?? "").trim());
+    const to = normalizePath(String(rec?.to ?? rec?.newPath ?? rec?.target ?? "").trim());
+    if (!from || !to || from === to) continue;
+    out.push({ from, to });
+  }
+  return out;
+}
 
 // ---- Hauptfunktion ----
 export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseResult | null {
@@ -227,7 +260,11 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
       : null;
   }
 
-  return { files: out };
+  return {
+    files: out,
+    deletePaths: normalizeDeleteList(parsed),
+    renames: normalizeRenames(parsed),
+  };
 }
 
 export function normalizeAiResponse(raw: unknown): Array<{ path: string; content: string }> | null {

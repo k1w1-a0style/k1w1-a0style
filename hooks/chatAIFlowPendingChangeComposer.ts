@@ -1,6 +1,6 @@
 import type { OrchestratorResult } from "../lib/orchestrator";
 import type { ApplyFilesResult } from "../lib/fileWriter";
-import { applyFilesToProject } from "../lib/fileWriter";
+import { applyFileOpsToProject } from "../lib/fileWriter";
 import { buildProjectStateDigest } from "../lib/chatFlowStateGuards";
 import { buildChangePreviews } from "../lib/changePreview";
 import type { PendingChange } from "./chatAIFlowTypes";
@@ -13,6 +13,8 @@ export type ComposePendingChangeArgs = {
   currentProjectFiles: PendingChange["files"];
   finalFiles: PendingChange["files"];
   proposedFiles: PendingChange["files"];
+  proposedDeletePaths?: string[];
+  proposedRenames?: Array<{ from: string; to: string }>;
   aiResponse: OrchestratorResult;
   agentResponse: OrchestratorResult | null;
   finalFileSource: PendingChange["finalFileSource"];
@@ -32,13 +34,19 @@ export type ComposedPendingChange = {
 export const computeMergeResult = (
   currentProjectFiles: PendingChange["files"],
   finalFiles: PendingChange["files"],
-): ApplyFilesResult => applyFilesToProject(currentProjectFiles, finalFiles);
+  ops?: {
+    deletePaths?: string[];
+    renames?: Array<{ from: string; to: string }>;
+  },
+): ApplyFilesResult => applyFileOpsToProject(currentProjectFiles, finalFiles, ops);
 
 export const composePendingChange = ({
   isAutoFix,
   currentProjectFiles,
   finalFiles,
   proposedFiles,
+  proposedDeletePaths,
+  proposedRenames,
   aiResponse,
   agentResponse,
   finalFileSource,
@@ -49,7 +57,10 @@ export const composePendingChange = ({
   buildPathBulletList,
 }: ComposePendingChangeArgs): ComposedPendingChange => {
   const baseProjectDigest = buildProjectStateDigest(currentProjectFiles);
-  const mergeResult = computeMergeResult(currentProjectFiles, finalFiles);
+  const mergeResult = computeMergeResult(currentProjectFiles, finalFiles, {
+    deletePaths: proposedDeletePaths,
+    renames: proposedRenames,
+  });
   const changePreviews = buildChangePreviews({
     baseFiles: currentProjectFiles,
     finalFiles: mergeResult.files,
@@ -64,6 +75,8 @@ export const composePendingChange = ({
     preflightIntro,
     created: mergeResult.created,
     updated: mergeResult.updated,
+    deleted: mergeResult.deleted,
+    renamed: mergeResult.renamed,
     skipped: mergeResult.skipped,
     errors: mergeResult.errors,
     buildPathBulletList,
@@ -75,11 +88,15 @@ export const composePendingChange = ({
     pendingChange: {
       files: mergeResult.files,
       proposedFiles,
+      proposedDeletePaths,
+      proposedRenames,
       baseProjectDigest,
       summary: summaryText,
       created: mergeResult.created,
       updated: mergeResult.updated,
       skipped: mergeResult.skipped,
+      deleted: mergeResult.deleted,
+      renamed: mergeResult.renamed,
       errors: mergeResult.errors,
       aiResponse,
       agentResponse: agentResponse ?? undefined,

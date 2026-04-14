@@ -95,6 +95,8 @@ describe("chatAIFlowRequestOrchestrator", () => {
     expect(result.normalizedFiles).toEqual([
       { path: "components/Button.tsx", content: "export const Button = () => null;" },
     ]);
+    expect(result.deletePaths).toEqual([]);
+    expect(result.renames).toEqual([]);
   });
 
   it("keeps builder files and surfaces warning when validator returns empty files", async () => {
@@ -104,6 +106,8 @@ describe("chatAIFlowRequestOrchestrator", () => {
       config: makeConfig({ agentEnabled: true }),
       requestContent: "Bitte prüfen",
       normalizedFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
+      normalizedDeletePaths: [],
+      normalizedRenames: [],
       currentProjectFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
       runOrchestratorWithTimeout: jest.fn().mockResolvedValue(okResult({ text: "{}" })),
       sideEffects: {

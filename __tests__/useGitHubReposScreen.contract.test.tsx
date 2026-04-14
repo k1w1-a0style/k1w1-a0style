@@ -2,6 +2,10 @@ import { renderHook } from "@testing-library/react-native";
 
 import { useGitHubReposScreen } from "../screens/GitHubReposScreen/hooks/useGitHubReposScreen";
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: () => undefined,
+}));
+
 const mockUnknownEasLinkStatus = {
   state: "unknown",
   color: "#888",

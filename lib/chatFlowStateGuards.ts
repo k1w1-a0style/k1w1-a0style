@@ -2,12 +2,14 @@
 // Keep it free of Node-only imports (e.g. `node:crypto` / `crypto`) to avoid Metro
 // resolution failures on device bundles.
 import type { ApplyFilesResult } from "./fileWriter";
-import { applyFilesToProject } from "./fileWriter";
+import { applyFileOpsToProject } from "./fileWriter";
 import type { ProjectFile } from "../shared/types/project";
 
 export type PendingChangeLike = {
   files: ProjectFile[];
   proposedFiles?: ProjectFile[];
+  proposedDeletePaths?: string[];
+  proposedRenames?: Array<{ from: string; to: string }>;
   baseProjectDigest?: string;
 };
 
@@ -44,7 +46,10 @@ export function rebasePendingChangeOnLatest(
   driftDetected: boolean;
 } {
   const incoming = pending.proposedFiles?.length ? pending.proposedFiles : pending.files;
-  const applyResult = applyFilesToProject(latestFiles, incoming);
+  const applyResult = applyFileOpsToProject(latestFiles, incoming, {
+    deletePaths: pending.proposedDeletePaths ?? [],
+    renames: pending.proposedRenames ?? [],
+  });
   const latestDigest = buildProjectStateDigest(latestFiles);
 
   return {

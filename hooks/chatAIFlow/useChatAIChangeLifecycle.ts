@@ -76,6 +76,8 @@ export const useChatAIChangeLifecycle = ({
         created: applyResult.created,
         updated: applyResult.updated,
         skipped: applyResult.skipped,
+        deleted: applyResult.deleted ?? pendingChange.deleted,
+        renamed: applyResult.renamed ?? pendingChange.renamed,
         errors: applyResult.errors ?? pendingChange.errors,
       });
 

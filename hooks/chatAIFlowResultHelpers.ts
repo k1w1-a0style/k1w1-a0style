@@ -4,6 +4,8 @@ type NormalizedAiFiles = Array<{ path: string; content: string }>;
 
 type NormalizedAiResult = {
   files: NormalizedAiFiles | null;
+  deletePaths: string[];
+  renames: Array<{ from: string; to: string }>;
   parseError: string;
   responseText: string;
 };
@@ -15,6 +17,8 @@ export const normalizeResultFiles = (raw: unknown): NormalizedAiResult => {
   const normalizedResult = normalizeAiResponseDetailed(raw);
   return {
     files: normalizedResult?.files?.length ? normalizedResult.files : null,
+    deletePaths: normalizedResult?.deletePaths ?? [],
+    renames: normalizedResult?.renames ?? [],
     parseError: toTrimmedText(normalizedResult?.parseError),
     responseText: toTrimmedText(normalizedResult?.responseText),
   };

@@ -60,30 +60,41 @@ export function useGitHubReposSelection(deps: Deps) {
         ? null
         : String(repoOrString.default_branch || "").trim() || null;
 
-    // Single source of truth for ALL repo selections (list + recent)
-    addRecentRepo(fullName);
-    setLinkedRepo(fullName, defaultBranch);
-    setShowRenameRepo(false);
-    setShowNewRepo(false);
-    setPullProgress("");
+    const commitSelection = (branch: string) => {
+      const normalizedBranch = String(branch || "").trim();
+      if (!normalizedBranch) return;
+      addRecentRepo(fullName);
+      setLinkedRepo(fullName, normalizedBranch);
+      setShowRenameRepo(false);
+      setShowNewRepo(false);
+      setPullProgress("");
+    };
 
-    // If we don't have a default branch yet (e.g. recent repo string), fetch it async.
-    if (!defaultBranch) {
-      const parsed = splitFullName(fullName);
-      if (!parsed) return;
-
-      loadDefaultBranch(parsed.owner, parsed.repo)
-        .then((b) => String(b || "").trim())
-        .then((b) => {
-          if (!b) return;
-          if (!isMountedRef.current) return;
-          if (selectionGen !== selectRepoGen.current) return;
-          setLinkedRepo(fullName, b);
-        })
-        .catch(() => {
-          // non-fatal: user can still pick a branch manually
-        });
+    if (defaultBranch) {
+      commitSelection(defaultBranch);
+      return;
     }
+
+    // If we don't have a default branch yet (e.g. recent repo string), fetch it async first.
+    // This avoids exposing a misleading "repo active, branch missing" intermediate state globally.
+    const parsed = splitFullName(fullName);
+    if (!parsed) return;
+
+    loadDefaultBranch(parsed.owner, parsed.repo)
+      .then((b) => String(b || "").trim())
+      .then((b) => {
+        if (!b) return;
+        if (!isMountedRef.current) return;
+        if (selectionGen !== selectRepoGen.current) return;
+        addRecentRepo(fullName);
+        setLinkedRepo(fullName, b);
+        setShowRenameRepo(false);
+        setShowNewRepo(false);
+        setPullProgress("");
+      })
+      .catch(() => {
+        // non-fatal: keep previous selection stable instead of exposing an invalid partial selection
+      });
   }, [addRecentRepo, setLinkedRepo, setShowRenameRepo, setShowNewRepo, setPullProgress, loadDefaultBranch, isMountedRef]);
 
   const handleSelectBranch = useCallback(

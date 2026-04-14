@@ -254,5 +254,19 @@ describe('normalizer', () => {
       expect(paths).toContain('App.tsx');
       expect(paths).toContain('components/Button.tsx');
     });
+
+    it('extracts delete and rename operations when present', () => {
+      const input = {
+        files: [{ path: 'src/new.ts', content: 'export const x = 1;' }],
+        delete: ['src/legacy.ts'],
+        renames: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }],
+      };
+
+      const result = normalizeAiResponseDetailed(input);
+
+      expect(result?.files).toHaveLength(1);
+      expect(result?.deletePaths).toEqual(['src/legacy.ts']);
+      expect(result?.renames).toEqual([{ from: 'src/old-name.ts', to: 'src/new-name.ts' }]);
+    });
   });
 });

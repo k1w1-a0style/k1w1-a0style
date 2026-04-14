@@ -142,7 +142,12 @@ export const executeChatRequestPipeline = async ({
     }
   }
 
-  const { ai, normalizedFiles } = await runBuilderWithRetry({
+  const {
+    ai,
+    normalizedFiles,
+    deletePaths: normalizedDeletePaths,
+    renames: normalizedRenames,
+  } = await runBuilderWithRetry({
     config,
     requestContent: sanitizedRequestContent,
     currentMessages,
@@ -158,10 +163,19 @@ export const executeChatRequestPipeline = async ({
     },
   });
 
-  const { finalFiles, agentMeta, finalFileSource, validatorState } = await runValidatorIfEnabled({
+  const {
+    finalFiles,
+    finalDeletePaths,
+    finalRenames,
+    agentMeta,
+    finalFileSource,
+    validatorState,
+  } = await runValidatorIfEnabled({
     config,
     requestContent: sanitizedRequestContent,
     normalizedFiles,
+    normalizedDeletePaths,
+    normalizedRenames,
     currentProjectFiles,
     signal,
     runOrchestratorWithTimeout,
@@ -179,7 +193,10 @@ export const executeChatRequestPipeline = async ({
 
   const sourceSummary = getSourceSummaryText(finalFileSource, config.agentEnabled);
 
-  const mergeResult = computeMergeResult(currentProjectFiles, finalFiles);
+  const mergeResult = computeMergeResult(currentProjectFiles, finalFiles, {
+    deletePaths: finalDeletePaths,
+    renames: finalRenames,
+  });
 
   let explainText = "";
   if (!isAutoFix && mergeResult.created.length + mergeResult.updated.length > 0) {
@@ -206,6 +223,8 @@ export const executeChatRequestPipeline = async ({
     currentProjectFiles,
     finalFiles,
     proposedFiles: finalFiles,
+    proposedDeletePaths: finalDeletePaths,
+    proposedRenames: finalRenames,
     aiResponse: ai,
     agentResponse: agentMeta,
     finalFileSource,

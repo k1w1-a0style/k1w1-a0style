@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { getGitHubToken } from "../../../infra/github/githubService";
@@ -16,76 +17,65 @@ export function useGitHubReposScreenBootstrap() {
   const [userLoading, setUserLoading] = useState(false);
 
   const [easProjectId, setEasProjectId] = useState<string>("");
+  const bootstrapReqIdRef = useRef(0);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      setTokenLoading(true);
-      setTokenError(null);
-      try {
-        const t = await getGitHubToken();
-        if (!mounted) return;
-        setToken(t);
-        if (!t) {
-          setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
-        }
-      } catch (e: unknown) {
-        if (!mounted) return;
-        setToken(null);
-        setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
-      } finally {
-        if (mounted) setTokenLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    if (!token) {
-      setUserLogin("");
-      return () => {
-        mounted = false;
-      };
-    }
+  const refreshBootstrapState = useCallback(async () => {
+    const reqId = ++bootstrapReqIdRef.current;
+    setTokenLoading(true);
+    setTokenError(null);
     setUserLoading(true);
-    getGitHubUser()
-      .then((u) => {
-        if (!mounted) return;
-        setUserLogin(String(u?.login || "").trim());
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setUserLogin("");
-      })
-      .finally(() => {
-        if (mounted) setUserLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [token]);
+    try {
+      const t = await getGitHubToken();
+      if (bootstrapReqIdRef.current !== reqId) return;
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      let id: string | null = null;
+      setToken(t);
+      if (!t) {
+        setTokenError("Kein Token gefunden. Hinterlege eins im Verbindungen-Screen.");
+        setUserLogin("");
+      } else {
+        try {
+          const u = await getGitHubUser();
+          if (bootstrapReqIdRef.current !== reqId) return;
+          setUserLogin(String(u?.login || "").trim());
+        } catch {
+          if (bootstrapReqIdRef.current !== reqId) return;
+          setUserLogin("");
+        }
+      }
+
       try {
-        id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        if (bootstrapReqIdRef.current !== reqId) return;
+        setEasProjectId((id || "").trim());
       } catch (error: unknown) {
         logger.warn("[GitHubReposScreen] EAS project ID konnte nicht aus AsyncStorage geladen werden", {
           error,
         });
+        if (bootstrapReqIdRef.current !== reqId) return;
+        setEasProjectId("");
       }
-      if (!mounted) return;
-      setEasProjectId((id || "").trim());
-    })();
-    return () => {
-      mounted = false;
-    };
+    } catch (e: unknown) {
+      if (bootstrapReqIdRef.current !== reqId) return;
+      setToken(null);
+      setUserLogin("");
+      setTokenError(getErrorMessage(e, "Token konnte nicht geladen werden."));
+    } finally {
+      if (bootstrapReqIdRef.current === reqId) {
+        setTokenLoading(false);
+        setUserLoading(false);
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshBootstrapState();
+  }, [refreshBootstrapState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshBootstrapState();
+    }, [refreshBootstrapState]),
+  );
 
   return {
     token,
@@ -95,5 +85,6 @@ export function useGitHubReposScreenBootstrap() {
     userLoading,
     easProjectId,
     setEasProjectId,
+    refreshBootstrapState,
   };
 }
