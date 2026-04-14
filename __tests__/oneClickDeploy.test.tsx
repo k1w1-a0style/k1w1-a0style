@@ -276,6 +276,8 @@ describe("useOneClickDeploy", () => {
       await Promise.resolve();
     });
     expect(getByTestId("deploying").props.children).toBe("false");
+    const abortedSteps = getSteps(getByTestId);
+    expect(findStep(abortedSteps, "build").detail).toContain("kann noch abschliessen");
 
     await pressRun(getByTestId);
     await waitFor(() => {

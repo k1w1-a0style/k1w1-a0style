@@ -68,6 +68,13 @@ function getOneClickDeployErrorMessage(error: unknown): string {
   return "Unbekannter Fehler";
 }
 
+function getAbortRunningStepDetail(stepId: DeployStepId): string {
+  if (stepId === "build" || stepId === "secrets_sync") {
+    return "Lokaler Ablauf abgebrochen; bereits gestartete externe Operation kann noch abschliessen.";
+  }
+  return "Lokaler Ablauf abgebrochen.";
+}
+
 export function useOneClickDeploy(
   buildProfile: BuildProfile,
   repoFullName: string,
@@ -334,10 +341,14 @@ export function useOneClickDeploy(
     setSteps((prev) =>
       prev.map((step) => {
         if (step.status === "running") {
-          return { ...step, status: "fail", detail: "Vom Nutzer abgebrochen" };
+          return {
+            ...step,
+            status: "fail",
+            detail: getAbortRunningStepDetail(step.id),
+          };
         }
         if (step.status === "pending") {
-          return { ...step, status: "skip", detail: "Abgebrochen vor Ausfuehrung" };
+          return { ...step, status: "skip", detail: "Lokal vor Ausfuehrung abgebrochen" };
         }
         return step;
       }),

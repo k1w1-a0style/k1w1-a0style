@@ -44,11 +44,13 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   const isAliveRef = useRef(true);
   const inFlightRef = useRef<Promise<PreviewResult | null> | null>(null);
+  const inFlightTokenRef = useRef(0);
   const activeProjectIdRef = useRef<string | null>(projectData?.id ?? null);
   const requestSerialRef = useRef(0);
 
   useEffect(() => {
     activeProjectIdRef.current = projectData?.id ?? null;
+    inFlightTokenRef.current += 1;
     inFlightRef.current = null;
     setIsCreating(false);
     setRemoteFailure(null);
@@ -230,8 +232,11 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
       }
     })();
 
+    const inFlightToken = inFlightTokenRef.current + 1;
+    inFlightTokenRef.current = inFlightToken;
     inFlightRef.current = run;
     return run.finally(() => {
+      if (inFlightTokenRef.current !== inFlightToken) return;
       inFlightRef.current = null;
     });
   }, [
