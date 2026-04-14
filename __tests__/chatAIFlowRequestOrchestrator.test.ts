@@ -148,6 +148,62 @@ describe("chatAIFlowRequestOrchestrator", () => {
     expect(result.finalRenames).toEqual([{ from: "src/old.ts", to: "src/new-name.ts" }]);
   });
 
+  it("accepts builder delete/rename-only responses without file list", async () => {
+    const result = await runBuilderWithRetry({
+      config: makeConfig(),
+      requestContent: "Bitte nur löschen/umbenennen",
+      currentMessages: [],
+      currentProjectFiles: [{ path: "src/old.ts", content: "old" }],
+      runOrchestratorWithTimeout: jest.fn().mockResolvedValue(
+        okResult({
+          text: JSON.stringify({
+            deletePaths: ["src/legacy.ts"],
+            renames: [{ from: "src/old.ts", to: "src/new.ts" }],
+          }),
+        }),
+      ),
+      computeRetryDelayMs: () => 1,
+      sleepWithAbort: jest.fn(async () => undefined),
+      sideEffects: {
+        announceContextBudgetNote: jest.fn(),
+        notifyKeyRotation: jest.fn(),
+        announceRuntimeNote: jest.fn(),
+      },
+    });
+
+    expect(result.normalizedFiles).toEqual([]);
+    expect(result.deletePaths).toEqual(["src/legacy.ts"]);
+    expect(result.renames).toEqual([{ from: "src/old.ts", to: "src/new.ts" }]);
+  });
+
+  it("accepts validator ops-only responses with empty files and keeps upstream files", async () => {
+    const result = await runValidatorIfEnabled({
+      config: makeConfig({ agentEnabled: true }),
+      requestContent: "Validator nur Ops",
+      normalizedFiles: [{ path: "src/base.ts", content: "base" }],
+      normalizedDeletePaths: [],
+      normalizedRenames: [],
+      currentProjectFiles: [{ path: "src/base.ts", content: "base" }],
+      runOrchestratorWithTimeout: jest.fn().mockResolvedValue(
+        okResult({
+          text: JSON.stringify({
+            deletePaths: ["src/remove.ts"],
+            renames: [{ from: "src/base.ts", to: "src/base2.ts" }],
+          }),
+        }),
+      ),
+      sideEffects: {
+        notifyKeyRotation: jest.fn(),
+        addValidatorWarning: jest.fn(),
+      },
+    });
+
+    expect(result.finalFileSource).toBe("validator");
+    expect(result.finalFiles).toEqual([{ path: "src/base.ts", content: "base" }]);
+    expect(result.finalDeletePaths).toEqual(["src/remove.ts"]);
+    expect(result.finalRenames).toEqual([{ from: "src/base.ts", to: "src/base2.ts" }]);
+  });
+
   it("throws BuilderNonOkError when builder remains non-ok after retries", async () => {
     const run = jest.fn().mockResolvedValue({ ok: false, error: "Rate limit" } as OrchestratorResult);
 

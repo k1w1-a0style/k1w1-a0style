@@ -45,7 +45,9 @@ export function rebasePendingChangeOnLatest(
   applyResult: ApplyFilesResult;
   driftDetected: boolean;
 } {
-  const incoming = pending.proposedFiles?.length ? pending.proposedFiles : pending.files;
+  const incoming = Array.isArray(pending.proposedFiles)
+    ? pending.proposedFiles
+    : pending.files;
   const applyResult = applyFileOpsToProject(latestFiles, incoming, {
     deletePaths: pending.proposedDeletePaths ?? [],
     renames: pending.proposedRenames ?? [],

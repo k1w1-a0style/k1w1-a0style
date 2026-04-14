@@ -235,8 +235,22 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
       : null;
   }
 
+  const deleteResult = normalizeDeleteList(parsed);
+  const renameResult = normalizeRenames(parsed);
+  const hasEffectiveOps =
+    deleteResult.paths.length > 0 || renameResult.renames.length > 0;
+
   const fileArray = extractFileArray(parsed);
   if (!fileArray || fileArray.length === 0) {
+    if (hasEffectiveOps) {
+      return {
+        files: [],
+        deletePaths: deleteResult.paths,
+        renames: renameResult.renames,
+        hasDeleteOpsField: deleteResult.present,
+        hasRenameOpsField: renameResult.present,
+      };
+    }
     return responseText && responseText.trim().length > 0
       ? { files: [], parseError: 'no_file_array_detected', responseText }
       : null;
@@ -262,13 +276,19 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
   }
 
   if (out.length === 0) {
+    if (hasEffectiveOps) {
+      return {
+        files: [],
+        deletePaths: deleteResult.paths,
+        renames: renameResult.renames,
+        hasDeleteOpsField: deleteResult.present,
+        hasRenameOpsField: renameResult.present,
+      };
+    }
     return responseText && responseText.trim().length > 0
       ? { files: [], parseError: 'no_valid_files_after_normalization', responseText }
       : null;
   }
-
-  const deleteResult = normalizeDeleteList(parsed);
-  const renameResult = normalizeRenames(parsed);
 
   return {
     files: out,

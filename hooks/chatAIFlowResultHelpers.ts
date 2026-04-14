@@ -36,6 +36,13 @@ export const readBuilderFilesOrThrow = (
     return normalizedResult.files;
   }
 
+  const hasOpsOnlyChange =
+    (normalizedResult.deletePaths?.length ?? 0) > 0 ||
+    (normalizedResult.renames?.length ?? 0) > 0;
+  if (hasOpsOnlyChange) {
+    return [];
+  }
+
   const rawText = normalizedResult.responseText || toTrimmedText(aiText);
   if (rawText.length > 0) {
     const preview = rawText.slice(0, 900);

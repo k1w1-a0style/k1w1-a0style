@@ -286,5 +286,37 @@ describe('normalizer', () => {
       expect(withExplicitEmptyOps?.hasDeleteOpsField).toBe(true);
       expect(withExplicitEmptyOps?.hasRenameOpsField).toBe(true);
     });
+
+    it('accepts delete-only payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        deletePaths: ['src/legacy.ts'],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.deletePaths).toEqual(['src/legacy.ts']);
+      expect(result?.parseError).toBeUndefined();
+    });
+
+    it('accepts rename-only payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        renames: [{ from: 'src/old.ts', to: 'src/new.ts' }],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.renames).toEqual([{ from: 'src/old.ts', to: 'src/new.ts' }]);
+      expect(result?.parseError).toBeUndefined();
+    });
+
+    it('accepts combined delete+rename payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        delete: ['src/a.ts'],
+        renames: [{ from: 'src/b.ts', to: 'src/c.ts' }],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.deletePaths).toEqual(['src/a.ts']);
+      expect(result?.renames).toEqual([{ from: 'src/b.ts', to: 'src/c.ts' }]);
+      expect(result?.parseError).toBeUndefined();
+    });
   });
 });

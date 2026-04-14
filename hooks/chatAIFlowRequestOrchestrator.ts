@@ -249,8 +249,12 @@ export const runValidatorIfEnabled = async ({
     if (agentRes?.ok) {
       const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
       const normalizedAgentResult = normalizeResultFiles(agentRaw);
-      if (normalizedAgentResult.files && normalizedAgentResult.files.length > 0) {
-        finalFiles = normalizedAgentResult.files;
+      const validatorProvidedFiles = Array.isArray(normalizedAgentResult.files);
+      const validatorProvidedOps =
+        (normalizedAgentResult.deletePaths?.length ?? 0) > 0 ||
+        (normalizedAgentResult.renames?.length ?? 0) > 0;
+      if (validatorProvidedFiles || validatorProvidedOps) {
+        finalFiles = validatorProvidedFiles ? (normalizedAgentResult.files ?? []) : normalizedFiles;
         finalDeletePaths = normalizedAgentResult.hasDeleteOpsField
           ? normalizedAgentResult.deletePaths
           : normalizedDeletePaths;
