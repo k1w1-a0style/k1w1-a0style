@@ -139,7 +139,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
   const reviewCards = useMemo<ReviewCard[]>(() => {
     if (!pendingChange) return [];
     const previewMap = new Map(previews.map((preview) => [preview.path, preview]));
-    return [
+    const changedCards = [
       ...pendingChange.created.map((path) => ({
         key: `new:${path}`,
         path,
@@ -152,11 +152,13 @@ const ConfirmChangesModal: React.FC<Props> = ({
         status: "updated" as const,
         preview: previewMap.get(path),
       })),
-      ...pendingChange.skipped.map((path) => ({
-        key: `skipped:${path}`,
-        path,
-        status: "skipped" as const,
-      })),
+    ];
+    const skippedCards = pendingChange.skipped.map((path) => ({
+      key: `skipped:${path}`,
+      path,
+      status: "skipped" as const,
+    }));
+    const structuralCards = [
       ...(pendingChange.deleted ?? []).map((path) => ({
         key: `deleted:${path}`,
         path,
@@ -168,7 +170,11 @@ const ConfirmChangesModal: React.FC<Props> = ({
         toPath: to,
         status: "renamed" as const,
       })),
-    ].slice(0, MAX_PREVIEW_ITEMS + pendingChange.skipped.length);
+    ];
+
+    // Delete/Rename must remain visible even when many create/update cards exist.
+    const changedBudget = Math.max(0, MAX_PREVIEW_ITEMS - structuralCards.length);
+    return [...changedCards.slice(0, changedBudget), ...structuralCards, ...skippedCards];
   }, [pendingChange, previews]);
   const hiddenPreviewCount = Math.max(
     0,

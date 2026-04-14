@@ -46,6 +46,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   );
 
   const actionInFlightRef = useRef(false);
+  const selectedFileRef = useRef(selectedFile);
+  selectedFileRef.current = selectedFile;
 
   const isSuccessResult = useCallback(
     (result: FileCommandResult | null | undefined): result is FileCommandResult =>
@@ -133,7 +135,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                           // Clean up editor state only when the folder deletion actually changed files.
                           if (
                             isSuccessResult(deleteResult) &&
-                            selectedFile?.path.startsWith(folderPrefix)
+                            selectedFileRef.current?.path.startsWith(folderPrefix)
                           ) {
                             setSelectedFile(null);
                             setEditingContent("");
@@ -158,7 +160,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       confirmLoseChanges(proceed);
     },
-    [confirmLoseChanges, deleteFile, deleteFiles, isSuccessResult, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
+    [confirmLoseChanges, deleteFile, deleteFiles, isSuccessResult, projectData?.files, selectionMode, setEditingContent, setSelectedFile],
   );
 
   const handleRenameFile = useCallback(
@@ -230,11 +232,11 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     const result = await deleteFile(targetPath);
     if (result.status !== "success") return;
 
-    if (selectedFile?.path === targetPath) {
+    if (selectedFileRef.current?.path === targetPath) {
       setSelectedFile(null);
       setEditingContent("");
     }
-  }, [actionTargetFile?.path, deleteFile, selectedFile?.path, setEditingContent, setSelectedFile]);
+  }, [actionTargetFile?.path, deleteFile, setEditingContent, setSelectedFile]);
 
   const handleDuplicateFile = useCallback(async () => {
     if (!actionTargetFile) return;

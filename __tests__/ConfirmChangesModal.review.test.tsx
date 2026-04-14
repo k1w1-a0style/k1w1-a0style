@@ -157,6 +157,35 @@ describe("ConfirmChangesModal review UX", () => {
     expect(getByText(/Gelöscht: 1 · Umbenannt: 1/)).toBeTruthy();
   });
 
+  it("keeps delete/rename cards visible even with many create/update/skipped entries", () => {
+    const created = Array.from({ length: 8 }, (_, index) => `src/new-${index}.ts`);
+    const updated = Array.from({ length: 8 }, (_, index) => `src/updated-${index}.ts`);
+    const skipped = Array.from({ length: 4 }, (_, index) => `src/skipped-${index}.ts`);
+    const pendingChange = buildPendingChange({
+      created,
+      updated,
+      skipped,
+      deleted: ["danger/remove-me.ts"],
+      renamed: [{ from: "src/legacy-name.ts", to: "src/final-name.ts" }],
+      changePreviews: [],
+    });
+
+    const { getByText, queryByText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+      />,
+    );
+
+    expect(getByText("danger/remove-me.ts")).toBeTruthy();
+    expect(getByText("src/legacy-name.ts")).toBeTruthy();
+    expect(getByText("Diese Datei wird umbenannt nach: src/final-name.ts")).toBeTruthy();
+    expect(getByText("src/skipped-0.ts")).toBeTruthy();
+    expect(queryByText("src/updated-7.ts")).toBeNull();
+  });
+
   it("hides guard section when only non-guard hints exist", () => {
     const pendingChange = buildPendingChange({
       errors: ["styles/theme.ts wurde bewusst nicht angefasst"],
