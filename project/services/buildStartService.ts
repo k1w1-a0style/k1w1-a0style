@@ -178,7 +178,7 @@ export async function startBuildJob(params: {
 
   if (!accessToken) {
     throw new Error(
-      "Build-Start blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+      "Build-Start blockiert: clientseitiger Precheck nicht erfüllt, weil lokal kein Supabase-Session-JWT vorliegt. Der Client liest JWT-Claims hier nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung.",
     );
   }
   // Client-side preflight only: decode-only role read from JWT payload.
