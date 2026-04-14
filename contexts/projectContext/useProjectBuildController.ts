@@ -27,6 +27,7 @@ import type { ProjectBuildControllerInput } from "./projectContext.contracts";
 export function useProjectBuildController({ projectData }: ProjectBuildControllerInput) {
   const [currentBuild, setCurrentBuild] = useState<CurrentBuildState | null>(null);
   const currentBuildRef = useRef<CurrentBuildState | null>(null);
+  const buildStartInFlightRef = useRef(false);
   currentBuildRef.current = currentBuild;
   const activeBuildSelectionRef = useRef<BuildSelectionSnapshot | null>(null);
 
@@ -94,10 +95,14 @@ export function useProjectBuildController({ projectData }: ProjectBuildControlle
 
   const startBuild = useCallback(
     async (buildProfile?: string) => {
+      if (buildStartInFlightRef.current) {
+        throw new Error("Build-Start bereits in Vorbereitung. Bitte kurz warten.");
+      }
+      buildStartInFlightRef.current = true;
       try {
         const activeStatus = currentBuildRef.current?.status;
-        if (activeStatus === "queued" || activeStatus === "building") {
-          throw new Error("Build bereits aktiv (queued/running). Neuer Start ist blockiert.");
+        if (activeStatus === "queued" || activeStatus === "building" || activeStatus === "idle") {
+          throw new Error("Build bereits aktiv (queued/running/starting). Neuer Start ist blockiert.");
         }
         // Invariant contract marker: "Kein GitHub-Repo verknüpft."
         const buildStartContext = resolveBuildStartContext({
@@ -171,6 +176,8 @@ export function useProjectBuildController({ projectData }: ProjectBuildControlle
           }),
         );
         throw e;
+      } finally {
+        buildStartInFlightRef.current = false;
       }
     },
     [projectData, runBuildHistoryBestEffort],

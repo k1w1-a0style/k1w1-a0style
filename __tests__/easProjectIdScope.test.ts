@@ -1,6 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { readScopedEasProjectId, persistScopedEasProjectId } from "../lib/easProjectIdScope";
+import {
+  easProjectIdKeyForRepo,
+  readScopedEasProjectId,
+  persistScopedEasProjectId,
+} from "../lib/easProjectIdScope";
 import { STORAGE_KEYS } from "../lib/storageKeys";
 
 describe("easProjectIdScope", () => {
@@ -29,5 +33,10 @@ describe("easProjectIdScope", () => {
   it("returns empty for missing repo context", async () => {
     await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, "legacy-only");
     await expect(readScopedEasProjectId(null)).resolves.toBe("");
+  });
+
+  it("does not build a key for missing repo context", () => {
+    expect(easProjectIdKeyForRepo(undefined)).toBe("");
+    expect(easProjectIdKeyForRepo("  ")).toBe("");
   });
 });

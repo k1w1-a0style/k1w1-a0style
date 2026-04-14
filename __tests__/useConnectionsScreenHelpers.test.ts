@@ -966,4 +966,24 @@ describe("useConnectionsScreenHelpers", () => {
     expect(snapshot.lights.repoSlug).toBe("owner/repo");
     expect(snapshot.lights.repoBranch).toBe("main");
   });
+
+  it("does not query legacy global EAS project-id when repo scope is missing", async () => {
+    const storage = {
+      getItem: jest.fn(async (_key: string) => null),
+    };
+
+    await loadHydrationSnapshot(
+      storage,
+      {
+        getGitHubToken: async () => "gh-token",
+        getExpoToken: async () => "expo-token",
+        getWorkflowAdminKey: async () => "workflow-admin",
+        getAndroidKeystoreExportAdminKey: async () => "keystore-admin",
+        getSupabaseAnonKey: async () => "anon-key",
+      },
+      null,
+    );
+
+    expect(storage.getItem).not.toHaveBeenCalledWith(STORAGE_KEYS.EAS_PROJECT_ID);
+  });
 });

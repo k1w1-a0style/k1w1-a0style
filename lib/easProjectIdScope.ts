@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from "./storageKeys";
 
 export function easProjectIdKeyForRepo(repoFullName?: string | null): string {
   const repo = String(repoFullName ?? "").trim().toLowerCase();
-  if (!repo) return STORAGE_KEYS.EAS_PROJECT_ID;
+  if (!repo) return "";
   return `${STORAGE_KEYS.EAS_PROJECT_ID}::${encodeURIComponent(repo)}`;
 }
 
@@ -23,6 +23,7 @@ export async function persistScopedEasProjectId(params: {
   const repo = String(params.repoFullName ?? "").trim();
   if (!repo) return;
   const scopedKey = easProjectIdKeyForRepo(repo);
+  if (!scopedKey) return;
   if (projectId) {
     await AsyncStorage.setItem(scopedKey, projectId);
     return;

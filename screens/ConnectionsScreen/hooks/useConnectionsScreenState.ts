@@ -115,6 +115,7 @@ export const loadHydrationSnapshot = async (
     readWithFallback({
       read: () => {
         const key = easProjectIdKeyForRepo(selectedRepo);
+        if (!key) return Promise.resolve("");
         return storage.getItem(key);
       },
       fallback: "",
