@@ -74,6 +74,7 @@ export function useChatAIFlow({
   >(null);
   const activeProjectIdRef = useRef<string | null>(projectId);
   const projectRequestVersionRef = useRef(0);
+  const activeRequestIdRef = useRef(0);
 
   if (activeProjectIdRef.current !== projectId) {
     activeProjectIdRef.current = projectId;
@@ -197,6 +198,7 @@ export function useChatAIFlow({
     drainAutoFixQueue,
     activeProjectIdRef,
     projectRequestVersionRef,
+    activeRequestIdRef,
   });
 
   processAIRequestRef.current = processAIRequest;
@@ -212,11 +214,13 @@ export function useChatAIFlow({
   useEffect(() => {
     if (lastProjectIdRef.current === projectId) return;
     lastProjectIdRef.current = projectId;
+    activeRequestIdRef.current += 1;
     resetTransientState();
   }, [projectId, resetTransientState]);
 
   const { applyChanges, rejectChanges } = useChatAIChangeLifecycle({
     pendingChange,
+    activeProjectId: projectId,
     safe,
     projectFilesRef,
     updateProjectFiles,
@@ -268,6 +272,17 @@ export function useChatAIFlow({
 
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
+        if (currentPlan.originProjectId !== undefined && currentPlan.originProjectId !== projectId) {
+          pendingPlanRef.current = null;
+          safe(() => setPendingPlan(null));
+          addChatMessage(
+            buildSystemMessage(
+              "⚠️ Ein alter Plan stammt aus einem anderen Projekt und wurde verworfen. Bitte Anfrage erneut senden.",
+              { stateDrift: true },
+            ),
+          );
+          return false;
+        }
         const handoff = resolvePendingPlanHandoff({
           currentPlan,
           sanitizedUserContent,

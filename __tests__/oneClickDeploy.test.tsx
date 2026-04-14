@@ -102,8 +102,12 @@ function Harness(props: {
       <TouchableOpacity testID="run" onPress={() => void hook.runDeploy()}>
         <Text>run</Text>
       </TouchableOpacity>
+      <TouchableOpacity testID="abort" onPress={hook.abort}>
+        <Text>abort</Text>
+      </TouchableOpacity>
       <Text testID="steps">{JSON.stringify(hook.steps)}</Text>
       <Text testID="done">{hook.deployDone ? "true" : "false"}</Text>
+      <Text testID="deploying">{hook.isDeploying ? "true" : "false"}</Text>
     </>
   );
 }
@@ -226,6 +230,73 @@ describe("useOneClickDeploy", () => {
     expect(build.status).toBe("pending");
     expect(startBuild).not.toHaveBeenCalled();
   }, 30000);
+
+  it("stale aborted run finalizer must not clobber a newer run", async () => {
+    mockGitHub.getGitHubToken.mockResolvedValue("gh");
+    mockGitHub.getExpoToken.mockResolvedValue("expo");
+    mockProjectData.files = [{ path: "App.tsx", content: "export default function App(){return null;}" }];
+
+    const firstBuild = (() => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((res) => {
+        resolve = res;
+      });
+      return { promise, resolve };
+    })();
+    const secondBuild = (() => {
+      let resolve!: () => void;
+      const promise = new Promise<void>((res) => {
+        resolve = res;
+      });
+      return { promise, resolve };
+    })();
+    const startBuild = jest
+      .fn<Promise<void>, [BuildProfile]>()
+      .mockImplementationOnce(async () => firstBuild.promise)
+      .mockImplementationOnce(async () => secondBuild.promise);
+
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+    await waitFor(() => {
+      expect(getByTestId("deploying").props.children).toBe("true");
+      const buildStep = findStep(getSteps(getByTestId), "build");
+      expect(buildStep.status).toBe("running");
+    });
+
+    await act(async () => {
+      fireEvent.press(getByTestId("abort"));
+      await Promise.resolve();
+    });
+    expect(getByTestId("deploying").props.children).toBe("false");
+
+    await pressRun(getByTestId);
+    await waitFor(() => {
+      expect(getByTestId("deploying").props.children).toBe("true");
+    });
+
+    await act(async () => {
+      firstBuild.resolve();
+      await Promise.resolve();
+    });
+    expect(getByTestId("deploying").props.children).toBe("true");
+
+    await act(async () => {
+      secondBuild.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => {
+      expect(getByTestId("deploying").props.children).toBe("false");
+      expect(getByTestId("done").props.children).toBe("true");
+    });
+  });
 
 
   it("blocks before build when diagnostic/ci-lite readiness is not green", async () => {

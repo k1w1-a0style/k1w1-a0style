@@ -126,7 +126,20 @@ export function usePreviewFullscreen() {
   const handleShare = useCallback(async () => {
     try {
       if (mode === 'url' && url) {
-        await Share.share({ message: `Schau dir diese Preview an: ${url}`, url, title });
+        Alert.alert(
+          'Secret-Link teilen?',
+          `Dieser Preview-Link enthaelt ein Zugriffstoken.\n\n${redactPreviewUrl(url)}\n\nNur ueber sichere Kanaele teilen.`,
+          [
+            { text: 'Abbrechen', style: 'cancel' },
+            {
+              text: 'Trotzdem teilen',
+              style: 'destructive',
+              onPress: () => {
+                void Share.share({ message: `Schau dir diese Preview an: ${url}`, url, title });
+              },
+            },
+          ],
+        );
       } else {
         await Share.share({ message: `Preview: ${title}`, title });
       }
@@ -137,17 +150,31 @@ export function usePreviewFullscreen() {
 
   const handleOpenExternal = useCallback(async () => {
     if (mode === 'url' && url) {
-      try {
-        const canOpen = await Linking.canOpenURL(url);
-        if (canOpen) {
-          await Linking.openURL(url);
-        } else {
-          Alert.alert('❌ Fehler', 'Diese URL kann nicht im Browser geöffnet werden.');
-        }
-      } catch (err) {
-        logger.error('PreviewFullscreen', 'External open failed', err);
-        Alert.alert('❌ Fehler', 'Browser konnte nicht geöffnet werden.');
-      }
+      Alert.alert(
+        'Secret-Link extern oeffnen?',
+        `Der Browser kann den Link in Verlauf/Referrer sichtbar machen.\n\n${redactPreviewUrl(url)}`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Im Browser oeffnen',
+            onPress: () => {
+              void (async () => {
+                try {
+                  const canOpen = await Linking.canOpenURL(url);
+                  if (canOpen) {
+                    await Linking.openURL(url);
+                  } else {
+                    Alert.alert('❌ Fehler', 'Diese URL kann nicht im Browser geöffnet werden.');
+                  }
+                } catch (err) {
+                  logger.error('PreviewFullscreen', 'External open failed', err);
+                  Alert.alert('❌ Fehler', 'Browser konnte nicht geöffnet werden.');
+                }
+              })();
+            },
+          },
+        ],
+      );
     } else {
       Alert.alert('ℹ️ Hinweis', 'Dieser lokale HTML-/Eval-Fallback kann nicht im externen Browser geöffnet werden.');
     }

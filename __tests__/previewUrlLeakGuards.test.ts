@@ -45,4 +45,11 @@ describe("preview URL leak guards", () => {
     expect(src).toContain("activeProjectIdRef.current === requestProjectId");
     expect(src).toContain("setLastPreview: scopedSetLastPreview");
   });
+
+  test("fullscreen preview requires explicit confirmation before sharing/opening secret links", () => {
+    const src = read("screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts");
+    expect(src).toContain("Secret-Link teilen?");
+    expect(src).toContain("Trotzdem teilen");
+    expect(src).toContain("Secret-Link extern oeffnen?");
+  });
 });

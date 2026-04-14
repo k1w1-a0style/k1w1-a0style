@@ -49,6 +49,9 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   useEffect(() => {
     activeProjectIdRef.current = projectData?.id ?? null;
+    inFlightRef.current = null;
+    setIsCreating(false);
+    setRemoteFailure(null);
   }, [projectData?.id]);
 
   const safeSetIsCreating = useCallback((v: boolean) => {

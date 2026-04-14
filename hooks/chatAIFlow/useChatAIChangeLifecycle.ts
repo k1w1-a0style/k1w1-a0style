@@ -13,6 +13,7 @@ import type { ProjectFile } from "../../shared/types/project";
 
 export type UseChatAIChangeLifecycleArgs = {
   pendingChange: PendingChange | null;
+  activeProjectId: string | null;
   safe: <T>(fn: () => T) => T | undefined;
   projectFilesRef: MutableRefObject<ProjectFile[]>;
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
@@ -24,6 +25,7 @@ export type UseChatAIChangeLifecycleArgs = {
 
 export const useChatAIChangeLifecycle = ({
   pendingChange,
+  activeProjectId,
   safe,
   projectFilesRef,
   updateProjectFiles,
@@ -34,6 +36,20 @@ export const useChatAIChangeLifecycle = ({
 }: UseChatAIChangeLifecycleArgs) => {
   const applyChanges = useCallback(async () => {
     if (!pendingChange) return;
+    if (
+      pendingChange.originProjectId !== undefined &&
+      pendingChange.originProjectId !== activeProjectId
+    ) {
+      safe(() => setShowConfirmModal(false));
+      safe(() => setPendingChange(null));
+      addChatMessage(
+        buildSystemMessage(
+          "⚠️ Dieser Aenderungsvorschlag gehoert zu einem anderen Projekt und wurde verworfen.",
+          { stateDrift: true },
+        ),
+      );
+      return;
+    }
 
     safe(() => setShowConfirmModal(false));
 
@@ -87,6 +103,7 @@ export const useChatAIChangeLifecycle = ({
     }
   }, [
     addChatMessage,
+    activeProjectId,
     hardScrollToBottom,
     pendingChange,
     projectFilesRef,

@@ -21,6 +21,8 @@ export const finalizeRequestCycle = ({
   inFlightRef,
   abortControllerRef,
   requestController,
+  requestId,
+  activeRequestIdRef,
   isMountedRef,
   drainAutoFixQueue,
 }: {
@@ -29,9 +31,13 @@ export const finalizeRequestCycle = ({
   inFlightRef: MutableRef<boolean>;
   abortControllerRef: MutableRef<AbortController | null>;
   requestController: AbortController;
+  requestId: number;
+  activeRequestIdRef: MutableRef<number>;
   isMountedRef: MutableRef<boolean>;
   drainAutoFixQueue: () => void;
 }): void => {
+  if (activeRequestIdRef.current !== requestId) return;
+
   safe(() => setIsAiLoading(false));
   inFlightRef.current = false;
   if (abortControllerRef.current === requestController) {

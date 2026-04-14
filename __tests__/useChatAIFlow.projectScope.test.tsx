@@ -1,4 +1,6 @@
 import { act, renderHook } from "@testing-library/react-native";
+import fs from "node:fs";
+import path from "node:path";
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
 import type { AIConfig } from "../contexts/AIContext/models";
 import type { ChatMessage } from "../shared/types/chat";
@@ -118,5 +120,72 @@ describe("useChatAIFlow project scoping", () => {
         content: expect.stringContaining("manuell abgebrochen"),
       }),
     );
+  });
+
+  test("old aborted request finalizer does not clear loading for a newer request", async () => {
+    const first = createDeferred<{ kind: "confirmation_required"; message: string }>();
+    const second = createDeferred<{ kind: "confirmation_required"; message: string }>();
+    mockExecuteChatRequestPipeline
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const setIsAiLoading = jest.fn();
+
+    const { result } = renderHook(() =>
+      useChatAIFlow({
+        config: makeConfig(),
+        projectId: "project-a",
+        messages: baseMessages,
+        projectFiles: baseFiles,
+        addChatMessage: jest.fn(),
+        updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+        autoFixRequest: null,
+        clearAutoFixRequest: jest.fn(),
+        hardScrollToBottom: jest.fn(),
+        setIsStreaming: jest.fn(),
+        setStreamingMessage: jest.fn(),
+        setIsAiLoading,
+        setError: jest.fn(),
+        setShowConfirmModal: jest.fn(),
+      }),
+    );
+
+    const firstRun = act(async () => {
+      await result.current.handleSendWithMeta("run 1");
+    });
+
+    act(() => {
+      result.current.abortCurrentRequest();
+    });
+
+    const secondRun = act(async () => {
+      await result.current.handleSendWithMeta("run 2");
+    });
+
+    await act(async () => {
+      first.resolve({ kind: "confirmation_required", message: "old" });
+      await Promise.resolve();
+    });
+
+    expect(setIsAiLoading).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      second.resolve({ kind: "confirmation_required", message: "new" });
+      await Promise.resolve();
+    });
+
+    await firstRun;
+    await secondRun;
+    expect(setIsAiLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  test("pending plan/apply paths keep originProjectId guards", () => {
+    const orchestratorSrc = fs.readFileSync(path.join(process.cwd(), "hooks/useChatAIFlow.ts"), "utf8");
+    const applySrc = fs.readFileSync(
+      path.join(process.cwd(), "hooks/chatAIFlow/useChatAIChangeLifecycle.ts"),
+      "utf8",
+    );
+    expect(orchestratorSrc).toContain("currentPlan.originProjectId !== undefined");
+    expect(applySrc).toContain("pendingChange.originProjectId !== undefined");
   });
 });

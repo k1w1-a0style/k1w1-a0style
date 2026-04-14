@@ -52,6 +52,7 @@ export type UseChatAIRequestControllerArgs = {
   drainAutoFixQueue: () => void;
   activeProjectIdRef: MutableRefObject<string | null>;
   projectRequestVersionRef: MutableRefObject<number>;
+  activeRequestIdRef: MutableRefObject<number>;
 };
 
 export const useChatAIRequestController = ({
@@ -77,6 +78,7 @@ export const useChatAIRequestController = ({
   drainAutoFixQueue,
   activeProjectIdRef,
   projectRequestVersionRef,
+  activeRequestIdRef,
 }: UseChatAIRequestControllerArgs) => {
   return useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
@@ -103,6 +105,8 @@ export const useChatAIRequestController = ({
       safe(() => setError(null));
 
       const controller = new AbortController();
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
       const requestProjectId = activeProjectIdRef.current;
       const requestVersion = projectRequestVersionRef.current;
       abortControllerRef.current?.abort();
@@ -149,8 +153,27 @@ export const useChatAIRequestController = ({
           projectRequestVersionRef.current === requestVersion;
         if (!projectScopeStillValid || controller.signal.aborted) return false;
 
+        const scopedPipelineResult =
+          pipelineResult.kind === "planner_preview"
+            ? {
+                ...pipelineResult,
+                pendingPlan: {
+                  ...pipelineResult.pendingPlan,
+                  originProjectId: requestProjectId,
+                },
+              }
+            : pipelineResult.kind === "change_proposal"
+              ? {
+                  ...pipelineResult,
+                  pendingChange: {
+                    ...pipelineResult.pendingChange,
+                    originProjectId: requestProjectId,
+                  },
+                }
+              : pipelineResult;
+
         handlePipelineResult({
-          pipelineResult,
+          pipelineResult: scopedPipelineResult,
           addChatMessage,
           pendingPlanRef,
           setPendingPlan,
@@ -178,6 +201,8 @@ export const useChatAIRequestController = ({
           inFlightRef,
           abortControllerRef,
           requestController: controller,
+          requestId,
+          activeRequestIdRef,
           isMountedRef,
           drainAutoFixQueue,
         });
@@ -186,6 +211,7 @@ export const useChatAIRequestController = ({
     [
       abortControllerRef,
       activeProjectIdRef,
+      activeRequestIdRef,
       addChatMessage,
       announceContextBudgetNote,
       announceRuntimeNote,

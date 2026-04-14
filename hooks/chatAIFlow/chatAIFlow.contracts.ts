@@ -23,6 +23,7 @@ export type PendingChangeValidatorState =
   | "builder-fallback-exception";
 
 export type PendingChange = {
+  originProjectId?: string | null;
   files: ProjectFile[];
   proposedFiles?: ProjectFile[];
   baseProjectDigest?: string;
@@ -40,6 +41,7 @@ export type PendingChange = {
 };
 
 export type PendingPlan = {
+  originProjectId?: string | null;
   originalRequest: string;
   planText: string;
   mode: "advice" | "build" | "scout";
