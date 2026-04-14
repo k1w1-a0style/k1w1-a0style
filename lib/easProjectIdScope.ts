@@ -9,11 +9,10 @@ export function easProjectIdKeyForRepo(repoFullName?: string | null): string {
 }
 
 export async function readScopedEasProjectId(repoFullName?: string | null): Promise<string> {
-  const scoped = await AsyncStorage.getItem(easProjectIdKeyForRepo(repoFullName));
-  const scopedTrimmed = String(scoped ?? "").trim();
-  if (scopedTrimmed) return scopedTrimmed;
-  const legacy = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID);
-  return String(legacy ?? "").trim();
+  const repo = String(repoFullName ?? "").trim();
+  if (!repo) return "";
+  const scoped = await AsyncStorage.getItem(easProjectIdKeyForRepo(repo));
+  return String(scoped ?? "").trim();
 }
 
 export async function persistScopedEasProjectId(params: {
@@ -21,14 +20,12 @@ export async function persistScopedEasProjectId(params: {
   repoFullName?: string | null;
 }): Promise<void> {
   const projectId = String(params.projectId ?? "").trim();
-  const scopedKey = easProjectIdKeyForRepo(params.repoFullName);
+  const repo = String(params.repoFullName ?? "").trim();
+  if (!repo) return;
+  const scopedKey = easProjectIdKeyForRepo(repo);
   if (projectId) {
     await AsyncStorage.setItem(scopedKey, projectId);
-    await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId);
     return;
   }
   await AsyncStorage.removeItem(scopedKey);
-  if (scopedKey === STORAGE_KEYS.EAS_PROJECT_ID) {
-    await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
-  }
 }

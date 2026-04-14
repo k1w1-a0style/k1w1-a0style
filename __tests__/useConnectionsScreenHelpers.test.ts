@@ -928,7 +928,7 @@ describe("useConnectionsScreenHelpers", () => {
     const values = new Map<string, string | null>([
       [STORAGE_KEYS.SUPABASE_RAW, "https://abc.supabase.co:::legacy"],
       [STORAGE_KEYS.SUPABASE_URL, "https://abc.supabase.co"],
-      [STORAGE_KEYS.EAS_PROJECT_ID, "550e8400-e29b-41d4-a716-446655440000"],
+      [`${STORAGE_KEYS.EAS_PROJECT_ID}::owner%2Frepo`, "550e8400-e29b-41d4-a716-446655440000"],
       [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
       [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
       [STORAGE_KEYS.CONN_GITHUB_SCOPES, "repo"],
@@ -953,7 +953,7 @@ describe("useConnectionsScreenHelpers", () => {
       getWorkflowAdminKey: async () => "workflow-admin",
       getAndroidKeystoreExportAdminKey: async () => "keystore-admin",
       getSupabaseAnonKey: async () => "anon-key",
-    });
+    }, "owner/repo");
 
     expect(snapshot.githubToken).toBe("gh-token");
     expect(snapshot.expoToken).toBe("expo-token");

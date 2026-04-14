@@ -1,7 +1,6 @@
 import { useCallback, useState, type MutableRefObject } from "react";
 import { Alert } from "react-native";
 
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import {
   deleteLegacyEdgeAdminKey,
@@ -62,7 +61,7 @@ export function useConnectionsEasLink(params: Params) {
     async (projectId: string) => {
       await runCleanupTask(
         () => persistSelectedEasProjectId(projectId, effectiveRepo),
-        `[ConnectionsScreen] persist/remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
+        `[ConnectionsScreen] persist/remove repo-scoped EAS project id failed`,
       );
     },
     [persistSelectedEasProjectId, effectiveRepo],

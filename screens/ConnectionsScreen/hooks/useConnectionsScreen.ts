@@ -38,6 +38,7 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
   const persistSelectedEasProjectId = useConnectionsEasProjectIdPersistence();
 
   const { hydrated, didAutoTestEas } = useConnectionsHydration({
+    selectedRepo: effectiveRepo,
     expoToken: secrets.expoToken,
     setGithubToken: secrets.setGithubToken,
     setExpoToken: secrets.setExpoToken,
