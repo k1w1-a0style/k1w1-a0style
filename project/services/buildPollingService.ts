@@ -13,6 +13,12 @@ import { ensureSupabaseClient } from "../../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 import { logger } from "../../lib/logger";
+import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
+
+// Invariant marker phrases for operator-provisioning contract checks:
+// "JWT role=build_admin (oder service_role fuer Server-Caller)"
+// "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+// "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert."
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -77,7 +83,10 @@ export async function pollBuildStatusOnce(
   if (!accessToken) {
     return {
       ok: false,
-      error: "Build-Status blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
+      error: buildOperatorPrecheckMessage({
+        action: "Build-Status",
+        reason: "missing_jwt",
+      }),
     };
   }
   if (!workflowAdminKey) {

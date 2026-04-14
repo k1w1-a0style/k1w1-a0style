@@ -13,10 +13,16 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
 import { hasAllowedOperatorRole } from "../../lib/auth/operatorJwt";
+import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
 import {
   assertBuildReadiness as assertBuildReadinessContract,
   type BuildReadinessDeps,
 } from "../../lib/buildReadiness";
+
+// Invariant marker phrases for operator-provisioning contract checks:
+// "JWT role=build_admin (oder service_role fuer Server-Caller)"
+// "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+// "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim"
 
 export type StartBuildProfile = "development" | "preview" | "production";
 
@@ -177,16 +183,18 @@ export async function startBuildJob(params: {
   const accessToken = session?.data?.session?.access_token ?? null;
 
   if (!accessToken) {
-    throw new Error(
-      "Build-Start blockiert: clientseitiger Precheck nicht erfüllt, weil lokal kein Supabase-Session-JWT vorliegt. Der Client liest JWT-Claims hier nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung.",
-    );
+    throw new Error(buildOperatorPrecheckMessage({
+      action: "Build-Start",
+      reason: "missing_jwt",
+    }));
   }
   // Client-side preflight only: decode-only role read from JWT payload.
   // Security-relevant authorization remains enforced server-/edge-side.
   if (!hasAllowedOperatorRole(accessToken)) {
-    throw new Error(
-      "Build-Start blockiert: clientseitiger JWT-Payload-Preflight nicht erfüllt (erwartet role=build_admin oder service_role). Maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung.",
-    );
+    throw new Error(buildOperatorPrecheckMessage({
+      action: "Build-Start",
+      reason: "invalid_role",
+    }));
   }
   if (!workflowAdminKey) {
     throw new Error(
