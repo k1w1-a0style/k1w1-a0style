@@ -173,29 +173,36 @@ export type NormalizeAiResponseResult = {
   files: Array<{ path: string; content: string }>;
   deletePaths?: string[];
   renames?: Array<{ from: string; to: string }>;
+  hasDeleteOpsField?: boolean;
+  hasRenameOpsField?: boolean;
   parseError?: string;
   responseText?: string;
 };
 
-function normalizeDeleteList(parsed: unknown): string[] {
+function normalizeDeleteList(parsed: unknown): { paths: string[]; present: boolean } {
   const obj = asRecord(parsed);
-  if (!obj) return [];
+  if (!obj) return { paths: [], present: false };
   const candidate = obj.delete ?? obj.deletes ?? obj.remove ?? obj.removed ?? obj.deletePaths;
-  if (!Array.isArray(candidate)) return [];
-  return Array.from(
+  if (typeof candidate === "undefined") return { paths: [], present: false };
+  if (!Array.isArray(candidate)) return { paths: [], present: true };
+  return {
+    present: true,
+    paths: Array.from(
     new Set(
       candidate
         .map((entry) => normalizePath(String(entry ?? "").trim()))
         .filter((entry): entry is string => Boolean(entry)),
     ),
-  );
+    ),
+  };
 }
 
-function normalizeRenames(parsed: unknown): Array<{ from: string; to: string }> {
+function normalizeRenames(parsed: unknown): { renames: Array<{ from: string; to: string }>; present: boolean } {
   const obj = asRecord(parsed);
-  if (!obj) return [];
+  if (!obj) return { renames: [], present: false };
   const candidate = obj.rename ?? obj.renames;
-  if (!Array.isArray(candidate)) return [];
+  if (typeof candidate === "undefined") return { renames: [], present: false };
+  if (!Array.isArray(candidate)) return { renames: [], present: true };
 
   const out: Array<{ from: string; to: string }> = [];
   for (const entry of candidate) {
@@ -205,7 +212,7 @@ function normalizeRenames(parsed: unknown): Array<{ from: string; to: string }> 
     if (!from || !to || from === to) continue;
     out.push({ from, to });
   }
-  return out;
+  return { renames: out, present: true };
 }
 
 // ---- Hauptfunktion ----
@@ -260,10 +267,15 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
       : null;
   }
 
+  const deleteResult = normalizeDeleteList(parsed);
+  const renameResult = normalizeRenames(parsed);
+
   return {
     files: out,
-    deletePaths: normalizeDeleteList(parsed),
-    renames: normalizeRenames(parsed),
+    deletePaths: deleteResult.paths,
+    renames: renameResult.renames,
+    hasDeleteOpsField: deleteResult.present,
+    hasRenameOpsField: renameResult.present,
   };
 }
 

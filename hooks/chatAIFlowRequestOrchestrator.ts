@@ -251,8 +251,12 @@ export const runValidatorIfEnabled = async ({
       const normalizedAgentResult = normalizeResultFiles(agentRaw);
       if (normalizedAgentResult.files && normalizedAgentResult.files.length > 0) {
         finalFiles = normalizedAgentResult.files;
-        finalDeletePaths = normalizedAgentResult.deletePaths;
-        finalRenames = normalizedAgentResult.renames;
+        finalDeletePaths = normalizedAgentResult.hasDeleteOpsField
+          ? normalizedAgentResult.deletePaths
+          : normalizedDeletePaths;
+        finalRenames = normalizedAgentResult.hasRenameOpsField
+          ? normalizedAgentResult.renames
+          : normalizedRenames;
         agentMeta = agentRes;
         finalFileSource = "validator";
         validatorState = "validated";

@@ -6,6 +6,8 @@ type NormalizedAiResult = {
   files: NormalizedAiFiles | null;
   deletePaths: string[];
   renames: Array<{ from: string; to: string }>;
+  hasDeleteOpsField: boolean;
+  hasRenameOpsField: boolean;
   parseError: string;
   responseText: string;
 };
@@ -19,6 +21,8 @@ export const normalizeResultFiles = (raw: unknown): NormalizedAiResult => {
     files: normalizedResult?.files?.length ? normalizedResult.files : null,
     deletePaths: normalizedResult?.deletePaths ?? [],
     renames: normalizedResult?.renames ?? [],
+    hasDeleteOpsField: Boolean(normalizedResult?.hasDeleteOpsField),
+    hasRenameOpsField: Boolean(normalizedResult?.hasRenameOpsField),
     parseError: toTrimmedText(normalizedResult?.parseError),
     responseText: toTrimmedText(normalizedResult?.responseText),
   };

@@ -138,6 +138,8 @@ export function applyFileOpsToProject(
   incoming: ProjectFile[],
   ops?: FileMutationOps,
 ): ApplyFilesResult {
+  const skipped: string[] = [];
+  const errors: string[] = [];
   const normalizedDeletes = Array.from(
     new Set(
       (ops?.deletePaths ?? [])
@@ -163,27 +165,80 @@ export function applyFileOpsToProject(
     working.set(path, { path, content: String(file.content ?? "") });
   }
 
+  const canApplyPathOp = (
+    path: string,
+    opLabel: "delete" | "rename-source" | "rename-target",
+  ): boolean => {
+    const validation = validateFilePath(path);
+    if (!validation.valid || !validation.normalized) {
+      skipped.push(path);
+      errors.push(`Ungültiger Pfad für ${opLabel}: ${path}`);
+      return false;
+    }
+
+    const normalized = validation.normalized;
+    const ownership = canActorModifyPath("chat", normalized);
+    if (!ownership.allowed) {
+      skipped.push(normalized);
+      errors.push(ownership.reason ?? `Ownership block (${opLabel}): ${normalized}`);
+      return false;
+    }
+
+    if (PROTECTED_FROM_OVERWRITE.has(normalized)) {
+      skipped.push(normalized);
+      errors.push(`Geschützter Pfad darf nicht per ${opLabel} geändert werden: ${normalized}`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const deleted: string[] = [];
   for (const path of normalizedDeletes) {
+    if (!working.has(path)) {
+      skipped.push(path);
+      continue;
+    }
+    if (!canApplyPathOp(path, "delete")) continue;
     working.delete(path);
+    deleted.push(path);
   }
 
+  const renamed: Array<{ from: string; to: string }> = [];
   for (const rename of normalizedRenames) {
-    const source = working.get(rename.from);
-    working.delete(rename.from);
-    if (!source) continue;
-    if (!working.has(rename.to)) {
-      working.set(rename.to, { path: rename.to, content: source.content });
+    if (!working.has(rename.from)) {
+      skipped.push(rename.from);
+      continue;
     }
+    if (!canApplyPathOp(rename.from, "rename-source")) continue;
+    if (!canApplyPathOp(rename.to, "rename-target")) continue;
+    if (working.has(rename.to)) {
+      skipped.push(`${rename.from} -> ${rename.to}`);
+      errors.push(`Rename-Konflikt: Zielpfad existiert bereits (${rename.to}); Quelle bleibt erhalten.`);
+      continue;
+    }
+
+    const source = working.get(rename.from);
+    if (!source) {
+      skipped.push(rename.from);
+      continue;
+    }
+
+    // Move only after all validations passed; prevents source data loss on conflict.
+    working.set(rename.to, { path: rename.to, content: source.content });
+    working.delete(rename.from);
+    renamed.push({ from: rename.from, to: rename.to });
   }
 
   const merged = applyFilesToProject(Array.from(working.values()), incoming);
-  const mergedPaths = new Set(merged.files.map((f) => normalizePath(String(f.path ?? ""))));
-  const deleted = normalizedDeletes.filter((path) => !mergedPaths.has(path));
-  const renamed = normalizedRenames.filter((entry) => !mergedPaths.has(entry.from) && mergedPaths.has(entry.to));
 
   return {
     ...merged,
-    deleted,
-    renamed,
+    skipped: [...merged.skipped, ...skipped],
+    deleted: [...(merged.deleted ?? []), ...deleted],
+    renamed: [...(merged.renamed ?? []), ...renamed],
+    errors: [...(merged.errors ?? []), ...errors].length
+      ? [...(merged.errors ?? []), ...errors]
+      : undefined,
   };
 }

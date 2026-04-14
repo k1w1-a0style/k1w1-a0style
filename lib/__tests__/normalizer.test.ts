@@ -267,6 +267,24 @@ describe('normalizer', () => {
       expect(result?.files).toHaveLength(1);
       expect(result?.deletePaths).toEqual(['src/legacy.ts']);
       expect(result?.renames).toEqual([{ from: 'src/old-name.ts', to: 'src/new-name.ts' }]);
+      expect(result?.hasDeleteOpsField).toBe(true);
+      expect(result?.hasRenameOpsField).toBe(true);
+    });
+
+    it('tracks op-field presence separately from empty operation arrays', () => {
+      const withoutOps = normalizeAiResponseDetailed({
+        files: [{ path: 'src/a.ts', content: 'export const a = 1;' }],
+      });
+      const withExplicitEmptyOps = normalizeAiResponseDetailed({
+        files: [{ path: 'src/a.ts', content: 'export const a = 1;' }],
+        delete: [],
+        renames: [],
+      });
+
+      expect(withoutOps?.hasDeleteOpsField).toBe(false);
+      expect(withoutOps?.hasRenameOpsField).toBe(false);
+      expect(withExplicitEmptyOps?.hasDeleteOpsField).toBe(true);
+      expect(withExplicitEmptyOps?.hasRenameOpsField).toBe(true);
     });
   });
 });
