@@ -181,9 +181,11 @@ export async function startBuildJob(params: {
       "Build-Start blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.",
     );
   }
+  // Client-side preflight only: decode-only role read from JWT payload.
+  // Security-relevant authorization remains enforced server-/edge-side.
   if (!hasAllowedOperatorRole(accessToken)) {
     throw new Error(
-      "Build-Start blockiert: JWT-Rolle ungueltig. Erforderlich ist role=build_admin (oder service_role fuer Server-Caller).",
+      "Build-Start blockiert: clientseitiger JWT-Payload-Preflight nicht erfüllt (erwartet role=build_admin oder service_role). Maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung.",
     );
   }
   if (!workflowAdminKey) {

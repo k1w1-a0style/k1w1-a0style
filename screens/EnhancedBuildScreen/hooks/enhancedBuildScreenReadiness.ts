@@ -53,10 +53,10 @@ export function resolveBuildBlockedAction(params: {
   }
   if (!hasWorkflowAdminKey || !hasOperatorJwt) {
     return {
-      title: "Operator-Auth fehlt",
+      title: "Clientseitiger Operator-Precheck fehlt",
       detail:
         buildBlockedReason ||
-        "Workflow-Admin-Key und Supabase Operator-JWT (build_admin/service_role) sind Pflicht.",
+        "Workflow-Admin-Key und Supabase Operator-JWT-Precheck (build_admin/service_role) fehlen. Clientseitig wird nur JWT-Payload gelesen (ohne Signaturprüfung); maßgeblich bleibt die server-/edge-seitige Autorisierung.",
       ctaLabel: "Verbindungen öffnen",
       screen: "Connections",
     };
@@ -168,11 +168,11 @@ export function createChecklistItems(params: {
     },
     {
       id: "operator_jwt",
-      label: "Operator JWT vorhanden",
+      label: "Operator-JWT-Precheck (clientseitig)",
       status: hasOperatorJwt ? "ok" : "fail",
       detail: hasOperatorJwt
-        ? "Supabase Operator-Login aktiv"
-        : (operatorJwtReason || "Supabase Login mit build_admin/service_role erforderlich"),
+        ? "Clientseitiger JWT-Payload-Precheck erfüllt (decode-only, ohne Signaturprüfung); server-/edge-seitige Prüfung bleibt maßgeblich"
+        : (operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich"),
     },
     {
       id: "diagnostic",
