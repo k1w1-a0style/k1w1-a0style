@@ -5,6 +5,7 @@ import {
   resolvePersistedEasState,
   type PersistableEntry,
 } from "./useConnectionsScreenHelpers";
+import { easProjectIdKeyForRepo } from "../../../lib/easProjectIdScope";
 
 export type HydrationLightsInput = {
   ghOk: string | null;
@@ -78,6 +79,7 @@ const readWithFallback = async <T>(params: {
 export const loadHydrationSnapshot = async (
   storage: HydrationStorage,
   loaders: HydrationLoaders,
+  selectedRepo?: string | null,
 ): Promise<HydrationSnapshot> => {
   const [gh, ex, workflowKey, keystoreKey] = await Promise.all([
     readWithFallback({ read: () => loaders.getGitHubToken(), fallback: "", context: "github-token" }),
@@ -111,7 +113,11 @@ export const loadHydrationSnapshot = async (
       context: "supabase-anon-key",
     }),
     readWithFallback({
-      read: () => storage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
+      read: () => {
+        const key = easProjectIdKeyForRepo(selectedRepo);
+        if (!key) return Promise.resolve("");
+        return storage.getItem(key);
+      },
       fallback: "",
       context: STORAGE_KEYS.EAS_PROJECT_ID,
     }),

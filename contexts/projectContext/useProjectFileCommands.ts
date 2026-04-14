@@ -9,6 +9,16 @@ import { applyProjectFileUpdates, mergeProjectFiles } from "../../project/domain
 import { normalizeProjectSlug, removeProjectFilesByPaths } from "../projectContextHelpers";
 import { resolveLinkedBranchForRepoSelection } from "../projectContextStateHelpers";
 import type { ProjectFileCommandsInput } from "./projectContext.contracts";
+import type { FileCommandResult } from "./projectContext.contracts";
+
+const fileCommandResult = (
+  status: FileCommandResult["status"],
+  reason?: string,
+): FileCommandResult => ({
+  status,
+  changed: status === "success",
+  reason,
+});
 
 export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInput) {
   const updateProjectFiles = useCallback(
@@ -45,7 +55,7 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
       const pathValidation = validateFilePath(path);
       if (!pathValidation.valid) {
         Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
+        return fileCommandResult("rejected", "invalid_path");
       }
 
       const contentValidation = validateFileContent(content);
@@ -54,11 +64,12 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
           "Ungültiger Dateiinhalt",
           contentValidation.error || "Datei ist zu groß",
         );
-        return;
+        return fileCommandResult("rejected", "invalid_content");
       }
 
       const validPath = pathValidation.normalized || path;
 
+      let changed = false;
       await updateProject((prev) => {
         if (prev.files.some((f) => f.path === validPath)) {
           Alert.alert(
@@ -67,47 +78,78 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
           );
           return prev;
         }
+        changed = true;
         return {
           ...prev,
           files: [...prev.files, { path: validPath, content }],
         };
       });
+      return changed
+        ? fileCommandResult("success")
+        : fileCommandResult("noop", "path_exists");
     },
     [updateProject],
   );
 
   const deleteFile = useCallback(
     async (path: string) => {
+      const normalizedPath = String(path ?? "").trim();
+      if (!normalizedPath) return fileCommandResult("rejected", "empty_path");
+      let changed = false;
       await updateProject((prev) => ({
         ...prev,
-        files: removeProjectFilesByPaths(prev.files, [path]),
+        files: (() => {
+          const next = removeProjectFilesByPaths(prev.files, [normalizedPath]);
+          changed = next.length !== prev.files.length;
+          return next;
+        })(),
       }));
+      return changed
+        ? fileCommandResult("success")
+        : fileCommandResult("noop", "not_found");
     },
     [updateProject],
   );
 
   const deleteFiles = useCallback(
     async (paths: string[]) => {
-      if (!paths.some((path) => typeof path === "string" && path.length > 0)) return;
+      const normalizedPaths = paths
+        .map((path) => String(path ?? "").trim())
+        .filter((path) => path.length > 0);
+      if (!normalizedPaths.length) return fileCommandResult("rejected", "empty_paths");
 
+      let changed = false;
       await updateProject((prev) => ({
         ...prev,
-        files: removeProjectFilesByPaths(prev.files, paths),
+        files: (() => {
+          const next = removeProjectFilesByPaths(prev.files, normalizedPaths);
+          changed = next.length !== prev.files.length;
+          return next;
+        })(),
       }));
+      return changed
+        ? fileCommandResult("success")
+        : fileCommandResult("noop", "not_found");
     },
     [updateProject],
   );
 
   const renameFile = useCallback(
     async (oldPath: string, newPath: string) => {
+      const normalizedOldPath = String(oldPath ?? "").trim();
+      if (!normalizedOldPath) {
+        Alert.alert("Ungültiger Dateipfad", "Der aktuelle Dateipfad ist leer.");
+        return fileCommandResult("rejected", "empty_old_path");
+      }
       const pathValidation = validateFilePath(newPath);
       if (!pathValidation.valid) {
         Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
+        return fileCommandResult("rejected", "invalid_path");
       }
 
       const validNewPath = pathValidation.normalized || newPath;
 
+      let changed = false;
       await updateProject((prev) => {
         if (prev.files.some((f) => f.path === validNewPath)) {
           Alert.alert(
@@ -116,13 +158,24 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
           );
           return prev;
         }
+        if (!prev.files.some((f) => f.path === normalizedOldPath)) {
+          Alert.alert(
+            "Fehler",
+            "Die Quelldatei wurde nicht gefunden.",
+          );
+          return prev;
+        }
+        changed = true;
         return {
           ...prev,
           files: prev.files.map((f) =>
-            f.path === oldPath ? { ...f, path: validNewPath } : f,
+            f.path === normalizedOldPath ? { ...f, path: validNewPath } : f,
           ),
         };
       });
+      return changed
+        ? fileCommandResult("success")
+        : fileCommandResult("noop", "missing_source_or_conflict");
     },
     [updateProject],
   );

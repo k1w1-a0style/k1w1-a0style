@@ -9,6 +9,9 @@ describe("Build traceability transparency invariants", () => {
   it("stores repo/branch/profile into currentBuild and history from startBuild", () => {
     const src = read("contexts/projectContext/useProjectBuildController.ts");
 
+    expect(src).toContain("const buildStartInFlightRef = useRef(false);");
+    expect(src).toContain("if (buildStartInFlightRef.current)");
+    expect(src).toContain("activeStatus === \"idle\"");
     expect(src).toContain("const buildBranch = (pd.linkedBranch ?? \"\").trim();");
     expect(src).toContain("branch: branchResolved");
     expect(src).toContain("const nextHistoryUpdate = resolveBuildHistoryPollUpdate");

@@ -199,7 +199,13 @@ export const executeChatRequestPipeline = async ({
   });
 
   let explainText = "";
-  if (!isAutoFix && mergeResult.created.length + mergeResult.updated.length > 0) {
+  const hasMaterializedChanges =
+    mergeResult.created.length +
+      mergeResult.updated.length +
+      (mergeResult.deleted?.length ?? 0) +
+      (mergeResult.renamed?.length ?? 0) >
+    0;
+  if (!isAutoFix && hasMaterializedChanges) {
     try {
       explainText = await runExplainStage({
         config,
@@ -208,6 +214,8 @@ export const executeChatRequestPipeline = async ({
         mergedFiles: mergeResult.files,
         created: mergeResult.created,
         updated: mergeResult.updated,
+        deleted: mergeResult.deleted ?? [],
+        renamed: mergeResult.renamed ?? [],
         signal,
         runOrchestratorWithTimeout,
         notifyKeyRotation: sideEffects.notifyKeyRotation,

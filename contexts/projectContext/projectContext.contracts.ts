@@ -51,12 +51,20 @@ export type ProjectBuildState = {
   startBuild: (buildProfile?: string) => Promise<void>;
 };
 
+export type FileCommandResultStatus = "success" | "noop" | "rejected" | "error";
+
+export type FileCommandResult = {
+  status: FileCommandResultStatus;
+  changed: boolean;
+  reason?: string;
+};
+
 export type ProjectFileCommandsState = {
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  createFile: (path: string, content: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
-  deleteFiles: (paths: string[]) => Promise<void>;
-  renameFile: (oldPath: string, newPath: string) => Promise<void>;
+  createFile: (path: string, content: string) => Promise<FileCommandResult>;
+  deleteFile: (path: string) => Promise<FileCommandResult>;
+  deleteFiles: (paths: string[]) => Promise<FileCommandResult>;
+  renameFile: (oldPath: string, newPath: string) => Promise<FileCommandResult>;
   setProjectName: (name: string) => Promise<void>;
   setPackageName: (name: string) => Promise<void>;
   setTemplateId: (templateId: TemplateId) => Promise<void>;

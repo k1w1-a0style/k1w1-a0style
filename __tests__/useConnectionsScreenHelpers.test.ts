@@ -928,7 +928,7 @@ describe("useConnectionsScreenHelpers", () => {
     const values = new Map<string, string | null>([
       [STORAGE_KEYS.SUPABASE_RAW, "https://abc.supabase.co:::legacy"],
       [STORAGE_KEYS.SUPABASE_URL, "https://abc.supabase.co"],
-      [STORAGE_KEYS.EAS_PROJECT_ID, "550e8400-e29b-41d4-a716-446655440000"],
+      [`${STORAGE_KEYS.EAS_PROJECT_ID}::owner%2Frepo`, "550e8400-e29b-41d4-a716-446655440000"],
       [STORAGE_KEYS.CONN_GITHUB_OK, "true"],
       [STORAGE_KEYS.CONN_GITHUB_USER, "octocat"],
       [STORAGE_KEYS.CONN_GITHUB_SCOPES, "repo"],
@@ -953,7 +953,7 @@ describe("useConnectionsScreenHelpers", () => {
       getWorkflowAdminKey: async () => "workflow-admin",
       getAndroidKeystoreExportAdminKey: async () => "keystore-admin",
       getSupabaseAnonKey: async () => "anon-key",
-    });
+    }, "owner/repo");
 
     expect(snapshot.githubToken).toBe("gh-token");
     expect(snapshot.expoToken).toBe("expo-token");
@@ -965,5 +965,49 @@ describe("useConnectionsScreenHelpers", () => {
     expect(snapshot.easProjectId).toBe("550e8400-e29b-41d4-a716-446655440000");
     expect(snapshot.lights.repoSlug).toBe("owner/repo");
     expect(snapshot.lights.repoBranch).toBe("main");
+  });
+
+  it("does not query legacy global EAS project-id when repo scope is missing", async () => {
+    const storage = {
+      getItem: jest.fn(async (_key: string) => null),
+    };
+
+    await loadHydrationSnapshot(
+      storage,
+      {
+        getGitHubToken: async () => "gh-token",
+        getExpoToken: async () => "expo-token",
+        getWorkflowAdminKey: async () => "workflow-admin",
+        getAndroidKeystoreExportAdminKey: async () => "keystore-admin",
+        getSupabaseAnonKey: async () => "anon-key",
+      },
+      null,
+    );
+
+    expect(storage.getItem).not.toHaveBeenCalledWith(STORAGE_KEYS.EAS_PROJECT_ID);
+  });
+
+  it("keeps hydration neutral for invalid repo scope and avoids EAS project-id reads", async () => {
+    const storage = {
+      getItem: jest.fn(async (_key: string) => null),
+    };
+
+    const snapshot = await loadHydrationSnapshot(
+      storage,
+      {
+        getGitHubToken: async () => "",
+        getExpoToken: async () => "",
+        getWorkflowAdminKey: async () => "",
+        getAndroidKeystoreExportAdminKey: async () => "",
+        getSupabaseAnonKey: async () => "",
+      },
+      "owner/repo/invalid",
+    );
+
+    expect(snapshot.easProjectId).toBe("");
+    expect(storage.getItem).not.toHaveBeenCalledWith(
+      `${STORAGE_KEYS.EAS_PROJECT_ID}::owner%2Frepo%2Finvalid`,
+    );
+    expect(storage.getItem).not.toHaveBeenCalledWith(STORAGE_KEYS.EAS_PROJECT_ID);
   });
 });

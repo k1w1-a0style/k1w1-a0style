@@ -159,7 +159,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
         return;
       }
 
-      await renameFile(oldPath, newPath);
+      const result = await renameFile(oldPath, newPath);
+      if (result.status !== "success") return;
 
       if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
@@ -187,7 +188,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       }
 
       const oldPath = actionTargetFile.path;
-      await renameFile(oldPath, newPath);
+      const result = await renameFile(oldPath, newPath);
+      if (result.status !== "success") return;
 
       if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
@@ -203,7 +205,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       return;
     }
 
-    await deleteFile(targetPath);
+    const result = await deleteFile(targetPath);
+    if (result.status !== "success") return;
 
     if (selectedFile?.path === targetPath) {
       setSelectedFile(null);
@@ -245,7 +248,11 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       if (!validatePathOrAlert(candidate)) return;
 
-      await createFile(candidate, toContentString(actionTargetFile));
+      const result = await createFile(candidate, toContentString(actionTargetFile));
+      if (result.status !== "success") {
+        Alert.alert("Fehler", "Duplizieren konnte nicht angewendet werden.");
+        return;
+      }
       Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${candidate}`);
     } catch {
       Alert.alert("Fehler", "Duplizieren fehlgeschlagen.");
@@ -281,7 +288,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       }
 
       const initialContent = `// ${finalPath}\n`;
-      await createFile(finalPath, initialContent);
+      const result = await createFile(finalPath, initialContent);
+      if (result.status !== "success") return;
 
       // Optimistic selection is safe now (path validated + no collision).
       const newFile: ProjectFile = { path: finalPath, content: initialContent };
@@ -314,7 +322,11 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
           return;
         }
 
-        await createFile(gitkeepPath, "");
+        const result = await createFile(gitkeepPath, "");
+        if (result.status !== "success") {
+          Alert.alert("Fehler", "Ordner konnte nicht erstellt werden.");
+          return;
+        }
         Alert.alert("✅ Erfolg", `Ordner "${folderName}" erstellt`);
       } catch {
         Alert.alert("Fehler", "Ordner konnte nicht erstellt werden.");

@@ -63,7 +63,7 @@ export function useGitHubReposScreen(): UseGitHubReposScreenModel {
     easProjectId,
     setEasProjectId,
     refreshBootstrapState,
-  } = useGitHubReposScreenBootstrap();
+  } = useGitHubReposScreenBootstrap(activeRepo || projectData?.linkedRepo || null);
 
   useEffect(() => {
     return () => {

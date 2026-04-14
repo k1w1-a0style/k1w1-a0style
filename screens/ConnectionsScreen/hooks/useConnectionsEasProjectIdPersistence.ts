@@ -1,16 +1,20 @@
 import { useCallback } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { persistScopedEasProjectId } from "../../../lib/easProjectIdScope";
 import { resolveEasProjectIdPersistenceAction } from "./useConnectionsScreenHelpers";
 
 export function useConnectionsEasProjectIdPersistence() {
-  return useCallback(async (projectId: string) => {
+  return useCallback(async (projectId: string, repoFullName?: string | null) => {
     const persistenceAction = resolveEasProjectIdPersistenceAction(projectId);
     if (persistenceAction.mode === "set") {
-      await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, persistenceAction.value);
+      await persistScopedEasProjectId({
+        projectId: persistenceAction.value,
+        repoFullName,
+      });
       return;
     }
-    await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+    await persistScopedEasProjectId({
+      projectId: "",
+      repoFullName,
+    });
   }, []);
 }

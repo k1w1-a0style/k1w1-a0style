@@ -10,6 +10,7 @@ import {
 } from "../../../lib/appInfoScopedBackup";
 import { STORAGE_KEYS, legacyClientServiceRoleStorageKeys } from "../../../lib/storageKeys";
 import { getSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
+import { persistScopedEasProjectId, readScopedEasProjectId } from "../../../lib/easProjectIdScope";
 import { normalizeStoredSupabaseRaw } from "../../ConnectionsScreen/utils/validation";
 import {
   deleteAndroidKeystoreExportAdminKey,
@@ -127,7 +128,7 @@ export function useAppInfoSecureBackupFlow(params: {
       readStorageOrNull(STORAGE_KEYS.SUPABASE_RAW),
       readStorageOrNull(STORAGE_KEYS.SUPABASE_URL),
       readSecretOrNull(getSupabaseAnonKey),
-      readStorageOrNull(STORAGE_KEYS.EAS_PROJECT_ID),
+      readScopedEasProjectId(github.activeRepo),
     ]);
 
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRaw ?? "", supabaseUrl ?? "");
@@ -161,9 +162,19 @@ export function useAppInfoSecureBackupFlow(params: {
     ];
 
     if (easProjectIdDecision.mode === "set") {
-      writes.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easProjectIdDecision.value));
+      writes.push(
+        persistScopedEasProjectId({
+          projectId: easProjectIdDecision.value,
+          repoFullName: github.activeRepo,
+        }),
+      );
     } else if (easProjectIdDecision.mode === "clear") {
-      writes.push(AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID));
+      writes.push(
+        persistScopedEasProjectId({
+          projectId: "",
+          repoFullName: github.activeRepo,
+        }),
+      );
     } else {
       logger.warn("[useAppInfoScreen] Ignoriere ungueltige EAS Project ID aus Secret-Import.", {
         easProjectIdPreview: easProjectIdDecision.value.slice(0, 8),
@@ -171,7 +182,7 @@ export function useAppInfoSecureBackupFlow(params: {
     }
 
     await Promise.all(writes);
-  }, []);
+  }, [github.activeRepo]);
 
   const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const tokens = readAppliedSecretTokens(payload);

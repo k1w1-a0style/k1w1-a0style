@@ -19,6 +19,7 @@ import {
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
 type Params = {
+  selectedRepo?: string | null;
   expoToken: string;
   setGithubToken: (value: string) => void;
   setExpoToken: (value: string) => void;
@@ -48,6 +49,7 @@ type Params = {
 
 export function useConnectionsHydration(params: Params) {
   const {
+    selectedRepo,
     expoToken,
     setGithubToken,
     setExpoToken,
@@ -132,7 +134,7 @@ export function useConnectionsHydration(params: Params) {
         getWorkflowAdminKey,
         getAndroidKeystoreExportAdminKey,
         getSupabaseAnonKey,
-      });
+      }, selectedRepo);
 
       const normalizedStoredSupabaseRaw = normalizeStoredSupabaseRaw(
         snapshot.supabaseRaw,
@@ -152,7 +154,7 @@ export function useConnectionsHydration(params: Params) {
     return () => {
       mounted = false;
     };
-  }, [applyHydrationSnapshotState, persistConnLights]);
+  }, [applyHydrationSnapshotState, persistConnLights, selectedRepo]);
 
   useEffect(() => {
     if (!hydrated) return;

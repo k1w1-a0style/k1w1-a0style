@@ -200,7 +200,7 @@ describe("projectContextStateHelpers build poll state mapping", () => {
 
 
 describe("projectContextBuildHelpers orchestration guards", () => {
-  it("creates queued build states before and after successful start", () => {
+  it("keeps pre-start state semantically pending until start is actually confirmed", () => {
     const beforeStart = createBuildQueuedStateForStart({
       githubRepo: "owner/repo",
       branch: "main",
@@ -209,7 +209,8 @@ describe("projectContextBuildHelpers orchestration guards", () => {
     });
 
     expect(beforeStart).toMatchObject({
-      status: "queued",
+      status: "idle",
+      message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
       jobId: null,
       githubRepo: "owner/repo",
       branch: "main",

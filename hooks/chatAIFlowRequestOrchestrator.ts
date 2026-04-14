@@ -290,6 +290,8 @@ export const runExplainStage = async ({
   mergedFiles,
   created,
   updated,
+  deleted,
+  renamed,
   signal,
   runOrchestratorWithTimeout,
   notifyKeyRotation,
@@ -300,11 +302,14 @@ export const runExplainStage = async ({
   mergedFiles: ProjectFile[];
   created: string[];
   updated: string[];
+  deleted: string[];
+  renamed: Array<{ from: string; to: string }>;
   signal?: AbortSignal;
   runOrchestratorWithTimeout: RunOrchestratorWithTimeout;
   notifyKeyRotation: (res: OrchestratorResult | null | undefined) => void;
 }): Promise<string> => {
-  const hasChanges = created.length + updated.length > 0;
+  const hasChanges =
+    created.length + updated.length + deleted.length + renamed.length > 0;
   if (!hasChanges) return "";
 
   const digest = buildChangeDigest(

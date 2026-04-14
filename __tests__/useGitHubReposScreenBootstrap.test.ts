@@ -31,7 +31,7 @@ describe("useGitHubReposScreenBootstrap", () => {
   });
 
   it("loads token, user login and eas project id on bootstrap", async () => {
-    const { result } = renderHook(() => useGitHubReposScreenBootstrap());
+    const { result } = renderHook(() => useGitHubReposScreenBootstrap("owner/repo"));
 
     await act(async () => {
       await Promise.resolve();
@@ -58,7 +58,7 @@ describe("useGitHubReposScreenBootstrap", () => {
       .mockResolvedValueOnce("11111111-1111-1111-1111-111111111111")
       .mockResolvedValueOnce("22222222-2222-2222-2222-222222222222");
 
-    const { result } = renderHook(() => useGitHubReposScreenBootstrap());
+    const { result } = renderHook(() => useGitHubReposScreenBootstrap("owner/repo"));
 
     await act(async () => {
       await Promise.resolve();
@@ -73,5 +73,17 @@ describe("useGitHubReposScreenBootstrap", () => {
     expect(result.current.token).toBe("ghp_new");
     expect(result.current.userLogin).toBe("new-user");
     expect(result.current.easProjectId).toBe("22222222-2222-2222-2222-222222222222");
+  });
+
+  it("does not load EAS project id without repo context", async () => {
+    const { result } = renderHook(() => useGitHubReposScreenBootstrap(null));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.easProjectId).toBe("");
   });
 });

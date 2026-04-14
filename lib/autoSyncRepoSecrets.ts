@@ -4,6 +4,7 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
+import { readScopedEasProjectId } from "./easProjectIdScope";
 import {
   getExpoToken,
   getWorkflowAdminKey,
@@ -33,7 +34,7 @@ export const autoSyncRepoSecrets = async (
   ] = await Promise.all([
     getExpoToken(),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
-    AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
+    readScopedEasProjectId(repoFullName),
     getWorkflowAdminKey(),
     getAndroidKeystoreExportAdminKey(),
     getSigningAdminKey(),

@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import { getGitHubToken } from "../../../infra/github/githubService";
 import { getGitHubUser } from "../../../infra/github/user";
 import { logger } from "../../../lib/logger";
 import { getErrorMessage } from "./githubReposScreenErrorHelpers";
+import { readScopedEasProjectId } from "../../../lib/easProjectIdScope";
 
-export function useGitHubReposScreenBootstrap() {
+export function useGitHubReposScreenBootstrap(selectedRepo?: string | null) {
   const [token, setToken] = useState<string | null>(null);
   const [tokenLoading, setTokenLoading] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -44,7 +42,7 @@ export function useGitHubReposScreenBootstrap() {
       }
 
       try {
-        const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID);
+        const id = await readScopedEasProjectId(selectedRepo);
         if (bootstrapReqIdRef.current !== reqId) return;
         setEasProjectId((id || "").trim());
       } catch (error: unknown) {
@@ -65,7 +63,7 @@ export function useGitHubReposScreenBootstrap() {
         setUserLoading(false);
       }
     }
-  }, []);
+  }, [selectedRepo]);
 
   useEffect(() => {
     void refreshBootstrapState();

@@ -94,7 +94,9 @@ export default function DiagnosticScreen() {
     linkedBranch,
     setPreferredBuildProfile,
     updateProjectFiles,
-    deleteFile,
+    deleteFile: async (path: string) => {
+      await deleteFile(path);
+    },
   });
 
   const onDebug = () => {
