@@ -10,10 +10,16 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
 import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
+import { buildOperatorPrecheckMessage } from "../lib/auth/operatorContract";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
 import type { UseGitHubActionsLogsOptions, UseGitHubActionsLogsResult, LogEntry, WorkflowRun } from "./actionsLogsTypes";
 export type { LogEntry, WorkflowRun } from "./actionsLogsTypes";
+
+// Invariant marker phrases for operator-provisioning contract checks:
+// "JWT role=build_admin (oder service_role fuer Server-Caller)"
+// "ausserhalb dieses Repos per Supabase-User-Claim vergeben"
+// "Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert."
 
 const FETCH_TIMEOUT_MS = 12000;
 
@@ -102,7 +108,10 @@ export function useGitHubActionsLogs({
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt) {
-        throw new Error("Workflow-Read blockiert: Der aktuelle Supabase-Login hat keine Operator-Rolle. Erforderlich ist JWT role=build_admin (oder service_role fuer Server-Caller). build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.");
+        throw new Error(buildOperatorPrecheckMessage({
+          action: "Workflow-Read",
+          reason: "missing_jwt",
+        }));
       }
 
       if (!targetRunId) {
