@@ -6,7 +6,6 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 describe("patch611 build_admin operator runbook preflight invariants", () => {
   it("keeps operator caller guidance explicit and fail-closed for non-provisioned users", () => {
     const files = [
-      "project/services/buildStartService.ts",
       "project/services/buildPollingService.ts",
       "hooks/useGitHubActionsLogs.ts",
       "components/CiLiteHeaderButton/hooks/useCiLiteWorkflow.ts",

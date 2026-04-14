@@ -100,9 +100,9 @@ export function useBuildPreconditions(
         setHasOperatorJwt(hasValidOperatorJwt);
         setOperatorJwtReason(
           !operatorJwt
-            ? "Supabase Operator-JWT fehlt – Login mit build_admin/service_role erforderlich"
+            ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
             : !hasValidOperatorJwt
-              ? "Supabase JWT-Payload-Rolle nicht build_admin/service_role – clientseitiger Precheck nicht erfüllt (serverseitige Edge-Prüfung bleibt maßgeblich)"
+              ? "Supabase JWT-Payload-Rolle nicht build_admin/service_role – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
               : null,
         );
       });
