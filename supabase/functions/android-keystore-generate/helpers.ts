@@ -25,13 +25,22 @@ export { requireDurableRateLimit } from "../_shared/auth.ts";
 
 
 export type Mode = "development" | "preview" | "production";
+type Awaitable<T> = PromiseLike<T> | Promise<T>;
 type StorageBucketsQuery = {
   from: (
     table: "storage.buckets",
   ) => {
     insert: (payload: { id: string; name: string; public: boolean }) => {
-      select: (columns: "id") => { maybeSingle: () => Promise<{ error?: { message?: string } | null }> };
+      select: (columns: "id") => { maybeSingle: () => Awaitable<{ error?: { message?: string } | null }> };
     };
+  };
+};
+type StorageBucketCreator = {
+  storage: {
+    createBucket: (
+      bucket: string,
+      options: { public: boolean; fileSizeLimit: string },
+    ) => Awaitable<{ error?: { message?: string } | null }>;
   };
 };
 
@@ -122,7 +131,7 @@ export async function encryptText(text: string, masterKey: string): Promise<stri
 }
 
 export async function ensureBucketExists(
-  supabase: StorageBucketsQuery & { storage: { createBucket: (bucket: string, options: { public: boolean; fileSizeLimit: string }) => Promise<{ error?: { message?: string } | null }> } },
+  supabase: StorageBucketsQuery & StorageBucketCreator,
   bucket: string,
 ): Promise<void> {
   // Best-effort: try storage API, fallback to inserting into storage.buckets.

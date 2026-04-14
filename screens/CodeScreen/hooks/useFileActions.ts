@@ -50,10 +50,24 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   const actionInFlightRef = useRef(false);
 
   const isMutationSuccess = useCallback(
-    (result: FileMutationResult | void | null | undefined): boolean =>
-      !result || result.status === "success",
+    (result: FileMutationResult | null | undefined): boolean =>
+      !!result && result.status === "success",
     [],
   );
+
+  const mergeMutationResults = useCallback((results: FileMutationResult[]): FileMutationResult => {
+    if (!results.length) return { status: "noop", message: "Keine Dateioperation ausgeführt." };
+    if (results.some((result) => result.status === "error")) {
+      return { status: "error", message: "Mindestens eine Dateioperation ist fehlgeschlagen." };
+    }
+    if (results.some((result) => result.status === "rejected")) {
+      return { status: "rejected", message: "Mindestens eine Dateioperation wurde abgelehnt." };
+    }
+    if (results.some((result) => result.status === "success")) {
+      return { status: "success" };
+    }
+    return { status: "noop", message: "Keine Datei wurde geändert." };
+  }, []);
 
   const handleItemPress = useCallback(
     (node: TreeNode) => {
@@ -121,21 +135,36 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                             f.path.startsWith(folderPrefix),
                           ) ?? [];
 
-                        // Clean up editor if the open file lives inside the deleted folder.
-                        if (selectedFile?.path.startsWith(folderPrefix)) {
-                          setSelectedFile(null);
-                          setEditingContent("");
-                        }
-
                         const paths = filesToDelete.map((f) => f.path);
                         void (deleteFiles
                           ? deleteFiles(paths).then((result) => {
-                              if (!result || result.status === "success" || result.status === "noop") return;
+                              if (!result || result.status === "noop") return;
                               if (result.status === "rejected" || result.status === "error") {
                                 Alert.alert("Fehler", result.message || "Ordner konnte nicht gelöscht werden.");
+                                return;
+                              }
+                              if (
+                                result.status === "success" &&
+                                selectedFile?.path.startsWith(folderPrefix)
+                              ) {
+                                setSelectedFile(null);
+                                setEditingContent("");
                               }
                             })
-                          : Promise.all(paths.map((path) => deleteFile(path))).then(() => undefined));
+                          : Promise.all(paths.map((path) => deleteFile(path))).then((results) => {
+                              const mergedResult = mergeMutationResults(results);
+                              if (mergedResult.status === "rejected" || mergedResult.status === "error") {
+                                Alert.alert("Fehler", mergedResult.message || "Ordner konnte nicht gelöscht werden.");
+                                return;
+                              }
+                              if (
+                                mergedResult.status === "success" &&
+                                selectedFile?.path.startsWith(folderPrefix)
+                              ) {
+                                setSelectedFile(null);
+                                setEditingContent("");
+                              }
+                            }));
                       },
                     },
                   ],
@@ -155,7 +184,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       confirmLoseChanges(proceed);
     },
-    [confirmLoseChanges, deleteFile, deleteFiles, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
+    [confirmLoseChanges, deleteFile, deleteFiles, mergeMutationResults, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
   );
 
   const handleRenameFile = useCallback(

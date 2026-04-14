@@ -12,8 +12,8 @@ jest.mock("../contexts/ProjectContext", () => ({
 }));
 
 describe("useFileActions regressions", () => {
-  const deleteFile = jest.fn(async () => undefined);
-  const deleteFiles = jest.fn(async () => undefined);
+  const deleteFile = jest.fn(async () => ({ status: "success" as const }));
+  const deleteFiles = jest.fn(async () => ({ status: "success" as const }));
 
   const deps: FileActionsDeps = {
     selectedFile: null,
@@ -37,10 +37,10 @@ describe("useFileActions regressions", () => {
           { path: "other/c.ts", content: "c" },
         ],
       },
-      createFile: jest.fn(async () => undefined),
+      createFile: jest.fn(async () => ({ status: "success" as const })),
       deleteFile,
       deleteFiles,
-      renameFile: jest.fn(async () => undefined),
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
     });
   });
 
@@ -97,7 +97,38 @@ describe("useFileActions regressions", () => {
       createFile: jest.fn(async () => ({ status: "noop", message: "already exists" })),
       deleteFile,
       deleteFiles,
-      renameFile: jest.fn(async () => undefined),
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
+    });
+
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        setSelectedFile,
+        setEditingContent,
+        setViewMode,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleCreateFile("App.tsx");
+    });
+
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
+    expect(setViewMode).not.toHaveBeenCalled();
+  });
+
+  test("handleCreateFile does not switch selection when result is undefined", async () => {
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const setViewMode = jest.fn();
+
+    mockUseProject.mockReturnValue({
+      projectData: { files: [] },
+      createFile: jest.fn(async () => undefined),
+      deleteFile,
+      deleteFiles,
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
     });
 
     const { result } = renderHook(() =>
@@ -125,10 +156,10 @@ describe("useFileActions regressions", () => {
 
     mockUseProject.mockReturnValue({
       projectData: { files: [{ path: "src/a.ts", content: "a" }] },
-      createFile: jest.fn(async () => undefined),
+      createFile: jest.fn(async () => ({ status: "success" as const })),
       deleteFile: deleteFileNoop,
       deleteFiles,
-      renameFile: jest.fn(async () => undefined),
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
     });
 
     const { result } = renderHook(() =>
@@ -151,5 +182,50 @@ describe("useFileActions regressions", () => {
     expect(deleteFileNoop).toHaveBeenCalledWith("src/a.ts");
     expect(setSelectedFile).not.toHaveBeenCalled();
     expect(setEditingContent).not.toHaveBeenCalled();
+  });
+
+  test("folder delete fallback merges per-file results instead of assuming success", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation((_, __, buttons) => {
+      const destructive = buttons?.find((btn) => btn.style === "destructive" && btn.text === "Löschen");
+      destructive?.onPress?.();
+    });
+    const deleteFileFallback = jest
+      .fn()
+      .mockResolvedValueOnce({ status: "noop", message: "missing a" })
+      .mockResolvedValueOnce({ status: "rejected", message: "blocked b" });
+
+    mockUseProject.mockReturnValue({
+      projectData: {
+        files: [
+          { path: "src/a.ts", content: "a" },
+          { path: "src/nested/b.ts", content: "b" },
+        ],
+      },
+      createFile: jest.fn(async () => ({ status: "success" as const })),
+      deleteFile: deleteFileFallback,
+      deleteFiles: undefined,
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
+    });
+
+    const { result } = renderHook(() => useFileActions(deps));
+    act(() => {
+      result.current.handleItemLongPress({
+        id: "folder_src",
+        name: "src",
+        path: "src",
+        type: "folder",
+        children: [],
+      });
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(deleteFileFallback).toHaveBeenCalledTimes(2);
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Fehler",
+      expect.stringContaining("Mindestens eine Dateioperation wurde abgelehnt."),
+    );
+    alertSpy.mockRestore();
   });
 });
