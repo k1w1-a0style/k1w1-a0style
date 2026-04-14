@@ -52,7 +52,7 @@ describe("useGitHubReposSelection", () => {
     expect(loadDefaultBranch).not.toHaveBeenCalled();
   });
 
-  it("fetches default branch for string selections and updates linked branch", async () => {
+  it("fetches default branch for string selections before committing repo selection", async () => {
     const addRecentRepo = jest.fn();
     const setLinkedRepo = jest.fn();
     const loadDefaultBranch = jest.fn(async () => "release");
@@ -76,8 +76,9 @@ describe("useGitHubReposSelection", () => {
       await Promise.resolve();
     });
 
-    expect(setLinkedRepo).toHaveBeenNthCalledWith(1, "owner/repo", null);
-    expect(setLinkedRepo).toHaveBeenNthCalledWith(2, "owner/repo", "release");
+    expect(setLinkedRepo).toHaveBeenCalledTimes(1);
+    expect(setLinkedRepo).toHaveBeenCalledWith("owner/repo", "release");
+    expect(addRecentRepo).toHaveBeenCalledWith("owner/repo");
     expect(loadDefaultBranch).toHaveBeenCalledWith("owner", "repo");
   });
 });

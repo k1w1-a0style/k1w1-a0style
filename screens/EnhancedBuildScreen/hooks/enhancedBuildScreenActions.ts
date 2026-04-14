@@ -11,11 +11,16 @@ export const persistPreferredBuildProfile = async (params: {
 };
 
 export const refreshBuildScreenData = async (params: {
-  fetchRuns: () => Promise<void>;
+  fetchRuns?: (() => Promise<void>) | null;
   refreshHistory: () => Promise<void>;
   refreshPreconditions: () => Promise<void>;
 }): Promise<void> => {
-  await params.fetchRuns();
+  if (typeof params.fetchRuns === "function") {
+    await runCleanupTask(
+      () => params.fetchRuns?.() ?? Promise.resolve(),
+      "[EnhancedBuildScreen] workflow runs refresh failed",
+    );
+  }
   await runCleanupTask(
     () => params.refreshHistory(),
     "[EnhancedBuildScreen] background history refresh failed",

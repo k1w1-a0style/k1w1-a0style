@@ -63,4 +63,24 @@ describe("chatFlowStateGuards", () => {
     expect(buildProjectStateDigest(a)).not.toBe(buildProjectStateDigest(b));
   });
 
+  test("rebasePendingChangeOnLatest supports delete/rename-only changes without proposed files", () => {
+    const opsBaseFiles: ProjectFile[] = [
+      { path: "src/app.tsx", content: "export default function App(){return null}" },
+      { path: "src/a.tsx", content: "export const A = () => null;" },
+    ];
+    const pending = {
+      files: [...opsBaseFiles],
+      proposedFiles: [],
+      proposedDeletePaths: ["src/a.tsx"],
+      proposedRenames: [{ from: "src/app.tsx", to: "src/main-app.tsx" }],
+      baseProjectDigest: buildProjectStateDigest(opsBaseFiles),
+    };
+
+    const { applyResult } = rebasePendingChangeOnLatest(opsBaseFiles, pending);
+    expect(applyResult.deleted).toContain("src/a.tsx");
+    expect(applyResult.renamed).toEqual([{ from: "src/app.tsx", to: "src/main-app.tsx" }]);
+    expect(applyResult.files.find((f) => f.path === "src/app.tsx")).toBeUndefined();
+    expect(applyResult.files.find((f) => f.path === "src/main-app.tsx")).toBeDefined();
+  });
+
 });

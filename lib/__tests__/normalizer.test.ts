@@ -254,5 +254,69 @@ describe('normalizer', () => {
       expect(paths).toContain('App.tsx');
       expect(paths).toContain('components/Button.tsx');
     });
+
+    it('extracts delete and rename operations when present', () => {
+      const input = {
+        files: [{ path: 'src/new.ts', content: 'export const x = 1;' }],
+        delete: ['src/legacy.ts'],
+        renames: [{ from: 'src/old-name.ts', to: 'src/new-name.ts' }],
+      };
+
+      const result = normalizeAiResponseDetailed(input);
+
+      expect(result?.files).toHaveLength(1);
+      expect(result?.deletePaths).toEqual(['src/legacy.ts']);
+      expect(result?.renames).toEqual([{ from: 'src/old-name.ts', to: 'src/new-name.ts' }]);
+      expect(result?.hasDeleteOpsField).toBe(true);
+      expect(result?.hasRenameOpsField).toBe(true);
+    });
+
+    it('tracks op-field presence separately from empty operation arrays', () => {
+      const withoutOps = normalizeAiResponseDetailed({
+        files: [{ path: 'src/a.ts', content: 'export const a = 1;' }],
+      });
+      const withExplicitEmptyOps = normalizeAiResponseDetailed({
+        files: [{ path: 'src/a.ts', content: 'export const a = 1;' }],
+        delete: [],
+        renames: [],
+      });
+
+      expect(withoutOps?.hasDeleteOpsField).toBe(false);
+      expect(withoutOps?.hasRenameOpsField).toBe(false);
+      expect(withExplicitEmptyOps?.hasDeleteOpsField).toBe(true);
+      expect(withExplicitEmptyOps?.hasRenameOpsField).toBe(true);
+    });
+
+    it('accepts delete-only payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        deletePaths: ['src/legacy.ts'],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.deletePaths).toEqual(['src/legacy.ts']);
+      expect(result?.parseError).toBeUndefined();
+    });
+
+    it('accepts rename-only payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        renames: [{ from: 'src/old.ts', to: 'src/new.ts' }],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.renames).toEqual([{ from: 'src/old.ts', to: 'src/new.ts' }]);
+      expect(result?.parseError).toBeUndefined();
+    });
+
+    it('accepts combined delete+rename payloads without files array', () => {
+      const result = normalizeAiResponseDetailed({
+        delete: ['src/a.ts'],
+        renames: [{ from: 'src/b.ts', to: 'src/c.ts' }],
+      });
+
+      expect(result?.files).toEqual([]);
+      expect(result?.deletePaths).toEqual(['src/a.ts']);
+      expect(result?.renames).toEqual([{ from: 'src/b.ts', to: 'src/c.ts' }]);
+      expect(result?.parseError).toBeUndefined();
+    });
   });
 });

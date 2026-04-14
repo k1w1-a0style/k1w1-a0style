@@ -26,11 +26,15 @@ export type PendingChange = {
   originProjectId?: string | null;
   files: ProjectFile[];
   proposedFiles?: ProjectFile[];
+  proposedDeletePaths?: string[];
+  proposedRenames?: Array<{ from: string; to: string }>;
   baseProjectDigest?: string;
   summary: string;
   created: string[];
   updated: string[];
   skipped: string[];
+  deleted?: string[];
+  renamed?: Array<{ from: string; to: string }>;
   errors?: string[];
   aiResponse: OrchestratorResult;
   agentResponse?: OrchestratorResult;

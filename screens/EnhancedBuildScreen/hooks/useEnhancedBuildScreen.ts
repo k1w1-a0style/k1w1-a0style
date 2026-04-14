@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { useProject } from "../../../contexts/ProjectContext";
 import { useBuildHistory } from "../../../hooks/useBuildHistory";
@@ -260,6 +261,23 @@ export function useEnhancedBuildScreen() {
     refreshPreconditions,
     setRefreshing,
   });
+
+  const lastAutoRefreshContextRef = useRef<string>("");
+  const refreshContextKey = `${repoFullName}|${branchName}|${buildProfile}`;
+
+  useEffect(() => {
+    if (!repoValidation.valid || !hasGetWorkflowRuns) return;
+    if (lastAutoRefreshContextRef.current === refreshContextKey) return;
+    lastAutoRefreshContextRef.current = refreshContextKey;
+    void onRefresh();
+  }, [repoValidation.valid, hasGetWorkflowRuns, refreshContextKey, onRefresh]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void onRefresh();
+      return undefined;
+    }, [onRefresh]),
+  );
 
   const message = currentBuild?.message ?? "";
   const progress = currentBuild?.progress;

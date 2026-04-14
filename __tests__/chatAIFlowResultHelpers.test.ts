@@ -39,4 +39,22 @@ describe("chatAIFlowResultHelpers", () => {
       "Builder/Normalizer konnte keine verwertbare Dateiliste erzeugen.",
     );
   });
+
+  it("akzeptiert delete-only Antworten ohne files als gültige Builder-Änderung", () => {
+    const result = normalizeResultFiles({
+      text: JSON.stringify({ deletePaths: ["src/legacy.ts"] }),
+    });
+
+    expect(readBuilderFilesOrThrow(result, "")).toEqual([]);
+    expect(result.deletePaths).toEqual(["src/legacy.ts"]);
+  });
+
+  it("akzeptiert rename-only Antworten ohne files als gültige Builder-Änderung", () => {
+    const result = normalizeResultFiles({
+      text: JSON.stringify({ renames: [{ from: "src/old.ts", to: "src/new.ts" }] }),
+    });
+
+    expect(readBuilderFilesOrThrow(result, "")).toEqual([]);
+    expect(result.renames).toEqual([{ from: "src/old.ts", to: "src/new.ts" }]);
+  });
 });

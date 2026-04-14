@@ -9,7 +9,7 @@ import { findProjectFile } from '../../__tests__/helpers/projectTestHelpers';
  * @jest-environment node
  */
 
-import { applyFilesToProject } from '../fileWriter';
+import { applyFileOpsToProject, applyFilesToProject } from '../fileWriter';
 
 describe('FileWriter', () => {
   describe('applyFilesToProject', () => {
@@ -253,6 +253,70 @@ describe('FileWriter', () => {
         expect(result.skipped).toHaveLength(1);
         expect(result.created).toHaveLength(0);
       });
+    });
+  });
+
+  describe('applyFileOpsToProject', () => {
+    it('removes deleted files from resulting project state', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/keep.ts', content: 'export const keep = true;' },
+        { path: 'src/remove.ts', content: 'export const remove = true;' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], { deletePaths: ['src/remove.ts'] });
+
+      expect(findProjectFile(result.files, 'src/remove.ts')).toBeUndefined();
+      expect(result.deleted).toEqual(['src/remove.ts']);
+    });
+
+    it('applies rename as a move so old path does not linger', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/entry.ts', content: 'export * from "./legacy";' },
+        { path: 'src/legacy.ts', content: 'export const legacy = true;' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        renames: [{ from: 'src/legacy.ts', to: 'src/core.ts' }],
+      });
+
+      expect(findProjectFile(result.files, 'src/legacy.ts')).toBeUndefined();
+      expect(findProjectFile(result.files, 'src/core.ts')?.content).toContain('legacy = true');
+      expect(result.renamed).toEqual([{ from: 'src/legacy.ts', to: 'src/core.ts' }]);
+    });
+
+    it('blocks delete/rename on ownership-protected paths', () => {
+      const existing: ProjectFile[] = [
+        { path: 'supabase/functions/edge.ts', content: 'export const x = 1;' },
+        { path: 'src/free.ts', content: 'export const free = true;' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        deletePaths: ['supabase/functions/edge.ts'],
+        renames: [{ from: 'src/free.ts', to: 'supabase/functions/moved.ts' }],
+      });
+
+      expect(findProjectFile(result.files, 'supabase/functions/edge.ts')).toBeDefined();
+      expect(findProjectFile(result.files, 'src/free.ts')).toBeDefined();
+      expect(findProjectFile(result.files, 'supabase/functions/moved.ts')).toBeUndefined();
+      expect(result.deleted).toEqual([]);
+      expect(result.renamed).toEqual([]);
+      expect((result.errors ?? []).join(' ')).toMatch(/Ownership block|kritisch/i);
+    });
+
+    it('keeps source file when rename target already exists', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/source.ts', content: 'source-content' },
+        { path: 'src/target.ts', content: 'target-content' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        renames: [{ from: 'src/source.ts', to: 'src/target.ts' }],
+      });
+
+      expect(findProjectFile(result.files, 'src/source.ts')?.content).toBe('source-content');
+      expect(findProjectFile(result.files, 'src/target.ts')?.content).toBe('target-content');
+      expect(result.renamed).toEqual([]);
+      expect((result.errors ?? []).join(' ')).toMatch(/Rename-Konflikt/i);
     });
   });
 });

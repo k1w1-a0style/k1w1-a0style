@@ -4,6 +4,10 @@ type NormalizedAiFiles = Array<{ path: string; content: string }>;
 
 type NormalizedAiResult = {
   files: NormalizedAiFiles | null;
+  deletePaths: string[];
+  renames: Array<{ from: string; to: string }>;
+  hasDeleteOpsField: boolean;
+  hasRenameOpsField: boolean;
   parseError: string;
   responseText: string;
 };
@@ -15,6 +19,10 @@ export const normalizeResultFiles = (raw: unknown): NormalizedAiResult => {
   const normalizedResult = normalizeAiResponseDetailed(raw);
   return {
     files: normalizedResult?.files?.length ? normalizedResult.files : null,
+    deletePaths: normalizedResult?.deletePaths ?? [],
+    renames: normalizedResult?.renames ?? [],
+    hasDeleteOpsField: Boolean(normalizedResult?.hasDeleteOpsField),
+    hasRenameOpsField: Boolean(normalizedResult?.hasRenameOpsField),
     parseError: toTrimmedText(normalizedResult?.parseError),
     responseText: toTrimmedText(normalizedResult?.responseText),
   };
@@ -26,6 +34,13 @@ export const readBuilderFilesOrThrow = (
 ): NormalizedAiFiles => {
   if (normalizedResult.files && normalizedResult.files.length > 0) {
     return normalizedResult.files;
+  }
+
+  const hasOpsOnlyChange =
+    (normalizedResult.deletePaths?.length ?? 0) > 0 ||
+    (normalizedResult.renames?.length ?? 0) > 0;
+  if (hasOpsOnlyChange) {
+    return [];
   }
 
   const rawText = normalizedResult.responseText || toTrimmedText(aiText);

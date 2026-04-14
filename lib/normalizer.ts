@@ -171,9 +171,49 @@ function unwrapToParsable(raw: unknown): unknown {
 
 export type NormalizeAiResponseResult = {
   files: Array<{ path: string; content: string }>;
+  deletePaths?: string[];
+  renames?: Array<{ from: string; to: string }>;
+  hasDeleteOpsField?: boolean;
+  hasRenameOpsField?: boolean;
   parseError?: string;
   responseText?: string;
 };
+
+function normalizeDeleteList(parsed: unknown): { paths: string[]; present: boolean } {
+  const obj = asRecord(parsed);
+  if (!obj) return { paths: [], present: false };
+  const candidate = obj.delete ?? obj.deletes ?? obj.remove ?? obj.removed ?? obj.deletePaths;
+  if (typeof candidate === "undefined") return { paths: [], present: false };
+  if (!Array.isArray(candidate)) return { paths: [], present: true };
+  return {
+    present: true,
+    paths: Array.from(
+    new Set(
+      candidate
+        .map((entry) => normalizePath(String(entry ?? "").trim()))
+        .filter((entry): entry is string => Boolean(entry)),
+    ),
+    ),
+  };
+}
+
+function normalizeRenames(parsed: unknown): { renames: Array<{ from: string; to: string }>; present: boolean } {
+  const obj = asRecord(parsed);
+  if (!obj) return { renames: [], present: false };
+  const candidate = obj.rename ?? obj.renames;
+  if (typeof candidate === "undefined") return { renames: [], present: false };
+  if (!Array.isArray(candidate)) return { renames: [], present: true };
+
+  const out: Array<{ from: string; to: string }> = [];
+  for (const entry of candidate) {
+    const rec = asRecord(entry);
+    const from = normalizePath(String(rec?.from ?? rec?.oldPath ?? rec?.source ?? "").trim());
+    const to = normalizePath(String(rec?.to ?? rec?.newPath ?? rec?.target ?? "").trim());
+    if (!from || !to || from === to) continue;
+    out.push({ from, to });
+  }
+  return { renames: out, present: true };
+}
 
 // ---- Hauptfunktion ----
 export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseResult | null {
@@ -195,8 +235,22 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
       : null;
   }
 
+  const deleteResult = normalizeDeleteList(parsed);
+  const renameResult = normalizeRenames(parsed);
+  const hasEffectiveOps =
+    deleteResult.paths.length > 0 || renameResult.renames.length > 0;
+
   const fileArray = extractFileArray(parsed);
   if (!fileArray || fileArray.length === 0) {
+    if (hasEffectiveOps) {
+      return {
+        files: [],
+        deletePaths: deleteResult.paths,
+        renames: renameResult.renames,
+        hasDeleteOpsField: deleteResult.present,
+        hasRenameOpsField: renameResult.present,
+      };
+    }
     return responseText && responseText.trim().length > 0
       ? { files: [], parseError: 'no_file_array_detected', responseText }
       : null;
@@ -222,12 +276,27 @@ export function normalizeAiResponseDetailed(raw: unknown): NormalizeAiResponseRe
   }
 
   if (out.length === 0) {
+    if (hasEffectiveOps) {
+      return {
+        files: [],
+        deletePaths: deleteResult.paths,
+        renames: renameResult.renames,
+        hasDeleteOpsField: deleteResult.present,
+        hasRenameOpsField: renameResult.present,
+      };
+    }
     return responseText && responseText.trim().length > 0
       ? { files: [], parseError: 'no_valid_files_after_normalization', responseText }
       : null;
   }
 
-  return { files: out };
+  return {
+    files: out,
+    deletePaths: deleteResult.paths,
+    renames: renameResult.renames,
+    hasDeleteOpsField: deleteResult.present,
+    hasRenameOpsField: renameResult.present,
+  };
 }
 
 export function normalizeAiResponse(raw: unknown): Array<{ path: string; content: string }> | null {

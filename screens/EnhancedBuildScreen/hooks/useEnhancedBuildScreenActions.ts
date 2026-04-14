@@ -32,11 +32,10 @@ export function useBuildRefreshAction(params: {
   const { canFetch, hasGetWorkflowRuns, isMountedRef, fetchRuns, refreshHistory, refreshPreconditions, setRefreshing } = params;
 
   return useCallback(async () => {
-    if (!canFetch || !hasGetWorkflowRuns) return;
     if (isMountedRef.current) setRefreshing(true);
     try {
       await refreshBuildScreenData({
-        fetchRuns,
+        fetchRuns: canFetch && hasGetWorkflowRuns ? fetchRuns : null,
         refreshHistory,
         refreshPreconditions,
       });

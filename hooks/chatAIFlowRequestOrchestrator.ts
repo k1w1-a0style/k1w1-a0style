@@ -128,7 +128,12 @@ export const runBuilderWithRetry = async ({
   computeRetryDelayMs: (attempt: number, errorText: string) => number;
   sleepWithAbort: (ms: number, signal?: AbortSignal) => Promise<void>;
   sideEffects: Pick<RequestSideEffects, "announceContextBudgetNote" | "notifyKeyRotation" | "announceRuntimeNote">;
-}): Promise<{ ai: OrchestratorResult; normalizedFiles: ProjectFile[] }> => {
+}): Promise<{
+  ai: OrchestratorResult;
+  normalizedFiles: ProjectFile[];
+  deletePaths: string[];
+  renames: Array<{ from: string; to: string }>;
+}> => {
   const historyAsLlm = buildSanitizedLlmHistory(currentMessages);
   const llmMessages = buildBuilderMessages(
     historyAsLlm,
@@ -176,13 +181,20 @@ export const runBuilderWithRetry = async ({
   const normalizedResult = normalizeResultFiles(rawForNormalizer);
   const normalizedFiles = readBuilderFilesOrThrow(normalizedResult, ai.text ?? "");
 
-  return { ai, normalizedFiles };
+  return {
+    ai,
+    normalizedFiles,
+    deletePaths: normalizedResult.deletePaths,
+    renames: normalizedResult.renames,
+  };
 };
 
 export const runValidatorIfEnabled = async ({
   config,
   requestContent,
   normalizedFiles,
+  normalizedDeletePaths,
+  normalizedRenames,
   currentProjectFiles,
   signal,
   runOrchestratorWithTimeout,
@@ -191,23 +203,29 @@ export const runValidatorIfEnabled = async ({
   config: AIConfig;
   requestContent: string;
   normalizedFiles: ProjectFile[];
+  normalizedDeletePaths: string[];
+  normalizedRenames: Array<{ from: string; to: string }>;
   currentProjectFiles: ProjectFile[];
   signal?: AbortSignal;
   runOrchestratorWithTimeout: RunOrchestratorWithTimeout;
   sideEffects: Pick<RequestSideEffects, "notifyKeyRotation" | "addValidatorWarning">;
 }): Promise<{
   finalFiles: ProjectFile[];
+  finalDeletePaths: string[];
+  finalRenames: Array<{ from: string; to: string }>;
   agentMeta: OrchestratorResult | null;
   finalFileSource: PendingChange["finalFileSource"];
   validatorState: PendingChange["validatorState"];
 }> => {
   let finalFiles = normalizedFiles;
+  let finalDeletePaths: string[] = normalizedDeletePaths;
+  let finalRenames: Array<{ from: string; to: string }> = normalizedRenames;
   let agentMeta: OrchestratorResult | null = null;
   let finalFileSource: PendingChange["finalFileSource"] = "builder";
   let validatorState: PendingChange["validatorState"] = config.agentEnabled ? "builder-fallback-empty" : "disabled";
 
   if (!config.agentEnabled) {
-    return { finalFiles, agentMeta, finalFileSource, validatorState };
+    return { finalFiles, finalDeletePaths, finalRenames, agentMeta, finalFileSource, validatorState };
   }
 
   try {
@@ -230,9 +248,19 @@ export const runValidatorIfEnabled = async ({
 
     if (agentRes?.ok) {
       const agentRaw = extractRawOrchestratorResult(agentRes as ExtendedOrchestratorResult);
-      const normalizedAgent = normalizeResultFiles(agentRaw).files;
-      if (normalizedAgent && normalizedAgent.length > 0) {
-        finalFiles = normalizedAgent;
+      const normalizedAgentResult = normalizeResultFiles(agentRaw);
+      const validatorProvidedFiles = Array.isArray(normalizedAgentResult.files);
+      const validatorProvidedOps =
+        (normalizedAgentResult.deletePaths?.length ?? 0) > 0 ||
+        (normalizedAgentResult.renames?.length ?? 0) > 0;
+      if (validatorProvidedFiles || validatorProvidedOps) {
+        finalFiles = validatorProvidedFiles ? (normalizedAgentResult.files ?? []) : normalizedFiles;
+        finalDeletePaths = normalizedAgentResult.hasDeleteOpsField
+          ? normalizedAgentResult.deletePaths
+          : normalizedDeletePaths;
+        finalRenames = normalizedAgentResult.hasRenameOpsField
+          ? normalizedAgentResult.renames
+          : normalizedRenames;
         agentMeta = agentRes;
         finalFileSource = "validator";
         validatorState = "validated";
@@ -252,7 +280,7 @@ export const runValidatorIfEnabled = async ({
     sideEffects.addValidatorWarning(validatorState);
   }
 
-  return { finalFiles, agentMeta, finalFileSource, validatorState };
+  return { finalFiles, finalDeletePaths, finalRenames, agentMeta, finalFileSource, validatorState };
 };
 
 export const runExplainStage = async ({

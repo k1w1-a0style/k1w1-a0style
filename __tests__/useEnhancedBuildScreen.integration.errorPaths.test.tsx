@@ -3,6 +3,10 @@ import { Alert, Linking } from "react-native";
 
 import { useEnhancedBuildScreen } from "../screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen";
 
+jest.mock("@react-navigation/native", () => ({
+  useFocusEffect: () => undefined,
+}));
+
 const mockStartBuild = jest.fn(async () => {});
 const mockGetWorkflowRuns = jest.fn(async () => ({ workflow_runs: [] }));
 

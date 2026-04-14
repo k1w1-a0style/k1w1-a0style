@@ -5,6 +5,8 @@ export type ChatAiFlowSummaryInput = {
   preflightIntro: string;
   created: string[];
   updated: string[];
+  deleted?: string[];
+  renamed?: Array<{ from: string; to: string }>;
   skipped: string[];
   errors?: string[];
   buildPathBulletList: (paths: string[], previewLimit: number) => string;
@@ -17,6 +19,8 @@ export const buildAiProposalSummary = ({
   preflightIntro,
   created,
   updated,
+  deleted = [],
+  renamed = [],
   skipped,
   errors,
   buildPathBulletList,
@@ -37,6 +41,12 @@ export const buildAiProposalSummary = ({
     `\n\n` +
     `📝 **Geänderte Dateien** (${updated.length}):\n` +
     buildPathBulletList(updated, 6) +
+    `\n\n` +
+    `🗑 **Gelöschte Dateien** (${deleted.length}):\n` +
+    buildPathBulletList(deleted, 6) +
+    `\n\n` +
+    `🔀 **Umbenannte Dateien** (${renamed.length}):\n` +
+    buildPathBulletList(renamed.map((entry) => `${entry.from} → ${entry.to}`), 6) +
     (!isAutoFix
       ? `\n\n⏭ **Übersprungen** (${skipped.length}):\n` +
         buildPathBulletList(skipped, 3)

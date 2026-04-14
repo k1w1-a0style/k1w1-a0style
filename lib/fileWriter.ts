@@ -29,7 +29,14 @@ export type ApplyFilesResult = {
   created: string[];
   updated: string[];
   skipped: string[];
+  deleted?: string[];
+  renamed?: Array<{ from: string; to: string }>;
   errors?: string[];
+};
+
+export type FileMutationOps = {
+  deletePaths?: string[];
+  renames?: Array<{ from: string; to: string }>;
 };
 
 export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFile[]): ApplyFilesResult {
@@ -123,5 +130,115 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
     updated,
     skipped,
     errors: errors.length ? errors : undefined,
+  };
+}
+
+export function applyFileOpsToProject(
+  existing: ProjectFile[],
+  incoming: ProjectFile[],
+  ops?: FileMutationOps,
+): ApplyFilesResult {
+  const skipped: string[] = [];
+  const errors: string[] = [];
+  const normalizedDeletes = Array.from(
+    new Set(
+      (ops?.deletePaths ?? [])
+        .map((p) => normalizePath(String(p ?? "")))
+        .filter(Boolean),
+    ),
+  );
+  const normalizedRenames = (ops?.renames ?? [])
+    .map((entry) => ({
+      from: normalizePath(String(entry?.from ?? "")),
+      to: normalizePath(String(entry?.to ?? "")),
+    }))
+    .filter((entry): entry is { from: string; to: string } => Boolean(entry.from && entry.to && entry.from !== entry.to));
+
+  if (normalizedDeletes.length === 0 && normalizedRenames.length === 0) {
+    return applyFilesToProject(existing, incoming);
+  }
+
+  const working = new Map<string, ProjectFile>();
+  for (const file of existing ?? []) {
+    const path = normalizePath(String(file.path ?? ""));
+    if (!path) continue;
+    working.set(path, { path, content: String(file.content ?? "") });
+  }
+
+  const canApplyPathOp = (
+    path: string,
+    opLabel: "delete" | "rename-source" | "rename-target",
+  ): boolean => {
+    const validation = validateFilePath(path);
+    if (!validation.valid || !validation.normalized) {
+      skipped.push(path);
+      errors.push(`Ungültiger Pfad für ${opLabel}: ${path}`);
+      return false;
+    }
+
+    const normalized = validation.normalized;
+    const ownership = canActorModifyPath("chat", normalized);
+    if (!ownership.allowed) {
+      skipped.push(normalized);
+      errors.push(ownership.reason ?? `Ownership block (${opLabel}): ${normalized}`);
+      return false;
+    }
+
+    if (PROTECTED_FROM_OVERWRITE.has(normalized)) {
+      skipped.push(normalized);
+      errors.push(`Geschützter Pfad darf nicht per ${opLabel} geändert werden: ${normalized}`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const deleted: string[] = [];
+  for (const path of normalizedDeletes) {
+    if (!working.has(path)) {
+      skipped.push(path);
+      continue;
+    }
+    if (!canApplyPathOp(path, "delete")) continue;
+    working.delete(path);
+    deleted.push(path);
+  }
+
+  const renamed: Array<{ from: string; to: string }> = [];
+  for (const rename of normalizedRenames) {
+    if (!working.has(rename.from)) {
+      skipped.push(rename.from);
+      continue;
+    }
+    if (!canApplyPathOp(rename.from, "rename-source")) continue;
+    if (!canApplyPathOp(rename.to, "rename-target")) continue;
+    if (working.has(rename.to)) {
+      skipped.push(`${rename.from} -> ${rename.to}`);
+      errors.push(`Rename-Konflikt: Zielpfad existiert bereits (${rename.to}); Quelle bleibt erhalten.`);
+      continue;
+    }
+
+    const source = working.get(rename.from);
+    if (!source) {
+      skipped.push(rename.from);
+      continue;
+    }
+
+    // Move only after all validations passed; prevents source data loss on conflict.
+    working.set(rename.to, { path: rename.to, content: source.content });
+    working.delete(rename.from);
+    renamed.push({ from: rename.from, to: rename.to });
+  }
+
+  const merged = applyFilesToProject(Array.from(working.values()), incoming);
+
+  return {
+    ...merged,
+    skipped: [...merged.skipped, ...skipped],
+    deleted: [...(merged.deleted ?? []), ...deleted],
+    renamed: [...(merged.renamed ?? []), ...renamed],
+    errors: [...(merged.errors ?? []), ...errors].length
+      ? [...(merged.errors ?? []), ...errors]
+      : undefined,
   };
 }
