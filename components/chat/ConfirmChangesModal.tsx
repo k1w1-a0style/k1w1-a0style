@@ -41,7 +41,8 @@ const GUARDED_FOLLOW_UP_OPTIONS = [
 
 type ReviewCard =
   | { key: string; path: string; status: "new" | "updated"; preview?: ChangePreview }
-  | { key: string; path: string; status: "skipped" };
+  | { key: string; path: string; status: "skipped" | "deleted"; preview?: ChangePreview }
+  | { key: string; path: string; toPath: string; status: "renamed"; preview?: ChangePreview };
 
 function getReviewPathChip(status: ReviewCard["status"]): "wird geändert" | "manuell nötig" {
   return status === "skipped" ? "manuell nötig" : "wird geändert";
@@ -156,6 +157,17 @@ const ConfirmChangesModal: React.FC<Props> = ({
         path,
         status: "skipped" as const,
       })),
+      ...(pendingChange.deleted ?? []).map((path) => ({
+        key: `deleted:${path}`,
+        path,
+        status: "deleted" as const,
+      })),
+      ...(pendingChange.renamed ?? []).map(({ from, to }) => ({
+        key: `renamed:${from}->${to}`,
+        path: from,
+        toPath: to,
+        status: "renamed" as const,
+      })),
     ].slice(0, MAX_PREVIEW_ITEMS + pendingChange.skipped.length);
   }, [pendingChange, previews]);
   const hiddenPreviewCount = Math.max(
@@ -225,7 +237,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
                     {pendingChange.sourceSummary ?? "Dateiliste stammt aus dem Builder-Flow."}
                   </Text>
                   <Text style={styles.modalSummaryText}>
-                    Neue Dateien: {pendingChange.created.length} · Geänderte Dateien: {pendingChange.updated.length} · Hinweise: {pendingChange.errors?.length ?? 0}
+                    Neue Dateien: {pendingChange.created.length} · Geänderte Dateien: {pendingChange.updated.length} · Gelöscht: {pendingChange.deleted?.length ?? 0} · Umbenannt: {pendingChange.renamed?.length ?? 0} · Hinweise: {pendingChange.errors?.length ?? 0}
                   </Text>
                   <View style={styles.modalMetaGrid}>
                     <View style={styles.modalMetaRow}>
@@ -233,7 +245,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
                       <Text style={styles.modalMetaValue}>Erstellt den ersten Dateivorschlag.</Text>
                     </View>
                     <View style={styles.modalMetaRow}>
-                      <Text style={styles.modalMetaLabel}>Validator</Text>
+                      <Text style={styles.modalMetaLabel}>Validator-Hinweis</Text>
                       <Text style={styles.modalMetaValue}>{validatorReviewLabel}</Text>
                     </View>
                     <View style={styles.modalMetaRow}>
@@ -269,7 +281,11 @@ const ConfirmChangesModal: React.FC<Props> = ({
                             ? "Neue Datei"
                             : card.status === "updated"
                               ? "Geänderte Datei"
-                              : "Übersprungen"}
+                              : card.status === "deleted"
+                                ? "Gelöscht"
+                                : card.status === "renamed"
+                                  ? "Umbenannt"
+                                  : "Übersprungen"}
                         </Text>
                       </View>
                       <View style={styles.modalPathChipRow}>
@@ -290,6 +306,14 @@ const ConfirmChangesModal: React.FC<Props> = ({
                       {card.status === "skipped" ? (
                         <Text style={styles.modalHintText}>
                           Diese Datei wurde bewusst nicht in den finalen Apply-Satz übernommen.
+                        </Text>
+                      ) : card.status === "deleted" ? (
+                        <Text style={styles.modalHintText}>
+                          Diese Datei wird im finalen Apply-Satz gelöscht.
+                        </Text>
+                      ) : card.status === "renamed" ? (
+                        <Text style={styles.modalHintText}>
+                          Diese Datei wird umbenannt nach: {"toPath" in card ? card.toPath : ""}
                         </Text>
                       ) : card.preview?.kind === "new" ? (
                         <>

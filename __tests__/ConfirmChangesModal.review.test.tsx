@@ -131,6 +131,32 @@ describe("ConfirmChangesModal review UX", () => {
     expect(queryByText("Noch keine Änderungen zum Bestätigen.")).toBeNull();
   });
 
+  it("keeps ops-only delete/rename changes visible in review and summary", () => {
+    const pendingChange = buildPendingChange({
+      created: [],
+      updated: [],
+      deleted: ["legacy/old.ts"],
+      renamed: [{ from: "src/oldName.ts", to: "src/newName.ts" }],
+      skipped: [],
+      changePreviews: [],
+    });
+
+    const { getByText } = render(
+      <ConfirmChangesModal
+        visible
+        pendingChange={pendingChange}
+        onAccept={jest.fn()}
+        onReject={jest.fn()}
+      />,
+    );
+
+    expect(getByText("Gelöscht")).toBeTruthy();
+    expect(getByText("Umbenannt")).toBeTruthy();
+    expect(getByText("legacy/old.ts")).toBeTruthy();
+    expect(getByText("Diese Datei wird umbenannt nach: src/newName.ts")).toBeTruthy();
+    expect(getByText(/Gelöscht: 1 · Umbenannt: 1/)).toBeTruthy();
+  });
+
   it("hides guard section when only non-guard hints exist", () => {
     const pendingChange = buildPendingChange({
       errors: ["styles/theme.ts wurde bewusst nicht angefasst"],

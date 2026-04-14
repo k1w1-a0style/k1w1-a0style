@@ -12,8 +12,12 @@ jest.mock("../contexts/ProjectContext", () => ({
 }));
 
 describe("useFileActions regressions", () => {
-  const deleteFile = jest.fn(async () => undefined);
-  const deleteFiles = jest.fn(async () => undefined);
+  const deleteFile = jest.fn<Promise<{ status: string; changed: boolean; reason?: string }>, [string]>(
+    async () => ({ status: "success", changed: true }),
+  );
+  const deleteFiles = jest.fn<Promise<{ status: string; changed: boolean; reason?: string }>, [string[]]>(
+    async () => ({ status: "success", changed: true }),
+  );
 
   const deps: FileActionsDeps = {
     selectedFile: null,
@@ -71,6 +75,44 @@ describe("useFileActions regressions", () => {
     expect(deleteFiles).toHaveBeenCalledTimes(1);
     expect(deleteFiles).toHaveBeenCalledWith(["src/a.ts", "src/nested/b.ts"]);
     expect(deleteFile).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+
+  test("folder delete keeps editor selection when deleteFiles is noop", async () => {
+    deleteFiles.mockResolvedValueOnce({ status: "noop", changed: false, reason: "not_found" });
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation((_, __, buttons) => {
+      const destructive = buttons?.find((btn) => btn.style === "destructive" && btn.text === "Löschen");
+      destructive?.onPress?.();
+    });
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        selectedFile: { path: "src/a.ts", content: "a" },
+        setSelectedFile,
+        setEditingContent,
+      }),
+    );
+
+    const folderNode: TreeNode = {
+      id: "folder_src",
+      name: "src",
+      path: "src",
+      type: "folder",
+      children: [],
+    };
+
+    act(() => {
+      result.current.handleItemLongPress(folderNode);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(deleteFiles).toHaveBeenCalledWith(["src/a.ts", "src/nested/b.ts"]);
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
     alertSpy.mockRestore();
   });
 
