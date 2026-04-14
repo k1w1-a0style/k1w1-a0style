@@ -12,6 +12,8 @@ import type {
 export interface ProjectContextProps {
   projectData: ProjectData | null;
   isLoading: boolean;
+  isRecoveryMode?: boolean;
+  recoveryModeReason?: string | null;
 
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   createFile: (path: string, content: string) => Promise<void>;

@@ -68,6 +68,13 @@ function getOneClickDeployErrorMessage(error: unknown): string {
   return "Unbekannter Fehler";
 }
 
+function getAbortRunningStepDetail(stepId: DeployStepId): string {
+  if (stepId === "build" || stepId === "secrets_sync") {
+    return "Lokaler Ablauf abgebrochen; bereits gestartete externe Operation kann noch abschliessen.";
+  }
+  return "Lokaler Ablauf abgebrochen.";
+}
+
 export function useOneClickDeploy(
   buildProfile: BuildProfile,
   repoFullName: string,
@@ -78,6 +85,7 @@ export function useOneClickDeploy(
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployDone, setDeployDone] = useState(false);
   const abortRef = useRef(false);
+  const activeRunIdRef = useRef(0);
   const [autoSyncSecrets, setAutoSyncSecrets] = useState(false);
 
   useEffect(() => {
@@ -139,38 +147,54 @@ export function useOneClickDeploy(
 
   const runDeploy = useCallback(async () => {
     if (isDeploying) return;
+    const runId = activeRunIdRef.current + 1;
+    activeRunIdRef.current = runId;
+    const isRunActive = () => activeRunIdRef.current === runId && !abortRef.current;
+    const setDeployingState = (value: boolean) => {
+      if (activeRunIdRef.current !== runId) return;
+      setIsDeploying(value);
+    };
+    const setDoneState = (value: boolean) => {
+      if (activeRunIdRef.current !== runId) return;
+      setDeployDone(value);
+    };
+    const updateStepScoped = (id: DeployStepId, status: DeployStepStatus, detail?: string) => {
+      if (activeRunIdRef.current !== runId) return;
+      updateStep(id, status, detail);
+    };
+
     abortRef.current = false;
-    setIsDeploying(true);
-    setDeployDone(false);
+    setDeployingState(true);
+    setDoneState(false);
     resetSteps();
 
     try {
       if (!repoFullName.trim() || !branchName.trim()) {
-        updateStep("readiness", "fail", "Repo/Branch fehlen");
+        updateStepScoped("readiness", "fail", "Repo/Branch fehlen");
         Alert.alert("Build nicht bereit", "Bitte zuerst Repo und Branch verknuepfen.");
         return;
       }
 
       // === Step 1: Signing Key pruefen ===
-      updateStep("signing_key", "running");
+      updateStepScoped("signing_key", "running");
       const signingGate = await readSigningKeyGateState({
         buildProfile,
         repoFullName,
         projectData,
       });
-      if (abortRef.current) return;
+      if (!isRunActive()) return;
 
       if (!signingGate.hasSigningKey) {
         const signingReason =
           signingGate.reason || "Signing Key fehlt – bitte im Credentials Wizard generieren";
-        updateStep("signing_key", "fail", signingReason);
+        updateStepScoped("signing_key", "fail", signingReason);
         Alert.alert("Signing Key fehlt", signingReason);
         return;
       }
-      updateStep("signing_key", "ok", `Key fuer ${buildProfile} vorhanden`);
+      updateStepScoped("signing_key", "ok", `Key fuer ${buildProfile} vorhanden`);
 
       // === Step 2: Tokens pruefen ===
-      updateStep("tokens", "running");
+      updateStepScoped("tokens", "running");
       const [ghToken, expoToken] = await Promise.all([
         getGitHubToken().catch((error: unknown) => {
           logger.warn("[EnhancedBuild] getGitHubToken failed during one-click deploy", { error });
@@ -181,22 +205,22 @@ export function useOneClickDeploy(
           return null;
         }),
       ]);
-      if (abortRef.current) return;
+      if (!isRunActive()) return;
 
       if (!ghToken || !expoToken) {
-        updateStep("tokens", "fail", !ghToken ? "GitHub Token fehlt" : "Expo Token fehlt");
+        updateStepScoped("tokens", "fail", !ghToken ? "GitHub Token fehlt" : "Expo Token fehlt");
         Alert.alert("Tokens fehlen", "Bitte zuerst im Verbindungen-Screen setzen.");
         return;
       }
-      updateStep("tokens", "ok", "GitHub + Expo OK");
+      updateStepScoped("tokens", "ok", "GitHub + Expo OK");
 
       // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
-      updateStep("readiness", "running");
+      updateStepScoped("readiness", "running");
       const readiness = await readBuildReadinessState({
         repoFullName,
         branchName,
       });
-      if (abortRef.current) return;
+      if (!isRunActive()) return;
 
       const sourceFiles = getSourceProjectFiles(projectData);
       const files = getMaterializedProjectFiles(projectData);
@@ -206,7 +230,7 @@ export function useOneClickDeploy(
       else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
 
       if (readinessReason) {
-        updateStep("readiness", "fail", readinessReason);
+        updateStepScoped("readiness", "fail", readinessReason);
         Alert.alert("Build nicht bereit", `${readinessReason}. Bitte Diagnostic + Header-Checks erneut ausfuehren.`);
         return;
       }
@@ -221,16 +245,16 @@ export function useOneClickDeploy(
           return "unknown" as const;
         });
 
-        if (abortRef.current) return;
+        if (!isRunActive()) return;
 
         if (syncState === "unknown") {
           const syncReason = "Repo-Sync-Status unklar – bitte zuerst explizit pushen und danach erneut deployen";
-          updateStep("readiness", "fail", syncReason);
+          updateStepScoped("readiness", "fail", syncReason);
           Alert.alert("Build nicht bereit", syncReason);
           return;
         }
 
-        updateStep(
+        updateStepScoped(
           "readiness",
           "ok",
           syncState === "out_of_sync"
@@ -238,32 +262,32 @@ export function useOneClickDeploy(
             : "Diagnostik + CI-Lite OK · Repo-Sync bekannt",
         );
       } else {
-        updateStep("readiness", "ok", "Diagnostik + CI-Lite OK");
+        updateStepScoped("readiness", "ok", "Diagnostik + CI-Lite OK");
       }
 
       // === Step 4: Secrets synchronisieren (optional) ===
       if (!autoSyncSecrets) {
-        updateStep("secrets_sync", "skip", "Auto-Sync deaktiviert");
+        updateStepScoped("secrets_sync", "skip", "Auto-Sync deaktiviert");
       } else {
-        updateStep("secrets_sync", "running");
+        updateStepScoped("secrets_sync", "running");
         if (!repoFullName.trim()) {
-          updateStep("secrets_sync", "fail", "Kein Repo verknuepft");
+          updateStepScoped("secrets_sync", "fail", "Kein Repo verknuepft");
           Alert.alert("Kein Repo", "Bitte zuerst ein Repo verknuepfen.");
           return;
         }
-        if (abortRef.current) return;
+        if (!isRunActive()) return;
 
         try {
           const syncResult = await autoSyncRepoSecrets(repoFullName);
-          if (abortRef.current) return;
+          if (!isRunActive()) return;
           const detail =
             syncResult.updated.length > 0
               ? `${syncResult.updated.length} Secrets synchronisiert`
               : "Keine Aenderungen noetig";
-          updateStep("secrets_sync", "ok", detail);
+          updateStepScoped("secrets_sync", "ok", detail);
         } catch (e: unknown) {
           const message = getOneClickDeployErrorMessage(e);
-          updateStep("secrets_sync", "fail", message === "Unbekannter Fehler" ? "Sync fehlgeschlagen" : message);
+          updateStepScoped("secrets_sync", "fail", message === "Unbekannter Fehler" ? "Sync fehlgeschlagen" : message);
           Alert.alert("Secrets Sync Fehler", message);
           return;
         }
@@ -272,31 +296,31 @@ export function useOneClickDeploy(
       // === Step 5: Repo-Sync wird im Build-Start entschieden ===
       const projectFiles = projectData?.files;
       if (Array.isArray(projectFiles) && projectFiles.length > 0) {
-        updateStep("push_files", "skip", "Repo-Sync erfolgt im Build-Start (SHA-sicher)");
+        updateStepScoped("push_files", "skip", "Repo-Sync erfolgt im Build-Start (SHA-sicher)");
       } else {
-        updateStep("push_files", "skip", "Keine Dateien zum Synchronisieren");
+        updateStepScoped("push_files", "skip", "Keine Dateien zum Synchronisieren");
       }
 
       // === Step 6: Build starten ===
-      updateStep("build", "running");
-      if (abortRef.current) return;
+      updateStepScoped("build", "running");
+      if (!isRunActive()) return;
 
       if (!startBuild) {
-        updateStep("build", "fail", "Build-Funktion nicht verfuegbar");
+        updateStepScoped("build", "fail", "Build-Funktion nicht verfuegbar");
         return;
       }
 
       try {
         await startBuild(buildProfile);
-        if (abortRef.current) return;
-        updateStep("build", "ok", `Build (${buildProfile}) gestartet`);
-        setDeployDone(true);
+        if (!isRunActive()) return;
+        updateStepScoped("build", "ok", `Build (${buildProfile}) gestartet`);
+        setDoneState(true);
       } catch (e: unknown) {
         const message = getOneClickDeployErrorMessage(e);
-        updateStep("build", "fail", message === "Unbekannter Fehler" ? "Build fehlgeschlagen" : message);
+        updateStepScoped("build", "fail", message === "Unbekannter Fehler" ? "Build fehlgeschlagen" : message);
       }
     } finally {
-      setIsDeploying(false);
+      setDeployingState(false);
     }
   }, [
     isDeploying,
@@ -311,7 +335,24 @@ export function useOneClickDeploy(
   ]);
 
   const abort = useCallback(() => {
+    const activeRunId = activeRunIdRef.current;
+    if (activeRunId <= 0) return;
     abortRef.current = true;
+    setSteps((prev) =>
+      prev.map((step) => {
+        if (step.status === "running") {
+          return {
+            ...step,
+            status: "fail",
+            detail: getAbortRunningStepDetail(step.id),
+          };
+        }
+        if (step.status === "pending") {
+          return { ...step, status: "skip", detail: "Lokal vor Ausfuehrung abgebrochen" };
+        }
+        return step;
+      }),
+    );
     setIsDeploying(false);
   }, []);
 

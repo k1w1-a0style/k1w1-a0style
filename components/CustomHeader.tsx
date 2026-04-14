@@ -19,7 +19,7 @@ type NavLike = { navigate?: (screen: string) => void };
 const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
   const title = options.title ?? "k1w1";
   const { activeRepo, activeBranch } = useGitHub();
-  const { projectData } = useProject();
+  const { projectData, isRecoveryMode, recoveryModeReason } = useProject();
   const insets = useSafeAreaInsets();
 
   const repoLine = useMemo(() => {
@@ -54,7 +54,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     <View
       style={[
         styles.header,
-        { paddingTop: insets.top, height: HEADER_HEIGHT + insets.top },
+        { paddingTop: insets.top, height: HEADER_HEIGHT + insets.top + (isRecoveryMode ? 26 : 0) },
       ]}
     >
       <View style={styles.left}>
@@ -103,6 +103,15 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
         <ChatHeaderActions topOffset={HEADER_HEIGHT + insets.top} />
       </View>
+      {isRecoveryMode ? (
+        <View style={styles.recoveryBanner} accessibilityRole="alert">
+          <Ionicons name="warning-outline" size={12} color={theme.palette.error} />
+          <Text style={styles.recoveryText} numberOfLines={1}>
+            RECOVERY MODUS AKTIV · Keine persistente Speicherung
+            {recoveryModeReason ? ` · ${recoveryModeReason}` : ""}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -149,5 +158,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: theme.palette.text.secondary,
     fontSize: 11,
+  },
+  recoveryBanner: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 2,
+    minHeight: 22,
+    borderRadius: 8,
+    borderWidth: HAIRLINE,
+    borderColor: `${theme.palette.error}88`,
+    backgroundColor: `${theme.palette.error}22`,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  recoveryText: {
+    flex: 1,
+    fontSize: 10,
+    color: theme.palette.error,
+    fontWeight: "700",
   },
 });

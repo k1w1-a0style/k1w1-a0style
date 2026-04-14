@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { OrchestratorResult } from "../lib/orchestrator";
 import { handleMetaCommand } from "../utils/metaCommands";
 import {
@@ -48,6 +48,7 @@ export {
 
 export function useChatAIFlow({
   config,
+  projectId = null,
   messages,
   projectFiles,
   addChatMessage,
@@ -71,6 +72,14 @@ export function useChatAIFlow({
   const processAIRequestRef = useRef<
     ((message: string, isAutoFix?: boolean, forceBuilder?: boolean) => Promise<boolean>) | null
   >(null);
+  const activeProjectIdRef = useRef<string | null>(projectId);
+  const projectRequestVersionRef = useRef(0);
+  const activeRequestIdRef = useRef(0);
+
+  if (activeProjectIdRef.current !== projectId) {
+    activeProjectIdRef.current = projectId;
+    projectRequestVersionRef.current += 1;
+  }
 
   const projectFilesRef = useRef(projectFiles);
   projectFilesRef.current = projectFiles;
@@ -187,12 +196,31 @@ export function useChatAIFlow({
     notifyKeyRotation,
     announceRuntimeNote,
     drainAutoFixQueue,
+    activeProjectIdRef,
+    projectRequestVersionRef,
+    activeRequestIdRef,
   });
 
   processAIRequestRef.current = processAIRequest;
 
+  const abortCurrentRequest = useCallback(() => {
+    resetTransientState();
+    addChatMessage(
+      buildSystemMessage("Anfrage manuell abgebrochen. Es wurden keine weiteren Aenderungen uebernommen."),
+    );
+  }, [addChatMessage, resetTransientState]);
+
+  const lastProjectIdRef = useRef<string | null>(projectId);
+  useEffect(() => {
+    if (lastProjectIdRef.current === projectId) return;
+    lastProjectIdRef.current = projectId;
+    activeRequestIdRef.current += 1;
+    resetTransientState();
+  }, [projectId, resetTransientState]);
+
   const { applyChanges, rejectChanges } = useChatAIChangeLifecycle({
     pendingChange,
+    activeProjectId: projectId,
     safe,
     projectFilesRef,
     updateProjectFiles,
@@ -244,6 +272,17 @@ export function useChatAIFlow({
 
       const currentPlan = pendingPlanRef.current;
       if (currentPlan) {
+        if (currentPlan.originProjectId !== undefined && currentPlan.originProjectId !== projectId) {
+          pendingPlanRef.current = null;
+          safe(() => setPendingPlan(null));
+          addChatMessage(
+            buildSystemMessage(
+              "⚠️ Ein alter Plan stammt aus einem anderen Projekt und wurde verworfen. Bitte Anfrage erneut senden.",
+              { stateDrift: true },
+            ),
+          );
+          return false;
+        }
         const handoff = resolvePendingPlanHandoff({
           currentPlan,
           sanitizedUserContent,
@@ -281,6 +320,7 @@ export function useChatAIFlow({
       rejectChanges,
       resetTransientState,
       handleScreenBlurCleanup,
+      abortCurrentRequest,
     }),
     [
       applyChanges,
@@ -291,6 +331,7 @@ export function useChatAIFlow({
       rejectChanges,
       resetTransientState,
       setAtBottom,
+      abortCurrentRequest,
     ],
   );
 }

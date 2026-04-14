@@ -279,6 +279,118 @@ describe("usePreview server contract", () => {
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
+  test("stale preview finally must not clear the active in-flight request of a newer project", async () => {
+    const resolvers: Array<(value: unknown) => void> = [];
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvers.push(resolve);
+        }) as Promise<unknown>,
+    );
+
+    const { result, rerender } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    let requestA: Promise<unknown>;
+    await act(async () => {
+      requestA = result.current.createPreview();
+      await Promise.resolve();
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    rerender({
+      ...baseProject,
+      id: "preview-contract-b",
+      name: "Project B",
+      lastPreview: null,
+    });
+
+    let requestB: Promise<unknown>;
+    await act(async () => {
+      requestB = result.current.createPreview();
+      await Promise.resolve();
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    resolvers[0]?.({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          ok: true,
+          previewUrl: "https://preview.example.com/session-a",
+          expiresAt: "2026-03-20T12:30:00.000Z",
+        }),
+    });
+    await requestA!;
+
+    const duplicateStart = result.current.createPreview();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    resolvers[1]?.({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          ok: true,
+          previewUrl: "https://preview.example.com/session-b",
+          expiresAt: "2026-03-20T12:30:00.000Z",
+        }),
+    });
+
+    await requestB!;
+    await duplicateStart;
+    await waitFor(() => {
+      expect(result.current.lastPreview?.url).toBe("https://preview.example.com/session-b");
+    });
+  });
+
+  test("late stale completion after project switch does not leave isCreating stuck", async () => {
+    const fetchResolverRef: { current: ((value: unknown) => void) | null } = { current: null };
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          fetchResolverRef.current = resolve;
+        }) as Promise<unknown>,
+    );
+
+    const { result, rerender } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    let requestA: Promise<unknown>;
+    await act(async () => {
+      requestA = result.current.createPreview();
+      await Promise.resolve();
+    });
+
+    rerender({
+      ...baseProject,
+      id: "preview-contract-c",
+      name: "Project C",
+      lastPreview: null,
+    });
+
+    expect(result.current.state.isCreating).toBe(false);
+
+    if (fetchResolverRef.current) {
+      fetchResolverRef.current({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            previewUrl: "https://preview.example.com/session-a",
+            expiresAt: "2026-03-20T12:30:00.000Z",
+          }),
+      });
+    }
+    await requestA!;
+
+    expect(result.current.state.isCreating).toBe(false);
+  });
+
   test("keeps the existing explicit local dev fallback path working without remote server checks", async () => {
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
       initialProps: {

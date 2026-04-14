@@ -193,8 +193,10 @@ export const useChatScreen = () => {
     rejectChanges,
     resetTransientState,
     handleScreenBlurCleanup,
+    abortCurrentRequest,
   } = useChatAIFlow({
     config,
+    projectId: projectData?.id ?? null,
     messages,
     projectFiles,
     addChatMessage,
@@ -348,6 +350,7 @@ export const useChatScreen = () => {
 
     handlePickDocument,
     handleSend,
+    abortCurrentRequest,
     handleScroll,
     scrollButtonPress,
     handleContentSizeChange,

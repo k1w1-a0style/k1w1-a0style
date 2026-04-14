@@ -21,6 +21,7 @@ import {
 import { isHttpUrl } from '../../../utils/url';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
+import { redactPreviewUrl } from '../../shared/preview/previewUrlRedaction';
 import type { WebView } from 'react-native-webview';
 import type { RootStackParamList } from '../../../types/preview';
 
@@ -96,17 +97,7 @@ export function usePreviewScreen() {
         : null,
     [previewKind, remoteUrlStatus, hasExpiredSupabaseUrl, lastPreview?.url],
   );
-  const previewUrlDisplay = useMemo(() => {
-    if (!previewUrl) return null;
-    try {
-      const parsed = new URL(previewUrl);
-      const host = parsed.host;
-      const path = parsed.pathname || '/';
-      return `${host}${path}#secret=••••`;
-    } catch {
-      return 'Preview-Link mit Secret (aus Sicherheitsgruenden ausgeblendet)';
-    }
-  }, [previewUrl]);
+  const previewUrlDisplay = useMemo(() => redactPreviewUrl(previewUrl), [previewUrl]);
   const previewExpiryText = useMemo(
     () => formatPreviewExpiry(lastPreview?.expiresAt ?? null),
     [lastPreview?.expiresAt],
@@ -284,24 +275,47 @@ export function usePreviewScreen() {
 
   const handleCopy = useCallback(async () => {
     if (previewUrl) {
-      await Clipboard.setStringAsync(previewUrl);
-      Alert.alert('Kopiert', 'Preview-URL in Zwischenablage.');
+      Alert.alert(
+        'Secret-Link teilen?',
+        `Dieser Link enthaelt ein Zugriffstoken.\n\n${previewUrlDisplay}\n\nNur ueber sichere Kanaele teilen.`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Trotzdem kopieren',
+            style: 'destructive',
+            onPress: () => {
+              void Clipboard.setStringAsync(previewUrl);
+              Alert.alert('Kopiert', 'Preview-Link wurde bewusst in die Zwischenablage uebernommen.');
+            },
+          },
+        ],
+      );
     }
-  }, [previewUrl]);
+  }, [previewUrl, previewUrlDisplay]);
 
 
   const handleOpenExternal = useCallback(async () => {
     if (previewUrl) {
-      try {
-        await Linking.openURL(previewUrl);
-      } catch (error) {
-        logger.warn('[PreviewScreen] open external preview URL failed', {
-          error,
-          hasPreviewUrl: true,
-          previewUrlDisplay,
-        });
-        Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
-      }
+      Alert.alert(
+        'Secret-Link im Browser oeffnen?',
+        `Der externe Browser kann den Link in Verlauf/Referrer sichtbar machen.\n\n${previewUrlDisplay}`,
+        [
+          { text: 'Abbrechen', style: 'cancel' },
+          {
+            text: 'Im Browser oeffnen',
+            onPress: () => {
+              void Linking.openURL(previewUrl).catch((error) => {
+                logger.warn('[PreviewScreen] open external preview URL failed', {
+                  error,
+                  hasPreviewUrl: true,
+                  previewUrlDisplay,
+                });
+                Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
+              });
+            },
+          },
+        ],
+      );
     }
   }, [previewUrl, previewUrlDisplay]);
 

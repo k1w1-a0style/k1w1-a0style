@@ -44,6 +44,17 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   const isAliveRef = useRef(true);
   const inFlightRef = useRef<Promise<PreviewResult | null> | null>(null);
+  const inFlightTokenRef = useRef(0);
+  const activeProjectIdRef = useRef<string | null>(projectData?.id ?? null);
+  const requestSerialRef = useRef(0);
+
+  useEffect(() => {
+    activeProjectIdRef.current = projectData?.id ?? null;
+    inFlightTokenRef.current += 1;
+    inFlightRef.current = null;
+    setIsCreating(false);
+    setRemoteFailure(null);
+  }, [projectData?.id]);
 
   const safeSetIsCreating = useCallback((v: boolean) => {
     if (!isAliveRef.current) return;
@@ -155,6 +166,43 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
         return null;
       }
 
+      const requestProjectId = projectData.id;
+      const requestSerial = ++requestSerialRef.current;
+      const canWriteForRequest = () =>
+        isAliveRef.current &&
+        activeProjectIdRef.current === requestProjectId &&
+        requestSerialRef.current === requestSerial;
+
+      const scopedSetLastPreview = async (meta: LastPreviewMeta | null) => {
+        if (!canWriteForRequest()) return;
+        await setLastPreview(meta as LastPreviewMeta);
+      };
+
+      const scopedSetPreferredPreviewMode = async (mode: "supabase" | "local") => {
+        if (!canWriteForRequest()) return;
+        if (!setPreferredPreviewMode) return;
+        await setPreferredPreviewMode(mode);
+      };
+
+      const guardedSetters = {
+        setLastPreviewState: (value: PreviewResult | null) => {
+          if (!canWriteForRequest()) return;
+          safeSetLastPreviewState(value);
+        },
+        setRemoteFailure: (value: string | null) => {
+          if (!canWriteForRequest()) return;
+          safeSetRemoteFailure(value);
+        },
+        setError: (value: string | null) => {
+          if (!canWriteForRequest()) return;
+          safeSetError(value);
+        },
+        setLastCreatedAt: (value: number | null) => {
+          if (!canWriteForRequest()) return;
+          safeSetLastCreatedAt(value);
+        },
+      };
+
       safeSetIsCreating(true);
       safeSetError(null);
       safeSetRemoteFailure(null);
@@ -169,26 +217,26 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
           skippedCount,
           attemptSupabaseFirst,
           localFallbackExplicitlyEnabled,
-          setLastPreview: (meta) => setLastPreview(meta as LastPreviewMeta),
-          setPreferredPreviewMode,
-          setters: {
-            setLastPreviewState: safeSetLastPreviewState,
-            setRemoteFailure: safeSetRemoteFailure,
-            setError: safeSetError,
-            setLastCreatedAt: safeSetLastCreatedAt,
-          },
+          setLastPreview: scopedSetLastPreview,
+          setPreferredPreviewMode: scopedSetPreferredPreviewMode,
+          setters: guardedSetters,
         });
       } catch (e: unknown) {
         const message = normalizePreviewCreationError(e);
-        safeSetError(message);
+        guardedSetters.setError(message);
         throw new Error(message);
       } finally {
-        safeSetIsCreating(false);
+        if (canWriteForRequest()) {
+          safeSetIsCreating(false);
+        }
       }
     })();
 
+    const inFlightToken = inFlightTokenRef.current + 1;
+    inFlightTokenRef.current = inFlightToken;
     inFlightRef.current = run;
     return run.finally(() => {
+      if (inFlightTokenRef.current !== inFlightToken) return;
       inFlightRef.current = null;
     });
   }, [

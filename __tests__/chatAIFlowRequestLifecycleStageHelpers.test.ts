@@ -31,6 +31,7 @@ describe("chatAIFlowRequestLifecycleStageHelpers", () => {
     const abortControllerRef = { current: requestController as AbortController | null };
     const inFlightRef = { current: true };
     const isMountedRef = { current: true };
+    const activeRequestIdRef = { current: 1 };
 
     finalizeRequestCycle({
       safe,
@@ -38,6 +39,8 @@ describe("chatAIFlowRequestLifecycleStageHelpers", () => {
       inFlightRef,
       abortControllerRef,
       requestController,
+      requestId: 1,
+      activeRequestIdRef,
       isMountedRef,
       drainAutoFixQueue,
     });
@@ -53,6 +56,7 @@ describe("chatAIFlowRequestLifecycleStageHelpers", () => {
     const abortControllerRef2 = { current: requestController2 as AbortController | null };
     const inFlightRef2 = { current: true };
     const isMountedRef2 = { current: false };
+    const activeRequestIdRef2 = { current: 2 };
 
     finalizeRequestCycle({
       safe,
@@ -60,12 +64,34 @@ describe("chatAIFlowRequestLifecycleStageHelpers", () => {
       inFlightRef: inFlightRef2,
       abortControllerRef: abortControllerRef2,
       requestController: requestController2,
+      requestId: 2,
+      activeRequestIdRef: activeRequestIdRef2,
       isMountedRef: isMountedRef2,
       drainAutoFixQueue,
     });
 
     jest.runAllTimers();
     expect(drainAutoFixQueue).toHaveBeenCalledTimes(1);
+
+    const requestController3 = new AbortController();
+    const abortControllerRef3 = { current: requestController3 as AbortController | null };
+    const inFlightRef3 = { current: true };
+    const activeRequestIdRef3 = { current: 9 };
+
+    finalizeRequestCycle({
+      safe,
+      setIsAiLoading,
+      inFlightRef: inFlightRef3,
+      abortControllerRef: abortControllerRef3,
+      requestController: requestController3,
+      requestId: 8,
+      activeRequestIdRef: activeRequestIdRef3,
+      isMountedRef,
+      drainAutoFixQueue,
+    });
+
+    expect(inFlightRef3.current).toBe(true);
+    expect(abortControllerRef3.current).toBe(requestController3);
 
     jest.useRealTimers();
   });

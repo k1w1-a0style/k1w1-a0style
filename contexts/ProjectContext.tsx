@@ -81,6 +81,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   const {
     isLoading,
+    isRecoveryMode,
+    recoveryModeReason,
     updateProject,
     createNewProject,
     importNormalizedProjectData,
@@ -234,6 +236,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
     () => composeProjectContextValue({
       projectData,
       isLoading,
+      isRecoveryMode,
+      recoveryModeReason,
       startBuild,
       currentBuild,
       updateProjectFiles,

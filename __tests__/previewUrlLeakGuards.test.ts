@@ -30,4 +30,26 @@ describe("preview URL leak guards", () => {
     expect(src).not.toContain("url: decision.url");
     expect(src).not.toContain("truncateUrl(decision.url");
   });
+
+  test("preview screen guards secret sharing behind explicit confirmation dialogs", () => {
+    const src = read("screens/PreviewScreen/hooks/usePreviewScreen.ts");
+    expect(src).toContain("Secret-Link teilen?");
+    expect(src).toContain("Trotzdem kopieren");
+    expect(src).toContain("Secret-Link im Browser oeffnen?");
+    expect(src).toContain("Nur ueber sichere Kanaele teilen.");
+  });
+
+  test("usePreview keeps async writebacks scoped to the originating project request", () => {
+    const src = read("hooks/usePreview.ts");
+    expect(src).toContain("const canWriteForRequest = () =>");
+    expect(src).toContain("activeProjectIdRef.current === requestProjectId");
+    expect(src).toContain("setLastPreview: scopedSetLastPreview");
+  });
+
+  test("fullscreen preview requires explicit confirmation before sharing/opening secret links", () => {
+    const src = read("screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts");
+    expect(src).toContain("Secret-Link teilen?");
+    expect(src).toContain("Trotzdem teilen");
+    expect(src).toContain("Secret-Link extern oeffnen?");
+  });
 });
