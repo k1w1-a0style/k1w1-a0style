@@ -1,5 +1,6 @@
 import type { BuildStatus } from "../shared/types/build";
 import type { ChatMessage } from "../shared/types/chat";
+import type { FileCommandResult } from "./projectContext/projectContext.contracts";
 import type {
   AutoFixRequest,
   LastPreviewMeta,
@@ -16,10 +17,10 @@ export interface ProjectContextProps {
   recoveryModeReason?: string | null;
 
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  createFile: (path: string, content: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
-  deleteFiles?: (paths: string[]) => Promise<void>;
-  renameFile: (oldPath: string, newPath: string) => Promise<void>;
+  createFile: (path: string, content: string) => Promise<FileCommandResult>;
+  deleteFile: (path: string) => Promise<FileCommandResult>;
+  deleteFiles?: (paths: string[]) => Promise<FileCommandResult>;
+  renameFile: (oldPath: string, newPath: string) => Promise<FileCommandResult>;
 
   setPackageName: (packageName: string) => void;
   setProjectName: (name: string) => void;

@@ -105,6 +105,7 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
       easProjectId: secrets.easProjectId,
     },
     persistSelectedEasProjectId,
+    effectiveRepo,
     clearGithubConnectionState: persistence.actions.clearGithubConnectionState,
     clearExpoConnectionState: persistence.actions.clearExpoConnectionState,
     clearEasConnectionState: persistence.actions.clearEasConnectionState,

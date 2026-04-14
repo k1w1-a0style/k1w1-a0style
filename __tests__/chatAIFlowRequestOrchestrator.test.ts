@@ -235,6 +235,8 @@ describe("chatAIFlowRequestOrchestrator", () => {
       mergedFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
       created: [],
       updated: [],
+      deleted: [],
+      renamed: [],
       runOrchestratorWithTimeout: run,
       notifyKeyRotation: jest.fn(),
     });

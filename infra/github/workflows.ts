@@ -226,7 +226,7 @@ export const getWorkflowRuns = async (
 ) => {
   const headers = await requireGitHubAuthHeaders();
   const { resp, json } = await fetchGitHubRecord(
-    `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=5`,
+    `/repos/${owner}/${repo}/actions/workflows/${encodeURIComponent(workflowFileName)}/runs?per_page=10`,
     headers,
   );
 

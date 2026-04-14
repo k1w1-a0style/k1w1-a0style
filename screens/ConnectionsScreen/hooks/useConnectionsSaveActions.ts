@@ -34,7 +34,8 @@ type Params = {
     supabaseAnonKey: string;
     easProjectId: string;
   };
-  persistSelectedEasProjectId: (projectId: string) => Promise<void>;
+  persistSelectedEasProjectId: (projectId: string, repoFullName?: string | null) => Promise<void>;
+  effectiveRepo: string | null;
   clearGithubConnectionState: () => Promise<void>;
   clearExpoConnectionState: () => Promise<void>;
   clearEasConnectionState: () => Promise<void>;
@@ -47,6 +48,7 @@ export function useConnectionsSaveActions(params: Params) {
     runGuardedAction,
     secrets,
     persistSelectedEasProjectId,
+    effectiveRepo,
     clearGithubConnectionState,
     clearExpoConnectionState,
     clearEasConnectionState,
@@ -129,7 +131,7 @@ export function useConnectionsSaveActions(params: Params) {
 
         await persistTokenSavePlan(plan);
         await persistSupabaseSavePlan(plan);
-        await persistSelectedEasProjectId(plan.easProjectId);
+        await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
 
         if (plan.shouldClearEasConnection) {
           await clearEasConnectionState();
@@ -147,6 +149,7 @@ export function useConnectionsSaveActions(params: Params) {
     persistTokenSavePlan,
     persistSupabaseSavePlan,
     persistSelectedEasProjectId,
+    effectiveRepo,
     clearEasConnectionState,
     clearSupabaseConnectionState,
   ]);

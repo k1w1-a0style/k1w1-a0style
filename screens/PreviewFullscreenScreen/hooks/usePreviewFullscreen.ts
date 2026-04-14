@@ -128,14 +128,14 @@ export function usePreviewFullscreen() {
       if (mode === 'url' && url) {
         Alert.alert(
           'Secret-Link teilen?',
-          `Dieser Preview-Link enthaelt ein Zugriffstoken.\n\n${redactPreviewUrl(url)}\n\nNur ueber sichere Kanaele teilen.`,
+          `Dieser Link enthaelt ein Zugriffstoken.\n\n${redactPreviewUrl(url)}\n\nNur ueber sichere Kanaele teilen.`,
           [
             { text: 'Abbrechen', style: 'cancel' },
             {
               text: 'Trotzdem teilen',
               style: 'destructive',
               onPress: () => {
-                void Share.share({ message: `Schau dir diese Preview an: ${url}`, url, title });
+                void Share.share({ message: `Preview-Link: ${url}`, url, title });
               },
             },
           ],
@@ -152,7 +152,7 @@ export function usePreviewFullscreen() {
     if (mode === 'url' && url) {
       Alert.alert(
         'Secret-Link extern oeffnen?',
-        `Der Browser kann den Link in Verlauf/Referrer sichtbar machen.\n\n${redactPreviewUrl(url)}`,
+        `Der externe Browser kann den Link in Verlauf/Referrer sichtbar machen.\n\n${redactPreviewUrl(url)}`,
         [
           { text: 'Abbrechen', style: 'cancel' },
           {
@@ -160,15 +160,10 @@ export function usePreviewFullscreen() {
             onPress: () => {
               void (async () => {
                 try {
-                  const canOpen = await Linking.canOpenURL(url);
-                  if (canOpen) {
-                    await Linking.openURL(url);
-                  } else {
-                    Alert.alert('❌ Fehler', 'Diese URL kann nicht im Browser geöffnet werden.');
-                  }
+                  await Linking.openURL(url);
                 } catch (err) {
                   logger.error('PreviewFullscreen', 'External open failed', err);
-                  Alert.alert('❌ Fehler', 'Browser konnte nicht geöffnet werden.');
+                  Alert.alert('Fehler', 'Browser konnte nicht geoeffnet werden.');
                 }
               })();
             },

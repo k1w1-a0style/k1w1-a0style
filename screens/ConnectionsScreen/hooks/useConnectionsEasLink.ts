@@ -29,7 +29,7 @@ type Params = {
   effectiveRepo: string | null;
   effectiveBranch: string | null;
   busyRef: MutableRefObject<boolean>;
-  persistSelectedEasProjectId: (projectId: string) => Promise<void>;
+  persistSelectedEasProjectId: (projectId: string, repoFullName?: string | null) => Promise<void>;
   persistConnLights: (entries: Array<[string, string]>) => Promise<void>;
   removeConnLights: (keys: string[]) => Promise<void>;
   applyEasConnectionState: (payload: {
@@ -61,11 +61,11 @@ export function useConnectionsEasLink(params: Params) {
   const persistSelectedEasProjectIdBestEffort = useCallback(
     async (projectId: string) => {
       await runCleanupTask(
-        () => persistSelectedEasProjectId(projectId),
+        () => persistSelectedEasProjectId(projectId, effectiveRepo),
         `[ConnectionsScreen] persist/remove EAS project id failed for key=${STORAGE_KEYS.EAS_PROJECT_ID}`,
       );
     },
-    [persistSelectedEasProjectId],
+    [persistSelectedEasProjectId, effectiveRepo],
   );
 
   const runEasLinkWorkflowStart = useCallback(
