@@ -3,7 +3,7 @@
 // Uses the same tokens/values the user enters in the Connections screen.
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "./storageKeys";
+import { STORAGE_KEYS, easProjectIdKeyForRepo } from "./storageKeys";
 import {
   getExpoToken,
   getWorkflowAdminKey,
@@ -35,7 +35,11 @@ export const autoSyncRepoSecrets = async (
   ] = await Promise.all([
     getExpoToken(),
     AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
-    AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID),
+    (() => {
+      const scopedEasKey = easProjectIdKeyForRepo({ linkedRepo: repoFullName });
+      if (!scopedEasKey) return Promise.resolve(null);
+      return AsyncStorage.getItem(scopedEasKey);
+    })(),
     getWorkflowAdminKey(),
     getAndroidKeystoreExportAdminKey(),
     getLegacyEdgeAdminKey(),

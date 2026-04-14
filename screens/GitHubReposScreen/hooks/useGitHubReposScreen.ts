@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { STORAGE_KEYS, easProjectIdKeyForRepo } from "../../../lib/storageKeys";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import { useProject } from "../../../contexts/ProjectContext";
 import {
@@ -306,12 +306,17 @@ export function useGitHubReposScreen() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const id = await AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => "");
+      const key = easProjectIdKeyForRepo({ linkedRepo: activeRepo });
+      if (!key) {
+        if (mounted) setEasProjectId("");
+        return;
+      }
+      const id = await AsyncStorage.getItem(key).catch(() => "");
       if (!mounted) return;
       setEasProjectId((id || "").trim());
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [activeRepo]);
 
   // Auto-load repos once token exists
   useEffect(() => {

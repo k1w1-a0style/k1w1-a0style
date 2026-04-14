@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-14 (Patch 657)**
+Stand: **2026-04-14 (Patch 658)**
 
 Dieser Index priorisiert operative Navigation. Historische Details bleiben im Patchlog.
 

@@ -17,7 +17,11 @@ import {
   type SecureBackupScope,
   type SecureBackupPayloadV1,
 } from "../../../lib/appInfoScopedBackup";
-import { STORAGE_KEYS, legacyClientServiceRoleStorageKeys } from "../../../lib/storageKeys";
+import {
+  STORAGE_KEYS,
+  easProjectIdKeyForRepo,
+  legacyClientServiceRoleStorageKeys,
+} from "../../../lib/storageKeys";
 import { getSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { useGitHub } from "../../../contexts/GitHubContext";
 import {
@@ -255,11 +259,12 @@ export function useAppInfoScreen() {
       legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),
     );
 
+    const scopedEasKey = easProjectIdKeyForRepo({ linkedRepo: activeRepo });
     const [supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
       AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
       getSupabaseAnonKey().catch(() => ""),
-      AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
+      scopedEasKey ? AsyncStorage.getItem(scopedEasKey).catch(() => "") : Promise.resolve(""),
     ]);
 
     const payload = createSecretBackupPayload({
@@ -300,7 +305,12 @@ export function useAppInfoScreen() {
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, c.supabaseRaw));
       ops.push(AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, c.supabaseUrl));
       ops.push(saveSupabaseAnonKey(c.supabaseAnonKey));
-      ops.push(AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, c.easProjectId));
+      const scopedEasKey = easProjectIdKeyForRepo({
+        linkedRepo: payload.github.linkedRepo || activeRepo,
+      });
+      if (scopedEasKey) {
+        ops.push(AsyncStorage.setItem(scopedEasKey, c.easProjectId));
+      }
 
       await Promise.all(
         legacyClientServiceRoleStorageKeys().map((key) => AsyncStorage.removeItem(key).catch(() => {})),

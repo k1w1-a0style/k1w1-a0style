@@ -197,3 +197,15 @@ export function ciLiteSnapshotKeyForSelection(params: {
   if (!repo || !branch) return STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT;
   return `${STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT}::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`;
 }
+
+/**
+ * Repo-scoped EAS project id key.
+ * Returns null when no valid repo context exists (no global fallback).
+ */
+export function easProjectIdKeyForRepo(params: {
+  linkedRepo?: string | null;
+}): string | null {
+  const repo = String(params.linkedRepo ?? "").trim().toLowerCase();
+  if (!repo) return null;
+  return `${STORAGE_KEYS.EAS_PROJECT_ID}::${encodeURIComponent(repo)}`;
+}

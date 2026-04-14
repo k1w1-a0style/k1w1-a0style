@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import type { NavigationProp, ParamListBase } from "@react-navigation/native";
 
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
+import { STORAGE_KEYS, easProjectIdKeyForRepo } from "../../../lib/storageKeys";
 import { githubApiUrl } from "../../../shared/constants/github";
 import { autoFixCIWorkflows, parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { useGitHub } from "../../../contexts/GitHubContext";
@@ -276,11 +276,10 @@ export function useConnectionsScreen() {
         getLegacyEdgeAdminKey().catch(() => ""),
       ]);
 
-      const [raw, url, anon, eas] = await Promise.all([
+      const [raw, url, anon] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).catch(() => ""),
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(() => ""),
         getSupabaseAnonKey().catch(() => ""),
-        AsyncStorage.getItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => ""),
       ]);
 
       // Load persistent connection lights
@@ -309,7 +308,7 @@ export function useConnectionsScreen() {
       setSupabaseRaw(raw || "");
       setSupabaseUrl(url || "");
       setSupabaseAnonKey(anon || "");
-      setEasProjectId(eas || "");
+      setEasProjectId("");
 
       // Restore persistent lights
       if (ghOk === "true") setGithubOk(true);
@@ -322,7 +321,7 @@ export function useConnectionsScreen() {
       if (easOkStored === "true") setEasOk(true);
       const restoredEasState = resolvePersistedEasState({
         state: easStateStored,
-        easProjectId: eas || "",
+        easProjectId: "",
         lastVerifiedAt: easLastVerifiedStored,
       });
       if (restoredEasState) setEasState(restoredEasState);
@@ -339,6 +338,23 @@ export function useConnectionsScreen() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadScopedEasProjectId = async () => {
+      const scopedKey = easProjectIdKeyForRepo({ linkedRepo: effectiveRepo });
+      if (!scopedKey) {
+        if (mounted) setEasProjectId("");
+        return;
+      }
+      const value = await AsyncStorage.getItem(scopedKey).catch(() => "");
+      if (mounted) setEasProjectId((value || "").trim());
+    };
+    void loadScopedEasProjectId();
+    return () => {
+      mounted = false;
+    };
+  }, [effectiveRepo]);
 
   // Auto-Check: EAS Status einmalig im Hintergrund validieren,
   // sobald Token + Project ID geladen sind.
@@ -439,10 +455,11 @@ export function useConnectionsScreen() {
         await deleteSupabaseAnonKey();
       }
 
-      if (easId) {
-        await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, easId);
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID);
+      const scopedEasKey = easProjectIdKeyForRepo({ linkedRepo: effectiveRepo });
+      if (scopedEasKey && easId) {
+        await AsyncStorage.setItem(scopedEasKey, easId);
+      } else if (scopedEasKey) {
+        await AsyncStorage.removeItem(scopedEasKey);
         setEasOk(false);
         setEasState("missing");
         setEasLastVerifiedAt(null);
@@ -451,6 +468,8 @@ export function useConnectionsScreen() {
           [STORAGE_KEYS.CONN_EAS_STATE, "missing"],
         ]);
         await removeConnLights([STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT]);
+      } else if (!scopedEasKey) {
+        setEasProjectId("");
       }
 
       if (!sbUrl || !sbAnon) {
@@ -480,6 +499,7 @@ export function useConnectionsScreen() {
     supabaseUrl,
     supabaseAnonKey,
     easProjectId,
+    effectiveRepo,
     withBusyGuard,
     persistConnLights,
     removeConnLights,
@@ -726,12 +746,13 @@ Scopes: ${scopes}` : ""}`);
       try {
         // Persist token + (optional) EAS id so andere Teile der App die gleichen Werte nutzen
         await saveGitHubToken(token);
-        if (projectId) {
-          await AsyncStorage.setItem(STORAGE_KEYS.EAS_PROJECT_ID, projectId).catch(() => null);
-        } else {
+        const scopedEasKey = easProjectIdKeyForRepo({ linkedRepo: repoSlug });
+        if (scopedEasKey && projectId) {
+          await AsyncStorage.setItem(scopedEasKey, projectId).catch(() => null);
+        } else if (scopedEasKey) {
           // We are creating a new EAS Project ID in the workflow.
           // The generated id will be committed to eas-project.json in the repo.
-          await AsyncStorage.removeItem(STORAGE_KEYS.EAS_PROJECT_ID).catch(() => null);
+          await AsyncStorage.removeItem(scopedEasKey).catch(() => null);
         }
 
         await autoFixCIWorkflows({ owner: parsed.owner, repo: parsed.repo, branch });

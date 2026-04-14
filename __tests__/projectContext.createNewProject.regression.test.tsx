@@ -91,4 +91,30 @@ describe("ProjectContext createNewProject regression", () => {
 
     expect(mockLoadTemplateFromFile).toHaveBeenLastCalledWith("crud");
   });
+
+  it("returns rejected mutation results when no project state is loaded", async () => {
+    mockLoadProjectFromStorage.mockRejectedValueOnce(new Error("storage unavailable"));
+
+    render(
+      <ProjectProvider>
+        <Harness />
+      </ProjectProvider>,
+    );
+
+    await waitFor(() => {
+      expect(ctx?.isLoading).toBe(false);
+    });
+
+    await act(async () => {
+      const createResult = await ctx?.createFile("App.tsx", "content");
+      const deleteResult = await ctx?.deleteFile("App.tsx");
+      const deleteManyResult = await ctx?.deleteFiles?.(["App.tsx"]);
+      const renameResult = await ctx?.renameFile("App.tsx", "src/App.tsx");
+
+      expect(createResult?.status).toBe("rejected");
+      expect(deleteResult?.status).toBe("rejected");
+      expect(deleteManyResult?.status).toBe("rejected");
+      expect(renameResult?.status).toBe("rejected");
+    });
+  });
 });

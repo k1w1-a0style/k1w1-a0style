@@ -118,6 +118,37 @@ describe("useFileActions regressions", () => {
     expect(setViewMode).not.toHaveBeenCalled();
   });
 
+  test("handleCreateFile does not switch selection when project state is missing (rejected)", async () => {
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const setViewMode = jest.fn();
+
+    mockUseProject.mockReturnValue({
+      projectData: null,
+      createFile: jest.fn(async () => ({ status: "rejected", message: "Kein Projekt geladen." })),
+      deleteFile,
+      deleteFiles,
+      renameFile: jest.fn(async () => ({ status: "success" as const })),
+    });
+
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        setSelectedFile,
+        setEditingContent,
+        setViewMode,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleCreateFile("App.tsx");
+    });
+
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
+    expect(setViewMode).not.toHaveBeenCalled();
+  });
+
   test("handleCreateFile does not switch selection when result is undefined", async () => {
     const setSelectedFile = jest.fn();
     const setEditingContent = jest.fn();
