@@ -39,4 +39,18 @@ describe("easProjectIdScope", () => {
     expect(easProjectIdKeyForRepo(undefined)).toBe("");
     expect(easProjectIdKeyForRepo("  ")).toBe("");
   });
+
+  it("rejects invalid repo slugs and never persists into pseudo-scopes", async () => {
+    expect(easProjectIdKeyForRepo("owner/repo/extra")).toBe("");
+    expect(easProjectIdKeyForRepo("not a repo")).toBe("");
+
+    await persistScopedEasProjectId({
+      projectId: "should-not-persist",
+      repoFullName: "owner/repo/extra",
+    });
+    await expect(readScopedEasProjectId("owner/repo/extra")).resolves.toBe("");
+    await expect(AsyncStorage.getAllKeys()).resolves.not.toContain(
+      `${STORAGE_KEYS.EAS_PROJECT_ID}::owner%2Frepo%2Fextra`,
+    );
+  });
 });

@@ -1,15 +1,24 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { STORAGE_KEYS } from "./storageKeys";
+import { validateGitHubRepo } from "./validators";
+
+function normalizeRepoScope(repoFullName?: string | null): string {
+  const raw = String(repoFullName ?? "").trim();
+  if (!raw) return "";
+  const parsed = validateGitHubRepo(raw);
+  if (!parsed.valid || !parsed.owner || !parsed.name) return "";
+  return `${parsed.owner}/${parsed.name}`.toLowerCase();
+}
 
 export function easProjectIdKeyForRepo(repoFullName?: string | null): string {
-  const repo = String(repoFullName ?? "").trim().toLowerCase();
+  const repo = normalizeRepoScope(repoFullName);
   if (!repo) return "";
   return `${STORAGE_KEYS.EAS_PROJECT_ID}::${encodeURIComponent(repo)}`;
 }
 
 export async function readScopedEasProjectId(repoFullName?: string | null): Promise<string> {
-  const repo = String(repoFullName ?? "").trim();
+  const repo = normalizeRepoScope(repoFullName);
   if (!repo) return "";
   const scoped = await AsyncStorage.getItem(easProjectIdKeyForRepo(repo));
   return String(scoped ?? "").trim();
@@ -20,7 +29,7 @@ export async function persistScopedEasProjectId(params: {
   repoFullName?: string | null;
 }): Promise<void> {
   const projectId = String(params.projectId ?? "").trim();
-  const repo = String(params.repoFullName ?? "").trim();
+  const repo = normalizeRepoScope(params.repoFullName);
   if (!repo) return;
   const scopedKey = easProjectIdKeyForRepo(repo);
   if (!scopedKey) return;

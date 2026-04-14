@@ -986,4 +986,28 @@ describe("useConnectionsScreenHelpers", () => {
 
     expect(storage.getItem).not.toHaveBeenCalledWith(STORAGE_KEYS.EAS_PROJECT_ID);
   });
+
+  it("keeps hydration neutral for invalid repo scope and avoids EAS project-id reads", async () => {
+    const storage = {
+      getItem: jest.fn(async (_key: string) => null),
+    };
+
+    const snapshot = await loadHydrationSnapshot(
+      storage,
+      {
+        getGitHubToken: async () => "",
+        getExpoToken: async () => "",
+        getWorkflowAdminKey: async () => "",
+        getAndroidKeystoreExportAdminKey: async () => "",
+        getSupabaseAnonKey: async () => "",
+      },
+      "owner/repo/invalid",
+    );
+
+    expect(snapshot.easProjectId).toBe("");
+    expect(storage.getItem).not.toHaveBeenCalledWith(
+      `${STORAGE_KEYS.EAS_PROJECT_ID}::owner%2Frepo%2Finvalid`,
+    );
+    expect(storage.getItem).not.toHaveBeenCalledWith(STORAGE_KEYS.EAS_PROJECT_ID);
+  });
 });
