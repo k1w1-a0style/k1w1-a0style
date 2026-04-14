@@ -21,7 +21,7 @@
 
 # TODO
 
-Stand: **2026-03-31 (Patch 655)**
+Stand: **2026-04-14 (Patch 656)**
 
 > Laufende Restliste für operative Follow-ups.  
 > Historische, bereits erledigte Detailpunkte bleiben unten als Archivblock erhalten.

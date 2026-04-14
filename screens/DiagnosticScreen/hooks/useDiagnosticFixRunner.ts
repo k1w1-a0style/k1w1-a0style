@@ -60,7 +60,7 @@ export function useDiagnosticFixRunner(opts: {
   linkedRepo: string;
   linkedBranch?: string;
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<unknown>;
 
   // Fix options
   syncFixesToGitHub: boolean;

@@ -72,7 +72,7 @@ export function useDiagnosticScreen(opts: {
   setPreferredBuildProfile?: (mode: BuildMode) => void;
   navigation?: any;
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
+  deleteFile: (path: string) => Promise<unknown>;
 }) {
   const {
     projectData,

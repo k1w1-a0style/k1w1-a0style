@@ -18,6 +18,7 @@ import { toContentString } from "./useFileEditor";
 
 // Files that are commonly extensionless and should stay that way.
 import type { ProjectFile } from "../../../shared/types/project";
+import type { FileMutationResult } from "../../../contexts/projectTypes";
 
 import { EXTENSIONLESS_ALLOWLIST, validatePathOrAlert } from "./fileActionTypes";
 import type { FileActionsDeps, UseFileActionsReturn } from "./fileActionTypes";
@@ -47,6 +48,12 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   const lastSelectedPathRef = useRef<string | null>(null);
 
   const actionInFlightRef = useRef(false);
+
+  const isMutationSuccess = useCallback(
+    (result: FileMutationResult | void | null | undefined): boolean =>
+      !result || result.status === "success",
+    [],
+  );
 
   const handleItemPress = useCallback(
     (node: TreeNode) => {
@@ -122,7 +129,12 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
                         const paths = filesToDelete.map((f) => f.path);
                         void (deleteFiles
-                          ? deleteFiles(paths)
+                          ? deleteFiles(paths).then((result) => {
+                              if (!result || result.status === "success" || result.status === "noop") return;
+                              if (result.status === "rejected" || result.status === "error") {
+                                Alert.alert("Fehler", result.message || "Ordner konnte nicht gelöscht werden.");
+                              }
+                            })
                           : Promise.all(paths.map((path) => deleteFile(path))).then(() => undefined));
                       },
                     },
@@ -166,13 +178,14 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
         return;
       }
 
-      await renameFile(oldPath, newPath);
+      const result = await renameFile(oldPath, newPath);
+      if (!isMutationSuccess(result)) return;
 
       if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
       }
     },
-    [actionTargetFile, projectData?.files, renameFile, selectedFile, setSelectedFile],
+    [actionTargetFile, isMutationSuccess, projectData?.files, renameFile, selectedFile, setSelectedFile],
   );
 
   const handleMoveFile = useCallback(
@@ -194,13 +207,14 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       }
 
       const oldPath = actionTargetFile.path;
-      await renameFile(oldPath, newPath);
+      const result = await renameFile(oldPath, newPath);
+      if (!isMutationSuccess(result)) return;
 
       if (selectedFile?.path === oldPath) {
         setSelectedFile({ ...actionTargetFile, path: newPath });
       }
     },
-    [actionTargetFile, projectData?.files, renameFile, selectedFile, setSelectedFile],
+    [actionTargetFile, isMutationSuccess, projectData?.files, renameFile, selectedFile, setSelectedFile],
   );
 
   const handleDeleteFile = useCallback(async () => {
@@ -210,13 +224,14 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       return;
     }
 
-    await deleteFile(targetPath);
+    const result = await deleteFile(targetPath);
+    if (!isMutationSuccess(result)) return;
 
     if (selectedFile?.path === targetPath) {
       setSelectedFile(null);
       setEditingContent("");
     }
-  }, [actionTargetFile?.path, deleteFile, selectedFile?.path, setEditingContent, setSelectedFile]);
+  }, [actionTargetFile?.path, deleteFile, isMutationSuccess, selectedFile?.path, setEditingContent, setSelectedFile]);
 
   const handleDuplicateFile = useCallback(async () => {
     if (!actionTargetFile) return;
@@ -252,14 +267,15 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       if (!validatePathOrAlert(candidate)) return;
 
-      await createFile(candidate, toContentString(actionTargetFile));
+      const result = await createFile(candidate, toContentString(actionTargetFile));
+      if (!isMutationSuccess(result)) return;
       Alert.alert("✅ Dupliziert", `Neue Datei erstellt: ${candidate}`);
     } catch {
       Alert.alert("Fehler", "Duplizieren fehlgeschlagen.");
     } finally {
       actionInFlightRef.current = false;
     }
-  }, [actionTargetFile, createFile, projectData?.files]);
+  }, [actionTargetFile, createFile, isMutationSuccess, projectData?.files]);
 
   const handleCreateFile = useCallback(
     async (name: string) => {
@@ -288,7 +304,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       }
 
       const initialContent = `// ${finalPath}\n`;
-      await createFile(finalPath, initialContent);
+      const result = await createFile(finalPath, initialContent);
+      if (!isMutationSuccess(result)) return;
 
       // Optimistic selection is safe now (path validated + no collision).
       const newFile: ProjectFile = { path: finalPath, content: initialContent };
@@ -296,7 +313,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
       setEditingContent(initialContent);
       setViewMode("edit");
     },
-    [createFile, currentFolderPath, projectData?.files, setEditingContent, setSelectedFile, setViewMode],
+    [createFile, currentFolderPath, isMutationSuccess, projectData?.files, setEditingContent, setSelectedFile, setViewMode],
   );
 
   const handleCreateFolder = useCallback(
@@ -321,7 +338,8 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
           return;
         }
 
-        await createFile(gitkeepPath, "");
+        const result = await createFile(gitkeepPath, "");
+        if (!isMutationSuccess(result)) return;
         Alert.alert("✅ Erfolg", `Ordner "${folderName}" erstellt`);
       } catch {
         Alert.alert("Fehler", "Ordner konnte nicht erstellt werden.");
@@ -329,7 +347,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
         actionInFlightRef.current = false;
       }
     },
-    [createFile, currentFolderPath, projectData?.files],
+    [createFile, currentFolderPath, isMutationSuccess, projectData?.files],
   );
 
   const handleCopy = useCallback((content: string) => {

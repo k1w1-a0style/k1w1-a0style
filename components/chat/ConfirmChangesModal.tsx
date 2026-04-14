@@ -35,7 +35,7 @@ function getSourceTone(pendingChange: PendingChange | null) {
   if (!pendingChange) return { label: "Noch kein Vorschlag", tone: styles.modalMetaNeutral };
   if (pendingChange.finalFileSource === "validator") {
     return {
-      label: "Finale Dateiliste: Validator-Review (advisory)",
+      label: "Finale Dateiliste: Validator-Review (final übernommen)",
       tone: styles.modalMetaSuccess,
     };
   }
@@ -197,7 +197,7 @@ const ConfirmChangesModal: React.FC<Props> = ({
                       <Text style={styles.modalMetaLabel}>Finale Quelle</Text>
                       <Text style={styles.modalMetaValue}>
                         {pendingChange.finalFileSource === "validator"
-                          ? "Finale Liste kommt aus dem Validator-Review."
+                          ? "Finale Liste kommt aus dem Validator-Review (Builder bleibt nur Ausgangsvorschlag)."
                           : "Finale Liste bleibt beim Builder-Vorschlag."}
                       </Text>
                     </View>

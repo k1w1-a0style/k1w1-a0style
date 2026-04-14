@@ -9,15 +9,22 @@ import type {
   PreferredPreviewMode,
 } from "../shared/types/project";
 
+export type FileMutationStatus = "success" | "noop" | "rejected" | "error";
+
+export type FileMutationResult = {
+  status: FileMutationStatus;
+  message?: string;
+};
+
 export interface ProjectContextProps {
   projectData: ProjectData | null;
   isLoading: boolean;
 
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  createFile: (path: string, content: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
-  deleteFiles?: (paths: string[]) => Promise<void>;
-  renameFile: (oldPath: string, newPath: string) => Promise<void>;
+  createFile: (path: string, content: string) => Promise<FileMutationResult>;
+  deleteFile: (path: string) => Promise<FileMutationResult>;
+  deleteFiles?: (paths: string[]) => Promise<FileMutationResult>;
+  renameFile: (oldPath: string, newPath: string) => Promise<FileMutationResult>;
 
   setPackageName: (packageName: string) => void;
   setProjectName: (name: string) => void;

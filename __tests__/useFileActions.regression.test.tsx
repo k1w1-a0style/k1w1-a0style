@@ -86,4 +86,70 @@ describe("useFileActions regressions", () => {
     expect(alertSpy).toHaveBeenCalledWith("Fehler", "Keine Datei zum Löschen ausgewählt.");
     alertSpy.mockRestore();
   });
+
+  test("handleCreateFile does not switch selection when createFile returns noop", async () => {
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const setViewMode = jest.fn();
+
+    mockUseProject.mockReturnValue({
+      projectData: { files: [] },
+      createFile: jest.fn(async () => ({ status: "noop", message: "already exists" })),
+      deleteFile,
+      deleteFiles,
+      renameFile: jest.fn(async () => undefined),
+    });
+
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        setSelectedFile,
+        setEditingContent,
+        setViewMode,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleCreateFile("App.tsx");
+    });
+
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
+    expect(setViewMode).not.toHaveBeenCalled();
+  });
+
+  test("handleDeleteFile keeps open editor state when deleteFile returns noop", async () => {
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const deleteFileNoop = jest.fn(async () => ({ status: "noop", message: "missing" }));
+
+    mockUseProject.mockReturnValue({
+      projectData: { files: [{ path: "src/a.ts", content: "a" }] },
+      createFile: jest.fn(async () => undefined),
+      deleteFile: deleteFileNoop,
+      deleteFiles,
+      renameFile: jest.fn(async () => undefined),
+    });
+
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        selectedFile: { path: "src/a.ts", content: "a" },
+        setSelectedFile,
+        setEditingContent,
+      }),
+    );
+
+    act(() => {
+      result.current.setActionTargetFile({ path: "src/a.ts", content: "a" });
+    });
+
+    await act(async () => {
+      await result.current.handleDeleteFile();
+    });
+
+    expect(deleteFileNoop).toHaveBeenCalledWith("src/a.ts");
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
+  });
 });

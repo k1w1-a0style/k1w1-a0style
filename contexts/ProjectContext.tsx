@@ -25,7 +25,7 @@ import type {
   TemplateId,
   PreferredPreviewMode,
 } from "../shared/types/project";
-import type { ProjectContextProps } from "./projectTypes";
+import type { FileMutationResult, ProjectContextProps } from "./projectTypes";
 
 import {
   saveProjectToStorage,
@@ -88,6 +88,11 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   if (typeof error === "string" && error.trim()) return error;
   return fallback;
 };
+
+const fileMutationResult = (
+  status: FileMutationResult["status"],
+  message?: string,
+): FileMutationResult => ({ status, message });
 
 const isBuildProfile = (
   profile: unknown,
@@ -499,7 +504,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       const pathValidation = validateFilePath(path);
       if (!pathValidation.valid) {
         Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
+        return fileMutationResult("rejected", pathValidation.errors.join("\n"));
       }
 
       const contentValidation = validateFileContent(content);
@@ -508,15 +513,23 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           "Ungültiger Dateiinhalt",
           contentValidation.error || "Datei ist zu groß",
         );
-        return;
+        return fileMutationResult(
+          "rejected",
+          contentValidation.error || "Datei ist zu groß",
+        );
       }
 
       const validPath = pathValidation.normalized || path;
 
+      let mutationResult = fileMutationResult("success");
       await updateProject((prev) => {
         if (prev.files.some((f) => f.path === validPath)) {
           Alert.alert(
             "Fehler",
+            "Eine Datei mit diesem Pfad existiert bereits.",
+          );
+          mutationResult = fileMutationResult(
+            "noop",
             "Eine Datei mit diesem Pfad existiert bereits.",
           );
           return prev;
@@ -526,28 +539,60 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           files: [...prev.files, { path: validPath, content }],
         };
       });
+
+      return mutationResult;
     },
     [updateProject],
   );
 
   const deleteFile = useCallback(
     async (path: string) => {
-      await updateProject((prev) => ({
-        ...prev,
-        files: removeProjectFilesByPaths(prev.files, [path]),
-      }));
+      const targetPath = String(path ?? "").trim();
+      if (!targetPath) {
+        return fileMutationResult("rejected", "Ungültiger Dateipfad");
+      }
+
+      let mutationResult = fileMutationResult("success");
+      await updateProject((prev) => {
+        const nextFiles = removeProjectFilesByPaths(prev.files, [targetPath]);
+        if (nextFiles.length === prev.files.length) {
+          mutationResult = fileMutationResult("noop", "Datei wurde nicht gefunden.");
+          return prev;
+        }
+        return {
+          ...prev,
+          files: nextFiles,
+        };
+      });
+
+      return mutationResult;
     },
     [updateProject],
   );
 
   const deleteFiles = useCallback(
     async (paths: string[]) => {
-      if (!paths.some((path) => typeof path === "string" && path.length > 0)) return;
+      const validPaths = paths
+        .map((path) => String(path ?? "").trim())
+        .filter((path) => path.length > 0);
+      if (!validPaths.length) {
+        return fileMutationResult("rejected", "Keine gültigen Dateipfade.");
+      }
 
-      await updateProject((prev) => ({
-        ...prev,
-        files: removeProjectFilesByPaths(prev.files, paths),
-      }));
+      let mutationResult = fileMutationResult("success");
+      await updateProject((prev) => {
+        const nextFiles = removeProjectFilesByPaths(prev.files, validPaths);
+        if (nextFiles.length === prev.files.length) {
+          mutationResult = fileMutationResult("noop", "Keine passenden Dateien gefunden.");
+          return prev;
+        }
+        return {
+          ...prev,
+          files: nextFiles,
+        };
+      });
+
+      return mutationResult;
     },
     [updateProject],
   );
@@ -557,17 +602,27 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       const pathValidation = validateFilePath(newPath);
       if (!pathValidation.valid) {
         Alert.alert("Ungültiger Dateipfad", pathValidation.errors.join("\n"));
-        return;
+        return fileMutationResult("rejected", pathValidation.errors.join("\n"));
       }
 
       const validNewPath = pathValidation.normalized || newPath;
 
+      let mutationResult = fileMutationResult("success");
       await updateProject((prev) => {
         if (prev.files.some((f) => f.path === validNewPath)) {
           Alert.alert(
             "Fehler",
             "Eine Datei mit dem neuen Pfad existiert bereits.",
           );
+          mutationResult = fileMutationResult(
+            "noop",
+            "Eine Datei mit dem neuen Pfad existiert bereits.",
+          );
+          return prev;
+        }
+        const sourceExists = prev.files.some((f) => f.path === oldPath);
+        if (!sourceExists) {
+          mutationResult = fileMutationResult("noop", "Originaldatei wurde nicht gefunden.");
           return prev;
         }
         return {
@@ -577,6 +632,8 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           ),
         };
       });
+
+      return mutationResult;
     },
     [updateProject],
   );
