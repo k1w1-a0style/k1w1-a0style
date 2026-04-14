@@ -31,6 +31,8 @@ export function useProjectPersistenceController({
   mutexRef,
 }: ProjectPersistenceControllerInput) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [recoveryModeReason, setRecoveryModeReason] = useState<string | null>(null);
   const persistenceWriteBlockedRef = useRef(false);
 
   const persistProjectToStorage = useCallback(async (project: ProjectData, options?: { force?: boolean }) => {
@@ -139,9 +141,16 @@ export function useProjectPersistenceController({
         }
         if (initialized.source === "storage") {
           persistenceWriteBlockedRef.current = false;
+          setIsRecoveryMode(false);
+          setRecoveryModeReason(null);
           logger.info("📖 Projekt geladen:", initialized.project.name);
         } else if (initialized.source === "recovery-template") {
           persistenceWriteBlockedRef.current = true;
+          setIsRecoveryMode(true);
+          setRecoveryModeReason(
+            initialized.recoveryError ??
+              "Verschluesselte Projektdaten konnten nicht gelesen werden; Speicherung ist deaktiviert.",
+          );
           logger.error("[ProjectContext] Verschluesselten Storage-Stand nicht geladen; Recovery-Template aktiv.", {
             reason: initialized.recoveryError ?? "unknown",
           });
@@ -152,6 +161,8 @@ export function useProjectPersistenceController({
           );
         } else {
           persistenceWriteBlockedRef.current = false;
+          setIsRecoveryMode(false);
+          setRecoveryModeReason(null);
           logger.info("Kein Projekt gefunden, lade neues Template...");
           logger.info("Neues Template-Projekt erstellt und gespeichert.");
         }
@@ -253,6 +264,8 @@ export function useProjectPersistenceController({
 
   return {
     isLoading,
+    isRecoveryMode,
+    recoveryModeReason,
     setIsLoadingSafe,
     updateProject,
     replaceProjectData,

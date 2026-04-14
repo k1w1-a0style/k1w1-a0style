@@ -54,6 +54,7 @@ export const MAX_AUTOFIX_QUEUE = 5;
 
 export type UseChatAIFlowArgs = {
   config: AIConfig;
+  projectId?: string | null;
   messages: ChatMessage[];
   projectFiles: ProjectFile[];
   addChatMessage: (m: ChatMessage) => void;

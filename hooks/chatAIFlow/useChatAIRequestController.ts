@@ -50,6 +50,8 @@ export type UseChatAIRequestControllerArgs = {
   notifyKeyRotation: (result: OrchestratorResult | null | undefined) => void;
   announceRuntimeNote: (result: OrchestratorResult | null | undefined) => void;
   drainAutoFixQueue: () => void;
+  activeProjectIdRef: MutableRefObject<string | null>;
+  projectRequestVersionRef: MutableRefObject<number>;
 };
 
 export const useChatAIRequestController = ({
@@ -73,6 +75,8 @@ export const useChatAIRequestController = ({
   notifyKeyRotation,
   announceRuntimeNote,
   drainAutoFixQueue,
+  activeProjectIdRef,
+  projectRequestVersionRef,
 }: UseChatAIRequestControllerArgs) => {
   return useCallback(
     async (userContent: string, isAutoFix = false, forceBuilder = false) => {
@@ -99,6 +103,8 @@ export const useChatAIRequestController = ({
       safe(() => setError(null));
 
       const controller = new AbortController();
+      const requestProjectId = activeProjectIdRef.current;
+      const requestVersion = projectRequestVersionRef.current;
       abortControllerRef.current?.abort();
       abortControllerRef.current = controller;
 
@@ -138,6 +144,11 @@ export const useChatAIRequestController = ({
           },
         });
 
+        const projectScopeStillValid =
+          activeProjectIdRef.current === requestProjectId &&
+          projectRequestVersionRef.current === requestVersion;
+        if (!projectScopeStillValid || controller.signal.aborted) return false;
+
         handlePipelineResult({
           pipelineResult,
           addChatMessage,
@@ -174,6 +185,7 @@ export const useChatAIRequestController = ({
     },
     [
       abortControllerRef,
+      activeProjectIdRef,
       addChatMessage,
       announceContextBudgetNote,
       announceRuntimeNote,
@@ -185,6 +197,7 @@ export const useChatAIRequestController = ({
       notifyKeyRotation,
       pendingPlanRef,
       projectFilesRef,
+      projectRequestVersionRef,
       safe,
       setError,
       setIsAiLoading,

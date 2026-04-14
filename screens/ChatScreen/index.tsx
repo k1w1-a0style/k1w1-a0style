@@ -54,6 +54,7 @@ const ChatScreen: React.FC = () => {
 
     handlePickDocument,
     handleSend,
+    abortCurrentRequest,
     handleScroll,
     scrollButtonPress,
     handleContentSizeChange,
@@ -143,6 +144,7 @@ const ChatScreen: React.FC = () => {
           onPickDocument={handlePickDocument}
           onClearSelectedFile={() => setSelectedFileAsset(null)}
           onSend={handleSend}
+          onAbort={abortCurrentRequest}
           combinedIsLoading={combinedIsLoading}
           keyboardOffsetInScreen={keyboardOffsetInScreen}
           sendButtonScale={sendButtonScale}

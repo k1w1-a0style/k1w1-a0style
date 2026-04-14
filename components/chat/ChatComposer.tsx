@@ -2,7 +2,6 @@
 import React, { useCallback, useRef } from "react";
 import {
   Animated,
-  ActivityIndicator,
   Text,
   TextInput,
   View,
@@ -27,6 +26,7 @@ type Props = {
   onPickDocument: () => void;
   onClearSelectedFile: () => void;
   onSend: () => void | Promise<void>;
+  onAbort?: () => void;
   combinedIsLoading: boolean;
   keyboardOffsetInScreen: number;
   sendButtonScale: Animated.Value;
@@ -42,6 +42,7 @@ const ChatComposer: React.FC<Props> = ({
   onPickDocument,
   onClearSelectedFile,
   onSend,
+  onAbort,
   combinedIsLoading,
   keyboardOffsetInScreen,
   sendButtonScale,
@@ -180,19 +181,20 @@ const ChatComposer: React.FC<Props> = ({
           <TouchableOpacity
             style={[
               styles.sendButton,
-              !canSend && styles.sendButtonDisabled,
+              !canSend && !combinedIsLoading && styles.sendButtonDisabled,
             ]}
-            onPress={onSend}
-            disabled={!canSend}
+            onPress={combinedIsLoading ? (onAbort ?? (() => {})) : onSend}
+            disabled={!canSend && !combinedIsLoading}
             activeOpacity={0.8}
-            accessibilityLabel={combinedIsLoading ? "Wird verarbeitet" : "Nachricht senden"}
+            accessibilityLabel={combinedIsLoading ? "Anfrage abbrechen" : "Nachricht senden"}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canSend }}
+            accessibilityState={{ disabled: !canSend && !combinedIsLoading }}
           >
             {combinedIsLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={sendColor}
+              <Ionicons
+                name="close"
+                size={20}
+                color={theme.palette.error}
               />
             ) : (
               <Ionicons
