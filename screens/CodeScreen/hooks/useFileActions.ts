@@ -51,7 +51,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
   const isSuccessResult = useCallback(
     (result: FileCommandResult | null | undefined): result is FileCommandResult =>
-      result?.status === "success",
+      result?.status === "success" && result.changed === true,
     [],
   );
 
@@ -124,11 +124,27 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                           } else {
                             // Fallback should preserve semantics for contexts without deleteFiles support.
                             const results = await Promise.all(paths.map((path) => deleteFile(path)));
+                            const hasError = results.some((result) => result.status === "error");
+                            const hasRejected = results.some((result) => result.status === "rejected");
                             const changed = results.some((result) => result.status === "success");
+                            const status: FileCommandResult["status"] = hasError
+                              ? "error"
+                              : hasRejected
+                                ? "rejected"
+                                : changed
+                                  ? "success"
+                                  : "noop";
                             deleteResult = {
-                              status: changed ? "success" : "noop",
+                              status,
                               changed,
-                              reason: changed ? undefined : "not_found",
+                              reason:
+                                status === "error"
+                                  ? "fallback_error"
+                                  : status === "rejected"
+                                    ? "fallback_rejected"
+                                    : changed
+                                      ? undefined
+                                      : "not_found",
                             };
                           }
 

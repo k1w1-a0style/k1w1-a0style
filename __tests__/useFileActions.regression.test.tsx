@@ -253,4 +253,56 @@ describe("useFileActions regressions", () => {
     expect(setSelectedFile).not.toHaveBeenCalled();
     expect(setEditingContent).not.toHaveBeenCalled();
   });
+
+  test("folder delete fallback keeps error semantics when deleteFiles is unavailable", async () => {
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation((_, __, buttons) => {
+      const destructive = buttons?.find((btn) => btn.style === "destructive" && btn.text === "Löschen");
+      destructive?.onPress?.();
+    });
+    const setSelectedFile = jest.fn();
+    const setEditingContent = jest.fn();
+    const failingDeleteFile = jest.fn(async () => ({ status: "error", changed: false, reason: "io_failure" }));
+
+    mockUseProject.mockReturnValue({
+      projectData: {
+        files: [
+          { path: "src/a.ts", content: "a" },
+          { path: "src/nested/b.ts", content: "b" },
+        ],
+      },
+      createFile: jest.fn(async () => undefined),
+      deleteFile: failingDeleteFile,
+      deleteFiles: undefined,
+      renameFile: jest.fn(async () => undefined),
+    });
+
+    const { result } = renderHook(() =>
+      useFileActions({
+        ...deps,
+        selectedFile: { path: "src/a.ts", content: "a" },
+        setSelectedFile,
+        setEditingContent,
+      }),
+    );
+
+    const folderNode: TreeNode = {
+      id: "folder_src",
+      name: "src",
+      path: "src",
+      type: "folder",
+      children: [],
+    };
+
+    act(() => {
+      result.current.handleItemLongPress(folderNode);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(failingDeleteFile).toHaveBeenCalledTimes(2);
+    expect(setSelectedFile).not.toHaveBeenCalled();
+    expect(setEditingContent).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
 });
