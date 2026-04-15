@@ -26,6 +26,7 @@ export const DEFAULT_CONFIG: AIConfig = {
   agentEnabled: true,
   apiKeys: { groq: [], gemini: [], openai: [], anthropic: [], huggingface: [] },
 };
+const AI_PROVIDER_KEYS = Object.keys(DEFAULT_CONFIG.apiKeys) as AllAIProviders[];
 
 export function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMode, mode: unknown, fallback: string): string {
   const raw = typeof mode === 'string' ? mode.trim() : '';
@@ -121,19 +122,56 @@ export function resolveRehydratedApiKeys(params: {
   };
 }
 
+function parseSecureApiKeysPayloadOrThrow(raw: string): Record<AllAIProviders, string[]> {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Secure API key payload ist kein Objekt.");
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
+  let hasAny = false;
+
+  for (const provider of AI_PROVIDER_KEYS) {
+    const value = record[provider];
+    if (!Array.isArray(value)) {
+      throw new Error(`Secure API key payload hat ungültiges Feld für ${provider}.`);
+    }
+    const keys: string[] = [];
+    for (const entry of value) {
+      if (typeof entry !== "string") {
+        throw new Error(`Secure API key payload hat ungültigen Key-Typ für ${provider}.`);
+      }
+      const trimmed = entry.trim();
+      if (!trimmed) {
+        throw new Error(`Secure API key payload hat leere Key-Einträge für ${provider}.`);
+      }
+      keys.push(trimmed);
+    }
+    if (keys.length > 0) hasAny = true;
+    next[provider] = keys;
+  }
+
+  if (!hasAny) {
+    throw new Error("Secure API key payload enthält keine autoritativen Keys.");
+  }
+
+  return next;
+}
+
 export async function loadSecureApiKeys(): Promise<SecureApiKeysLoadResult> {
   try {
     const raw = await SecureStore.getItemAsync(AI_KEYS_SECURE_KEY);
-    if (!raw) {
+    if (raw === null) {
       return {
         state: "missing",
         keys: normalizeApiKeys(undefined),
       };
     }
-    const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
+    const parsed = parseSecureApiKeysPayloadOrThrow(raw);
     return {
       state: "loaded",
-      keys: normalizeApiKeys(parsed),
+      keys: parsed,
     };
   } catch (error) {
     return {

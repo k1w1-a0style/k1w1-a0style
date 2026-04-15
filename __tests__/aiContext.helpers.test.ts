@@ -136,6 +136,52 @@ describe("aiContext helpers", () => {
     expect(result.state).toBe("missing");
   });
 
+  test.each([
+    { label: "json parse error", payload: "{invalid-json" },
+    { label: "json string payload", payload: JSON.stringify("abc") },
+    { label: "json array payload", payload: JSON.stringify(["sk-x"]) },
+    { label: "empty object payload", payload: JSON.stringify({}) },
+    { label: "wrong provider value type", payload: JSON.stringify({ groq: "sk-x" }) },
+    { label: "provider array contains non-string", payload: JSON.stringify({ groq: [123] }) },
+    {
+      label: "semantically empty provider arrays",
+      payload: JSON.stringify({
+        groq: [],
+        gemini: [],
+        openai: [],
+        anthropic: [],
+        huggingface: [],
+      }),
+    },
+  ])("loadSecureApiKeys returns unreadable for $label", async ({ payload }) => {
+    const secureStore = SecureStore as typeof SecureStore & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    secureStore.__setMockStorage?.({ [AI_KEYS_SECURE_KEY]: payload });
+
+    const result = await loadSecureApiKeys();
+    expect(result.state).toBe("unreadable");
+  });
+
+  test("loadSecureApiKeys returns loaded for structurally valid secure payload", async () => {
+    const secureStore = SecureStore as typeof SecureStore & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    secureStore.__setMockStorage?.({
+      [AI_KEYS_SECURE_KEY]: JSON.stringify({
+        groq: ["sk-groq-valid"],
+        gemini: [],
+        openai: [],
+        anthropic: [],
+        huggingface: [],
+      }),
+    });
+
+    const result = await loadSecureApiKeys();
+    expect(result.state).toBe("loaded");
+    expect(result.keys.groq).toEqual(["sk-groq-valid"]);
+  });
+
   test("saveSecureApiKeys deletes slot only for legitimate empty state", async () => {
     await saveSecureApiKeys({
       groq: [],
