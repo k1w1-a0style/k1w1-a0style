@@ -5,7 +5,7 @@ import * as Clipboard from "expo-clipboard";
 import { saveAndroidKeystoreExportAdminKey } from "../../../infra/github/githubService";
 import { useInlineToast } from "../../../components/diagnostics/useInlineToast";
 import { theme } from "../../../theme";
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 
 import type { StatusResult, UiModeId, WizardHttpDebug } from "../types";
 import { MODES, paletteError, paletteSuccess, paletteTextMuted } from "./credentialHelpers";
@@ -177,7 +177,7 @@ export const useCredentialsWizardActions = (params: {
     const trimmed = params.adminKey.trim();
     params.setAdminKey(trimmed);
 
-    if (trimmed && !isLikelyValidAdminKey(trimmed)) {
+    if (trimmed && !isLikelyWellFormedAdminKeyForUiPrecheck(trimmed)) {
       Alert.alert(
         "Admin-Key wirkt ungültig",
         "Bitte nur einen formal gültigen lokalen Android Keystore Export Admin Key ohne Leerzeichen speichern.",

@@ -34,6 +34,7 @@ import {
 } from "../../../infra/github/githubService";
 import { safeFormatBackupDate, sanitizeAiConfigFromBackup } from "../../../lib/appInfoBackup";
 import { logger } from "../../../lib/logger";
+import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
 import { getSecureBackupExportSuccessMessage, getSecureBackupImportScopeText } from "./appInfoSecureBackupUiHelpers";
 import {
   createCollectedSecretBackupPayload,
@@ -111,6 +112,7 @@ export function useAppInfoSecureBackupFlow(params: {
   const { config, setConfig, github } = params;
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
+  const SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1";
 
   const collectSecretBackupPayload = useCallback(async () => {
     const [githubToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, signingAdminKey, signingMasterKey] = await Promise.all([
@@ -267,18 +269,23 @@ export function useAppInfoSecureBackupFlow(params: {
     const result = await importEncryptedScopedBackup(passphrase);
     const imported = result.data;
     const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
+    await recoverFromPendingJournal<SecretBackupPayloadV1>({
+      journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
+      flow: "secure_backup_import",
+      restoreSnapshot: applySecretBackupPayloadCore,
+    });
     const rollbackSecrets = await collectSecretBackupPayload();
 
-    try {
-      await applySecretBackupPayloadCore(secretPayload);
-      await resetDerivedStatusAfterSecretImport();
-    } catch (error) {
-      logger.error("[useAppInfoScreen] Secret-Import fehlgeschlagen, starte best-effort Rollback.", { error });
-      await applySecretBackupPayloadCore(rollbackSecrets).catch((rollbackError) => {
-        logger.error("[useAppInfoScreen] Secret-Import Rollback fehlgeschlagen.", { rollbackError });
-      });
-      throw error;
-    }
+    await runRecoverableCommit({
+      journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
+      flow: "secure_backup_import",
+      snapshot: rollbackSecrets,
+      apply: async () => {
+        await applySecretBackupPayloadCore(secretPayload);
+        await resetDerivedStatusAfterSecretImport();
+      },
+      rollback: async (snapshot) => applySecretBackupPayloadCore(snapshot),
+    });
 
     if (imported.kind === "config-secret-snapshot") {
       setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
+import type { ProjectFile } from "../../../shared/types/project";
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
@@ -18,7 +19,7 @@ type UseCiLiteDispatchParams = {
   dispatching: boolean;
   githubRepo: string;
   branch: string;
-  projectFiles: any[];
+  projectFiles: ProjectFile[];
   resolveOperatorAccess: (context: "dispatch") => Promise<{ adminKey: string; userJwt: string }>;
   startLookupTracking: (params: {
     githubRepo: string;

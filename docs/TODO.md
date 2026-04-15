@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
+Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
@@ -106,6 +106,13 @@ Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
 - [x] ReleasePartial (Patch 758): Release-SoT bleibt explizit getrennt (`OK_WITH_SKIPS` = partial/local evidence, `OK_FULL` = Vollnachweis).
 
 ## 2) Externer Live-Status: ehrliche Restpunktbewertung (read-only dokumentiert)
+
+### Build-Admin-Governance (Owner / Rotation / Freigabeprozess)
+
+- Primaeres Runbook: `docs/runbooks/OPERATOR_SETUP_CHECKLIST.md` (Owner/Rotation/Freigabe).
+- Owner-Rolle muss benannt sein (mindestens 1 Primary + 1 Backup), Rotationsturnus und Freigabeprozess fuer `build_admin` muessen explizit dokumentiert werden.
+- Ohne dokumentierten Owner/Rotation/Freigabe bleibt ein Release-Blocker fuer operatorische Build-/Workflow-Pfade bestehen.
+
 
 ### Externe Betriebs-Restpunkte (bewusst ausserhalb Repo-Code)
 

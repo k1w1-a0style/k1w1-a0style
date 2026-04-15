@@ -1,7 +1,7 @@
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { logger } from "../../../lib/logger";
 import { getWorkflowAdminKey } from "../../../infra/github/githubService";
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { normalizeCiLiteWorkflowError } from "./ciLiteWorkflowErrors";
 import { resolveCiLiteMissingJwtMessage } from "./useCiLiteWorkflowContracts";
 
@@ -28,7 +28,7 @@ export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext
     return null;
   });
   const trimmedAdminKey = String(adminKey ?? "").trim();
-  if (!trimmedAdminKey || !isLikelyValidAdminKey(trimmedAdminKey)) {
+  if (!trimmedAdminKey || !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedAdminKey)) {
     const normalized = normalizeCiLiteWorkflowError({
       context,
       adminKey,

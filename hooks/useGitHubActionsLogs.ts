@@ -8,7 +8,7 @@ import { requireSupabaseEdgeUrl } from "../lib/supabaseEdge";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { SUPABASE_EDGE_FUNCTIONS } from "../shared/constants/supabase";
 import { logger } from '../lib/logger';
-import { isLikelyValidAdminKey } from "../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
 import { buildOperatorPrecheckMessage } from "../lib/auth/operatorContract";
 
@@ -101,7 +101,7 @@ export function useGitHubActionsLogs({
       if (!trimmedAdminKey) {
         throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
       }
-      if (!isLikelyValidAdminKey(trimmedAdminKey)) {
+      if (!isLikelyWellFormedAdminKeyForUiPrecheck(trimmedAdminKey)) {
         throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
       }
       const supabase = await ensureSupabaseClient().catch(() => null);

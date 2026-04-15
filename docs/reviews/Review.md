@@ -1,7 +1,13 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
+Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
+
+## Status-SoT / Governance
+
+- **Primaere aktuelle Entscheidungsquelle** fuer den *jetzigen* Stand ist diese Review-Datei (`docs/reviews/Review.md`).
+- `PROJECT_CHECKLOG.md` bleibt **append-only Historie** (Chronik), nicht die operative Freigabequelle.
+- `docs/patches/PATCHLOG_ROOT.md` bleibt **Patch-Historie** (abgeleitet), ebenfalls nicht die operative Freigabequelle.
 
 ## Aktueller Gesamtstatus
 
@@ -49,7 +55,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - `save_preview` bleibt laut Live-Befund JWT-aligned und repo-konsistent; hier ist kein neuer kritischer Auth-Restpunkt offen.
 - Der operatorische `verify_jwt`-Flag-Audit ist fuer `save_preview` und `k1w1-handler` explizit bestaetigt (`true`), damit ist der zuvor offene Flag-Unsicherheitsblock fuer diesen Stand geschlossen.
 - Der temporaere Supabase-Test-User (`h91874350@gmail.com` / `BlauBeerToni84`) wurde extern bereinigt; daraus bleibt kein privilegierter Live-Restpunkt offen.
-- Kritisch offen: aktuell kein technischer High-Priority-Restpunkt im dokumentierten Live-Scope.
+- Kritisch offen: kein pauschaler Entwarnungs-Satz mehr; offene Punkte muessen explizit pro Block/Check benannt und durch reale Gate-Runs belegt sein.
 - `diagnostics_reports` bleibt bewusst als offene Produktentscheidung gefuehrt (kein Blindumbau in diesem Lauf).
 
 ## Was heute aktiv gilt

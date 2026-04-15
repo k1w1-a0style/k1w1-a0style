@@ -1,4 +1,4 @@
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 
 export type LocalEdgeAdminKeyIssueKind = "missing" | "invalid" | "rejected" | "unknown" | null;
 
@@ -32,7 +32,7 @@ export function inferLocalEdgeAdminKeyIssueKind(params: {
 }): LocalEdgeAdminKeyIssueKind {
   const trimmedKey = String(params.adminKey ?? "").trim();
   if (!trimmedKey) return "missing";
-  if (!isLikelyValidAdminKey(trimmedKey)) return "invalid";
+  if (!isLikelyWellFormedAdminKeyForUiPrecheck(trimmedKey)) return "invalid";
 
   const message = toMessage(params.error).toLowerCase();
   if (isAdminKeyAuthFailure({ statusCode: params.statusCode, message })) {

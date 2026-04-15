@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
+Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

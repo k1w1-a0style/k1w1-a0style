@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
+Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
 
 ## Aktiv und workflow-relevant
 

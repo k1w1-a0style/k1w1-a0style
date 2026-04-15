@@ -20,7 +20,7 @@ function decodeBase64Url(input: string): string | null {
   }
 }
 
-export function readOperatorJwtRole(token: string | null | undefined): string | null {
+export function readOperatorRoleClaimForUiPrecheck(token: string | null | undefined): string | null {
   const raw = String(token ?? "").trim();
   const parts = raw.split(".");
   if (parts.length !== 3) return null;
@@ -44,7 +44,7 @@ export function readOperatorJwtRole(token: string | null | undefined): string | 
  * Convenience role precheck for client-side UX gating only.
  * No signature verification happens here; server-/edge-side auth stays authoritative.
  */
-export function hasAllowedOperatorRole(token: string | null | undefined): boolean {
-  const role = readOperatorJwtRole(token);
+export function hasLikelyAllowedOperatorRoleForUiPrecheck(token: string | null | undefined): boolean {
+  const role = readOperatorRoleClaimForUiPrecheck(token);
   return role === "build_admin" || role === "service_role";
 }

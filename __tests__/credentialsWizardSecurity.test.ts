@@ -1,6 +1,6 @@
 import {
   buildEdgeHttpErrorMessage,
-  isLikelyValidAdminKey,
+  isLikelyWellFormedAdminKeyForUiPrecheck,
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
   sanitizeErrorForUi,
@@ -63,7 +63,7 @@ describe("CredentialsWizard security helpers", () => {
     expect(isLikelyValidRepoFullName("owner/repo")).toBe(true);
     expect(isLikelyValidRepoFullName("owner")).toBe(false);
 
-    expect(isLikelyValidAdminKey("aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff")).toBe(true);
-    expect(isLikelyValidAdminKey("short")).toBe(false);
+    expect(isLikelyWellFormedAdminKeyForUiPrecheck("aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff")).toBe(true);
+    expect(isLikelyWellFormedAdminKeyForUiPrecheck("short")).toBe(false);
   });
 });

@@ -299,7 +299,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     const fetchSpy = jest.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: false, current_count: 4 }]), {
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: false, current_count: 4, decision: "rejected" }]), {
         status: 200,
       }));
 
@@ -320,7 +320,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     const payload = await result?.json();
     expect(payload).toEqual(expect.objectContaining({
       error: "rate_limited",
-      details: expect.objectContaining({ currentCount: 4 }),
+      details: expect.objectContaining({ currentCount: 4, decision: "rejected" }),
     }));
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
@@ -334,7 +334,7 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     });
 
     jest.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: true, current_count: 2 }]), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ allowed: true, current_count: 2, decision: "allowed" }]), { status: 200 }));
 
     const result = await withEnv(
       {

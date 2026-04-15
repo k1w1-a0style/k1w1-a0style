@@ -1,5 +1,5 @@
 import type { WizardHttpDebug } from "../types";
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 
 // Defensive redaction helpers.
 // Goal: never leak secrets in UI, logs, or clipboard.
@@ -117,7 +117,7 @@ export function isLikelyValidSupabaseUrl(url: string): boolean {
   }
 }
 
-export { isLikelyValidAdminKey };
+export { isLikelyWellFormedAdminKeyForUiPrecheck };
 
 export function isLikelyValidRepoFullName(repo: string): boolean {
   const r = repo.trim();

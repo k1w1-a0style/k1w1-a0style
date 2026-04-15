@@ -1,4 +1,4 @@
-export function isLikelyValidAdminKey(key: string): boolean {
+export function isLikelyWellFormedAdminKeyForUiPrecheck(key: string): boolean {
   const k = key.trim();
   if (!k) return false;
   if (/\s/.test(k)) return false;
