@@ -1,5 +1,6 @@
 import React from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { renderHook, act, waitFor } from "@testing-library/react-native";
 
 import { AIProvider, useAI } from "../contexts/AIContext";
@@ -9,8 +10,13 @@ describe("AIContext redacted config persistence", () => {
   beforeEach(() => {
     const storage = AsyncStorage as typeof AsyncStorage & {
       __resetMockStorage?: () => void;
+      __setMockStorage?: (next: Record<string, string>) => void;
     };
     storage.__resetMockStorage?.();
+    const secureStore = SecureStore as typeof SecureStore & {
+      __resetMockStorage?: () => void;
+    };
+    secureStore.__resetMockStorage?.();
     jest.clearAllMocks();
   });
 
@@ -81,5 +87,38 @@ describe("AIContext redacted config persistence", () => {
       anthropic: [],
       huggingface: [],
     });
+  });
+
+  it("does not treat unreadable secure keys as empty and does not delete secure slot on boot", async () => {
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      [CONFIG_STORAGE_KEY]: JSON.stringify({
+        version: 4,
+        selectedChatProvider: "groq",
+        selectedChatMode: "llama-3.1-8b-instant",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+        apiKeys: {
+          groq: ["durable-groq-key"],
+          gemini: [],
+          openai: [],
+          anthropic: [],
+          huggingface: [],
+        },
+      }),
+    });
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("secure read failed"));
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.apiKeys.groq).toEqual(["durable-groq-key"]);
+    });
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 });

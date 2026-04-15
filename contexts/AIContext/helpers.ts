@@ -9,6 +9,12 @@ import { PROVIDER_DEFAULTS, AVAILABLE_MODELS } from "./models";
 export const CONFIG_STORAGE_KEY = 'ai_config_v4';
 export const AI_KEYS_SECURE_KEY = 'ai_api_keys_v1';
 export const STORAGE_FALLBACK_KEYS = ['ai_config_v3', 'ai_config_v2', 'ai_config_v1'];
+export type SecureApiKeysLoadState = "loaded" | "missing" | "unreadable";
+export type SecureApiKeysLoadResult = {
+  state: SecureApiKeysLoadState;
+  keys: Record<AllAIProviders, string[]>;
+  error?: unknown;
+};
 
 export const DEFAULT_CONFIG: AIConfig = {
   version: 4,
@@ -115,24 +121,36 @@ export function resolveRehydratedApiKeys(params: {
   };
 }
 
-export async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string[]>> {
+export async function loadSecureApiKeys(): Promise<SecureApiKeysLoadResult> {
   try {
     const raw = await SecureStore.getItemAsync(AI_KEYS_SECURE_KEY);
-    if (!raw) return normalizeApiKeys(undefined);
+    if (!raw) {
+      return {
+        state: "missing",
+        keys: normalizeApiKeys(undefined),
+      };
+    }
     const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
-    return normalizeApiKeys(parsed);
-  } catch {
-    return normalizeApiKeys(undefined);
+    return {
+      state: "loaded",
+      keys: normalizeApiKeys(parsed),
+    };
+  } catch (error) {
+    return {
+      state: "unreadable",
+      keys: normalizeApiKeys(undefined),
+      error,
+    };
   }
 }
 
 export async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promise<void> {
   const cleaned = normalizeApiKeys(keys);
   if (!hasAnyApiKeys(cleaned)) {
-    await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY).catch(() => undefined);
+    await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY);
     return;
   }
-  await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned)).catch(() => undefined);
+  await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned));
 }
 
 export function coerceProvider(value: unknown, fallback: AllAIProviders): AllAIProviders {
