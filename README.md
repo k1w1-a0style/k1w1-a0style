@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
+Stand: **2026-04-15 (Patch 779, RecoverabilityScopeStabilityClosure)**
 
-Zuletzt abgeschlossen: **Patch 778**
+Zuletzt abgeschlossen: **Patch 779**
 
 Der aktuelle Stand bestaetigt:
 - `typecheck:edge` ist wieder gruen; die offenen Typfehler in `check-eas-build`/`trigger-eas-build` wurden entlang der realen Supabase-Query-Contracts behoben

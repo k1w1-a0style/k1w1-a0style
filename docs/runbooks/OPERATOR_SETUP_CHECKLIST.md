@@ -9,6 +9,13 @@ Ziel: Ein neuer Operator soll ohne Raten vom Login bis zum read-only Live-Vertra
 - Lokale App-/Testumgebung mit gesetztem scoped Admin-Key.
 - Ein normaler Login allein reicht **nicht**; fuer Operator-Pfade ist ein extern provisionierter `build_admin`-Claim Pflicht.
 
+## Governance (Owner / Rotation / Freigabe)
+- **Owner (Primary):** benannter Build/Release-Operations-Owner (nicht anonym).
+- **Owner (Backup):** benannte Stellvertretung aus Platform/DevOps.
+- **Rotation:** build_admin-Provisioning/JWT-Validierung mindestens alle 30 Tage oder bei Incident/Teamwechsel.
+- **Freigabeprozess:** Vier-Augen-Prinzip (Antrag -> Review -> Provisioning -> Verifikation).
+- **Auditnachweis:** Datum, Provisioner, Freigeber, betroffener User und Verifikationscommand dokumentieren.
+
 ## 2) Supabase User vorbereiten
 1. Supabase Dashboard oeffnen.
 2. `Authentication` -> `Users` -> Zieluser waehlen.

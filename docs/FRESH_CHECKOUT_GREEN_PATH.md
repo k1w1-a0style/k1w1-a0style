@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
+Stand: **2026-04-15 (Patch 779, RecoverabilityScopeStabilityClosure)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

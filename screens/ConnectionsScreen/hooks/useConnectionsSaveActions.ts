@@ -22,7 +22,8 @@ import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { readScopedEasProjectId } from "../../../lib/easProjectIdScope";
 import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
 import { normalizeStoredSupabaseRaw, validateBeforeSave } from "../utils/validation";
-import { resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
+import { isPersistedEasState, resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
+import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
 type Params = {
   hydrated: boolean;
@@ -47,6 +48,12 @@ type Params = {
   clearExpoConnectionState: () => Promise<void>;
   clearEasConnectionState: () => Promise<void>;
   clearSupabaseConnectionState: () => Promise<void>;
+  applyEasConnectionState: (status: {
+    ok: boolean;
+    state: VerificationContractState;
+    verifiedAt: string | null;
+  }) => void;
+  setSupabaseConnectionState: (status: { ok: boolean; ref: string }) => void;
 };
 
 export function useConnectionsSaveActions(params: Params) {
@@ -60,6 +67,8 @@ export function useConnectionsSaveActions(params: Params) {
     clearExpoConnectionState,
     clearEasConnectionState,
     clearSupabaseConnectionState,
+    applyEasConnectionState,
+    setSupabaseConnectionState,
   } = params;
   const persistOptionalSecret = useCallback(
     async (input: {
@@ -82,6 +91,7 @@ export function useConnectionsSaveActions(params: Params) {
   );
 
   type ConnectionsSnapshot = {
+    repoScope: string | null;
     githubToken: string;
     expoToken: string;
     workflowAdminKey: string;
@@ -90,12 +100,33 @@ export function useConnectionsSaveActions(params: Params) {
     supabaseUrl: string;
     supabaseAnonKey: string;
     easProjectId: string;
+    sideState: {
+      supabaseOkRaw: string | null;
+      supabaseRefRaw: string | null;
+      easOkRaw: string | null;
+      easStateRaw: string | null;
+      easLastVerifiedAtRaw: string | null;
+    };
   };
 
   const CONNECTIONS_SAVE_JOURNAL_KEY = "connections_save_recoverable_journal_v1";
 
   const readCurrentSnapshot = useCallback(async (): Promise<ConnectionsSnapshot> => {
-    const [githubToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, supabaseRaw, supabaseUrl, supabaseAnonKey, easProjectId] =
+    const [
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      supabaseRaw,
+      supabaseUrl,
+      supabaseAnonKey,
+      easProjectId,
+      supabaseOkRaw,
+      supabaseRefRaw,
+      easOkRaw,
+      easStateRaw,
+      easLastVerifiedAtRaw,
+    ] =
       await Promise.all([
         getGitHubToken().then((value) => (value ?? "").trim()),
         getExpoToken().then((value) => (value ?? "").trim()),
@@ -105,9 +136,15 @@ export function useConnectionsSaveActions(params: Params) {
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).then((value) => (value ?? "").trim()),
         getSupabaseAnonKey().then((value) => (value ?? "").trim()),
         readScopedEasProjectId(effectiveRepo).then((value) => (value ?? "").trim()),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_STATE),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT),
       ]);
 
     return {
+      repoScope: effectiveRepo,
       githubToken,
       expoToken,
       workflowAdminKey,
@@ -116,8 +153,57 @@ export function useConnectionsSaveActions(params: Params) {
       supabaseUrl,
       supabaseAnonKey,
       easProjectId,
+      sideState: {
+        supabaseOkRaw,
+        supabaseRefRaw,
+        easOkRaw,
+        easStateRaw,
+        easLastVerifiedAtRaw,
+      },
     };
   }, [effectiveRepo]);
+
+  const restoreConnectionSideState = useCallback(
+    async (snapshot: ConnectionsSnapshot): Promise<void> => {
+      const writes: Array<[string, string]> = [];
+      const removes: string[] = [];
+
+      const persistMaybe = (key: string, value: string | null) => {
+        if (value === null) {
+          removes.push(key);
+          return;
+        }
+        writes.push([key, value]);
+      };
+
+      persistMaybe(STORAGE_KEYS.CONN_SUPABASE_OK, snapshot.sideState.supabaseOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_SUPABASE_REF, snapshot.sideState.supabaseRefRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_OK, snapshot.sideState.easOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_STATE, snapshot.sideState.easStateRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, snapshot.sideState.easLastVerifiedAtRaw);
+
+      if (writes.length > 0) {
+        await AsyncStorage.multiSet(writes);
+      }
+      if (removes.length > 0) {
+        await AsyncStorage.multiRemove(removes);
+      }
+
+      const supabaseOk = snapshot.sideState.supabaseOkRaw === "true";
+      const supabaseRef = (snapshot.sideState.supabaseRefRaw ?? "").trim();
+      setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });
+
+      const rawEasState = (snapshot.sideState.easStateRaw ?? "").trim();
+      const easState: VerificationContractState = isPersistedEasState(rawEasState) ? rawEasState : "missing";
+      const easOk = snapshot.sideState.easOkRaw === "true";
+      const verifiedAt = (() => {
+        const trimmed = (snapshot.sideState.easLastVerifiedAtRaw ?? "").trim();
+        return trimmed || null;
+      })();
+      applyEasConnectionState({ ok: easOk, state: easState, verifiedAt });
+    },
+    [applyEasConnectionState, setSupabaseConnectionState],
+  );
 
   const persistSupabaseSavePlan = useCallback(
     async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
@@ -166,7 +252,8 @@ export function useConnectionsSaveActions(params: Params) {
       const plan = resolveConnectionsSavePlan(snapshot);
       await persistTokenSavePlan(plan);
       await persistSupabaseSavePlan(plan);
-      await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
+      await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
+      await restoreConnectionSideState(snapshot);
       if (plan.shouldClearEasConnection) {
         await clearEasConnectionState();
       }
@@ -178,7 +265,7 @@ export function useConnectionsSaveActions(params: Params) {
       persistTokenSavePlan,
       persistSupabaseSavePlan,
       persistSelectedEasProjectId,
-      effectiveRepo,
+      restoreConnectionSideState,
       clearEasConnectionState,
       clearSupabaseConnectionState,
     ],

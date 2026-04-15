@@ -111,6 +111,11 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     clearExpoConnectionState: persistence.actions.clearExpoConnectionState,
     clearEasConnectionState: persistence.actions.clearEasConnectionState,
     clearSupabaseConnectionState: persistence.actions.clearSupabaseConnectionState,
+    applyEasConnectionState: persistence.actions.applyEasConnectionState,
+    setSupabaseConnectionState: (status) => {
+      persistence.setters.setSupabaseOk(status.ok);
+      persistence.setters.setSupabaseRef(status.ref);
+    },
   });
 
   useConnectionsDerivedEffects({

@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-15 (Patch 778, CoreIntegrityRecoverabilityAndSemantics)**
+Stand: **2026-04-15 (Patch 779, RecoverabilityScopeStabilityClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

@@ -48,4 +48,50 @@ describe("recoverableCommit", () => {
     expect(await AsyncStorage.getItem("restored")).toBe("ok");
     expect(await AsyncStorage.getItem(journalKey)).toBeNull();
   });
+
+  it("classifies commit-failure + successful rollback as rollbackFailed=false", async () => {
+    await expect(
+      runRecoverableCommit({
+        journalKey,
+        flow: "test-flow",
+        snapshot: { before: "value" },
+        apply: async () => {
+          throw new Error("commit boom");
+        },
+        rollback: async () => {
+          await AsyncStorage.setItem("rolledBack", "yes");
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "RecoverableCommitError",
+      rollbackFailed: false,
+    });
+
+    expect(await AsyncStorage.getItem("rolledBack")).toBe("yes");
+    expect(await AsyncStorage.getItem(journalKey)).toBeNull();
+  });
+
+  it("classifies real rollback failures as rollbackFailed=true and keeps rollback_failed journal", async () => {
+    await expect(
+      runRecoverableCommit({
+        journalKey,
+        flow: "test-flow",
+        snapshot: { before: "value" },
+        apply: async () => {
+          throw new Error("commit boom");
+        },
+        rollback: async () => {
+          throw new Error("rollback boom");
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "RecoverableCommitError",
+      rollbackFailed: true,
+    });
+
+    const raw = await AsyncStorage.getItem(journalKey);
+    expect(raw).toBeTruthy();
+    const parsed = JSON.parse(String(raw)) as { stage?: string };
+    expect(parsed.stage).toBe("rollback_failed");
+  });
 });

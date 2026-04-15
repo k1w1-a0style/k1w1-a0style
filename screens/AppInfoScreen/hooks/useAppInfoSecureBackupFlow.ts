@@ -153,6 +153,7 @@ export function useAppInfoSecureBackupFlow(params: {
 
   const persistImportedConnectionSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const c = payload.connections;
+    const importRepoScope = payload.github.linkedRepo ?? null;
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
     const easProjectIdDecision = resolveEasProjectIdImportDecision(c.easProjectId);
 
@@ -167,14 +168,14 @@ export function useAppInfoSecureBackupFlow(params: {
       writes.push(
         persistScopedEasProjectId({
           projectId: easProjectIdDecision.value,
-          repoFullName: github.activeRepo,
+          repoFullName: importRepoScope,
         }),
       );
     } else if (easProjectIdDecision.mode === "clear") {
       writes.push(
         persistScopedEasProjectId({
           projectId: "",
-          repoFullName: github.activeRepo,
+          repoFullName: importRepoScope,
         }),
       );
     } else {
@@ -184,7 +185,7 @@ export function useAppInfoSecureBackupFlow(params: {
     }
 
     await Promise.all(writes);
-  }, [github.activeRepo]);
+  }, []);
 
   const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const tokens = readAppliedSecretTokens(payload);

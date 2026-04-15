@@ -98,23 +98,22 @@ export async function runRecoverableCommit<TSnapshot>(params: {
     await params.apply();
     await clearJournal(params.journalKey);
   } catch (commitError) {
+    let rollbackError: unknown = null;
     try {
       await params.rollback(params.snapshot);
       await clearJournal(params.journalKey);
-      throw new RecoverableCommitError({
-        flow: params.flow,
-        rollbackFailed: false,
-        commitError,
-      });
-    } catch (rollbackError) {
+    } catch (error) {
+      rollbackError = error;
       await writeJournal(params.journalKey, {
         version: 1,
         flow: params.flow,
         createdAt: new Date().toISOString(),
         stage: "rollback_failed",
         snapshot: params.snapshot,
-        errorMessage: `${getErrorMessage(commitError)} | rollback: ${getErrorMessage(rollbackError)}`,
+        errorMessage: `${getErrorMessage(commitError)} | rollback: ${getErrorMessage(error)}`,
       });
+    }
+    if (rollbackError) {
       throw new RecoverableCommitError({
         flow: params.flow,
         rollbackFailed: true,
@@ -122,5 +121,10 @@ export async function runRecoverableCommit<TSnapshot>(params: {
         rollbackError,
       });
     }
+    throw new RecoverableCommitError({
+      flow: params.flow,
+      rollbackFailed: false,
+      commitError,
+    });
   }
 }

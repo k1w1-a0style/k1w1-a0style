@@ -19,5 +19,17 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(src).toContain('flow: "secure_backup_import"');
     expect(src).toContain("runRecoverableCommit({");
     expect(src).toContain("snapshot: rollbackSecrets");
+    expect(src).toContain("const importRepoScope = payload.github.linkedRepo ?? null;");
+    expect(src).toContain("repoFullName: importRepoScope");
+  });
+
+  it("keeps Connections recovery scope journal/snapshot-driven instead of current repo closure", () => {
+    const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
+    expect(src).toContain("repoScope: effectiveRepo");
+    expect(src).toContain("persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);");
+    expect(src).toContain("restoreConnectionSideState(snapshot)");
+    expect(src).toContain("CONN_SUPABASE_OK");
+    expect(src).toContain("CONN_EAS_STATE");
+    expect(src).toContain("setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });");
   });
 });
