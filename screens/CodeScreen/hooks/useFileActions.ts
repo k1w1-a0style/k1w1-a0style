@@ -18,6 +18,7 @@ import { toContentString } from "./useFileEditor";
 
 // Files that are commonly extensionless and should stay that way.
 import type { ProjectFile } from "../../../shared/types/project";
+import type { FileCommandResult } from "../../../contexts/projectContext/projectContext.contracts";
 
 import { EXTENSIONLESS_ALLOWLIST, validatePathOrAlert } from "./fileActionTypes";
 import type { FileActionsDeps, UseFileActionsReturn } from "./fileActionTypes";
@@ -45,6 +46,14 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
   );
 
   const actionInFlightRef = useRef(false);
+  const selectedFileRef = useRef(selectedFile);
+  selectedFileRef.current = selectedFile;
+
+  const isSuccessResult = useCallback(
+    (result: FileCommandResult | null | undefined): result is FileCommandResult =>
+      result?.status === "success" && result.changed === true,
+    [],
+  );
 
   const handleItemPress = useCallback(
     (node: TreeNode) => {
@@ -107,16 +116,47 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
                             f.path.startsWith(folderPrefix),
                           ) ?? [];
 
-                        // Clean up editor if the open file lives inside the deleted folder.
-                        if (selectedFile?.path.startsWith(folderPrefix)) {
-                          setSelectedFile(null);
-                          setEditingContent("");
-                        }
-
                         const paths = filesToDelete.map((f) => f.path);
-                        void (deleteFiles
-                          ? deleteFiles(paths)
-                          : Promise.all(paths.map((path) => deleteFile(path))).then(() => undefined));
+                        void (async () => {
+                          let deleteResult: FileCommandResult;
+                          if (deleteFiles) {
+                            deleteResult = await deleteFiles(paths);
+                          } else {
+                            // Fallback should preserve semantics for contexts without deleteFiles support.
+                            const results = await Promise.all(paths.map((path) => deleteFile(path)));
+                            const hasError = results.some((result) => result.status === "error");
+                            const hasRejected = results.some((result) => result.status === "rejected");
+                            const changed = results.some((result) => result.status === "success");
+                            const status: FileCommandResult["status"] = hasError
+                              ? "error"
+                              : hasRejected
+                                ? "rejected"
+                                : changed
+                                  ? "success"
+                                  : "noop";
+                            deleteResult = {
+                              status,
+                              changed,
+                              reason:
+                                status === "error"
+                                  ? "fallback_error"
+                                  : status === "rejected"
+                                    ? "fallback_rejected"
+                                    : changed
+                                      ? undefined
+                                      : "not_found",
+                            };
+                          }
+
+                          // Clean up editor state only when the folder deletion actually changed files.
+                          if (
+                            isSuccessResult(deleteResult) &&
+                            selectedFileRef.current?.path.startsWith(folderPrefix)
+                          ) {
+                            setSelectedFile(null);
+                            setEditingContent("");
+                          }
+                        })();
                       },
                     },
                   ],
@@ -136,7 +176,7 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
 
       confirmLoseChanges(proceed);
     },
-    [confirmLoseChanges, deleteFile, deleteFiles, projectData?.files, selectedFile, selectionMode, setEditingContent, setSelectedFile],
+    [confirmLoseChanges, deleteFile, deleteFiles, isSuccessResult, projectData?.files, selectionMode, setEditingContent, setSelectedFile],
   );
 
   const handleRenameFile = useCallback(
@@ -208,11 +248,11 @@ export const useFileActions = (deps: FileActionsDeps): UseFileActionsReturn => {
     const result = await deleteFile(targetPath);
     if (result.status !== "success") return;
 
-    if (selectedFile?.path === targetPath) {
+    if (selectedFileRef.current?.path === targetPath) {
       setSelectedFile(null);
       setEditingContent("");
     }
-  }, [actionTargetFile?.path, deleteFile, selectedFile?.path, setEditingContent, setSelectedFile]);
+  }, [actionTargetFile?.path, deleteFile, setEditingContent, setSelectedFile]);
 
   const handleDuplicateFile = useCallback(async () => {
     if (!actionTargetFile) return;
