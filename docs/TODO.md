@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
+Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.

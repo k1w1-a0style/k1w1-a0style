@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
+Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Status-SoT / Governance
@@ -13,7 +13,7 @@ Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
 
 > Letzter lokaler Gate-Run im aktuellen Durchlauf endet erwartungsgemaess bei `OK_WITH_SKIPS`, solange `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` nicht gesetzt sind; ein echtes `OK_FULL` bleibt weiterhin an gueltige Live-Env + Operator-JWT gebunden.
 
-Recoverability-Status fuer den aktuellen Kern-Fixblock: Die zuvor offenen Restore-Luecken sind mit Patch 780 flow-spezifisch geschlossen (Connections inkl. Neben-/Markerstates; Secure-Backup-Import inkl. durch `resetDerivedStatusAfterSecretImport()` geloeschter Derived-/Statuspfade). Diese Aussage gilt fuer den repo-verifizierten Code-/Teststand, nicht als pauschale Entwarnung fuer externe Live-Themen ohne Live-Env-Nachweis.
+Recoverability-Status fuer den aktuellen Kern-Fixblock: Die zuvor offenen Restore-Luecken sind jetzt inkl. Snapshot-Treue-Kante geschlossen (Patch 780 + Patch 781). Insbesondere fuehrt der Connections-Rollback nach Snapshot-Restore keine nachgelagerten Save-Plan-Clears mehr aus; dadurch bleibt der restaurierte Zustand auch bei leeren Primaerwerten und vorhandenen Side-States exakt erhalten. Diese Aussage gilt fuer den repo-verifizierten Code-/Teststand, nicht als pauschale Entwarnung fuer externe Live-Themen ohne Live-Env-Nachweis.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 

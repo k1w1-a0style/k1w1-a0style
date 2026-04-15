@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
+Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

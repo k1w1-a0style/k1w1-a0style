@@ -323,20 +323,12 @@ export function useConnectionsSaveActions(params: Params) {
       await persistSupabaseSavePlan(plan);
       await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
       await restoreConnectionSideState(snapshot);
-      if (plan.shouldClearEasConnection) {
-        await clearEasConnectionState();
-      }
-      if (plan.shouldClearSupabaseConnection) {
-        await clearSupabaseConnectionState();
-      }
     },
     [
       persistTokenSavePlan,
       persistSupabaseSavePlan,
       persistSelectedEasProjectId,
       restoreConnectionSideState,
-      clearEasConnectionState,
-      clearSupabaseConnectionState,
     ],
   );
 

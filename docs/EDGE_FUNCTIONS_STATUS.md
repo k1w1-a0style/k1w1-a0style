@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
+Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
 
 ## Aktiv und workflow-relevant
 

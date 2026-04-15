@@ -40,4 +40,16 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(src).toContain("setRepoConnectionState({ ok: repoOk, line: repoLine });");
     expect(src).toContain("setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });");
   });
+
+  it("keeps apply clear logic but prevents post-restore clear logic in rollback path", () => {
+    const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
+
+    const restoreBlock = src.split("const restoreSnapshot = useCallback(")[1]?.split("const saveAll = useCallback(async () => {")[0] ?? "";
+    expect(restoreBlock).not.toContain("clearEasConnectionState()");
+    expect(restoreBlock).not.toContain("clearSupabaseConnectionState()");
+
+    const applyBlock = src.split("apply: async () => {")[1]?.split("},\n          rollback: restoreSnapshot,")[0] ?? "";
+    expect(applyBlock).toContain("if (plan.shouldClearEasConnection)");
+    expect(applyBlock).toContain("if (plan.shouldClearSupabaseConnection)");
+  });
 });

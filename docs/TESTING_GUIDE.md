@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
+Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
