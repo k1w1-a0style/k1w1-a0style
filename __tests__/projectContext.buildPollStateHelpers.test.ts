@@ -51,6 +51,24 @@ describe("projectContextStateHelpers build poll state mapping", () => {
     expect(merged.sourceCommitSha).toBe("abc123");
   });
 
+  it("does not regress to idle during transient first-poll gap after a confirmed start", () => {
+    const merged = mergeBuildPollIntoCurrentBuild({
+      previous: {
+        status: "queued",
+        message: "✅ Build gestartet. Warte auf GitHub Actions…",
+        jobId: "job-1",
+      },
+      activeJobId: "job-1",
+      details: null,
+      status: "idle",
+      nowIso: "2026-04-05T00:00:00.000Z",
+    });
+
+    expect(merged.status).toBe("queued");
+    expect(merged.message).toContain("Warteschlange");
+    expect(merged.jobId).toBe("job-1");
+  });
+
   it("sets completedAt only for final/error states", () => {
     const successState = mergeBuildPollIntoCurrentBuild({
       previous: { status: "building" },
