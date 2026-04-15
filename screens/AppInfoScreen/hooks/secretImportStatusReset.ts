@@ -2,9 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 
-export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
-  const allKeys = await AsyncStorage.getAllKeys();
-  const staticKeys = [
+export type SecretImportDerivedStatusSnapshot = {
+  entries: Array<[string, string]>;
+};
+
+function resolveStaticStatusKeys(): string[] {
+  return [
     STORAGE_KEYS.CONN_GITHUB_OK,
     STORAGE_KEYS.CONN_GITHUB_USER,
     STORAGE_KEYS.CONN_GITHUB_SCOPES,
@@ -31,7 +34,10 @@ export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
     STORAGE_KEYS.CI_LITE_LAST_RUN_ID,
     STORAGE_KEYS.CI_LITE_LAST_CONCLUSION,
   ];
-  const dynamicPrefixes = [
+}
+
+function resolveDynamicStatusPrefixes(): string[] {
+  return [
     `${STORAGE_KEYS.CRED_KEY_EXISTS_DEV}::`,
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PREVIEW}::`,
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PRODUCTION}::`,
@@ -45,6 +51,11 @@ export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
     `${STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD}::`,
     `${STORAGE_KEYS.CI_LITE_SCOPED_SNAPSHOT}::`,
   ];
+}
+
+async function resolveStatusKeysToReset(): Promise<string[]> {
+  const allKeys = await AsyncStorage.getAllKeys();
+  const dynamicPrefixes = resolveDynamicStatusPrefixes();
   const dynamicKeys = allKeys.filter((key) =>
     dynamicPrefixes.some((prefix) => key.startsWith(prefix)),
   );
@@ -59,7 +70,33 @@ export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PREVIEW}_detail`,
     `${STORAGE_KEYS.CRED_KEY_EXISTS_PRODUCTION}_detail`,
   ];
-  await AsyncStorage.multiRemove([
-    ...new Set([...staticKeys, ...scopedStatusKeys, ...dynamicKeys]),
-  ]);
+  return [...new Set([...resolveStaticStatusKeys(), ...scopedStatusKeys, ...dynamicKeys])];
+}
+
+export async function snapshotDerivedStatusBeforeSecretImport(): Promise<SecretImportDerivedStatusSnapshot> {
+  const keys = await resolveStatusKeysToReset();
+  const values = await AsyncStorage.multiGet(keys);
+  return {
+    entries: values.filter((entry): entry is [string, string] => entry[1] !== null),
+  };
+}
+
+export async function restoreDerivedStatusAfterSecretImportRollback(
+  snapshot: SecretImportDerivedStatusSnapshot,
+): Promise<void> {
+  const keysToReset = await resolveStatusKeysToReset();
+  const restoredEntries = new Map(snapshot.entries);
+  const keysToRemove = keysToReset.filter((key) => !restoredEntries.has(key));
+
+  if (snapshot.entries.length > 0) {
+    await AsyncStorage.multiSet(snapshot.entries);
+  }
+  if (keysToRemove.length > 0) {
+    await AsyncStorage.multiRemove(keysToRemove);
+  }
+}
+
+export async function resetDerivedStatusAfterSecretImport(): Promise<void> {
+  const keysToReset = await resolveStatusKeysToReset();
+  await AsyncStorage.multiRemove(keysToReset);
 }

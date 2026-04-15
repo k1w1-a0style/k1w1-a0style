@@ -15,10 +15,12 @@ describe("recoverable multi-store persistence invariants", () => {
     const src = readRepoText("screens/AppInfoScreen/hooks/useAppInfoSecureBackupFlow.ts");
 
     expect(src).toContain('SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1"');
-    expect(src).toContain("recoverFromPendingJournal<SecretBackupPayloadV1>");
+    expect(src).toContain("recoverFromPendingJournal<SecureBackupImportSnapshot>");
     expect(src).toContain('flow: "secure_backup_import"');
     expect(src).toContain("runRecoverableCommit({");
-    expect(src).toContain("snapshot: rollbackSecrets");
+    expect(src).toContain("snapshotDerivedStatusBeforeSecretImport()");
+    expect(src).toContain("derivedStatus: rollbackDerivedStatus");
+    expect(src).toContain("restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus)");
     expect(src).toContain("const importRepoScope = payload.github.linkedRepo ?? null;");
     expect(src).toContain("repoFullName: importRepoScope");
   });
@@ -28,8 +30,14 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(src).toContain("repoScope: effectiveRepo");
     expect(src).toContain("persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);");
     expect(src).toContain("restoreConnectionSideState(snapshot)");
+    expect(src).toContain("CONN_GITHUB_OK");
+    expect(src).toContain("CONN_EXPO_OK");
+    expect(src).toContain("CONN_REPO_OK");
     expect(src).toContain("CONN_SUPABASE_OK");
     expect(src).toContain("CONN_EAS_STATE");
+    expect(src).toContain("setGitHubConnectionState({");
+    expect(src).toContain("setExpoConnectionState({");
+    expect(src).toContain("setRepoConnectionState({ ok: repoOk, line: repoLine });");
     expect(src).toContain("setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });");
   });
 });

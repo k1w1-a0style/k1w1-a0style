@@ -53,6 +53,9 @@ type Params = {
     state: VerificationContractState;
     verifiedAt: string | null;
   }) => void;
+  setGitHubConnectionState: (status: { ok: boolean; user: string; scopes: string }) => void;
+  setExpoConnectionState: (status: { ok: boolean; user: string }) => void;
+  setRepoConnectionState: (status: { ok: boolean; line: string }) => void;
   setSupabaseConnectionState: (status: { ok: boolean; ref: string }) => void;
 };
 
@@ -68,6 +71,9 @@ export function useConnectionsSaveActions(params: Params) {
     clearEasConnectionState,
     clearSupabaseConnectionState,
     applyEasConnectionState,
+    setGitHubConnectionState,
+    setExpoConnectionState,
+    setRepoConnectionState,
     setSupabaseConnectionState,
   } = params;
   const persistOptionalSecret = useCallback(
@@ -101,6 +107,14 @@ export function useConnectionsSaveActions(params: Params) {
     supabaseAnonKey: string;
     easProjectId: string;
     sideState: {
+      githubOkRaw: string | null;
+      githubUserRaw: string | null;
+      githubScopesRaw: string | null;
+      expoOkRaw: string | null;
+      expoUserRaw: string | null;
+      repoOkRaw: string | null;
+      repoSlugRaw: string | null;
+      repoBranchRaw: string | null;
       supabaseOkRaw: string | null;
       supabaseRefRaw: string | null;
       easOkRaw: string | null;
@@ -121,6 +135,14 @@ export function useConnectionsSaveActions(params: Params) {
       supabaseUrl,
       supabaseAnonKey,
       easProjectId,
+      githubOkRaw,
+      githubUserRaw,
+      githubScopesRaw,
+      expoOkRaw,
+      expoUserRaw,
+      repoOkRaw,
+      repoSlugRaw,
+      repoBranchRaw,
       supabaseOkRaw,
       supabaseRefRaw,
       easOkRaw,
@@ -136,6 +158,14 @@ export function useConnectionsSaveActions(params: Params) {
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).then((value) => (value ?? "").trim()),
         getSupabaseAnonKey().then((value) => (value ?? "").trim()),
         readScopedEasProjectId(effectiveRepo).then((value) => (value ?? "").trim()),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK),
@@ -154,6 +184,14 @@ export function useConnectionsSaveActions(params: Params) {
       supabaseAnonKey,
       easProjectId,
       sideState: {
+        githubOkRaw,
+        githubUserRaw,
+        githubScopesRaw,
+        expoOkRaw,
+        expoUserRaw,
+        repoOkRaw,
+        repoSlugRaw,
+        repoBranchRaw,
         supabaseOkRaw,
         supabaseRefRaw,
         easOkRaw,
@@ -178,6 +216,14 @@ export function useConnectionsSaveActions(params: Params) {
 
       persistMaybe(STORAGE_KEYS.CONN_SUPABASE_OK, snapshot.sideState.supabaseOkRaw);
       persistMaybe(STORAGE_KEYS.CONN_SUPABASE_REF, snapshot.sideState.supabaseRefRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_OK, snapshot.sideState.githubOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_USER, snapshot.sideState.githubUserRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_SCOPES, snapshot.sideState.githubScopesRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EXPO_OK, snapshot.sideState.expoOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EXPO_USER, snapshot.sideState.expoUserRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_OK, snapshot.sideState.repoOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_SLUG, snapshot.sideState.repoSlugRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_BRANCH, snapshot.sideState.repoBranchRaw);
       persistMaybe(STORAGE_KEYS.CONN_EAS_OK, snapshot.sideState.easOkRaw);
       persistMaybe(STORAGE_KEYS.CONN_EAS_STATE, snapshot.sideState.easStateRaw);
       persistMaybe(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, snapshot.sideState.easLastVerifiedAtRaw);
@@ -192,6 +238,23 @@ export function useConnectionsSaveActions(params: Params) {
       const supabaseOk = snapshot.sideState.supabaseOkRaw === "true";
       const supabaseRef = (snapshot.sideState.supabaseRefRaw ?? "").trim();
       setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });
+      const githubUser = (snapshot.sideState.githubUserRaw ?? "").trim();
+      const githubScopes = (snapshot.sideState.githubScopesRaw ?? "").trim();
+      setGitHubConnectionState({
+        ok: snapshot.sideState.githubOkRaw === "true",
+        user: githubUser,
+        scopes: githubScopes,
+      });
+      const expoUser = (snapshot.sideState.expoUserRaw ?? "").trim();
+      setExpoConnectionState({
+        ok: snapshot.sideState.expoOkRaw === "true",
+        user: expoUser,
+      });
+      const repoOk = snapshot.sideState.repoOkRaw === "true";
+      const repoSlug = (snapshot.sideState.repoSlugRaw ?? "").trim();
+      const repoBranch = (snapshot.sideState.repoBranchRaw ?? "").trim();
+      const repoLine = repoSlug ? `${repoSlug}${repoBranch ? ` (${repoBranch})` : ""}` : "";
+      setRepoConnectionState({ ok: repoOk, line: repoLine });
 
       const rawEasState = (snapshot.sideState.easStateRaw ?? "").trim();
       const easState: VerificationContractState = isPersistedEasState(rawEasState) ? rawEasState : "missing";
@@ -202,7 +265,13 @@ export function useConnectionsSaveActions(params: Params) {
       })();
       applyEasConnectionState({ ok: easOk, state: easState, verifiedAt });
     },
-    [applyEasConnectionState, setSupabaseConnectionState],
+    [
+      applyEasConnectionState,
+      setSupabaseConnectionState,
+      setGitHubConnectionState,
+      setExpoConnectionState,
+      setRepoConnectionState,
+    ],
   );
 
   const persistSupabaseSavePlan = useCallback(

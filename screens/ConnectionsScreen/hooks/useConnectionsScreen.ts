@@ -112,6 +112,19 @@ export function useConnectionsScreen(): UseConnectionsScreenReturn {
     clearEasConnectionState: persistence.actions.clearEasConnectionState,
     clearSupabaseConnectionState: persistence.actions.clearSupabaseConnectionState,
     applyEasConnectionState: persistence.actions.applyEasConnectionState,
+    setGitHubConnectionState: (status) => {
+      persistence.setters.setGithubOk(status.ok);
+      persistence.setters.setGithubUser(status.user);
+      persistence.setters.setGithubScopes(status.scopes);
+    },
+    setExpoConnectionState: (status) => {
+      persistence.setters.setExpoOk(status.ok);
+      persistence.setters.setExpoUser(status.user);
+    },
+    setRepoConnectionState: (status) => {
+      persistence.setters.setRepoOk(status.ok);
+      persistence.setters.setRepoOkLine(status.line);
+    },
     setSupabaseConnectionState: (status) => {
       persistence.setters.setSupabaseOk(status.ok);
       persistence.setters.setSupabaseRef(status.ref);

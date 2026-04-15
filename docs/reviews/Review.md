@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-15 (Patch 779, RecoverabilityScopeStabilityClosure)**
+Stand: **2026-04-15 (Patch 780, RecoverabilityStateCompleteClosure)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Status-SoT / Governance
@@ -12,6 +12,8 @@ Stand: **2026-04-15 (Patch 779, RecoverabilityScopeStabilityClosure)**
 ## Aktueller Gesamtstatus
 
 > Letzter lokaler Gate-Run im aktuellen Durchlauf endet erwartungsgemaess bei `OK_WITH_SKIPS`, solange `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` nicht gesetzt sind; ein echtes `OK_FULL` bleibt weiterhin an gueltige Live-Env + Operator-JWT gebunden.
+
+Recoverability-Status fuer den aktuellen Kern-Fixblock: Die zuvor offenen Restore-Luecken sind mit Patch 780 flow-spezifisch geschlossen (Connections inkl. Neben-/Markerstates; Secure-Backup-Import inkl. durch `resetDerivedStatusAfterSecretImport()` geloeschter Derived-/Statuspfade). Diese Aussage gilt fuer den repo-verifizierten Code-/Teststand, nicht als pauschale Entwarnung fuer externe Live-Themen ohne Live-Env-Nachweis.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
