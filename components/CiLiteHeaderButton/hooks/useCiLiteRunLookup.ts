@@ -5,7 +5,7 @@ import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { logger } from "../../../lib/logger";
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { chooseWorkflowRunCandidateDetailed, type WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
 import {
@@ -47,7 +47,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
         return null;
       });
       const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-      if (!trimmedWorkflowAdminKey || !isLikelyValidAdminKey(trimmedWorkflowAdminKey)) {
+      if (!trimmedWorkflowAdminKey || !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedWorkflowAdminKey)) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
           adminKey: trimmedWorkflowAdminKey,

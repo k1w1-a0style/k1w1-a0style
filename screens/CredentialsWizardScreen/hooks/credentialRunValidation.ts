@@ -1,4 +1,4 @@
-import { isLikelyValidAdminKey } from "../../../lib/security/isLikelyValidAdminKey";
+import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import {
   isLikelyValidRepoFullName,
   isLikelyValidSupabaseUrl,
@@ -41,7 +41,7 @@ export const validateWizardRunInputs = (params: {
     };
   }
 
-  if (!isLikelyValidAdminKey(key)) {
+  if (!isLikelyWellFormedAdminKeyForUiPrecheck(key)) {
     return {
       title: "Admin-Key wirkt ungültig",
       message: "Admin-Key ist zu kurz oder enthält Leerzeichen.",

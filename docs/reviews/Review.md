@@ -1,11 +1,19 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-13 (Patch 777, EdgeTypecheckReleaseGateClosure)**
+Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
+
+## Status-SoT / Governance
+
+- **Primaere aktuelle Entscheidungsquelle** fuer den *jetzigen* Stand ist diese Review-Datei (`docs/reviews/Review.md`).
+- `PROJECT_CHECKLOG.md` bleibt **append-only Historie** (Chronik), nicht die operative Freigabequelle.
+- `docs/patches/PATCHLOG_ROOT.md` bleibt **Patch-Historie** (abgeleitet), ebenfalls nicht die operative Freigabequelle.
 
 ## Aktueller Gesamtstatus
 
 > Letzter lokaler Gate-Run im aktuellen Durchlauf endet erwartungsgemaess bei `OK_WITH_SKIPS`, solange `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` nicht gesetzt sind; ein echtes `OK_FULL` bleibt weiterhin an gueltige Live-Env + Operator-JWT gebunden.
+
+Recoverability-Status fuer den aktuellen Kern-Fixblock: Die zuvor offenen Restore-Luecken sind jetzt inkl. Snapshot-Treue-Kante geschlossen (Patch 780 + Patch 781). Insbesondere fuehrt der Connections-Rollback nach Snapshot-Restore keine nachgelagerten Save-Plan-Clears mehr aus; dadurch bleibt der restaurierte Zustand auch bei leeren Primaerwerten und vorhandenen Side-States exakt erhalten. Diese Aussage gilt fuer den repo-verifizierten Code-/Teststand, nicht als pauschale Entwarnung fuer externe Live-Themen ohne Live-Env-Nachweis.
 
 Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
 
@@ -49,7 +57,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - `save_preview` bleibt laut Live-Befund JWT-aligned und repo-konsistent; hier ist kein neuer kritischer Auth-Restpunkt offen.
 - Der operatorische `verify_jwt`-Flag-Audit ist fuer `save_preview` und `k1w1-handler` explizit bestaetigt (`true`), damit ist der zuvor offene Flag-Unsicherheitsblock fuer diesen Stand geschlossen.
 - Der temporaere Supabase-Test-User (`h91874350@gmail.com` / `BlauBeerToni84`) wurde extern bereinigt; daraus bleibt kein privilegierter Live-Restpunkt offen.
-- Kritisch offen: aktuell kein technischer High-Priority-Restpunkt im dokumentierten Live-Scope.
+- Kritisch offen: kein pauschaler Entwarnungs-Satz mehr; offene Punkte muessen explizit pro Block/Check benannt und durch reale Gate-Runs belegt sein.
 - `diagnostics_reports` bleibt bewusst als offene Produktentscheidung gefuehrt (kein Blindumbau in diesem Lauf).
 
 ## Was heute aktiv gilt
@@ -79,7 +87,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ## Kanonische Verifikation
 
-Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
+Im Repo vorhanden und im aktuellen Stand erfolgreich gelaufen:
 
 - `npm run typecheck`
 - `npm run lint:ci`
@@ -91,7 +99,8 @@ Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 - `bash scripts/check_edge_helper_visibility.sh`
 - `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
-- Ergebnis `check_release_readiness`: `OK_FULL` (Live-Variablen gesetzt; Live-Contract-Smokes real ausgefuehrt).
+- **Aktueller lokaler Lauf dieses Stands (ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT`)**: `OK_WITH_SKIPS`.
+- **`OK_FULL` gilt nur mit gesetzten Live-Variablen** (bzw. als explizit historischer Voll-Gate-Lauf mit real ausgefuehrten Live-Contract-Smokes).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 

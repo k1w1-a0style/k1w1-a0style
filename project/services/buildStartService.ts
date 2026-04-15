@@ -12,7 +12,7 @@ import {
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
-import { hasAllowedOperatorRole } from "../../lib/auth/operatorJwt";
+import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../lib/auth/operatorJwt";
 import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
 import {
   assertBuildReadiness as assertBuildReadinessContract,
@@ -190,7 +190,7 @@ export async function startBuildJob(params: {
   }
   // Client-side preflight only: decode-only role read from JWT payload.
   // Security-relevant authorization remains enforced server-/edge-side.
-  if (!hasAllowedOperatorRole(accessToken)) {
+  if (!hasLikelyAllowedOperatorRoleForUiPrecheck(accessToken)) {
     throw new Error(buildOperatorPrecheckMessage({
       action: "Build-Start",
       reason: "invalid_role",

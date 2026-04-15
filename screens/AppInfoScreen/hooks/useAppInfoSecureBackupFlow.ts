@@ -34,6 +34,7 @@ import {
 } from "../../../infra/github/githubService";
 import { safeFormatBackupDate, sanitizeAiConfigFromBackup } from "../../../lib/appInfoBackup";
 import { logger } from "../../../lib/logger";
+import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
 import { getSecureBackupExportSuccessMessage, getSecureBackupImportScopeText } from "./appInfoSecureBackupUiHelpers";
 import {
   createCollectedSecretBackupPayload,
@@ -44,12 +45,22 @@ import {
 import { resolveEasProjectIdImportDecision } from "./easProjectIdImportHelpers";
 import { importEncryptedScopedBackup, exportEncryptedScopedBackup } from "./importExportHelpers";
 import { getImportExportErrorMessage, isImportExportAborted } from "./importExportErrorHelpers";
-import { resetDerivedStatusAfterSecretImport } from "./secretImportStatusReset";
+import {
+  resetDerivedStatusAfterSecretImport,
+  restoreDerivedStatusAfterSecretImportRollback,
+  snapshotDerivedStatusBeforeSecretImport,
+  type SecretImportDerivedStatusSnapshot,
+} from "./secretImportStatusReset";
 import type { AIConfig } from "../../../contexts/AIContext/models";
 
 export type SecureBackupRequest =
   | { mode: "export"; scope: SecureBackupScope }
   | { mode: "import" };
+
+type SecureBackupImportSnapshot = {
+  secrets: SecretBackupPayloadV1;
+  derivedStatus: SecretImportDerivedStatusSnapshot;
+};
 
 
 async function readSecretOrNull(read: () => Promise<string | null>): Promise<string | null> {
@@ -111,6 +122,7 @@ export function useAppInfoSecureBackupFlow(params: {
   const { config, setConfig, github } = params;
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
+  const SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1";
 
   const collectSecretBackupPayload = useCallback(async () => {
     const [githubToken, expoToken, workflowAdminKey, androidKeystoreExportAdminKey, signingAdminKey, signingMasterKey] = await Promise.all([
@@ -151,6 +163,7 @@ export function useAppInfoSecureBackupFlow(params: {
 
   const persistImportedConnectionSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const c = payload.connections;
+    const importRepoScope = payload.github.linkedRepo ?? null;
     const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(c.supabaseRaw, c.supabaseUrl);
     const easProjectIdDecision = resolveEasProjectIdImportDecision(c.easProjectId);
 
@@ -165,14 +178,14 @@ export function useAppInfoSecureBackupFlow(params: {
       writes.push(
         persistScopedEasProjectId({
           projectId: easProjectIdDecision.value,
-          repoFullName: github.activeRepo,
+          repoFullName: importRepoScope,
         }),
       );
     } else if (easProjectIdDecision.mode === "clear") {
       writes.push(
         persistScopedEasProjectId({
           projectId: "",
-          repoFullName: github.activeRepo,
+          repoFullName: importRepoScope,
         }),
       );
     } else {
@@ -182,7 +195,7 @@ export function useAppInfoSecureBackupFlow(params: {
     }
 
     await Promise.all(writes);
-  }, [github.activeRepo]);
+  }, []);
 
   const persistImportedTokenSecrets = useCallback(async (payload: SecretBackupPayloadV1) => {
     const tokens = readAppliedSecretTokens(payload);
@@ -267,18 +280,35 @@ export function useAppInfoSecureBackupFlow(params: {
     const result = await importEncryptedScopedBackup(passphrase);
     const imported = result.data;
     const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
-    const rollbackSecrets = await collectSecretBackupPayload();
+    await recoverFromPendingJournal<SecureBackupImportSnapshot>({
+      journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
+      flow: "secure_backup_import",
+      restoreSnapshot: async (snapshot) => {
+        await applySecretBackupPayloadCore(snapshot.secrets);
+        await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
+      },
+    });
+    const [rollbackSecrets, rollbackDerivedStatus] = await Promise.all([
+      collectSecretBackupPayload(),
+      snapshotDerivedStatusBeforeSecretImport(),
+    ]);
 
-    try {
-      await applySecretBackupPayloadCore(secretPayload);
-      await resetDerivedStatusAfterSecretImport();
-    } catch (error) {
-      logger.error("[useAppInfoScreen] Secret-Import fehlgeschlagen, starte best-effort Rollback.", { error });
-      await applySecretBackupPayloadCore(rollbackSecrets).catch((rollbackError) => {
-        logger.error("[useAppInfoScreen] Secret-Import Rollback fehlgeschlagen.", { rollbackError });
-      });
-      throw error;
-    }
+    await runRecoverableCommit({
+      journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
+      flow: "secure_backup_import",
+      snapshot: {
+        secrets: rollbackSecrets,
+        derivedStatus: rollbackDerivedStatus,
+      },
+      apply: async () => {
+        await applySecretBackupPayloadCore(secretPayload);
+        await resetDerivedStatusAfterSecretImport();
+      },
+      rollback: async (snapshot) => {
+        await applySecretBackupPayloadCore(snapshot.secrets);
+        await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
+      },
+    });
 
     if (imported.kind === "config-secret-snapshot") {
       setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));

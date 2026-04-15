@@ -115,6 +115,7 @@ const DEFAULT_EDGE_FETCH_TIMEOUT_MS = 8_000;
 type DurableRateLimitRpcRow = {
   allowed: boolean;
   current_count: number;
+  decision: "allowed" | "rejected";
 };
 
 function parseDurableRateLimitRpcRow(rpcJson: unknown): DurableRateLimitRpcRow | null {
@@ -123,10 +124,17 @@ function parseDurableRateLimitRpcRow(rpcJson: unknown): DurableRateLimitRpcRow |
 
   const allowed = (candidate as { allowed?: unknown }).allowed;
   const currentCount = (candidate as { current_count?: unknown }).current_count;
+  const decisionRaw = (candidate as { decision?: unknown }).decision;
   if (typeof allowed !== "boolean") return null;
   if (typeof currentCount !== "number" || !Number.isFinite(currentCount) || currentCount < 0) return null;
+  const decision =
+    decisionRaw === "allowed" || decisionRaw === "rejected"
+      ? decisionRaw
+      : allowed
+        ? "allowed"
+        : "rejected";
 
-  return { allowed, current_count: currentCount };
+  return { allowed, current_count: currentCount, decision };
 }
 
 async function fetchWithEdgeTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs = DEFAULT_EDGE_FETCH_TIMEOUT_MS): Promise<Response> {
@@ -208,6 +216,7 @@ export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimi
         max: cfg.max,
         windowMs: cfg.windowMs,
         currentCount: parsed.current_count,
+        decision: parsed.decision,
         mode: "durable",
       });
     }

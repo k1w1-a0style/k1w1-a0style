@@ -9,7 +9,7 @@ import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
 import { ensureSupabaseClient } from "../../../lib/supabase";
-import { hasAllowedOperatorRole } from "../../../lib/auth/operatorJwt";
+import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../../lib/auth/operatorJwt";
 
 async function readTokenOrUnavailable(read: () => Promise<string | null>): Promise<string | null> {
   try {
@@ -96,7 +96,7 @@ export function useBuildPreconditions(
         );
         // Client-side convenience/readiness precheck only (decode-only JWT payload read).
         // Authoritative auth remains server-/edge-side.
-        const hasValidOperatorJwt = hasAllowedOperatorRole(operatorJwt);
+        const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwt);
         setHasOperatorJwt(hasValidOperatorJwt);
         setOperatorJwtReason(
           !operatorJwt

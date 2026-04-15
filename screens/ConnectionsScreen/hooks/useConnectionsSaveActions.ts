@@ -4,6 +4,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import {
+  getAndroidKeystoreExportAdminKey,
+  getExpoToken,
+  getGitHubToken,
+  getWorkflowAdminKey,
   deleteAndroidKeystoreExportAdminKey,
   deleteExpoToken,
   deleteGitHubToken,
@@ -14,8 +18,12 @@ import {
   saveWorkflowAdminKey,
 } from "../../../infra/github/githubService";
 import { deleteSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
+import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
+import { readScopedEasProjectId } from "../../../lib/easProjectIdScope";
+import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
 import { normalizeStoredSupabaseRaw, validateBeforeSave } from "../utils/validation";
-import { resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
+import { isPersistedEasState, resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
+import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
 type Params = {
   hydrated: boolean;
@@ -40,6 +48,15 @@ type Params = {
   clearExpoConnectionState: () => Promise<void>;
   clearEasConnectionState: () => Promise<void>;
   clearSupabaseConnectionState: () => Promise<void>;
+  applyEasConnectionState: (status: {
+    ok: boolean;
+    state: VerificationContractState;
+    verifiedAt: string | null;
+  }) => void;
+  setGitHubConnectionState: (status: { ok: boolean; user: string; scopes: string }) => void;
+  setExpoConnectionState: (status: { ok: boolean; user: string }) => void;
+  setRepoConnectionState: (status: { ok: boolean; line: string }) => void;
+  setSupabaseConnectionState: (status: { ok: boolean; ref: string }) => void;
 };
 
 export function useConnectionsSaveActions(params: Params) {
@@ -53,6 +70,11 @@ export function useConnectionsSaveActions(params: Params) {
     clearExpoConnectionState,
     clearEasConnectionState,
     clearSupabaseConnectionState,
+    applyEasConnectionState,
+    setGitHubConnectionState,
+    setExpoConnectionState,
+    setRepoConnectionState,
+    setSupabaseConnectionState,
   } = params;
   const persistOptionalSecret = useCallback(
     async (input: {
@@ -72,6 +94,184 @@ export function useConnectionsSaveActions(params: Params) {
       }
     },
     [],
+  );
+
+  type ConnectionsSnapshot = {
+    repoScope: string | null;
+    githubToken: string;
+    expoToken: string;
+    workflowAdminKey: string;
+    androidKeystoreExportAdminKey: string;
+    supabaseRaw: string;
+    supabaseUrl: string;
+    supabaseAnonKey: string;
+    easProjectId: string;
+    sideState: {
+      githubOkRaw: string | null;
+      githubUserRaw: string | null;
+      githubScopesRaw: string | null;
+      expoOkRaw: string | null;
+      expoUserRaw: string | null;
+      repoOkRaw: string | null;
+      repoSlugRaw: string | null;
+      repoBranchRaw: string | null;
+      supabaseOkRaw: string | null;
+      supabaseRefRaw: string | null;
+      easOkRaw: string | null;
+      easStateRaw: string | null;
+      easLastVerifiedAtRaw: string | null;
+    };
+  };
+
+  const CONNECTIONS_SAVE_JOURNAL_KEY = "connections_save_recoverable_journal_v1";
+
+  const readCurrentSnapshot = useCallback(async (): Promise<ConnectionsSnapshot> => {
+    const [
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      supabaseRaw,
+      supabaseUrl,
+      supabaseAnonKey,
+      easProjectId,
+      githubOkRaw,
+      githubUserRaw,
+      githubScopesRaw,
+      expoOkRaw,
+      expoUserRaw,
+      repoOkRaw,
+      repoSlugRaw,
+      repoBranchRaw,
+      supabaseOkRaw,
+      supabaseRefRaw,
+      easOkRaw,
+      easStateRaw,
+      easLastVerifiedAtRaw,
+    ] =
+      await Promise.all([
+        getGitHubToken().then((value) => (value ?? "").trim()),
+        getExpoToken().then((value) => (value ?? "").trim()),
+        getWorkflowAdminKey().then((value) => (value ?? "").trim()),
+        getAndroidKeystoreExportAdminKey().then((value) => (value ?? "").trim()),
+        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).then((value) => (value ?? "").trim()),
+        AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).then((value) => (value ?? "").trim()),
+        getSupabaseAnonKey().then((value) => (value ?? "").trim()),
+        readScopedEasProjectId(effectiveRepo).then((value) => (value ?? "").trim()),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EXPO_USER),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_SLUG),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_REPO_BRANCH),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_SUPABASE_REF),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_OK),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_STATE),
+        AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT),
+      ]);
+
+    return {
+      repoScope: effectiveRepo,
+      githubToken,
+      expoToken,
+      workflowAdminKey,
+      androidKeystoreExportAdminKey,
+      supabaseRaw,
+      supabaseUrl,
+      supabaseAnonKey,
+      easProjectId,
+      sideState: {
+        githubOkRaw,
+        githubUserRaw,
+        githubScopesRaw,
+        expoOkRaw,
+        expoUserRaw,
+        repoOkRaw,
+        repoSlugRaw,
+        repoBranchRaw,
+        supabaseOkRaw,
+        supabaseRefRaw,
+        easOkRaw,
+        easStateRaw,
+        easLastVerifiedAtRaw,
+      },
+    };
+  }, [effectiveRepo]);
+
+  const restoreConnectionSideState = useCallback(
+    async (snapshot: ConnectionsSnapshot): Promise<void> => {
+      const writes: Array<[string, string]> = [];
+      const removes: string[] = [];
+
+      const persistMaybe = (key: string, value: string | null) => {
+        if (value === null) {
+          removes.push(key);
+          return;
+        }
+        writes.push([key, value]);
+      };
+
+      persistMaybe(STORAGE_KEYS.CONN_SUPABASE_OK, snapshot.sideState.supabaseOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_SUPABASE_REF, snapshot.sideState.supabaseRefRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_OK, snapshot.sideState.githubOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_USER, snapshot.sideState.githubUserRaw);
+      persistMaybe(STORAGE_KEYS.CONN_GITHUB_SCOPES, snapshot.sideState.githubScopesRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EXPO_OK, snapshot.sideState.expoOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EXPO_USER, snapshot.sideState.expoUserRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_OK, snapshot.sideState.repoOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_SLUG, snapshot.sideState.repoSlugRaw);
+      persistMaybe(STORAGE_KEYS.CONN_REPO_BRANCH, snapshot.sideState.repoBranchRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_OK, snapshot.sideState.easOkRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_STATE, snapshot.sideState.easStateRaw);
+      persistMaybe(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT, snapshot.sideState.easLastVerifiedAtRaw);
+
+      if (writes.length > 0) {
+        await AsyncStorage.multiSet(writes);
+      }
+      if (removes.length > 0) {
+        await AsyncStorage.multiRemove(removes);
+      }
+
+      const supabaseOk = snapshot.sideState.supabaseOkRaw === "true";
+      const supabaseRef = (snapshot.sideState.supabaseRefRaw ?? "").trim();
+      setSupabaseConnectionState({ ok: supabaseOk, ref: supabaseRef });
+      const githubUser = (snapshot.sideState.githubUserRaw ?? "").trim();
+      const githubScopes = (snapshot.sideState.githubScopesRaw ?? "").trim();
+      setGitHubConnectionState({
+        ok: snapshot.sideState.githubOkRaw === "true",
+        user: githubUser,
+        scopes: githubScopes,
+      });
+      const expoUser = (snapshot.sideState.expoUserRaw ?? "").trim();
+      setExpoConnectionState({
+        ok: snapshot.sideState.expoOkRaw === "true",
+        user: expoUser,
+      });
+      const repoOk = snapshot.sideState.repoOkRaw === "true";
+      const repoSlug = (snapshot.sideState.repoSlugRaw ?? "").trim();
+      const repoBranch = (snapshot.sideState.repoBranchRaw ?? "").trim();
+      const repoLine = repoSlug ? `${repoSlug}${repoBranch ? ` (${repoBranch})` : ""}` : "";
+      setRepoConnectionState({ ok: repoOk, line: repoLine });
+
+      const rawEasState = (snapshot.sideState.easStateRaw ?? "").trim();
+      const easState: VerificationContractState = isPersistedEasState(rawEasState) ? rawEasState : "missing";
+      const easOk = snapshot.sideState.easOkRaw === "true";
+      const verifiedAt = (() => {
+        const trimmed = (snapshot.sideState.easLastVerifiedAtRaw ?? "").trim();
+        return trimmed || null;
+      })();
+      applyEasConnectionState({ ok: easOk, state: easState, verifiedAt });
+    },
+    [
+      applyEasConnectionState,
+      setSupabaseConnectionState,
+      setGitHubConnectionState,
+      setExpoConnectionState,
+      setRepoConnectionState,
+    ],
   );
 
   const persistSupabaseSavePlan = useCallback(
@@ -116,6 +316,22 @@ export function useConnectionsSaveActions(params: Params) {
     [persistOptionalSecret, clearExpoConnectionState, clearGithubConnectionState],
   );
 
+  const restoreSnapshot = useCallback(
+    async (snapshot: ConnectionsSnapshot): Promise<void> => {
+      const plan = resolveConnectionsSavePlan(snapshot);
+      await persistTokenSavePlan(plan);
+      await persistSupabaseSavePlan(plan);
+      await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
+      await restoreConnectionSideState(snapshot);
+    },
+    [
+      persistTokenSavePlan,
+      persistSupabaseSavePlan,
+      persistSelectedEasProjectId,
+      restoreConnectionSideState,
+    ],
+  );
+
   const saveAll = useCallback(async () => {
     if (!hydrated) return;
     const v = validateBeforeSave(secrets);
@@ -127,18 +343,32 @@ export function useConnectionsSaveActions(params: Params) {
     await runGuardedAction({
       defaultTitle: "❌ Speichern fehlgeschlagen",
       task: async () => {
+        await recoverFromPendingJournal<ConnectionsSnapshot>({
+          journalKey: CONNECTIONS_SAVE_JOURNAL_KEY,
+          flow: "connections_save",
+          restoreSnapshot,
+        });
+        const rollbackSnapshot = await readCurrentSnapshot();
         const plan = resolveConnectionsSavePlan(secrets);
 
-        await persistTokenSavePlan(plan);
-        await persistSupabaseSavePlan(plan);
-        await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
+        await runRecoverableCommit({
+          journalKey: CONNECTIONS_SAVE_JOURNAL_KEY,
+          flow: "connections_save",
+          snapshot: rollbackSnapshot,
+          apply: async () => {
+            await persistTokenSavePlan(plan);
+            await persistSupabaseSavePlan(plan);
+            await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
 
-        if (plan.shouldClearEasConnection) {
-          await clearEasConnectionState();
-        }
-        if (plan.shouldClearSupabaseConnection) {
-          await clearSupabaseConnectionState();
-        }
+            if (plan.shouldClearEasConnection) {
+              await clearEasConnectionState();
+            }
+            if (plan.shouldClearSupabaseConnection) {
+              await clearSupabaseConnectionState();
+            }
+          },
+          rollback: restoreSnapshot,
+        });
         Alert.alert("✅ Gespeichert", "Tokens & Verbindungen wurden gespeichert.");
       },
     });
@@ -152,6 +382,8 @@ export function useConnectionsSaveActions(params: Params) {
     effectiveRepo,
     clearEasConnectionState,
     clearSupabaseConnectionState,
+    readCurrentSnapshot,
+    restoreSnapshot,
   ]);
 
   return {
