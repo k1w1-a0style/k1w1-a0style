@@ -34,7 +34,7 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
   const [buildLoading, setBuildLoading] = useState(false);
   const [buildStartTime, setBuildStartTime] = useState<number | null>(null);
   const [nowTick, setNowTick] = useState<number>(0);
-  const isStatusRunning = status === "queued" || status === "building";
+  const isStatusRunning = status === "starting" || status === "queued" || status === "building";
 
   const onStartBuild = useCallback(async () => {
     if (!repoValidationValid) {
@@ -51,7 +51,7 @@ export function useEnhancedBuildStartController(params: UseEnhancedBuildStartCon
       return;
     }
     if (isStatusRunning) {
-      Alert.alert("Build läuft bereits", "Ein neuer Build-Start ist während queued/running blockiert.");
+      Alert.alert("Build läuft bereits", "Ein neuer Build-Start ist während starting/queued/building blockiert.");
       return;
     }
 

@@ -77,6 +77,7 @@ export function resolveLogsLoadContext(params: ResolveLogsLoadContextParams): {
   const selectedRepo = validateRepoFullName(String(params.selectedRepoFullName ?? "").trim());
   const currentBuildRepo = validateRepoFullName(String(params.currentBuildRepoFullName ?? "").trim());
   const hasTrackedBuild =
+    params.status === "starting" ||
     params.status === "queued" ||
     params.status === "building" ||
     params.runId !== null;
@@ -100,7 +101,7 @@ export function resolveLogsLoadContext(params: ResolveLogsLoadContextParams): {
       githubRepoForLogs: null,
       shouldLoadLogs: false,
       logsWaitingReason:
-        params.status === "queued" || params.status === "building"
+        params.status === "starting" || params.status === "queued" || params.status === "building"
           ? "Aktiver Build-Kontext enthält noch kein gültiges Repo. Logs bleiben gesperrt, bis der Laufkontext vollständig ist."
           : "Kein gültiger Build-Kontext für Logs verfügbar.",
     };
@@ -111,17 +112,22 @@ export function resolveLogsLoadContext(params: ResolveLogsLoadContextParams): {
       githubRepoForLogs: null,
       shouldLoadLogs: false,
       logsWaitingReason:
-        params.status === "queued" || params.status === "building"
+        params.status === "starting"
+          ? "Build-Start läuft. Run-ID/Workflow-Kontext liegt noch nicht vor; Logs folgen nach der Job-Zuordnung."
+          : params.status === "queued" || params.status === "building"
           ? "Run-ID für den aktiven Build liegt noch nicht vor. Logs werden geladen, sobald der Workflow-Lauf zugeordnet ist."
           : null,
     };
   }
 
-  if (params.status === "idle") {
+  if (params.status === "idle" || params.status === "starting") {
     return {
       githubRepoForLogs: null,
       shouldLoadLogs: false,
-      logsWaitingReason: null,
+      logsWaitingReason:
+        params.status === "starting"
+          ? "Build-Start läuft. Run-ID/Workflow-Kontext liegt noch nicht vor; Logs folgen nach der Job-Zuordnung."
+          : null,
     };
   }
 

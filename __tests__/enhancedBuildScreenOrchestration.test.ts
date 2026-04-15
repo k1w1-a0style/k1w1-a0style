@@ -62,6 +62,7 @@ describe("enhancedBuildScreenOrchestration", () => {
   });
 
   test("keeps active/final status guards exact", () => {
+    expect(isBuildActive("starting", Date.now())).toBe(true);
     expect(isBuildActive("queued", Date.now())).toBe(true);
     expect(isBuildActive("building", Date.now())).toBe(true);
     expect(isBuildActive("idle", Date.now())).toBe(false);

@@ -218,15 +218,17 @@ export const getBuildStatusMessage = (params: {
 
   return mapped === "queued"
     ? "⏳ Build ist in der Warteschlange…"
-    : mapped === "building"
-      ? "🔨 Build läuft…"
-      : mapped === "success"
-        ? "✅ Build erfolgreich!"
-        : mapped === "failed"
-          ? "❌ Build fehlgeschlagen."
-          : mapped === "error"
-            ? `⚠️ Fehler beim Status-Abruf${params.lastError ? ": " + params.lastError : "."}`
-            : "⏸️ Kein aktiver Build.";
+    : mapped === "starting"
+      ? "🧭 Build-Start wird vorbereitet…"
+      : mapped === "building"
+        ? "🔨 Build läuft…"
+        : mapped === "success"
+          ? "✅ Build erfolgreich!"
+          : mapped === "failed"
+            ? "❌ Build fehlgeschlagen."
+            : mapped === "error"
+              ? `⚠️ Fehler beim Status-Abruf${params.lastError ? ": " + params.lastError : "."}`
+              : "⏸️ Kein aktiver Build.";
 };
 
 export const mergeBuildPollIntoCurrentBuild = (params: {

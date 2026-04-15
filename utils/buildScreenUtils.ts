@@ -22,6 +22,7 @@ export const EST_BUILD_MS = 150_000;
 
 export const STATUS_PROGRESS: Record<BuildStatus, number> = {
   idle: 0,
+  starting: 0.08,
   queued: 0.25,
   building: 0.6,
   success: 1,
@@ -31,6 +32,7 @@ export const STATUS_PROGRESS: Record<BuildStatus, number> = {
 
 export const STATUS_MESSAGES: Record<BuildStatus, string> = {
   idle: "Noch kein Build gestartet.",
+  starting: "🧭 Build-Start läuft lokal an (Warte auf Queue-/Job-Bestätigung).",
   queued: "⏳ Projekt wartet in der Queue von GitHub Actions / EAS.",
   building: "🔨 Expo/EAS packt gerade deine APK.",
   success: "✅ Fertig! Artefakte stehen zum Download bereit.",
@@ -83,6 +85,10 @@ export const computeEta = (status: BuildStatus, elapsedMs: number): number => {
   const elapsedBeyondQueue = Math.max(elapsedMs - EST_QUEUE_MS, 0);
   if (status === "success") return 0;
   if (status === "failed" || status === "error") return 0;
+  if (status === "starting") {
+    const total = EST_QUEUE_MS + EST_BUILD_MS;
+    return Math.max(total - elapsedMs, 0);
+  }
   if (status === "queued") {
     const total = EST_QUEUE_MS + EST_BUILD_MS;
     return Math.max(total - elapsedMs, 0);
@@ -106,6 +112,10 @@ export const getStepState = (
   // Idle: alles ist "upcoming"
   if (status === "idle") {
     return "upcoming";
+  }
+
+  if (status === "starting") {
+    return step === "queued" ? "current" : "upcoming";
   }
 
   // Failed/Error: queued war done, building ist failed, success ist upcoming
@@ -190,6 +200,8 @@ export const getStatusIcon = (historyStatus: string): string => {
       return "🔨";
     case "queued":
       return "⏳";
+    case "starting":
+      return "🧭";
     default:
       return "❓";
   }
@@ -209,6 +221,8 @@ export const getStatusColor = (historyStatus: string): string => {
       return theme.palette.primary;
     case "queued":
       return theme.palette.warning;
+    case "starting":
+      return theme.palette.primary;
     default:
       return theme.palette.text.secondary;
   }

@@ -2,7 +2,7 @@ import type { LogEntry } from "../../../hooks/useGitHubActionsLogs";
 import type { BuildHistoryEntry } from "../../../shared/types/build";
 import type { WorkflowRun } from "../types";
 
-const ACTIVE_BUILD_STATUSES = new Set(["queued", "building"] as const);
+const ACTIVE_BUILD_STATUSES = new Set(["starting", "queued", "building"] as const);
 const FINAL_BUILD_STATUSES = new Set(["success", "failed", "error"] as const);
 
 type BuildHistoryEntryWithBranch = BuildHistoryEntry & { branch?: string | null };
@@ -39,7 +39,7 @@ export function resolveHistoryMatchForRun(
 }
 
 export function isBuildActive(status: string, buildStartTime: number | null): boolean {
-  return !!buildStartTime && ACTIVE_BUILD_STATUSES.has(status as "queued" | "building");
+  return !!buildStartTime && ACTIVE_BUILD_STATUSES.has(status as "starting" | "queued" | "building");
 }
 
 export function isFinalBuildStatus(status: string): boolean {

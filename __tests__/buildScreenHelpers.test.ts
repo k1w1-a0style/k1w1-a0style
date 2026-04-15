@@ -25,6 +25,17 @@ describe("buildScreenHelpers", () => {
       selectedRepoFullName: "owner/selected",
       currentBuildRepoFullName: "owner/build",
       runId: null,
+      status: "starting",
+    })).toEqual({
+      githubRepoForLogs: null,
+      shouldLoadLogs: false,
+      logsWaitingReason: "Build-Start läuft. Run-ID/Workflow-Kontext liegt noch nicht vor; Logs folgen nach der Job-Zuordnung.",
+    });
+
+    expect(resolveLogsLoadContext({
+      selectedRepoFullName: "owner/selected",
+      currentBuildRepoFullName: "owner/build",
+      runId: null,
       status: "queued",
     })).toEqual({
       githubRepoForLogs: null,

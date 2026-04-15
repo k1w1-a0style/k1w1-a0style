@@ -65,7 +65,7 @@ describe("useProjectBuildController startBuild reentry guard", () => {
       "Build-Start bereits in Vorbereitung. Bitte kurz warten.",
     );
     expect(mockStartBuildJob).toHaveBeenCalledTimes(1);
-    expect(result.current.currentBuild?.status).toBe("idle");
+    expect(result.current.currentBuild?.status).toBe("starting");
 
     expect(resolveStartRef.current).toBeTruthy();
     if (resolveStartRef.current) {

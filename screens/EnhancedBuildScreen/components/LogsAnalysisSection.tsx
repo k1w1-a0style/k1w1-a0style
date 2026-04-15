@@ -80,6 +80,11 @@ export function LogsAnalysisSection({
           ℹ️ Logs werden geladen sobald ein Build gestartet wird.
         </Text>
       )}
+      {!shouldLoadLogs && status === "starting" && !logsWaitingReason && (
+        <Text style={styles.emptyText}>
+          ℹ️ Build-Start läuft. Logs folgen, sobald die Run-ID vorliegt.
+        </Text>
+      )}
 
       {!!logsWaitingReason && (
         <Text style={styles.emptyText}>

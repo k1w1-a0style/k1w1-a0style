@@ -209,7 +209,7 @@ describe("projectContextBuildHelpers orchestration guards", () => {
     });
 
     expect(beforeStart).toMatchObject({
-      status: "idle",
+      status: "starting",
       message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
       jobId: null,
       githubRepo: "owner/repo",
@@ -235,6 +235,24 @@ describe("projectContextBuildHelpers orchestration guards", () => {
       buildProfile: "production",
       lastUpdatedAt: "2026-04-05T00:00:02.000Z",
     });
+  });
+
+  it("maps starting to an honest pending message and keeps queued after confirmed start", () => {
+    expect(getBuildStatusMessage({ status: "starting" })).toContain("vorbereitet");
+
+    const queued = createBuildQueuedStateAfterStart({
+      previous: {
+        status: "starting",
+        message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
+      },
+      jobId: "job-2",
+      githubRepo: "owner/repo",
+      branch: "main",
+      buildProfile: "preview",
+      nowIso: "2026-04-05T00:00:05.000Z",
+    });
+
+    expect(queued.status).toBe("queued");
   });
 
   it("creates poll abort and generic error states", () => {
