@@ -104,6 +104,7 @@ export function createChecklistItems(params: {
   hasSigningKey: boolean;
   signingKeyReason: string | null;
   hasTokens: boolean;
+  tokenReason: string | null;
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
@@ -125,6 +126,7 @@ export function createChecklistItems(params: {
     hasSigningKey,
     signingKeyReason,
     hasTokens,
+    tokenReason,
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,
@@ -156,7 +158,7 @@ export function createChecklistItems(params: {
       id: "tokens",
       label: "Tokens vorhanden (GitHub + Expo)",
       status: hasTokens ? "ok" : "fail",
-      detail: hasTokens ? undefined : "Im Verbindungen-Screen setzen",
+      detail: hasTokens ? undefined : (tokenReason || "Im Verbindungen-Screen setzen"),
     },
     {
       id: "workflow_admin_key",

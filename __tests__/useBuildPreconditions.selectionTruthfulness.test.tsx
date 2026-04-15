@@ -4,6 +4,7 @@ import { useBuildPreconditions } from "../screens/EnhancedBuildScreen/hooks/useB
 import { getGitHubToken, getExpoToken, getWorkflowAdminKey } from "../infra/github/githubService";
 import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
 import { readSigningKeyGateState } from "../screens/EnhancedBuildScreen/hooks/signingKeyGate";
+import { ensureSupabaseClient } from "../lib/supabase";
 
 jest.mock("@react-navigation/native", () => ({
   useFocusEffect: (effect: () => void | (() => void)) => {
@@ -50,6 +51,7 @@ const readSigningKeyGateStateMock = readSigningKeyGateState as jest.MockedFuncti
 const getGitHubTokenMock = getGitHubToken as jest.MockedFunction<typeof getGitHubToken>;
 const getExpoTokenMock = getExpoToken as jest.MockedFunction<typeof getExpoToken>;
 const getWorkflowAdminKeyMock = getWorkflowAdminKey as jest.MockedFunction<typeof getWorkflowAdminKey>;
+const ensureSupabaseClientMock = ensureSupabaseClient as jest.MockedFunction<typeof ensureSupabaseClient>;
 
 describe("useBuildPreconditions selection truthfulness", () => {
   beforeEach(() => {
@@ -57,6 +59,18 @@ describe("useBuildPreconditions selection truthfulness", () => {
     getGitHubTokenMock.mockResolvedValue("ghp_test");
     getExpoTokenMock.mockResolvedValue("expo_test");
     getWorkflowAdminKeyMock.mockResolvedValue("adminkey");
+    ensureSupabaseClientMock.mockResolvedValue({
+      auth: {
+        getSession: jest.fn(async () => ({
+          data: {
+            session: {
+              access_token:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature",
+            },
+          },
+        })),
+      },
+    } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
     readSigningKeyGateStateMock.mockResolvedValue({
       hasSigningKey: true,
       reason: null,
@@ -93,5 +107,77 @@ describe("useBuildPreconditions selection truthfulness", () => {
     expect(result.current.diagnosticReason).toMatch(/Repo und Branch zuerst wählen/i);
     expect(result.current.ciLiteReason).toMatch(/Repo und Branch zuerst wählen/i);
     expect(result.current.repoSyncState).toBe("unknown");
+  });
+
+  it("classifies unreadable workflow admin key as read error (not missing)", async () => {
+    getWorkflowAdminKeyMock.mockRejectedValue(new Error("securestore read failed"));
+
+    const { result } = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-1",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.hasWorkflowAdminKey).toBe(false);
+      expect(String(result.current.workflowAdminKeyReason || "")).toMatch(/konnte nicht gelesen werden/i);
+      expect(String(result.current.workflowAdminKeyReason || "")).not.toMatch(/fehlt/i);
+    });
+  });
+
+  it("keeps operator jwt cases separated: missing vs unreadable vs unauthorized", async () => {
+    ensureSupabaseClientMock.mockResolvedValue({
+      auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },
+    } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
+    const missing = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-1",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+      }),
+    );
+    await waitFor(() => {
+      expect(missing.result.current.hasOperatorJwt).toBe(false);
+      expect(String(missing.result.current.operatorJwtReason || "")).toMatch(/fehlt/i);
+    });
+    missing.unmount();
+
+    ensureSupabaseClientMock.mockRejectedValue(new Error("session read failed"));
+    const unreadable = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-2",
+        files: [{ path: "App.tsx", content: "export default 2;" }],
+      }),
+    );
+    await waitFor(() => {
+      expect(unreadable.result.current.hasOperatorJwt).toBe(false);
+      expect(String(unreadable.result.current.operatorJwtReason || "")).toMatch(/konnte nicht gelesen werden/i);
+    });
+    unreadable.unmount();
+
+    ensureSupabaseClientMock.mockResolvedValue({
+      auth: {
+        getSession: jest.fn(async () => ({
+          data: {
+            session: {
+              access_token:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYXV0aGVudGljYXRlZCJ9.signature",
+            },
+          },
+        })),
+      },
+    } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
+    const unauthorized = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-3",
+        files: [{ path: "App.tsx", content: "export default 3;" }],
+      }),
+    );
+    await waitFor(() => {
+      expect(unauthorized.result.current.hasOperatorJwt).toBe(false);
+      expect(String(unauthorized.result.current.operatorJwtReason || "")).toMatch(/unauthorized/i);
+      expect(String(unauthorized.result.current.operatorJwtReason || "")).not.toMatch(/fehlt/i);
+    });
+    unauthorized.unmount();
   });
 });
