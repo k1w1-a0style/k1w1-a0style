@@ -191,4 +191,72 @@ describe("readBuildReadinessState", () => {
     expect(result.hasDiagOk).toBe(false);
     expect(result.diagnosticReason).toMatch(/ohne Pipeline-Checks/i);
   });
+
+  it("reports diagnostic storage read failures as unreadable instead of never-run", async () => {
+    const now = Date.now();
+    const storageMap: Record<string, string> = {
+      ci_lite_lint_ok: "true",
+      ci_lite_typecheck_ok: "true",
+      ci_lite_last_repo: "owner/repo",
+      ci_lite_last_branch: "main",
+      ci_lite_last_run_at: String(now),
+      ci_lite_last_sha: "a".repeat(40),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => {
+          if (key.includes("diagnostic")) throw new Error("storage down");
+          return storageMap[key] ?? null;
+        },
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
+    expect(String(result.diagnosticReason || "")).toMatch(/nicht gelesen werden/i);
+    expect(String(result.diagnosticReason || "")).not.toMatch(/noch nicht sicher bestaetigt/i);
+    expect(result.hasCiLiteOk).toBe(true);
+  });
+
+  it("reports CI-Lite read failures explicitly while keeping stale semantics intact", async () => {
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) => {
+          if (key.startsWith("ci_lite_")) throw new Error("io error");
+          return null;
+        },
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasCiLiteOk).toBe(false);
+    expect(result.ciLiteState).toBe("unknown");
+    expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
+    expect(String(result.diagnosticReason || "")).not.toMatch(/nicht gelesen werden/i);
+    expect(String(result.diagnosticReason || "")).toMatch(/noch nicht sicher bestaetigt/i);
+  });
+
+  it("keeps diagnostic and ci-lite read failures independent when both subsystems fail", async () => {
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async () => {
+          throw new Error("io down");
+        },
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.hasCiLiteOk).toBe(false);
+    expect(String(result.diagnosticReason || "")).toMatch(/nicht gelesen werden/i);
+    expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
+  });
 });

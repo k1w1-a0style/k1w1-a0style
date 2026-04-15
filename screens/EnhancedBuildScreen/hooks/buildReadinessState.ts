@@ -4,7 +4,11 @@ import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
 import { readDiagnosticReadinessRecord } from "../../../lib/diagnosticReadinessRecord";
 import { logger } from "../../../lib/logger";
-import { diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
+import {
+  ciLiteSnapshotKeyForSelection,
+  diagnosticLastOkKeyForSelection,
+  diagnosticReadinessRecordKeyForSelection,
+} from "../../../lib/storageKeys";
 import {
   normalizeVerificationContract,
   type VerificationContractState,
@@ -70,12 +74,29 @@ export async function readBuildReadinessState(params: {
     linkedRepo: repoFullName,
     linkedBranch: branchName,
   });
+  const scopedDiagnosticRecordKey = diagnosticReadinessRecordKeyForSelection({
+    linkedRepo: repoFullName,
+    linkedBranch: branchName,
+  });
+  const scopedCiLiteSnapshotKey = ciLiteSnapshotKeyForSelection({
+    linkedRepo: repoFullName,
+    linkedBranch: branchName,
+  });
+  const readErrorKeys = new Set<string>();
+  const trackedStorageGetItem = async (key: string): Promise<string | null> => {
+    try {
+      return await storageGetItem(key);
+    } catch (error: unknown) {
+      readErrorKeys.add(key);
+      throw error;
+    }
+  };
 
   const [diagRecord, diagScopedVal, persistedCiLite] = await Promise.all([
     readDiagnosticReadinessRecord({
       linkedRepo: repoFullName,
       linkedBranch: branchName,
-      storageGetItem,
+      storageGetItem: trackedStorageGetItem,
     }).catch((error: unknown) => {
       logger.warn("[EnhancedBuild] structured diagnostic record read failed", {
         repoFullName,
@@ -84,7 +105,7 @@ export async function readBuildReadinessState(params: {
       });
       return null;
     }),
-    storageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
+    trackedStorageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
       logger.warn("[EnhancedBuild] diagnostic storage read failed", { key: scopedDiagnosticKey, error });
       return null;
     }),
@@ -93,7 +114,7 @@ export async function readBuildReadinessState(params: {
       branchName,
       requireGreen: true,
       deps: {
-        storageGetItem,
+        storageGetItem: trackedStorageGetItem,
         readBranchHeadSha,
       },
     }),
@@ -110,21 +131,34 @@ export async function readBuildReadinessState(params: {
       ? (persistedCiLite.stale ? "stale" : "unknown")
       : "verified",
   });
+  const diagReadFailed =
+    readErrorKeys.has(scopedDiagnosticKey) || readErrorKeys.has(scopedDiagnosticRecordKey);
+  const ciLiteReadFailed = Array.from(readErrorKeys).some((key) => key === scopedCiLiteSnapshotKey || key.startsWith("ci_lite_"));
   const diagnosticReason = diagnosticContract.isVerified
     ? null
     : diagRecord && !diagRecord.includePipelineChecks
       ? "Diagnose ohne Pipeline-Checks – bitte mit Pipeline-Checks erneut ausführen."
+      : diagReadFailed
+        ? "Diagnostik-Readiness konnte nicht gelesen werden (Storage-/Read-Fehler)"
       : describeReadinessContract({
           area: "diagnostic",
           state: diagnosticContract.state,
         });
   const reason = ciLiteContract.isVerified
     ? null
-    : describeReadinessContract({
-        area: "ci_lite",
-        state: ciLiteContract.state,
-        reason: persistedCiLite.reason,
-      });
+    : persistedCiLite.stale
+      ? describeReadinessContract({
+          area: "ci_lite",
+          state: ciLiteContract.state,
+          reason: persistedCiLite.reason,
+        })
+      : ciLiteReadFailed
+        ? "CI-Lite-Readiness konnte nicht gelesen werden (Storage-/Read-Fehler)"
+      : describeReadinessContract({
+          area: "ci_lite",
+          state: ciLiteContract.state,
+          reason: persistedCiLite.reason,
+        });
 
   return {
     hasDiagOk: diagnosticContract.isVerified,

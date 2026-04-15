@@ -11,13 +11,23 @@ import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../../lib/auth/operatorJwt";
 
-async function readTokenOrUnavailable(read: () => Promise<string | null>): Promise<string | null> {
+type SecretReadState = "present" | "missing" | "unreadable";
+
+type SecretReadResult = {
+  value: string | null;
+  state: SecretReadState;
+};
+
+async function readSecretForPrecheck(read: () => Promise<string | null>): Promise<SecretReadResult> {
   try {
     const value = await read();
     const trimmed = String(value ?? "").trim();
-    return trimmed || null;
-  } catch {
-    return null;
+    return trimmed
+      ? { value: trimmed, state: "present" }
+      : { value: null, state: "missing" };
+  } catch (error: unknown) {
+    console.warn("[useBuildPreconditions] secret read failed", error);
+    return { value: null, state: "unreadable" };
   }
 }
 
@@ -38,6 +48,7 @@ export function useBuildPreconditions(
   }, []);
 
   const [hasTokens, setHasTokens] = useState(false);
+  const [tokenReason, setTokenReason] = useState<string | null>(null);
   const [hasWorkflowAdminKey, setHasWorkflowAdminKey] = useState(false);
   const [workflowAdminKeyReason, setWorkflowAdminKeyReason] = useState<string | null>(null);
   const [hasOperatorJwt, setHasOperatorJwt] = useState(false);
@@ -71,42 +82,63 @@ export function useBuildPreconditions(
       ? null
       : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
 
-    try {
-      // Tokens
-      const [gh, expo] = await Promise.all([
-        readTokenOrUnavailable(getGitHubToken),
-        readTokenOrUnavailable(getExpoToken),
-      ]);
-      applyIfCurrent(() => setHasTokens(!!(gh && expo)));
-
-      const [workflowAdminKey, operatorJwt] = await Promise.all([
-        readTokenOrUnavailable(getWorkflowAdminKey),
-        readTokenOrUnavailable(async () => {
-          const supabase = await ensureSupabaseClient();
-          const session = await supabase.auth.getSession();
-          return session?.data?.session?.access_token ?? null;
-        }),
-      ]);
-      applyIfCurrent(() => {
-        setHasWorkflowAdminKey(Boolean(workflowAdminKey));
-        setWorkflowAdminKeyReason(
-          workflowAdminKey
-            ? null
-            : "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen",
+    // Tokens
+    const [ghResult, expoResult] = await Promise.all([
+      readSecretForPrecheck(getGitHubToken),
+      readSecretForPrecheck(getExpoToken),
+    ]);
+    const gh = ghResult.value;
+    const expo = expoResult.value;
+    applyIfCurrent(() => setHasTokens(!!(gh && expo)));
+    applyIfCurrent(() => {
+      if (ghResult.state === "unreadable" || expoResult.state === "unreadable") {
+        setTokenReason(
+          "GitHub-/Expo-Token konnten nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – Verbindungen laden und Read erneut prüfen",
         );
-        // Client-side convenience/readiness precheck only (decode-only JWT payload read).
-        // Authoritative auth remains server-/edge-side.
-        const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwt);
-        setHasOperatorJwt(hasValidOperatorJwt);
-        setOperatorJwtReason(
-          !operatorJwt
-            ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
+        return;
+      }
+      if (ghResult.state === "missing" || expoResult.state === "missing") {
+        setTokenReason("Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen");
+        return;
+      }
+      setTokenReason(null);
+    });
+
+    const [workflowAdminKeyResult, operatorJwtResult] = await Promise.all([
+      readSecretForPrecheck(getWorkflowAdminKey),
+      readSecretForPrecheck(async () => {
+        const supabase = await ensureSupabaseClient();
+        const session = await supabase.auth.getSession();
+        return session?.data?.session?.access_token ?? null;
+      }),
+    ]);
+    applyIfCurrent(() => {
+      const workflowAdminKey = workflowAdminKeyResult.value;
+      const operatorJwt = operatorJwtResult.value;
+      setHasWorkflowAdminKey(Boolean(workflowAdminKey));
+      setWorkflowAdminKeyReason(
+        workflowAdminKeyResult.state === "present"
+          ? null
+          : workflowAdminKeyResult.state === "missing"
+            ? "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen"
+            : "Workflow-Admin-Key konnte nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – lokalen Read prüfen und erneut laden",
+      );
+      // Client-side convenience/readiness precheck only (decode-only JWT payload read).
+      // Authoritative auth remains server-/edge-side.
+      const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwt);
+      setHasOperatorJwt(operatorJwtResult.state === "present" && hasValidOperatorJwt);
+      setOperatorJwtReason(
+        operatorJwtResult.state === "missing"
+          ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
+          : operatorJwtResult.state === "unreadable"
+            ? "Supabase Session/JWT konnte nicht gelesen werden (Session-/Storage-Read fehlgeschlagen) – clientseitiger Precheck fail-closed"
             : !hasValidOperatorJwt
-              ? "Supabase JWT-Payload-Rolle nicht build_admin/service_role – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
+              ? "Supabase JWT ist vorhanden, aber Rolle nicht berechtigt (unauthorized: erwartet build_admin/service_role) – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
               : null,
-        );
-      });
+      );
+    });
 
+    try {
       const signingGate = await readSigningKeyGateState({
         buildProfile,
         repoFullName,
@@ -116,42 +148,43 @@ export function useBuildPreconditions(
         setHasSigningKey(signingGate.hasSigningKey);
         setSigningKeyReason(signingGate.reason);
       });
+    } catch (error: unknown) {
+      console.warn("[useBuildPreconditions] signing precheck read failed", error);
+      applyIfCurrent(() => {
+        setHasSigningKey(false);
+        setSigningKeyReason(
+          "Signing-Key-Status konnte nicht gelesen werden (Read-/I/O-Fehler) – Credentials-Status erneut laden",
+        );
+      });
+    }
 
-      const hasSelection = !!repoFullName.trim() && !!branchName.trim();
-      const readiness = hasSelection
-        ? await readBuildReadinessState({
-            repoFullName,
-            branchName,
-          })
-        : {
-            hasDiagOk: false,
-            hasCiLiteOk: false,
-            diagnosticState: "unknown" as const,
-            diagnosticReason: "Repo und Branch zuerst wählen – dann Diagnostik für genau diese Selection ausführen",
-            ciLiteReason: "Repo und Branch zuerst wählen – dann CI-Lite für genau diese Selection ausführen",
-            ciLiteState: "unknown" as const,
-            ciLiteStale: false,
-          };
+    const hasSelection = !!repoFullName.trim() && !!branchName.trim();
+    if (!hasSelection) {
+      applyIfCurrent(() => {
+        setHasDiagOk(false);
+        setHasCiLiteOk(false);
+        setDiagnosticState("unknown");
+        setDiagnosticReason(
+          "selection_missing: Repo und Branch zuerst wählen – dann Diagnostik für genau diese Selection ausführen",
+        );
+        setCiLiteReason(
+          "selection_missing: Repo und Branch zuerst wählen – dann CI-Lite für genau diese Selection ausführen",
+        );
+        setCiLiteState("unknown");
+        setCiLiteStale(false);
+        setHasProjectFiles(hasFiles);
+        setProjectFilesReason(filesReason);
+        setRepoSyncState("unknown");
+        setRepoSyncReason("selection_missing: Repo/Branch fehlen – Sync-Status kann noch nicht bestimmt werden");
+      });
+      return;
+    }
 
-      const syncState = !repoFullName.trim() || !branchName.trim()
-        ? "unknown"
-        : !hasFiles
-          ? "unknown"
-          : await getRepoSyncState({
-              linkedRepo: repoFullName,
-              linkedBranch: branchName,
-              files,
-            }).catch(() => "unknown" as RepoSyncState);
-      const syncReason = !repoFullName.trim() || !branchName.trim()
-        ? "Repo/Branch fehlen – Sync-Status kann noch nicht bestimmt werden"
-        : !hasFiles
-          ? "Projekt ist leer – Repo-Sync ist fuer ein leeres Projekt nicht build-relevant"
-          : syncState === "unknown"
-            ? "Repo-Sync-Status unklar – bitte einmal explizit pushen und danach erneut prüfen"
-            : syncState === "out_of_sync"
-              ? "Lokale Änderungen werden beim Build-Start kontrolliert gepusht"
-              : null;
-
+    try {
+      const readiness = await readBuildReadinessState({
+        repoFullName,
+        branchName,
+      });
       applyIfCurrent(() => {
         setHasDiagOk(readiness.hasDiagOk);
         setHasCiLiteOk(readiness.hasCiLiteOk);
@@ -160,33 +193,50 @@ export function useBuildPreconditions(
         setCiLiteReason(readiness.ciLiteReason);
         setCiLiteState(readiness.ciLiteState);
         setCiLiteStale(readiness.ciLiteStale);
-        setHasProjectFiles(hasFiles);
-        setProjectFilesReason(filesReason);
-        setRepoSyncState(syncState);
-        setRepoSyncReason(syncReason);
       });
-    } catch (error) {
-      console.warn("[useBuildPreconditions] refresh failed; applying fail-closed defaults", error);
+    } catch (error: unknown) {
+      console.warn("[useBuildPreconditions] readiness precheck read failed", error);
       applyIfCurrent(() => {
-        setHasSigningKey(false);
-        setSigningKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Signing Key erneut prüfen");
-        setHasWorkflowAdminKey(false);
-        setWorkflowAdminKeyReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Workflow-Admin-Key erneut prüfen");
-        setHasOperatorJwt(false);
-        setOperatorJwtReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Supabase Operator-Login erneut prüfen");
         setHasDiagOk(false);
         setDiagnosticState("unknown");
-        setDiagnosticReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Diagnostik erneut prüfen");
+        setDiagnosticReason(
+          "Diagnostik-Readiness konnte nicht geladen werden (Read-/Storage-Fehler) – bitte erneut prüfen",
+        );
         setHasCiLiteOk(false);
-        setCiLiteReason("Build-Vorbedingungen konnten nicht frisch geladen werden – CI-Lite erneut prüfen");
+        setCiLiteReason(
+          "CI-Lite-Readiness konnte nicht geladen werden (Read-/Storage-Fehler) – bitte erneut prüfen",
+        );
         setCiLiteState("unknown");
         setCiLiteStale(false);
-        setHasProjectFiles(hasFiles);
-        setProjectFilesReason(filesReason);
-        setRepoSyncState("unknown");
-        setRepoSyncReason("Build-Vorbedingungen konnten nicht frisch geladen werden – Repo-Sync erneut prüfen");
       });
     }
+
+    let syncState: RepoSyncState = "unknown";
+    if (hasFiles) {
+      try {
+        syncState = await getRepoSyncState({
+          linkedRepo: repoFullName,
+          linkedBranch: branchName,
+          files,
+        });
+      } catch (error: unknown) {
+        console.warn("[useBuildPreconditions] repo sync precheck read failed", error);
+        syncState = "unknown";
+      }
+    }
+    const syncReason = !hasFiles
+      ? "Projekt ist leer – Repo-Sync ist fuer ein leeres Projekt nicht build-relevant"
+      : syncState === "unknown"
+        ? "repo_sync_unknown: Repo-Sync-Status konnte nicht sicher gelesen werden (Read-/Sync-Fehler) – bitte explizit pushen und erneut prüfen"
+        : syncState === "out_of_sync"
+          ? "Lokale Änderungen werden beim Build-Start kontrolliert gepusht"
+          : null;
+    applyIfCurrent(() => {
+      setHasProjectFiles(hasFiles);
+      setProjectFilesReason(filesReason);
+      setRepoSyncState(syncState);
+      setRepoSyncReason(syncReason);
+    });
   }, [branchName, buildProfile, projectData?.id, projectData?.files, repoFullName]);
 
   useEffect(() => {
@@ -206,6 +256,7 @@ export function useBuildPreconditions(
 
   return {
     hasTokens,
+    tokenReason,
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,

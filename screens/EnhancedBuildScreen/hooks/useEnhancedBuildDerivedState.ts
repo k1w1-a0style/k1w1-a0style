@@ -36,6 +36,7 @@ export const useEnhancedBuildDerivedState = (params: {
   runId: number | null;
   status: BuildStatus;
   hasTokens: boolean;
+  tokenReason: string | null;
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
@@ -57,7 +58,7 @@ export const useEnhancedBuildDerivedState = (params: {
   const buildBlockedReason = useMemo(() => {
     if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
     if (!params.branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
-    if (!params.hasTokens) return "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
+    if (!params.hasTokens) return params.tokenReason || "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
     if (!params.hasWorkflowAdminKey) return params.workflowAdminKeyReason || "Workflow-Admin-Key fehlt";
     if (!params.hasOperatorJwt) {
       return params.operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich";
@@ -120,6 +121,7 @@ export const useEnhancedBuildDerivedState = (params: {
       hasSigningKey: params.hasSigningKey,
       signingKeyReason: params.signingKeyReason,
       hasTokens: params.hasTokens,
+      tokenReason: params.tokenReason,
       hasWorkflowAdminKey: params.hasWorkflowAdminKey,
       workflowAdminKeyReason: params.workflowAdminKeyReason,
       hasOperatorJwt: params.hasOperatorJwt,
@@ -134,7 +136,7 @@ export const useEnhancedBuildDerivedState = (params: {
       repoSyncReason: params.repoSyncReason,
       projectFilesCount: params.projectData?.files?.length ?? 0,
     });
-  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.hasWorkflowAdminKey, params.workflowAdminKeyReason, params.hasOperatorJwt, params.operatorJwtReason, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
+  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.tokenReason, params.hasWorkflowAdminKey, params.workflowAdminKeyReason, params.hasOperatorJwt, params.operatorJwtReason, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
 
   return {
     repoValidation,

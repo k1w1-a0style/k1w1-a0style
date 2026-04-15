@@ -79,7 +79,7 @@ describe("useBuildPreconditions empty project guard", () => {
     expect(getRepoSyncState).not.toHaveBeenCalled();
   });
 
-  it("fails closed when a refresh throws after an earlier green snapshot", async () => {
+  it("keeps partial truth when readiness read fails after an earlier green snapshot", async () => {
     const { readBuildReadinessState } = jest.requireMock("../screens/EnhancedBuildScreen/hooks/buildReadinessState");
     readBuildReadinessState
       .mockResolvedValueOnce({
@@ -117,11 +117,11 @@ describe("useBuildPreconditions empty project guard", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("hasDiagOk").props.children).toBe("false");
-      expect(String(screen.getByTestId("diagnosticReason").props.children)).toMatch(/nicht frisch geladen/i);
-      expect(screen.getByTestId("repoSyncState").props.children).toBe("unknown");
+      expect(String(screen.getByTestId("diagnosticReason").props.children)).toMatch(/Read-|Storage-Fehler/i);
+      expect(screen.getByTestId("repoSyncState").props.children).toBe("in_sync");
     });
     expect(warnSpy).toHaveBeenCalledWith(
-      "[useBuildPreconditions] refresh failed; applying fail-closed defaults",
+      "[useBuildPreconditions] readiness precheck read failed",
       expect.any(Error),
     );
     warnSpy.mockRestore();
