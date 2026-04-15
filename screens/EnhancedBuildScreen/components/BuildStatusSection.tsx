@@ -62,7 +62,7 @@ export function BuildStatusSection({
   const hasRuntimeContext = Boolean(
     currentBuild?.githubRepo || currentBuild?.branch || currentBuild?.buildProfile || currentBuild?.sourceCommitSha,
   );
-  const isBuildRunning = status === "queued" || status === "building";
+  const isBuildRunning = status === "starting" || status === "queued" || status === "building";
   const hasLastBuildContext = hasRuntimeContext && !isBuildRunning;
   const runningLabel = "Aktueller Laufkontext";
   const selectionLabel = "Aktuelle Auswahl (noch kein Lauf)";

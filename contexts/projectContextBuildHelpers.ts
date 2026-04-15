@@ -30,7 +30,7 @@ export const createBuildQueuedStateForStart = (params: {
   buildProfile: string;
   startedAt: string;
 }): NonNullable<ProjectContextProps["currentBuild"]> => ({
-  status: "idle",
+  status: "starting",
   message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
   jobId: null,
   githubRepo: params.githubRepo,

@@ -51,6 +51,24 @@ describe("projectContextStateHelpers build poll state mapping", () => {
     expect(merged.sourceCommitSha).toBe("abc123");
   });
 
+  it("does not regress to idle during transient first-poll gap after a confirmed start", () => {
+    const merged = mergeBuildPollIntoCurrentBuild({
+      previous: {
+        status: "queued",
+        message: "✅ Build gestartet. Warte auf GitHub Actions…",
+        jobId: "job-1",
+      },
+      activeJobId: "job-1",
+      details: null,
+      status: "idle",
+      nowIso: "2026-04-05T00:00:00.000Z",
+    });
+
+    expect(merged.status).toBe("queued");
+    expect(merged.message).toContain("Warteschlange");
+    expect(merged.jobId).toBe("job-1");
+  });
+
   it("sets completedAt only for final/error states", () => {
     const successState = mergeBuildPollIntoCurrentBuild({
       previous: { status: "building" },
@@ -209,7 +227,7 @@ describe("projectContextBuildHelpers orchestration guards", () => {
     });
 
     expect(beforeStart).toMatchObject({
-      status: "idle",
+      status: "starting",
       message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
       jobId: null,
       githubRepo: "owner/repo",
@@ -235,6 +253,24 @@ describe("projectContextBuildHelpers orchestration guards", () => {
       buildProfile: "production",
       lastUpdatedAt: "2026-04-05T00:00:02.000Z",
     });
+  });
+
+  it("maps starting to an honest pending message and keeps queued after confirmed start", () => {
+    expect(getBuildStatusMessage({ status: "starting" })).toContain("vorbereitet");
+
+    const queued = createBuildQueuedStateAfterStart({
+      previous: {
+        status: "starting",
+        message: "🧭 Build-Vorbereitung läuft… (Start noch nicht bestätigt)",
+      },
+      jobId: "job-2",
+      githubRepo: "owner/repo",
+      branch: "main",
+      buildProfile: "preview",
+      nowIso: "2026-04-05T00:00:05.000Z",
+    });
+
+    expect(queued.status).toBe("queued");
   });
 
   it("creates poll abort and generic error states", () => {

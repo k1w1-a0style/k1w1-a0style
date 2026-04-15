@@ -3,6 +3,7 @@
 
 export type BuildStatus =
   | 'idle'
+  | 'starting'
   | 'queued'
   | 'building'
   | 'success'

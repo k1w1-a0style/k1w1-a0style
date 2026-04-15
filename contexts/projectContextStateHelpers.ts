@@ -218,15 +218,17 @@ export const getBuildStatusMessage = (params: {
 
   return mapped === "queued"
     ? "⏳ Build ist in der Warteschlange…"
-    : mapped === "building"
-      ? "🔨 Build läuft…"
-      : mapped === "success"
-        ? "✅ Build erfolgreich!"
-        : mapped === "failed"
-          ? "❌ Build fehlgeschlagen."
-          : mapped === "error"
-            ? `⚠️ Fehler beim Status-Abruf${params.lastError ? ": " + params.lastError : "."}`
-            : "⏸️ Kein aktiver Build.";
+    : mapped === "starting"
+      ? "🧭 Build-Start wird vorbereitet…"
+      : mapped === "building"
+        ? "🔨 Build läuft…"
+        : mapped === "success"
+          ? "✅ Build erfolgreich!"
+          : mapped === "failed"
+            ? "❌ Build fehlgeschlagen."
+            : mapped === "error"
+              ? `⚠️ Fehler beim Status-Abruf${params.lastError ? ": " + params.lastError : "."}`
+              : "⏸️ Kein aktiver Build.";
 };
 
 export const mergeBuildPollIntoCurrentBuild = (params: {
@@ -238,11 +240,16 @@ export const mergeBuildPollIntoCurrentBuild = (params: {
   nowIso: string;
 }): CurrentBuildState => {
   const base: CurrentBuildState = params.previous ?? { status: "idle" };
+  const shouldKeepPreviousTransiently =
+    params.status === "idle" &&
+    !params.details &&
+    (base.status === "starting" || base.status === "queued");
+  const nextStatus: BuildStatus = shouldKeepPreviousTransiently ? base.status : params.status;
   const urls = params.details?.urls;
 
   return {
     ...base,
-    status: params.status,
+    status: nextStatus,
     jobId: params.activeJobId,
     runId: params.details?.runId ?? base.runId ?? null,
     sourceCommitSha: params.details?.sourceCommitSha ?? base.sourceCommitSha ?? null,
@@ -252,11 +259,11 @@ export const mergeBuildPollIntoCurrentBuild = (params: {
       buildUrl: urls?.buildUrl ?? base.urls?.buildUrl ?? null,
     },
     message: getBuildStatusMessage({
-      status: params.status,
+      status: nextStatus,
       lastError: params.lastError,
     }),
     lastUpdatedAt: params.nowIso,
-    completedAt: ["success", "failed", "error"].includes(params.status)
+    completedAt: ["success", "failed", "error"].includes(nextStatus)
       ? params.nowIso
       : base.completedAt,
   };

@@ -39,6 +39,7 @@ const FALLBACK_PHASES = [
 
 function getProgressPercent(status: BuildStatus, progress?: number): number {
   if (status === "idle") return 0;
+  if (status === "starting") return 8;
   if (status === "queued") return 15;
   if (status === "building") {
     return typeof progress === "number"
@@ -83,6 +84,8 @@ function getFallbackPhases(status: BuildStatus, statusLabel: string, message: st
     } else if (status === "queued") {
       if (idx === 0) state = "done";
       else if (idx === 1) state = "current";
+    } else if (status === "starting") {
+      if (idx === 0) state = "current";
     } else if (status === "idle") {
       if (idx === 0) state = buildBlockedReason ? "failed" : "current";
     }
@@ -90,6 +93,7 @@ function getFallbackPhases(status: BuildStatus, statusLabel: string, message: st
     const detail =
       idx === 2 && (status === "building" || failed) ? (message || statusLabel) :
       idx === 1 && status === "queued" ? (message || statusLabel) :
+      idx === 0 && status === "starting" ? (message || "Build-Start wird vorbereitet…") :
       idx === 0 && status === "idle" ? buildBlockedReason || "Bereit zum Start" :
       undefined;
 
@@ -118,7 +122,7 @@ export function BuildProgressSection({
   const glowAnim = useRef(new Animated.Value(0)).current;
 
   const isFailed = status === "failed" || status === "error";
-  const isBuildActive = status === "queued" || status === "building";
+  const isBuildActive = status === "starting" || status === "queued" || status === "building";
   const isActive = isDeploying || isBuildActive;
   const phaseHeading = isBuildActive
     ? "Aktive Build-Phase"

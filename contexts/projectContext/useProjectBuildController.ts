@@ -101,8 +101,8 @@ export function useProjectBuildController({ projectData }: ProjectBuildControlle
       buildStartInFlightRef.current = true;
       try {
         const activeStatus = currentBuildRef.current?.status;
-        if (activeStatus === "queued" || activeStatus === "building" || activeStatus === "idle") {
-          throw new Error("Build bereits aktiv (queued/running/starting). Neuer Start ist blockiert.");
+        if (activeStatus === "starting" || activeStatus === "queued" || activeStatus === "building") {
+          throw new Error("Build bereits aktiv (starting/queued/building). Neuer Start ist blockiert.");
         }
         // Invariant contract marker: "Kein GitHub-Repo verknüpft."
         const buildStartContext = resolveBuildStartContext({

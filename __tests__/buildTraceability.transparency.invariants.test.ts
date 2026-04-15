@@ -11,7 +11,7 @@ describe("Build traceability transparency invariants", () => {
 
     expect(src).toContain("const buildStartInFlightRef = useRef(false);");
     expect(src).toContain("if (buildStartInFlightRef.current)");
-    expect(src).toContain("activeStatus === \"idle\"");
+    expect(src).toContain("activeStatus === \"starting\"");
     expect(src).toContain("const buildBranch = (pd.linkedBranch ?? \"\").trim();");
     expect(src).toContain("branch: branchResolved");
     expect(src).toContain("const nextHistoryUpdate = resolveBuildHistoryPollUpdate");
