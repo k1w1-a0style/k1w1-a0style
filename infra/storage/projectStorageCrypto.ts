@@ -53,7 +53,7 @@ function decodeStoredProjectKeyOrThrow(stored: string): Uint8Array {
 }
 
 async function getExistingProjectStorageKeyBytesOrThrow(): Promise<Uint8Array> {
-  const stored = await SecureStore.getItemAsync(PROJECT_STORAGE_ENCRYPTION_KEY).catch(() => null);
+  const stored = await SecureStore.getItemAsync(PROJECT_STORAGE_ENCRYPTION_KEY);
   if (typeof stored === "string" && stored.trim()) {
     return decodeStoredProjectKeyOrThrow(stored);
   }
@@ -61,9 +61,12 @@ async function getExistingProjectStorageKeyBytesOrThrow(): Promise<Uint8Array> {
 }
 
 async function getOrCreateProjectStorageKeyBytesForEncrypt(): Promise<Uint8Array> {
-  const stored = await SecureStore.getItemAsync(PROJECT_STORAGE_ENCRYPTION_KEY).catch(() => null);
+  const stored = await SecureStore.getItemAsync(PROJECT_STORAGE_ENCRYPTION_KEY);
   if (typeof stored === "string" && stored.trim()) {
     return decodeStoredProjectKeyOrThrow(stored);
+  }
+  if (stored !== null && typeof stored !== "undefined") {
+    throw new Error("Projekt-Schluessel im SecureStore ist ungueltig.");
   }
   const freshKey = await getRandomBytes(AES_KEY_LENGTH_BYTES);
   await SecureStore.setItemAsync(PROJECT_STORAGE_ENCRYPTION_KEY, bytesToBase64(freshKey));

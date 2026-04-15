@@ -128,4 +128,17 @@ describe("project persistence encryption", () => {
 
     await expect(loadProjectFromStorage()).rejects.toThrow(/unverschluesselter Projektstand ist beschaedigt/i);
   });
+
+  it("fails closed when secure store key read rejects during encrypt and does not create a new key", async () => {
+    const project = makeProjectData({
+      name: "Encrypt Read Failure",
+      files: [makeProjectFile("src/fail-closed.ts", "export const failClosed = true;")],
+      chatHistory: [],
+    });
+
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("securestore read failed"));
+
+    await expect(saveProjectToStorage(project)).rejects.toThrow(/Projekt konnte nicht gespeichert werden/i);
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
 });

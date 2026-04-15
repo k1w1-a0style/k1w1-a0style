@@ -9,6 +9,12 @@ import { PROVIDER_DEFAULTS, AVAILABLE_MODELS } from "./models";
 export const CONFIG_STORAGE_KEY = 'ai_config_v4';
 export const AI_KEYS_SECURE_KEY = 'ai_api_keys_v1';
 export const STORAGE_FALLBACK_KEYS = ['ai_config_v3', 'ai_config_v2', 'ai_config_v1'];
+export type SecureApiKeysLoadState = "loaded" | "missing" | "unreadable";
+export type SecureApiKeysLoadResult = {
+  state: SecureApiKeysLoadState;
+  keys: Record<AllAIProviders, string[]>;
+  error?: unknown;
+};
 
 export const DEFAULT_CONFIG: AIConfig = {
   version: 4,
@@ -20,6 +26,7 @@ export const DEFAULT_CONFIG: AIConfig = {
   agentEnabled: true,
   apiKeys: { groq: [], gemini: [], openai: [], anthropic: [], huggingface: [] },
 };
+const AI_PROVIDER_KEYS = Object.keys(DEFAULT_CONFIG.apiKeys) as AllAIProviders[];
 
 export function resolveLegacyAutoMode(provider: AllAIProviders, qualityMode: QualityMode, mode: unknown, fallback: string): string {
   const raw = typeof mode === 'string' ? mode.trim() : '';
@@ -115,24 +122,73 @@ export function resolveRehydratedApiKeys(params: {
   };
 }
 
-export async function loadSecureApiKeys(): Promise<Record<AllAIProviders, string[]>> {
+function parseSecureApiKeysPayloadOrThrow(raw: string): Record<AllAIProviders, string[]> {
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Secure API key payload ist kein Objekt.");
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const next: Record<AllAIProviders, string[]> = { ...DEFAULT_CONFIG.apiKeys };
+  let hasAny = false;
+
+  for (const provider of AI_PROVIDER_KEYS) {
+    const value = record[provider];
+    if (!Array.isArray(value)) {
+      throw new Error(`Secure API key payload hat ungültiges Feld für ${provider}.`);
+    }
+    const keys: string[] = [];
+    for (const entry of value) {
+      if (typeof entry !== "string") {
+        throw new Error(`Secure API key payload hat ungültigen Key-Typ für ${provider}.`);
+      }
+      const trimmed = entry.trim();
+      if (!trimmed) {
+        throw new Error(`Secure API key payload hat leere Key-Einträge für ${provider}.`);
+      }
+      keys.push(trimmed);
+    }
+    if (keys.length > 0) hasAny = true;
+    next[provider] = keys;
+  }
+
+  if (!hasAny) {
+    throw new Error("Secure API key payload enthält keine autoritativen Keys.");
+  }
+
+  return next;
+}
+
+export async function loadSecureApiKeys(): Promise<SecureApiKeysLoadResult> {
   try {
     const raw = await SecureStore.getItemAsync(AI_KEYS_SECURE_KEY);
-    if (!raw) return normalizeApiKeys(undefined);
-    const parsed = JSON.parse(raw) as Partial<Record<AllAIProviders, unknown>>;
-    return normalizeApiKeys(parsed);
-  } catch {
-    return normalizeApiKeys(undefined);
+    if (raw === null) {
+      return {
+        state: "missing",
+        keys: normalizeApiKeys(undefined),
+      };
+    }
+    const parsed = parseSecureApiKeysPayloadOrThrow(raw);
+    return {
+      state: "loaded",
+      keys: parsed,
+    };
+  } catch (error) {
+    return {
+      state: "unreadable",
+      keys: normalizeApiKeys(undefined),
+      error,
+    };
   }
 }
 
 export async function saveSecureApiKeys(keys: Record<AllAIProviders, string[]>): Promise<void> {
   const cleaned = normalizeApiKeys(keys);
   if (!hasAnyApiKeys(cleaned)) {
-    await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY).catch(() => undefined);
+    await SecureStore.deleteItemAsync(AI_KEYS_SECURE_KEY);
     return;
   }
-  await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned)).catch(() => undefined);
+  await SecureStore.setItemAsync(AI_KEYS_SECURE_KEY, JSON.stringify(cleaned));
 }
 
 export function coerceProvider(value: unknown, fallback: AllAIProviders): AllAIProviders {

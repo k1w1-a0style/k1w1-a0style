@@ -1,16 +1,22 @@
 import React from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { renderHook, act, waitFor } from "@testing-library/react-native";
 
 import { AIProvider, useAI } from "../contexts/AIContext";
-import { CONFIG_STORAGE_KEY } from "../contexts/AIContext/helpers";
+import { AI_KEYS_SECURE_KEY, CONFIG_STORAGE_KEY } from "../contexts/AIContext/helpers";
 
 describe("AIContext redacted config persistence", () => {
   beforeEach(() => {
     const storage = AsyncStorage as typeof AsyncStorage & {
       __resetMockStorage?: () => void;
+      __setMockStorage?: (next: Record<string, string>) => void;
     };
     storage.__resetMockStorage?.();
+    const secureStore = SecureStore as typeof SecureStore & {
+      __resetMockStorage?: () => void;
+    };
+    secureStore.__resetMockStorage?.();
     jest.clearAllMocks();
   });
 
@@ -81,5 +87,43 @@ describe("AIContext redacted config persistence", () => {
       anthropic: [],
       huggingface: [],
     });
+  });
+
+  it("does not treat semantically broken secure payload as empty and avoids secure writes/deletes", async () => {
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      [CONFIG_STORAGE_KEY]: JSON.stringify({
+        version: 4,
+        selectedChatProvider: "groq",
+        selectedChatMode: "llama-3.1-8b-instant",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+      }),
+    });
+    (SecureStore as typeof SecureStore & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      [AI_KEYS_SECURE_KEY]: JSON.stringify({}),
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
+    });
+    expect(result.current.config.apiKeys.groq).toEqual([]);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.setAgentEnabled(false);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 });

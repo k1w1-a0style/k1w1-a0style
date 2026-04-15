@@ -8,6 +8,7 @@ import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, Qua
 import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
   loadConfig, loadSecureApiKeys, saveSecureApiKeys,
+  normalizeApiKeys,
   resolveProviderModeForQualityMode,
   resolveRehydratedApiKeys,
   buildProviderSelectionPatch,
@@ -26,6 +27,7 @@ const CONFIG_PERSIST_DEBOUNCE_MS = 350;
 export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
+  const [secureApiKeysReadable, setSecureApiKeysReadable] = useState(true);
   const didLoad = useRef(false);
   const persistConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -35,15 +37,26 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
         const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
 
         // Load keys from SecureStore (authoritative)
-        const secureKeys = await loadSecureApiKeys();
+        const secureResult = await loadSecureApiKeys();
+        if (secureResult.state === "unreadable") {
+          setSecureApiKeysReadable(false);
+          console.error("[AIContext] SecureStore read for ai_api_keys_v1 failed.", secureResult.error);
+        } else {
+          setSecureApiKeysReadable(true);
+        }
         const { finalKeys, shouldMigrateLegacyToSecure } = resolveRehydratedApiKeys({
           loadedApiKeys: loaded.apiKeys,
-          secureApiKeys: secureKeys,
+          secureApiKeys: secureResult.keys,
         });
-        if (shouldMigrateLegacyToSecure) await saveSecureApiKeys(finalKeys);
+        if (secureResult.state !== "unreadable" && shouldMigrateLegacyToSecure) {
+          await saveSecureApiKeys(finalKeys);
+        }
 
         // Keep models/modes untouched; only ensure keys are loaded
-        setConfigState({ ...loaded, apiKeys: finalKeys });
+        const nextApiKeys = secureResult.state === "unreadable"
+          ? normalizeApiKeys(loaded.apiKeys)
+          : finalKeys;
+        setConfigState({ ...loaded, apiKeys: nextApiKeys });
       } finally {
         didLoad.current = true;
       }
@@ -75,12 +88,15 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!didLoad.current) return;
+    if (!secureApiKeysReadable) return;
 
     // Produktive KI-Requests laufen seit Patch 500 ausschliesslich ueber den Edge-Proxy
     // (`invokeK1w1Handler(...)`). Die API-Keys bleiben deshalb nur im AIContext-State
     // und im SecureStore-Persistenzpfad; wir spiegeln sie nicht mehr in Legacy-In-Memory-Manager.
-    saveSecureApiKeys(config.apiKeys).catch(() => undefined);
-  }, [config.apiKeys]);
+    saveSecureApiKeys(config.apiKeys).catch((error) => {
+      console.error("[AIContext] SecureStore write for ai_api_keys_v1 failed.", error);
+    });
+  }, [config.apiKeys, secureApiKeysReadable]);
 
   useEffect(() => () => {
     if (persistConfigTimeoutRef.current) {
