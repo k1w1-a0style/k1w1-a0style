@@ -229,7 +229,7 @@ describe("readBuildReadinessState", () => {
       deps: {
         storageGetItem: async (key: string) => {
           if (key.startsWith("ci_lite_")) throw new Error("io error");
-          return "true";
+          return null;
         },
         readBranchHeadSha: async () => "a".repeat(40),
       },
@@ -237,6 +237,26 @@ describe("readBuildReadinessState", () => {
 
     expect(result.hasCiLiteOk).toBe(false);
     expect(result.ciLiteState).toBe("unknown");
+    expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
+    expect(String(result.diagnosticReason || "")).not.toMatch(/nicht gelesen werden/i);
+    expect(String(result.diagnosticReason || "")).toMatch(/noch nicht sicher bestaetigt/i);
+  });
+
+  it("keeps diagnostic and ci-lite read failures independent when both subsystems fail", async () => {
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async () => {
+          throw new Error("io down");
+        },
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.hasCiLiteOk).toBe(false);
+    expect(String(result.diagnosticReason || "")).toMatch(/nicht gelesen werden/i);
     expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
   });
 });

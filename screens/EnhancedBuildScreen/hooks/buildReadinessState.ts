@@ -4,7 +4,11 @@ import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { readPersistedCiLiteSelection } from "../../../lib/ciLitePersistence";
 import { readDiagnosticReadinessRecord } from "../../../lib/diagnosticReadinessRecord";
 import { logger } from "../../../lib/logger";
-import { ciLiteSnapshotKeyForSelection, diagnosticLastOkKeyForSelection } from "../../../lib/storageKeys";
+import {
+  ciLiteSnapshotKeyForSelection,
+  diagnosticLastOkKeyForSelection,
+  diagnosticReadinessRecordKeyForSelection,
+} from "../../../lib/storageKeys";
 import {
   normalizeVerificationContract,
   type VerificationContractState,
@@ -70,6 +74,10 @@ export async function readBuildReadinessState(params: {
     linkedRepo: repoFullName,
     linkedBranch: branchName,
   });
+  const scopedDiagnosticRecordKey = diagnosticReadinessRecordKeyForSelection({
+    linkedRepo: repoFullName,
+    linkedBranch: branchName,
+  });
   const scopedCiLiteSnapshotKey = ciLiteSnapshotKeyForSelection({
     linkedRepo: repoFullName,
     linkedBranch: branchName,
@@ -123,7 +131,8 @@ export async function readBuildReadinessState(params: {
       ? (persistedCiLite.stale ? "stale" : "unknown")
       : "verified",
   });
-  const diagReadFailed = readErrorKeys.has(scopedDiagnosticKey) || readErrorKeys.size > 0 && !diagRecord && !diagScopedVal;
+  const diagReadFailed =
+    readErrorKeys.has(scopedDiagnosticKey) || readErrorKeys.has(scopedDiagnosticRecordKey);
   const ciLiteReadFailed = Array.from(readErrorKeys).some((key) => key === scopedCiLiteSnapshotKey || key.startsWith("ci_lite_"));
   const diagnosticReason = diagnosticContract.isVerified
     ? null
