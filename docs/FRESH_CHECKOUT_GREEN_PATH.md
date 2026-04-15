@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
+Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

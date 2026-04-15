@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
+Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
 
 ## Aktiv und workflow-relevant
 

@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-15 (Patch 781, SnapshotFaithfulRollbackClosure)**
+Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Status-SoT / Governance
@@ -87,7 +87,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 
 ## Kanonische Verifikation
 
-Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
+Im Repo vorhanden und im aktuellen Stand erfolgreich gelaufen:
 
 - `npm run typecheck`
 - `npm run lint:ci`
@@ -99,7 +99,8 @@ Im Repo vorhanden und im aktuellen Voll-Gate erfolgreich gelaufen:
 - `bash scripts/check_edge_helper_visibility.sh`
 - `bash scripts/check_edge_rate_limit_retention.sh`
 - `bash scripts/check_release_readiness.sh`
-- Ergebnis `check_release_readiness`: `OK_FULL` (Live-Variablen gesetzt; Live-Contract-Smokes real ausgefuehrt).
+- **Aktueller lokaler Lauf dieses Stands (ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT`)**: `OK_WITH_SKIPS`.
+- **`OK_FULL` gilt nur mit gesetzten Live-Variablen** (bzw. als explizit historischer Voll-Gate-Lauf mit real ausgefuehrten Live-Contract-Smokes).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 
