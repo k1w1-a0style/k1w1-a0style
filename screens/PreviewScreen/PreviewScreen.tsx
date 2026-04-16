@@ -39,10 +39,8 @@ export default function PreviewScreen() {
     displayState,
     runtimeHint,
     phase,
-    setPhase,
     previewCycleId,
     webError,
-    setWebError,
     hotReloadEnabled,
     setHotReloadEnabled,
     hotReloadCount,
@@ -55,8 +53,7 @@ export default function PreviewScreen() {
     handleShouldStartLoad,
     handleContentProcessDidTerminate,
     handleRenderProcessGone,
-    resetRecoveryState,
-    startManualReloadCycle,
+    handleReload,
     handleCreate,
     handleReset,
     handleLoadStart,
@@ -67,16 +64,6 @@ export default function PreviewScreen() {
     handleOpenExternal,
     handleFullscreen,
   } = usePreviewScreen();
-
-  const handleReload = () => {
-    startManualReloadCycle();
-    resetRecoveryState();
-    setWebError(null);
-    if (webViewRef.current) {
-      setPhase('loading');
-      webViewRef.current.reload();
-    }
-  };
 
   if (isLoading) {
     return (

@@ -71,8 +71,10 @@ export function useSettingsScreen() {
   const handleTogglePersistChat = async (v: boolean) => {
     const previous = persistChatHistory;
     setPersistChatHistory(v);
+    let persistenceWritten = false;
     try {
       await setChatHistoryPersistence(v);
+      persistenceWritten = true;
       if (!v) {
         await scrubChatHistoryFromStoredProject();
       }
@@ -80,7 +82,17 @@ export function useSettingsScreen() {
         ToastAndroid.show("Privacy gespeichert", ToastAndroid.SHORT);
       }
     } catch (error: unknown) {
-      setPersistChatHistory(previous);
+      if (persistenceWritten && !v) {
+        try {
+          await setChatHistoryPersistence(previous);
+          setPersistChatHistory(previous);
+        } catch {
+          // fail-safe consistency: keep UI on the last successfully persisted value.
+          setPersistChatHistory(v);
+        }
+      } else {
+        setPersistChatHistory(previous);
+      }
       Alert.alert("Fehler", sanitizeSettingsError(error));
     }
   };

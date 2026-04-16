@@ -39,6 +39,7 @@ export function usePreviewScreen() {
   const [autoCreated, setAutoCreated] = useState(false);
   const [hotReloadEnabled, setHotReloadEnabled] = useState(true);
   const [hotReloadCount, setHotReloadCount] = useState(0);
+  const [previewCycleId, setPreviewCycleId] = useState(0);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
@@ -52,16 +53,19 @@ export function usePreviewScreen() {
   const isCreatingRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
   const isMountedRef = useRef(true);
-  const previewCycleRef = useRef(0);
+  const activePreviewCycleRef = useRef(0);
   const cycleWithErrorRef = useRef<number | null>(null);
   const autoCreateDismissedByResetRef = useRef(false);
 
-  const isCurrentCycle = useCallback((cycleId: number) => previewCycleRef.current === cycleId, []);
+  const isCurrentCycle = useCallback((cycleId: number) => activePreviewCycleRef.current === cycleId, []);
 
   const beginPreviewCycle = useCallback(() => {
-    previewCycleRef.current += 1;
-    cycleWithErrorRef.current = null;
-    return previewCycleRef.current;
+    setPreviewCycleId((prev) => {
+      const next = prev + 1;
+      activePreviewCycleRef.current = next;
+      cycleWithErrorRef.current = null;
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -178,7 +182,7 @@ export function usePreviewScreen() {
       webViewRef,
       isMountedRef,
       onError: (message) => {
-        cycleWithErrorRef.current = previewCycleRef.current;
+        cycleWithErrorRef.current = activePreviewCycleRef.current;
         setPhase('error');
         setWebError(message);
       },
@@ -336,9 +340,12 @@ export function usePreviewScreen() {
     [isCurrentCycle],
   );
 
-  const startManualReloadCycle = useCallback(() => {
+  const handleReload = useCallback(() => {
     beginPreviewCycle();
-  }, [beginPreviewCycle]);
+    resetRecoveryState();
+    setWebError(null);
+    setPhase('loading');
+  }, [beginPreviewCycle, resetRecoveryState]);
 
   const handleCopy = useCallback(async () => {
     if (previewUrl) {
@@ -415,7 +422,7 @@ export function usePreviewScreen() {
     runtimeHint,
     phase,
     setPhase,
-    previewCycleId: previewCycleRef.current,
+    previewCycleId,
     webError,
     setWebError,
     hotReloadEnabled,
@@ -431,7 +438,7 @@ export function usePreviewScreen() {
     handleContentProcessDidTerminate,
     handleRenderProcessGone,
     resetRecoveryState,
-    startManualReloadCycle,
+    handleReload,
     handleCreate,
     handleReset,
     handleLoadStart,

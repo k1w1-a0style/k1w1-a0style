@@ -82,6 +82,7 @@ export function DeviceFrame({
             style={[s.webViewWrap, { opacity: phase === 'ready' ? fadeAnim : 1 }]}
           >
             <WebView
+              key={`preview-cycle-${cycleId}`}
               ref={webViewRef}
               style={s.webView}
               source={

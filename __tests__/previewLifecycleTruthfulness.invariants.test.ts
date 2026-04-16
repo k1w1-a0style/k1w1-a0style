@@ -23,8 +23,11 @@ describe("Preview lifecycle truthfulness invariants", () => {
     const hookSrc = read("screens/PreviewScreen/hooks/usePreviewScreen.ts");
     const frameSrc = read("screens/PreviewScreen/components/DeviceFrame.tsx");
     expect(hookSrc).toContain("beginPreviewCycle()");
-    expect(hookSrc).toContain("previewCycleId: previewCycleRef.current");
+    expect(hookSrc).toContain("const [previewCycleId, setPreviewCycleId] = useState(0);");
+    expect(hookSrc).toContain("setPreviewCycleId((prev) =>");
+    expect(hookSrc).toContain("previewCycleId,");
     expect(frameSrc).toContain("cycleId: number;");
+    expect(frameSrc).toContain("key={`preview-cycle-${cycleId}`}");
     expect(frameSrc).toContain("onLoadEnd: (cycleId: number) => void;");
     expect(frameSrc).toContain("onLoadEnd={() => onLoadEnd(cycleId)}");
   });
