@@ -72,6 +72,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
         diagnosticOk: boolean;
         includePipelineChecksValue: boolean;
         focusedProfiles: string[];
+        runProjectFingerprint: string;
       }) => {
         const hasPersistableSelection = Boolean(String(linkedRepo ?? "").trim() && String(linkedBranch ?? "").trim());
         if (!hasPersistableSelection) {
@@ -85,7 +86,6 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
           );
           return;
         }
-        const files = projectRef.current?.files ?? [];
         const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
           linkedRepo,
           linkedBranch,
@@ -97,7 +97,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
         const readinessRecord = buildDiagnosticReadinessRecord({
           repo: linkedRepo ?? "",
           branch: linkedBranch ?? "",
-          projectFingerprint: computeDiagnosticProjectFingerprint(files),
+          projectFingerprint: params.runProjectFingerprint,
           diagnosticOk: params.diagnosticOk,
           includePipelineChecks: params.includePipelineChecksValue,
           focusedModes: params.focusedProfiles,
@@ -119,9 +119,14 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
       if (resetSelection) clearSelection();
       if (resetHistory) clearHistoryRef.current?.();
       setProgressStage("Checks starten…");
+      const runFilesSnapshot = (projectRef.current.files ?? []).map((file) => ({
+        ...file,
+        path: String(file?.path ?? ""),
+        content: String(file?.content ?? ""),
+      }));
+      const runProjectFingerprint = computeDiagnosticProjectFingerprint(runFilesSnapshot);
 
       try {
-        const files = projectRef.current.files;
         const all: PreflightCheckResult[] = [];
 
         const focusedProfiles = resolveDiagnosticFocusedProfiles({
@@ -133,12 +138,13 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
           diagnosticOk: false,
           includePipelineChecksValue: includePipelineChecks,
           focusedProfiles,
+          runProjectFingerprint,
         });
 
         await runLocalChecks({
           includeLocalChecks,
           focusedProfiles,
-          files,
+          files: runFilesSnapshot,
           all,
           mountedRef,
           setResults: guardedSetResults,
@@ -148,7 +154,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
           includePipelineChecks,
           linkedRepo,
           linkedBranch,
-          files,
+          files: runFilesSnapshot,
           pipelineAppliesToFocus,
           all,
           mountedRef,
@@ -166,6 +172,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
             diagnosticOk: !hasFails,
             includePipelineChecksValue: includePipelineChecks,
             focusedProfiles,
+            runProjectFingerprint,
           });
         }
       } catch (e: unknown) {
@@ -179,6 +186,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
             diagnosticOk: false,
             includePipelineChecksValue: includePipelineChecks,
             focusedProfiles,
+            runProjectFingerprint,
           });
           Alert.alert("Diagnostics fehlgeschlagen", getDiagnosticUiErrorMessage(e));
           setProgressStage(null);
