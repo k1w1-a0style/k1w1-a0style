@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from "uuid";
 
 import { startBuildJob } from "../../project/services/buildStartService";
 import { useBuildStatus } from "../../hooks/useBuildStatus";
-import type { BuildStatus } from "../../shared/types/build";
 import { logger } from "../../lib/logger";
 import { addBuildToHistory, updateBuildInHistory } from "../../lib/buildHistoryStorage";
 import {
@@ -20,6 +19,7 @@ import {
 import {
   mergeBuildPollIntoCurrentBuild,
   resolveBuildHistoryPollUpdate,
+  type BuildHistoryStatusSnapshot,
   type CurrentBuildState,
 } from "../projectContextStateHelpers";
 import type { ProjectBuildControllerInput } from "./projectContext.contracts";
@@ -44,7 +44,7 @@ export function useProjectBuildController({ projectData }: ProjectBuildControlle
     },
   });
 
-  const lastHistoryStatusRef = useRef<{ jobId: string; status: BuildStatus } | null>(null);
+  const lastHistoryStatusRef = useRef<BuildHistoryStatusSnapshot | null>(null);
   const runBuildHistoryBestEffort = useCallback(
     (
       mode: "update" | "insert",

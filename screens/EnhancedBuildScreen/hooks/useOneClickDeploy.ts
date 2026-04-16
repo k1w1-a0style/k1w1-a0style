@@ -6,15 +6,12 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useProject } from "../../../contexts/ProjectContext";
-import {
-  getGitHubToken,
-  getExpoToken,
-} from "../../../infra/github/githubService";
 import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
 import { logger } from "../../../lib/logger";
 import { STORAGE_KEYS } from "../../../lib/storageKeys";
 import type { BuildProfile } from "../types";
-import { readBuildReadinessState } from "./buildReadinessState";
+import { evaluateBuildReadiness } from "../../../lib/buildReadiness";
+import { readLocalBuildGateState } from "./useBuildPreconditions";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
@@ -195,39 +192,43 @@ export function useOneClickDeploy(
 
       // === Step 2: Tokens pruefen ===
       updateStepScoped("tokens", "running");
-      const [ghToken, expoToken] = await Promise.all([
-        getGitHubToken().catch((error: unknown) => {
-          logger.warn("[EnhancedBuild] getGitHubToken failed during one-click deploy", { error });
-          return null;
-        }),
-        getExpoToken().catch((error: unknown) => {
-          logger.warn("[EnhancedBuild] getExpoToken failed during one-click deploy", { error });
-          return null;
-        }),
-      ]);
-      if (!isRunActive()) return;
-
-      if (!ghToken || !expoToken) {
-        updateStepScoped("tokens", "fail", !ghToken ? "GitHub Token fehlt" : "Expo Token fehlt");
-        Alert.alert("Tokens fehlen", "Bitte zuerst im Verbindungen-Screen setzen.");
-        return;
-      }
-      updateStepScoped("tokens", "ok", "GitHub + Expo OK");
-
-      // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
-      updateStepScoped("readiness", "running");
-      const readiness = await readBuildReadinessState({
-        repoFullName,
-        branchName,
+      const localGate = await readLocalBuildGateState().catch((error: unknown) => {
+        logger.warn("[EnhancedBuild] local gate read failed during one-click deploy", { error });
+        return null;
       });
       if (!isRunActive()) return;
 
+      if (!localGate?.hasTokens || !localGate.hasWorkflowAdminKey || !localGate.hasOperatorJwt) {
+        const reason =
+          localGate?.tokenReason ??
+          localGate?.workflowAdminKeyReason ??
+          localGate?.operatorJwtReason ??
+          "Build-Start Gate nicht erfüllt";
+        updateStepScoped("tokens", "fail", reason);
+        Alert.alert("Build nicht bereit", reason);
+        return;
+      }
+      updateStepScoped("tokens", "ok", "GitHub + Expo + Workflow-Key + Operator-JWT OK");
+
+      // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
+      updateStepScoped("readiness", "running");
       const sourceFiles = getSourceProjectFiles(projectData);
       const files = getMaterializedProjectFiles(projectData);
+      const readiness = await evaluateBuildReadiness({
+        id: projectData?.id ?? "one-click-deploy",
+        name: projectData?.name ?? "One-Click Deploy",
+        chatHistory: projectData?.chatHistory ?? [],
+        createdAt: projectData?.createdAt ?? new Date(0).toISOString(),
+        lastModified: projectData?.lastModified ?? new Date().toISOString(),
+        linkedRepo: repoFullName,
+        linkedBranch: branchName,
+        files: sourceFiles,
+      });
+      if (!isRunActive()) return;
+
       let readinessReason: string | null = null;
       if (sourceFiles.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
-      else if (!readiness.hasDiagOk) readinessReason = readiness.diagnosticReason;
-      else if (!readiness.hasCiLiteOk) readinessReason = readiness.ciLiteReason;
+      else if (!readiness.ok) readinessReason = readiness.message;
 
       if (readinessReason) {
         updateStepScoped("readiness", "fail", readinessReason);

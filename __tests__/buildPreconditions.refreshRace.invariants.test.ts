@@ -15,7 +15,8 @@ describe('useBuildPreconditions refresh race hardening', () => {
   });
 
   it('applies token, signing and readiness updates only through the guarded writer', () => {
-    expect(source).toContain('applyIfCurrent(() => setHasTokens(!!(gh && expo)));');
+    expect(source).toContain('const localGate = await readLocalBuildGateState();');
+    expect(source).toContain('setHasTokens(localGate.hasTokens);');
     expect(source).toContain('applyIfCurrent(() => {\n        setHasSigningKey(signingGate.hasSigningKey);');
     expect(source).toContain('applyIfCurrent(() => {\n        setHasDiagOk(readiness.hasDiagOk);');
   });

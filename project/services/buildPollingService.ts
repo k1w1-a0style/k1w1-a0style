@@ -32,6 +32,7 @@ export type PollBuildResult =
   | {
       ok: false;
       error: string;
+      retryable: boolean;
       statusCode?: number;
       raw?: unknown;
     };
@@ -54,6 +55,24 @@ function extractErrorMessage(json: unknown, statusCode: number): string {
   return readString(obj, "error") ?? `HTTP ${statusCode}`;
 }
 
+function resolvePollingRetryability(params: {
+  statusCode?: number;
+  error: string;
+}): boolean {
+  const message = params.error.toLowerCase();
+  if (
+    message.includes("missing_jwt") ||
+    message.includes("workflow-admin-key fehlt") ||
+    message.includes("workflow admin key fehlt")
+  ) {
+    return false;
+  }
+  if (params.statusCode === 401 || params.statusCode === 403) {
+    return false;
+  }
+  return true;
+}
+
 export function isFinalStatus(status: BuildStatus): boolean {
   return ["success", "failed", "error"].includes(status);
 }
@@ -67,6 +86,7 @@ export async function pollBuildStatusOnce(
     return {
       ok: false,
       error: SUPABASE_URL_MISSING_ERROR,
+      retryable: false,
     };
   }
   const supabase = await ensureSupabaseClient();
@@ -87,12 +107,14 @@ export async function pollBuildStatusOnce(
         action: "Build-Status",
         reason: "missing_jwt",
       }),
+      retryable: false,
     };
   }
   if (!workflowAdminKey) {
     return {
       ok: false,
       error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
+      retryable: false,
     };
   }
 
@@ -115,14 +137,19 @@ export async function pollBuildStatusOnce(
     json = await res.json();
   } catch (e) {
     logger.warn("[buildPollingService] JSON Parse fehlgeschlagen", { err: e });
-    return { ok: false, error: "Ungültige Server-Antwort", statusCode: res.status };
+    return { ok: false, error: "Ungültige Server-Antwort", retryable: true, statusCode: res.status };
   }
 
   const responseObject = asRecord(json);
   if (!res.ok || !responseObject || responseObject.ok === false) {
+    const error = extractErrorMessage(json, res.status);
     return {
       ok: false,
-      error: extractErrorMessage(json, res.status),
+      error,
+      retryable: resolvePollingRetryability({
+        statusCode: res.status,
+        error,
+      }),
       statusCode: res.status,
       raw: json,
     };

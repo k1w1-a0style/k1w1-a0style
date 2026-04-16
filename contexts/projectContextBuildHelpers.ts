@@ -48,13 +48,21 @@ export const createBuildQueuedStateAfterStart = (params: {
   buildProfile: string;
   nowIso: string;
 }): CurrentBuildState => ({
-  ...(params.previous ?? { status: "queued" }),
   status: "queued",
   message: "✅ Build gestartet. Warte auf GitHub Actions…",
   jobId: params.jobId,
   githubRepo: params.githubRepo,
   branch: params.branch,
   buildProfile: params.buildProfile,
+  startedAt: params.previous?.startedAt ?? params.nowIso,
+  completedAt: undefined,
+  runId: null,
+  sourceCommitSha: null,
+  urls: {
+    html: null,
+    artifacts: null,
+    buildUrl: null,
+  },
   lastUpdatedAt: params.nowIso,
 });
 

@@ -18,6 +18,15 @@ type SecretReadResult = {
   state: SecretReadState;
 };
 
+export type LocalBuildGateState = {
+  hasTokens: boolean;
+  tokenReason: string | null;
+  hasWorkflowAdminKey: boolean;
+  workflowAdminKeyReason: string | null;
+  hasOperatorJwt: boolean;
+  operatorJwtReason: string | null;
+};
+
 async function readSecretForPrecheck(read: () => Promise<string | null>): Promise<SecretReadResult> {
   try {
     const value = await read();
@@ -29,6 +38,49 @@ async function readSecretForPrecheck(read: () => Promise<string | null>): Promis
     console.warn("[useBuildPreconditions] secret read failed", error);
     return { value: null, state: "unreadable" };
   }
+}
+
+export async function readLocalBuildGateState(): Promise<LocalBuildGateState> {
+  const [ghResult, expoResult] = await Promise.all([
+    readSecretForPrecheck(getGitHubToken),
+    readSecretForPrecheck(getExpoToken),
+  ]);
+  const [workflowAdminKeyResult, operatorJwtResult] = await Promise.all([
+    readSecretForPrecheck(getWorkflowAdminKey),
+    readSecretForPrecheck(async () => {
+      const supabase = await ensureSupabaseClient();
+      const session = await supabase.auth.getSession();
+      return session?.data?.session?.access_token ?? null;
+    }),
+  ]);
+  const hasTokens = Boolean(ghResult.value && expoResult.value);
+  const hasWorkflowAdminKey = Boolean(workflowAdminKeyResult.value);
+  const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwtResult.value);
+  return {
+    hasTokens,
+    tokenReason:
+      ghResult.state === "unreadable" || expoResult.state === "unreadable"
+        ? "GitHub-/Expo-Token konnten nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – Verbindungen laden und Read erneut prüfen"
+        : ghResult.state === "missing" || expoResult.state === "missing"
+          ? "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen"
+          : null,
+    hasWorkflowAdminKey,
+    workflowAdminKeyReason:
+      workflowAdminKeyResult.state === "present"
+        ? null
+        : workflowAdminKeyResult.state === "missing"
+          ? "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen"
+          : "Workflow-Admin-Key konnte nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – lokalen Read prüfen und erneut laden",
+    hasOperatorJwt: operatorJwtResult.state === "present" && hasValidOperatorJwt,
+    operatorJwtReason:
+      operatorJwtResult.state === "missing"
+        ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
+        : operatorJwtResult.state === "unreadable"
+          ? "Supabase Session/JWT konnte nicht gelesen werden (Session-/Storage-Read fehlgeschlagen) – clientseitiger Precheck fail-closed"
+          : !hasValidOperatorJwt
+            ? "Supabase JWT ist vorhanden, aber Rolle nicht berechtigt (unauthorized: erwartet build_admin/service_role) – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
+            : null,
+  };
 }
 
 export function useBuildPreconditions(
@@ -82,60 +134,14 @@ export function useBuildPreconditions(
       ? null
       : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
 
-    // Tokens
-    const [ghResult, expoResult] = await Promise.all([
-      readSecretForPrecheck(getGitHubToken),
-      readSecretForPrecheck(getExpoToken),
-    ]);
-    const gh = ghResult.value;
-    const expo = expoResult.value;
-    applyIfCurrent(() => setHasTokens(!!(gh && expo)));
+    const localGate = await readLocalBuildGateState();
     applyIfCurrent(() => {
-      if (ghResult.state === "unreadable" || expoResult.state === "unreadable") {
-        setTokenReason(
-          "GitHub-/Expo-Token konnten nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – Verbindungen laden und Read erneut prüfen",
-        );
-        return;
-      }
-      if (ghResult.state === "missing" || expoResult.state === "missing") {
-        setTokenReason("Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen");
-        return;
-      }
-      setTokenReason(null);
-    });
-
-    const [workflowAdminKeyResult, operatorJwtResult] = await Promise.all([
-      readSecretForPrecheck(getWorkflowAdminKey),
-      readSecretForPrecheck(async () => {
-        const supabase = await ensureSupabaseClient();
-        const session = await supabase.auth.getSession();
-        return session?.data?.session?.access_token ?? null;
-      }),
-    ]);
-    applyIfCurrent(() => {
-      const workflowAdminKey = workflowAdminKeyResult.value;
-      const operatorJwt = operatorJwtResult.value;
-      setHasWorkflowAdminKey(Boolean(workflowAdminKey));
-      setWorkflowAdminKeyReason(
-        workflowAdminKeyResult.state === "present"
-          ? null
-          : workflowAdminKeyResult.state === "missing"
-            ? "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen"
-            : "Workflow-Admin-Key konnte nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – lokalen Read prüfen und erneut laden",
-      );
-      // Client-side convenience/readiness precheck only (decode-only JWT payload read).
-      // Authoritative auth remains server-/edge-side.
-      const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwt);
-      setHasOperatorJwt(operatorJwtResult.state === "present" && hasValidOperatorJwt);
-      setOperatorJwtReason(
-        operatorJwtResult.state === "missing"
-          ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
-          : operatorJwtResult.state === "unreadable"
-            ? "Supabase Session/JWT konnte nicht gelesen werden (Session-/Storage-Read fehlgeschlagen) – clientseitiger Precheck fail-closed"
-            : !hasValidOperatorJwt
-              ? "Supabase JWT ist vorhanden, aber Rolle nicht berechtigt (unauthorized: erwartet build_admin/service_role) – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
-              : null,
-      );
+      setHasTokens(localGate.hasTokens);
+      setTokenReason(localGate.tokenReason);
+      setHasWorkflowAdminKey(localGate.hasWorkflowAdminKey);
+      setWorkflowAdminKeyReason(localGate.workflowAdminKeyReason);
+      setHasOperatorJwt(localGate.hasOperatorJwt);
+      setOperatorJwtReason(localGate.operatorJwtReason);
     });
 
     try {

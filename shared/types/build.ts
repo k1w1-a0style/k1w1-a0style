@@ -42,6 +42,7 @@ export interface BuildHistoryEntry {
   buildProfile?: string;
   artifactUrl?: string | null;
   htmlUrl?: string | null;
+  runId?: number | null;
   errorMessage?: string;
   /** Exact commit SHA that produced this history entry. */
   sourceCommitSha?: string | null;

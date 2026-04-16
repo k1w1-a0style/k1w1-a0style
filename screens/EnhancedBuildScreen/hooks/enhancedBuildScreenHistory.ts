@@ -22,6 +22,6 @@ export function summarizeBuildHistoryStats(history: BuildHistoryEntry[] | null |
     total: list.length,
     success: list.filter((entry) => entry.status === "success").length,
     failed: list.filter((entry) => entry.status === "failed" || entry.status === "error").length,
-    building: list.filter((entry) => entry.status === "building" || entry.status === "queued").length,
+    building: list.filter((entry) => entry.status === "starting" || entry.status === "building" || entry.status === "queued").length,
   };
 }
