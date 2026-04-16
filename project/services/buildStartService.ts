@@ -14,6 +14,7 @@ import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
 import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
 import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../lib/auth/operatorJwt";
 import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
+import { getCanonicalProjectFilesForOps } from "../../lib/getMaterializedProjectFiles";
 import {
   assertBuildReadiness as assertBuildReadinessContract,
   type BuildReadinessDeps,
@@ -140,8 +141,9 @@ export async function startBuildJob(params: {
   deps?: BuildReadinessDeps;
 }): Promise<StartBuildJobResult> {
   const { project, buildProfile, deps } = params;
+  const canonicalOpsFiles = getCanonicalProjectFilesForOps(project);
 
-  if (!project?.files || project.files.length === 0) {
+  if (!canonicalOpsFiles.length) {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
@@ -155,7 +157,7 @@ export async function startBuildJob(params: {
   const syncState = await getRepoSyncState({
     linkedRepo: githubRepo,
     linkedBranch: buildBranch,
-    files: project.files,
+    files: canonicalOpsFiles,
     storageGetItem: deps?.storageGetItem,
   });
   if (syncState === "unknown") {
@@ -166,7 +168,7 @@ export async function startBuildJob(params: {
     await pushProjectFilesOrAbortBuild({
       githubRepo,
       branch: buildBranch,
-      files: project.files,
+      files: canonicalOpsFiles,
       storageSetItem: deps?.storageSetItem,
     });
   }

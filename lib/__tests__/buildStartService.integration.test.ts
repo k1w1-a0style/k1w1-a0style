@@ -9,6 +9,7 @@ import {
   diagnosticReadinessRecordKeyForSelection,
 } from "../../lib/storageKeys";
 import { computeProjectFilesSignature } from "../../lib/repoSyncOrchestration";
+import { getCanonicalProjectFilesForOps } from "../../lib/getMaterializedProjectFiles";
 import { makeProjectData, makeProjectFile } from "../../__tests__/helpers/projectTestHelpers";
 import {
   buildDiagnosticReadinessRecord,
@@ -106,7 +107,7 @@ describe("startBuildJob (integration)", () => {
     const repo = "k1w1-a0style/musik-player";
     const branch = "main";
     const syncKey = repoSyncKey(repo, branch);
-    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const syncSig = `stale:${computeProjectFilesSignature(getCanonicalProjectFilesForOps(project))}`;
     const readinessKey = diagnosticReadinessRecordKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
     const readinessRecord = buildDiagnosticReadinessRecord({
       repo,
@@ -153,10 +154,19 @@ describe("startBuildJob (integration)", () => {
 
   it("pushes files, ensures workflows, then invokes TRIGGER_EAS_BUILD with normalized profile", async () => {
     const project = makeProject({ linkedBranch: "main" });
+    const canonicalFiles = getCanonicalProjectFilesForOps(project);
+    expect(canonicalFiles).not.toEqual(project.files);
+    expect(canonicalFiles.find((file) => file.path === "app.json")?.content).toContain("\"slug\": \"test\"");
 
     const res = await startBuildJob({ project, buildProfile: "development", deps });
 
     expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledWith(
+      "k1w1-a0style",
+      "musik-player",
+      canonicalFiles,
+      "main",
+    );
     expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
       owner: "k1w1-a0style",
       repo: "musik-player",
@@ -193,7 +203,7 @@ describe("startBuildJob (integration)", () => {
       linkedRepo: "k1w1-a0style/musik-player",
       linkedBranch: "dev",
     });
-    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const syncSig = `stale:${computeProjectFilesSignature(getCanonicalProjectFilesForOps(project))}`;
     const readinessRecord = buildDiagnosticReadinessRecord({
       repo: "k1w1-a0style/musik-player",
       branch: "dev",
@@ -262,7 +272,7 @@ describe("startBuildJob (integration)", () => {
     const project = makeProject();
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "main");
     const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "main" });
-    const syncSig = computeProjectFilesSignature(project.files);
+    const syncSig = computeProjectFilesSignature(getCanonicalProjectFilesForOps(project));
     const readinessKey = diagnosticReadinessRecordKeyForSelection({
       linkedRepo: "k1w1-a0style/musik-player",
       linkedBranch: "main",

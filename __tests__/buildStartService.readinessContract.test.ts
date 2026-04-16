@@ -1,4 +1,5 @@
 import { makeProjectData } from "./helpers/projectTestHelpers";
+import { getCanonicalProjectFilesForOps } from "../lib/getMaterializedProjectFiles";
 
 const mockGetItem = jest.fn();
 const mockAssertBuildReadiness = jest.fn();
@@ -82,6 +83,7 @@ describe("startBuildJob readiness contract integration", () => {
   it("continues with sync and dispatch after the centralized readiness contract resolves", async () => {
     mockAssertBuildReadiness.mockResolvedValue(undefined);
     const project = makeProject({ linkedRepo: " owner/repo ", linkedBranch: "main" });
+    const canonicalFiles = getCanonicalProjectFilesForOps(project);
 
     await expect(startBuildJob({ project, buildProfile: "preview" })).resolves.toMatchObject({
       githubRepo: "owner/repo",
@@ -94,7 +96,7 @@ describe("startBuildJob readiness contract integration", () => {
     expect(mockGetRepoSyncState).toHaveBeenCalledWith({
       linkedRepo: "owner/repo",
       linkedBranch: "main",
-      files: project.files,
+      files: canonicalFiles,
       storageGetItem: undefined,
     });
     expect(mockInvoke).toHaveBeenCalledTimes(1);
