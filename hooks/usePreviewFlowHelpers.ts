@@ -1,4 +1,4 @@
-import type { ProjectData } from "../shared/types/project";
+import type { ProjectFile } from "../shared/types/project";
 import type { PreviewFiles } from "../types/preview";
 
 import { safeJson } from "./previewHelpers";
@@ -183,7 +183,7 @@ export function getErrorStatusCode(error: unknown): number | null {
   return typeof status === "number" ? Number(status) : null;
 }
 
-export function buildPreviewFileMap(projectData: ProjectData | null, options: {
+export function buildPreviewFileMap(filesInput: ProjectFile[] | null | undefined, options: {
   isProjectFile: (value: unknown) => boolean;
   isAllowedFile: (path: string) => boolean;
   sanitizePreviewPath: (raw: string) => string | null;
@@ -191,8 +191,7 @@ export function buildPreviewFileMap(projectData: ProjectData | null, options: {
 }): { fileMap: Record<string, string>; totalSize: number; skippedCount: number } {
   const files: Record<string, string> = {};
 
-  const rawFiles = projectData?.files;
-  const sourceList: unknown[] = Array.isArray(rawFiles) ? rawFiles : [];
+  const sourceList: unknown[] = Array.isArray(filesInput) ? filesInput : [];
   const list = sourceList.filter(options.isProjectFile) as Array<{ path?: string; content?: string }>;
 
   let total = 0;

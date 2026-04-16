@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useProject } from "../contexts/ProjectContext";
+import { getCanonicalProjectFilesForOps } from "../lib/getMaterializedProjectFiles";
 import type { ProjectData, LastPreviewMeta } from "../shared/types/project";
 import {
   isAllowedFile,
@@ -139,7 +140,7 @@ export function usePreview(projectData: ProjectData | null): UsePreviewReturn {
 
   const previewFiles = useMemo(
     () =>
-      buildPreviewFileMap(projectData, {
+      buildPreviewFileMap(getCanonicalProjectFilesForOps(projectData), {
         isProjectFile,
         isAllowedFile,
         sanitizePreviewPath,

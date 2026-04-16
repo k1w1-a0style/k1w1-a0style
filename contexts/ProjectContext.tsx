@@ -31,7 +31,6 @@ import {
   importProjectZip,
 } from "../project/services/projectArchiveService";
 
-import { normalizeLoadedProjectData } from "./projectContextHelpers";
 import {
   appendChatMessageWithRetention,
   resolveHistoryBuildSelection,
@@ -204,11 +203,10 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
           onPress: async () => {
             try {
               const result = await importProjectZip();
-              const normalizedProject = normalizeLoadedProjectData(result.project);
               // Invariant contract markers retained for source-based tests:
               // setProjectData(normalizedProject);
               // await saveProjectToStorage(normalizedProject);
-              const imported = await importNormalizedProjectData(normalizedProject);
+              const imported = await importNormalizedProjectData(result.project);
               Alert.alert(
                 "Import erfolgreich",
                 `Projekt "${imported.name}" importiert (${result.fileCount} Dateien).`,

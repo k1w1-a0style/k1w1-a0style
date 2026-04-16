@@ -256,7 +256,58 @@ describe("usePreview server contract", () => {
     expect(payload?.files["/src/index.tsx"]).toBeTruthy();
   });
 
-  test("reports an honest payload/file reason when no remote-preview files survive filtering", async () => {
+  test("uses canonical ops file materialization for preview payload instead of raw source snapshot", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          ok: true,
+          previewUrl: "https://preview.example.com/session-materialized",
+          expiresAt: "2026-03-20T12:30:00.000Z",
+        }),
+    });
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: {
+        ...baseProject,
+        name: "Canonical Preview App",
+        slug: "canonical-preview-app",
+        files: [
+          {
+            path: "app.json",
+            content: JSON.stringify({
+              expo: { name: "Old Name", slug: "old-slug", android: { package: "com.example.old" } },
+            }),
+          },
+        ],
+      },
+    });
+
+    await act(async () => {
+      await result.current.createPreview();
+    });
+
+    const fetchOpts = mockFetch.mock.calls.at(-1)?.[1] as { body?: string } | undefined;
+    const payload = fetchOpts?.body ? JSON.parse(fetchOpts.body) : null;
+    const appJson = JSON.parse(payload?.files?.["/app.json"]?.contents ?? "{}");
+
+    expect(appJson.expo?.name).toBe("Canonical Preview App");
+    expect(appJson.expo?.slug).toBe("canonical-preview-app");
+  });
+
+  test("keeps preview payload non-empty via canonical materialization even when raw files are filtered", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          ok: true,
+          previewUrl: "https://preview.example.com/session-materialized-fallback",
+          expiresAt: "2026-03-20T12:30:00.000Z",
+        }),
+    });
+
     const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
       initialProps: {
         ...baseProject,
@@ -265,17 +316,13 @@ describe("usePreview server contract", () => {
     });
 
     await act(async () => {
-      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
+      await result.current.createPreview();
     });
 
-    await waitFor(() => {
-      expect(result.current.lastPreview).toBeNull();
-    });
-
-    expect(result.current.state.remoteFailure).toBe(
-      "Keine zulaessigen Projektdateien fuer Remote-Preview gefunden. 1 Datei(en) wurden vom Preview-Filter ausgeschlossen.",
-    );
-    expect(mockFetch).not.toHaveBeenCalled();
+    const fetchOpts = mockFetch.mock.calls.at(-1)?.[1] as { body?: string } | undefined;
+    const payload = fetchOpts?.body ? JSON.parse(fetchOpts.body) : null;
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(payload?.files?.["/app.json"]).toBeTruthy();
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 

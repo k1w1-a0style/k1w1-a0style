@@ -23,6 +23,7 @@ jest.doMock(require.resolve("../lib/diagnostics/ciAutoFix"), () => mockAutoFix);
 jest.doMock(require.resolve("../lib/repoSyncOrchestration"), () => ({
   getRepoSyncState: jest.fn(async () => "in_sync"),
   markRepoSyncSignature: jest.fn(async () => undefined),
+  hasConflictingCanonicalFileVariants: jest.fn(() => false),
 }));
 jest.doMock(require.resolve("../lib/supabase"), () => ({
   ensureSupabaseClient: jest.fn(async () => ({

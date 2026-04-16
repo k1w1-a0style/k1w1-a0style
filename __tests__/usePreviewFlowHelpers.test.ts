@@ -1,4 +1,4 @@
-import type { ProjectData } from "../shared/types/project";
+import type { ProjectFile } from "../shared/types/project";
 
 import {
   buildPreviewDependencies,
@@ -73,21 +73,11 @@ describe("usePreviewFlowHelpers", () => {
   });
 
   test("buildPreviewFileMap filters, sanitizes and reports skipped entries", () => {
-    const input: ProjectData = {
-      id: "p",
-      slug: "p",
-      name: "P",
-      chatHistory: [],
-      files: [
-        { path: "src/App.tsx", content: "export default null;" },
-        { path: "node_modules/a.ts", content: "ignore" },
-        { path: "../escape.ts", content: "bad" },
-      ],
-      createdAt: "2026-01-01T00:00:00.000Z",
-      lastModified: "2026-01-01T00:00:00.000Z",
-      preferredPreviewMode: "supabase",
-      lastPreview: null,
-    };
+    const input: ProjectFile[] = [
+      { path: "src/App.tsx", content: "export default null;" },
+      { path: "node_modules/a.ts", content: "ignore" },
+      { path: "../escape.ts", content: "bad" },
+    ];
 
     const out = buildPreviewFileMap(input, {
       isProjectFile: (value): value is { path: string; content: string } =>

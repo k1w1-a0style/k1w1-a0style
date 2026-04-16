@@ -19,7 +19,11 @@ describe("projectContextHelpers", () => {
         preferredPreviewMode: undefined as unknown as never,
       });
 
-      expect(normalized.files).toEqual([]);
+      expect(normalized.files).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ path: "app.json" }),
+        ]),
+      );
       expect(normalized.chatHistory).toEqual([]);
       expect(normalized.preferredPreviewMode).toBe("supabase");
     });
@@ -43,9 +47,101 @@ describe("projectContextHelpers", () => {
         preferredPreviewMode: "local",
       });
 
-      expect(normalized.files).toHaveLength(1);
+      expect(normalized.files).toEqual(
+        expect.arrayContaining([
+          { path: "App.tsx", content: "export default function App(){return null}" },
+          expect.objectContaining({ path: "app.json" }),
+        ]),
+      );
       expect(normalized.chatHistory).toHaveLength(1);
       expect(normalized.preferredPreviewMode).toBe("local");
+    });
+
+    it("materializes loaded files into canonical ops state immediately", () => {
+      const normalized = normalizeLoadedProjectData({
+        id: "p1",
+        name: "Canonical Demo",
+        slug: "canonical-demo",
+        files: [
+          {
+            path: "app.json",
+            content: JSON.stringify({
+              expo: { name: "Legacy", slug: "legacy" },
+            }),
+          },
+        ],
+        chatHistory: [],
+        createdAt: "2024-01-01T00:00:00.000Z",
+        lastModified: "2024-01-01T00:00:00.000Z",
+        preferredPreviewMode: "supabase",
+      });
+
+      const appJsonFile = normalized.files.find((file) => file.path === "app.json");
+      const appJson = JSON.parse(String(appJsonFile?.content ?? "{}"));
+      expect(appJson.expo?.name).toBe("Canonical Demo");
+      expect(appJson.expo?.slug).toBe("canonical-demo");
+    });
+
+    it("keeps slug parity for legacy umlaut/accent inputs across state and materialized app/package config", () => {
+      const normalized = normalizeLoadedProjectData({
+        id: "p-legacy",
+        name: "Äccent Müse App",
+        slug: "über unsauber!!!",
+        files: [
+          {
+            path: "app.json",
+            content: JSON.stringify({
+              expo: { name: "Legacy Name", slug: "legacy slug" },
+            }),
+          },
+          {
+            path: "package.json",
+            content: JSON.stringify({
+              name: "legacy-package-name",
+              version: "1.0.0",
+            }),
+          },
+        ],
+        chatHistory: [],
+        createdAt: "2024-01-01T00:00:00.000Z",
+        lastModified: "2024-01-01T00:00:00.000Z",
+        preferredPreviewMode: "supabase",
+      });
+
+      const appJsonFile = normalized.files.find((file) => file.path === "app.json");
+      const packageJsonFile = normalized.files.find((file) => file.path === "package.json");
+      const appJson = JSON.parse(String(appJsonFile?.content ?? "{}"));
+      const packageJson = JSON.parse(String(packageJsonFile?.content ?? "{}"));
+
+      expect(normalized.slug).toBe("uber-unsauber");
+      expect(appJson.expo?.slug).toBe(normalized.slug);
+      expect(packageJson.name).toBe(normalized.slug);
+    });
+
+    it("falls back from missing/invalid legacy slug to canonical slug without hydration drift", () => {
+      const normalized = normalizeLoadedProjectData({
+        id: "p-missing-slug",
+        name: "  Café Déjà Vu App  ",
+        slug: "!!!",
+        files: [
+          {
+            path: "app.json",
+            content: JSON.stringify({
+              expo: { name: "Old", slug: "broken slug ###" },
+            }),
+          },
+        ],
+        chatHistory: [],
+        createdAt: "2024-01-01T00:00:00.000Z",
+        lastModified: "2024-01-01T00:00:00.000Z",
+        preferredPreviewMode: "supabase",
+      });
+
+      const appJsonFile = normalized.files.find((file) => file.path === "app.json");
+      const appJson = JSON.parse(String(appJsonFile?.content ?? "{}"));
+
+      expect(normalized.slug).toBe("cafe-deja-vu-app");
+      expect(appJson.expo?.slug).toBe("cafe-deja-vu-app");
     });
   });
 
