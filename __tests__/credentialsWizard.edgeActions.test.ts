@@ -21,6 +21,7 @@ describe("credentials wizard edge actions", () => {
   const safeSetLastError = jest.fn();
   const safeSetLastDebug = jest.fn();
   const persistWizardStatus = jest.fn(async () => undefined);
+  const getCurrentStatusForMode = jest.fn(() => null as StatusResult | null);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,6 +45,7 @@ describe("credentials wizard edge actions", () => {
       safeSetLastError,
       safeSetLastDebug,
       persistWizardStatus,
+      getCurrentStatusForMode,
       opts: { preservePendingOnError: true },
     });
 
@@ -76,6 +78,7 @@ describe("credentials wizard edge actions", () => {
       safeSetLastError,
       safeSetLastDebug,
       persistWizardStatus,
+      getCurrentStatusForMode,
       onGeneratedPending,
       refreshStatusAfterGenerate,
     });
@@ -127,10 +130,55 @@ describe("credentials wizard edge actions", () => {
       safeSetLastError,
       safeSetLastDebug,
       persistWizardStatus: persistWizardStatusGuarded,
+      getCurrentStatusForMode,
     });
 
     expect(setStatusByModeGuarded).toHaveBeenCalled();
     expect(persistWizardStatusGuarded).toHaveBeenCalled();
     expect(persistCallsDuringUpdater).toEqual([]);
+  });
+
+  it("persists computed error status even when setStatusByMode updater is deferred", async () => {
+    (invokeEdgeJson as jest.Mock).mockResolvedValue({
+      ok: false,
+      error: new Error("forbidden"),
+      debug: { status: 403, bodyText: "forbidden" },
+    });
+
+    const deferredUpdaters: Array<
+      (prev: Record<UiModeId, StatusResult | null>) => Record<UiModeId, StatusResult | null>
+    > = [];
+    const setStatusByModeDeferred = jest.fn(
+      (
+        updater: (
+          prev: Record<UiModeId, StatusResult | null>,
+        ) => Record<UiModeId, StatusResult | null>,
+      ) => {
+      deferredUpdaters.push(updater);
+      },
+    );
+    const persistedPayloads: Array<StatusResult | null> = [];
+    const persistWizardStatusCapture = jest.fn(async (_mode: UiModeId, status: StatusResult | null) => {
+      persistedPayloads.push(status);
+    });
+
+    await runStatusRefreshAction({
+      mode: "dev",
+      userJwt: "jwt",
+      supabaseUrl: "https://example.supabase.co",
+      adminKey: "admin-key",
+      repoFullName: "owner/repo",
+      isMounted: () => true,
+      setStatusByMode: setStatusByModeDeferred,
+      safeSetLastError,
+      safeSetLastDebug,
+      persistWizardStatus: persistWizardStatusCapture,
+      getCurrentStatusForMode,
+    });
+
+    expect(setStatusByModeDeferred).toHaveBeenCalledTimes(1);
+    expect(deferredUpdaters).toHaveLength(1);
+    expect(persistWizardStatusCapture).toHaveBeenCalledTimes(1);
+    expect(persistedPayloads[0]).toEqual(expect.objectContaining({ exists: false, credentialState: "auth_error" }));
   });
 });
