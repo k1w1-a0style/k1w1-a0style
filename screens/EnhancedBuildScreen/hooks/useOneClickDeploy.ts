@@ -14,7 +14,7 @@ import { evaluateBuildReadiness } from "../../../lib/buildReadiness";
 import { readLocalBuildGateState } from "./useBuildPreconditions";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
+import { getCanonicalProjectFilesForOps } from "../../../lib/getMaterializedProjectFiles";
 
 export type DeployStepId =
   | "signing_key"
@@ -212,8 +212,7 @@ export function useOneClickDeploy(
 
       // === Step 3: Readiness (Diagnostic + CI-Lite + Repo/Branch Match) ===
       updateStepScoped("readiness", "running");
-      const sourceFiles = getSourceProjectFiles(projectData);
-      const files = getMaterializedProjectFiles(projectData);
+      const canonicalFiles = getCanonicalProjectFilesForOps(projectData);
       const readiness = await evaluateBuildReadiness({
         id: projectData?.id ?? "one-click-deploy",
         name: projectData?.name ?? "One-Click Deploy",
@@ -222,12 +221,12 @@ export function useOneClickDeploy(
         lastModified: projectData?.lastModified ?? new Date().toISOString(),
         linkedRepo: repoFullName,
         linkedBranch: branchName,
-        files: sourceFiles,
+        files: canonicalFiles,
       });
       if (!isRunActive()) return;
 
       let readinessReason: string | null = null;
-      if (sourceFiles.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
+      if (canonicalFiles.length === 0) readinessReason = "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
       else if (!readiness.ok) readinessReason = readiness.message;
 
       if (readinessReason) {
@@ -236,11 +235,11 @@ export function useOneClickDeploy(
         return;
       }
 
-      if (sourceFiles.length > 0) {
+      if (canonicalFiles.length > 0) {
         const syncState = await getRepoSyncState({
           linkedRepo: repoFullName,
           linkedBranch: branchName,
-          files,
+          files: canonicalFiles,
         }).catch((error: unknown) => {
           logger.warn("[EnhancedBuild] getRepoSyncState failed during one-click deploy readiness", { error });
           return "unknown" as const;
@@ -295,8 +294,7 @@ export function useOneClickDeploy(
       }
 
       // === Step 5: Repo-Sync wird im Build-Start entschieden ===
-      const projectFiles = projectData?.files;
-      if (Array.isArray(projectFiles) && projectFiles.length > 0) {
+      if (canonicalFiles.length > 0) {
         updateStepScoped("push_files", "skip", "Repo-Sync erfolgt im Build-Start (SHA-sicher)");
       } else {
         updateStepScoped("push_files", "skip", "Keine Dateien zum Synchronisieren");

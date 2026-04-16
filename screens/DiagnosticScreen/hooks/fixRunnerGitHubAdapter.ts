@@ -7,6 +7,7 @@ import { applyRepoFilePatchAtomic, triggerWorkflow } from "../../../infra/github
 import { parseOwnerRepo } from "../../../lib/diagnostics/ciAutoFix";
 import { getErrorMessage } from "./fixRunnerResultHelpers";
 import { collectDeletedPatchPaths, collectPatchTouchedPaths, sameProjectFiles } from "./useDiagnosticFixRunnerHelpers";
+import { getCanonicalProjectFilesForOps } from "../../../lib/getMaterializedProjectFiles";
 
 export async function syncPatchToGitHub(params: {
   label: string;
@@ -26,7 +27,7 @@ export async function syncPatchToGitHub(params: {
   const touched = collectPatchTouchedPaths(params.patch);
   const deletedSet = new Set(collectDeletedPatchPaths(params.patch));
 
-  const filesNow = [...(params.projectRef.current?.files ?? [])];
+  const filesNow = getCanonicalProjectFilesForOps(params.projectRef.current);
   const nowMap = new Map(filesNow.map((f) => [f.path, f.content] as const));
   const upserts: Array<{ path: string; content: string }> = [];
 
@@ -44,7 +45,7 @@ export async function syncPatchToGitHub(params: {
     { branch, message: `Diagnostics: ${params.label}` },
   );
 
-  const filesAfter = params.projectRef.current?.files ?? [];
+  const filesAfter = getCanonicalProjectFilesForOps(params.projectRef.current);
   if (!sameProjectFiles(filesNow, filesAfter)) {
     throw new Error(
       "Lokaler Projektstand hat sich während GitHub-Sync geändert. Snapshot wurde gepusht, lokaler Stand ist inzwischen abgewichen.",

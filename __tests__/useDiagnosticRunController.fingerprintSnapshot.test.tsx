@@ -21,6 +21,7 @@ jest.mock("../screens/DiagnosticScreen/hooks/diagnosticRunners", () => ({
 
 import { act, renderHook } from "@testing-library/react-native";
 import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
+import { getCanonicalProjectFilesForOps } from "../lib/getMaterializedProjectFiles";
 import { makeProjectData, makeProjectFile } from "./helpers/projectTestHelpers";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { useDiagnosticRunController } = require("../screens/DiagnosticScreen/hooks/useDiagnosticRunController");
@@ -50,8 +51,12 @@ describe("useDiagnosticRunController fingerprint snapshot contract", () => {
       makeProjectFile("package.json", "{\"name\":\"live-mutated\"}"),
       makeProjectFile("new.ts", "export const x = 1;"),
     ];
-    const expectedRunFingerprint = computeDiagnosticProjectFingerprint(runSnapshotFiles);
-    const unexpectedLiveFingerprint = computeDiagnosticProjectFingerprint(liveMutatedFiles);
+    const expectedRunFingerprint = computeDiagnosticProjectFingerprint(
+      getCanonicalProjectFilesForOps(makeProjectData({ files: runSnapshotFiles })),
+    );
+    const unexpectedLiveFingerprint = computeDiagnosticProjectFingerprint(
+      getCanonicalProjectFilesForOps(makeProjectData({ files: liveMutatedFiles })),
+    );
     expect(expectedRunFingerprint).not.toBe(unexpectedLiveFingerprint);
 
     const projectRef = {

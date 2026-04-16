@@ -12,6 +12,7 @@ import { getDiagnosticUiErrorMessage } from "./diagnosticErrorHelpers";
 import { runLocalChecks, runPipelineChecks } from "./diagnosticRunners";
 import { buildDiagnosticSelectionScope, resolveDiagnosticFocusedProfiles } from "./useDiagnosticScreenHelpers";
 import type { DiagnosticRunControllerParams, RunDiagnostics } from "./diagnosticScreen.contracts";
+import { getCanonicalProjectFilesForOps } from "../../../lib/getMaterializedProjectFiles";
 
 export function useDiagnosticRunController(params: DiagnosticRunControllerParams) {
   const {
@@ -150,7 +151,7 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
       if (resetSelection) clearSelection();
       if (resetHistory) clearHistoryRef.current?.();
       setProgressStage("Checks starten…");
-      const runFilesSnapshot = (projectRef.current.files ?? []).map((file) => ({
+      const runFilesSnapshot = getCanonicalProjectFilesForOps(projectRef.current).map((file) => ({
         ...file,
         path: String(file?.path ?? ""),
         content: String(file?.content ?? ""),

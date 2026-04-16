@@ -13,6 +13,7 @@ import {
   normalizeVerificationContract,
   type VerificationContractState,
 } from "../../../lib/status/verificationContract";
+import type { ProjectFile } from "../../../shared/types/project";
 
 type BuildReadinessStateDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
@@ -48,9 +49,10 @@ export function describeReadinessContract(params: {
 export async function readBuildReadinessState(params: {
   repoFullName: string;
   branchName: string;
+  projectFiles?: ProjectFile[];
   deps?: BuildReadinessStateDeps;
 }): Promise<BuildReadinessState> {
-  const { repoFullName, branchName, deps } = params;
+  const { repoFullName, branchName, projectFiles, deps } = params;
   const asyncStorageGetItem =
     (AsyncStorage as { getItem?: ((key: string) => Promise<string | null>) | undefined }).getItem ??
     (
@@ -82,6 +84,7 @@ export async function readBuildReadinessState(params: {
     linkedRepo: repoFullName,
     linkedBranch: branchName,
   });
+  const useStructuredDiagnosticRecordOnly = Array.isArray(projectFiles);
   const readErrorKeys = new Set<string>();
   const trackedStorageGetItem = async (key: string): Promise<string | null> => {
     try {
@@ -96,6 +99,7 @@ export async function readBuildReadinessState(params: {
     readDiagnosticReadinessRecord({
       linkedRepo: repoFullName,
       linkedBranch: branchName,
+      projectFiles,
       storageGetItem: trackedStorageGetItem,
     }).catch((error: unknown) => {
       logger.warn("[EnhancedBuild] structured diagnostic record read failed", {
@@ -105,10 +109,12 @@ export async function readBuildReadinessState(params: {
       });
       return null;
     }),
-    trackedStorageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
-      logger.warn("[EnhancedBuild] diagnostic storage read failed", { key: scopedDiagnosticKey, error });
-      return null;
-    }),
+    useStructuredDiagnosticRecordOnly
+      ? Promise.resolve(null)
+      : trackedStorageGetItem(scopedDiagnosticKey).catch((error: unknown) => {
+          logger.warn("[EnhancedBuild] diagnostic storage read failed", { key: scopedDiagnosticKey, error });
+          return null;
+        }),
     readPersistedCiLiteSelection({
       repoFullName,
       branchName,
@@ -120,9 +126,11 @@ export async function readBuildReadinessState(params: {
     }),
   ]);
 
-  const diagVal = diagRecord
-    ? (diagRecord.diagnosticOk && diagRecord.includePipelineChecks ? "true" : "false")
-    : diagScopedVal;
+  const diagVal = useStructuredDiagnosticRecordOnly
+    ? (diagRecord && diagRecord.diagnosticOk && diagRecord.includePipelineChecks ? "true" : "false")
+    : diagRecord
+      ? (diagRecord.diagnosticOk && diagRecord.includePipelineChecks ? "true" : "false")
+      : diagScopedVal;
   const diagnosticContract = normalizeVerificationContract({
     explicitState: diagVal === "true" ? "verified" : "unknown",
   });
@@ -131,8 +139,9 @@ export async function readBuildReadinessState(params: {
       ? (persistedCiLite.stale ? "stale" : "unknown")
       : "verified",
   });
-  const diagReadFailed =
-    readErrorKeys.has(scopedDiagnosticKey) || readErrorKeys.has(scopedDiagnosticRecordKey);
+  const diagReadFailed = useStructuredDiagnosticRecordOnly
+    ? readErrorKeys.has(scopedDiagnosticRecordKey)
+    : readErrorKeys.has(scopedDiagnosticKey) || readErrorKeys.has(scopedDiagnosticRecordKey);
   const ciLiteReadFailed = Array.from(readErrorKeys).some((key) => key === scopedCiLiteSnapshotKey || key.startsWith("ci_lite_"));
   const diagnosticReason = diagnosticContract.isVerified
     ? null
@@ -140,6 +149,8 @@ export async function readBuildReadinessState(params: {
       ? "Diagnose ohne Pipeline-Checks – bitte mit Pipeline-Checks erneut ausführen."
       : diagReadFailed
         ? "Diagnostik-Readiness konnte nicht gelesen werden (Storage-/Read-Fehler)"
+      : useStructuredDiagnosticRecordOnly
+        ? "Diagnose ist nicht mehr fuer den aktuellen Projektstand bestaetigt (Record fehlt/ungueltig/veraltet)."
       : describeReadinessContract({
           area: "diagnostic",
           state: diagnosticContract.state,

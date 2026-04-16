@@ -7,7 +7,7 @@ import { readBuildReadinessState } from "./buildReadinessState";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 import { readSigningKeyGateState } from "./signingKeyGate";
 import { getRepoSyncState, type RepoSyncState } from "../../../lib/repoSyncOrchestration";
-import { getMaterializedProjectFiles, getSourceProjectFiles } from "../../../lib/getMaterializedProjectFiles";
+import { getCanonicalProjectFilesForOps } from "../../../lib/getMaterializedProjectFiles";
 import { ensureSupabaseClient } from "../../../lib/supabase";
 import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../../lib/auth/operatorJwt";
 
@@ -127,9 +127,8 @@ export function useBuildPreconditions(
       }
     };
 
-    const sourceFiles = getSourceProjectFiles(projectData);
-    const files = getMaterializedProjectFiles(projectData);
-    const hasFiles = sourceFiles.length > 0;
+    const canonicalFiles = getCanonicalProjectFilesForOps(projectData);
+    const hasFiles = canonicalFiles.length > 0;
     const filesReason = hasFiles
       ? null
       : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
@@ -190,6 +189,7 @@ export function useBuildPreconditions(
       const readiness = await readBuildReadinessState({
         repoFullName,
         branchName,
+        projectFiles: canonicalFiles,
       });
       applyIfCurrent(() => {
         setHasDiagOk(readiness.hasDiagOk);
@@ -223,7 +223,7 @@ export function useBuildPreconditions(
         syncState = await getRepoSyncState({
           linkedRepo: repoFullName,
           linkedBranch: branchName,
-          files,
+          files: canonicalFiles,
         });
       } catch (error: unknown) {
         console.warn("[useBuildPreconditions] repo sync precheck read failed", error);

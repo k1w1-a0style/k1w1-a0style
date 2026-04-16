@@ -127,6 +127,29 @@ describe("useBuildPreconditions selection truthfulness", () => {
     });
   });
 
+  it("passes canonical project files into readiness read for stale verification invalidation", async () => {
+    const { result } = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-canonical",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.hasDiagOk).toBe(true);
+    });
+
+    expect(readBuildReadinessStateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoFullName: "owner/repo",
+        branchName: "main",
+        projectFiles: expect.arrayContaining([
+          expect.objectContaining({ path: "App.tsx", content: "export default 1;" }),
+        ]),
+      }),
+    );
+  });
+
   it("keeps operator jwt cases separated: missing vs unreadable vs unauthorized", async () => {
     ensureSupabaseClientMock.mockResolvedValue({
       auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },

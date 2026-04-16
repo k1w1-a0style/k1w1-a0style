@@ -48,12 +48,21 @@ describe("fixRunnerGitHubAdapter", () => {
     expect(applyRepoFilePatchAtomic).toHaveBeenCalledWith(
       "owner",
       "repo",
-      {
-        upsert: [{ path: "app.json", content: "{}" }],
+      expect.objectContaining({
+        upsert: expect.arrayContaining([
+          expect.objectContaining({
+            path: "app.json",
+          }),
+        ]),
         delete: ["package.json"],
-      },
+      }),
       { branch: "main", message: "Diagnostics: Sync" },
     );
+    const callPayload = applyRepoFilePatchAtomic.mock.calls[0]?.[2] as {
+      upsert?: Array<{ path: string; content: string }>;
+    };
+    const appJsonEntry = callPayload.upsert?.find((entry) => entry.path === "app.json");
+    expect(String(appJsonEntry?.content ?? "")).toMatch(/"expo"/);
     expect(markRepoSyncSignature).toHaveBeenCalled();
   });
 

@@ -1,4 +1,5 @@
 import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
+import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
 
 jest.mock("libsodium-wrappers-sumo", () => ({}), { virtual: true });
 
@@ -262,5 +263,99 @@ describe("readBuildReadinessState", () => {
     expect(result.hasCiLiteOk).toBe(false);
     expect(String(result.diagnosticReason || "")).toMatch(/nicht gelesen werden/i);
     expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
+  });
+
+  it("invalidates a previously green diagnostic record when canonical files drift", async () => {
+    const projectFilesAtRun = [{ path: "App.tsx", content: "export default 1;" }];
+    const currentProjectFiles = [{ path: "App.tsx", content: "export default 2;" }];
+    const storageMap: Record<string, string> = {
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 2,
+        repo: "owner/repo",
+        branch: "main",
+        projectFingerprint: computeDiagnosticProjectFingerprint(projectFilesAtRun),
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date().toISOString(),
+      }),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      projectFiles: currentProjectFiles,
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
+  });
+
+  it("does not allow scoped diagnostic_last_ok=true to override a fingerprint-mismatched record when projectFiles are provided", async () => {
+    const projectFilesAtRun = [{ path: "App.tsx", content: "export default 1;" }];
+    const currentProjectFiles = [{ path: "App.tsx", content: "export default 2;" }];
+    const storageMap: Record<string, string> = {
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 2,
+        repo: "owner/repo",
+        branch: "main",
+        projectFingerprint: computeDiagnosticProjectFingerprint(projectFilesAtRun),
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date().toISOString(),
+      }),
+      "diagnostic_last_ok::owner%2Frepo::main": "true",
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      projectFiles: currentProjectFiles,
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
+    expect(String(result.diagnosticReason || "")).toMatch(/aktuellen Projektstand|veraltet|ungueltig/i);
+  });
+
+  it("does not allow scoped diagnostic_last_ok=true to turn green when structured record is missing and projectFiles are provided", async () => {
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      projectFiles: [{ path: "App.tsx", content: "export default 1;" }],
+      deps: {
+        storageGetItem: async (key: string) =>
+          key === "diagnostic_last_ok::owner%2Frepo::main" ? "true" : null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
+    expect(String(result.diagnosticReason || "")).toMatch(/aktuellen Projektstand|Record fehlt/i);
+  });
+
+  it("keeps legacy scoped-bool fallback behavior when projectFiles are not provided", async () => {
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      deps: {
+        storageGetItem: async (key: string) =>
+          key === "diagnostic_last_ok::owner%2Frepo::main" ? "true" : null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(true);
+    expect(result.diagnosticState).toBe("verified");
   });
 });
