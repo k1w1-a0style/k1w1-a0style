@@ -188,12 +188,17 @@ const val = await AsyncStorage.getItem(credKey).catch(() => null);
 if (isMountedRef.current) setHasSigningKey(val === "true");
 ```
 
-### E5 — Diagnostics als Blockerquelle
+### E5 — Diagnostics als Blockerquelle (selection-scoped, kein Legacy-Global-Fallback)
 **Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`  
 **Symbol:** `refreshPreconditions`
 ```ts
-const diagVal = await AsyncStorage.getItem(STORAGE_KEYS.DIAGNOSTIC_LAST_OK).catch(() => null);
-if (isMountedRef.current) setHasDiagOk(diagVal === "true");
+const diagContract = await evaluateDiagnosticReadiness({
+  repoFullName: normalizedRepo,
+  branchName: normalizedBranch,
+});
+if (isMountedRef.current) {
+  setHasDiagOk(diagContract.isVerified);
+}
 ```
 
 ### E5b — Leeres Projekt blockiert jetzt schon die sichtbare Readiness
