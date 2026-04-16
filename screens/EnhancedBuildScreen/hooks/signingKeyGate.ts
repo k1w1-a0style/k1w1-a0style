@@ -28,6 +28,7 @@ export type SigningKeyGateState = {
   localEdgeAdminKeyPresent: boolean;
   credentialState: VerificationContractState | null;
   credentialDetail: string | null;
+  freshness: "fresh_valid" | "stale" | "unknown" | "blocked";
 };
 
 export type ReadSigningKeyGateStateParams = {
@@ -69,6 +70,7 @@ export function describeSigningKeyGateReason(params: {
   localEdgeAdminKeyPresent: boolean;
   credentialState: VerificationContractState | null;
   credentialDetail: string | null;
+  freshness: SigningKeyGateState["freshness"];
   buildProfile: BuildProfile;
 }): string | null {
   if (params.hasSigningKey) return null;
@@ -86,6 +88,14 @@ export function describeSigningKeyGateReason(params: {
 
   if (params.credentialState === "missing") {
     return `Signing Key fuer ${params.buildProfile} fehlt laut letztem Wizard-Check.`;
+  }
+
+  if (params.freshness === "stale") {
+    return `Signing Key fuer ${params.buildProfile} ist nur stale verifiziert – bitte im Credentials Wizard erneut pruefen.`;
+  }
+
+  if (params.freshness === "unknown") {
+    return `Signing Key fuer ${params.buildProfile} ist unklar – bitte im Credentials Wizard pruefen, bevor der Build startet.`;
   }
 
   return `Signing Key fuer ${params.buildProfile} fehlt oder ist noch nicht frisch verifiziert – bitte im Credentials Wizard pruefen oder erzeugen.`;
@@ -159,7 +169,7 @@ export async function readSigningKeyGateState(
     }),
   ]);
 
-  const hasSigningKey = existsRaw === "true";
+  const exists = existsRaw === "true";
   const credentialState =
     stateRaw === "verified" ||
     stateRaw === "missing" ||
@@ -170,6 +180,22 @@ export async function readSigningKeyGateState(
       : null;
   const credentialDetail = detailRaw?.trim() || null;
   const localEdgeAdminKeyPresent = Boolean(edgeAdminKey?.trim());
+  const freshness: SigningKeyGateState["freshness"] = !localEdgeAdminKeyPresent
+    ? "blocked"
+    : !exists
+      ? credentialState === "stale"
+        ? "stale"
+        : credentialState === "unknown" || credentialState === null
+          ? "unknown"
+          : "blocked"
+      : credentialState === "verified"
+        ? "fresh_valid"
+        : credentialState === "stale"
+          ? "stale"
+          : credentialState === "unknown" || credentialState === null
+            ? "unknown"
+            : "blocked";
+  const hasSigningKey = freshness === "fresh_valid";
 
   return {
     hasSigningKey,
@@ -178,10 +204,12 @@ export async function readSigningKeyGateState(
       localEdgeAdminKeyPresent,
       credentialState,
       credentialDetail,
+      freshness,
       buildProfile: params.buildProfile,
     }),
     localEdgeAdminKeyPresent,
     credentialState,
     credentialDetail,
+    freshness,
   };
 }

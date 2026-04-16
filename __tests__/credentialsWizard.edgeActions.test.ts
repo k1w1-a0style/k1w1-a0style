@@ -88,4 +88,49 @@ describe("credentials wizard edge actions", () => {
       expect.objectContaining({ credentialState: "generated_pending_verification" }),
     );
   });
+
+  it("persists status only after updater returns (no async side effect inside state updater)", async () => {
+    (invokeEdgeJson as jest.Mock).mockResolvedValue({
+      ok: false,
+      error: new Error("forbidden"),
+      debug: { status: 403, bodyText: "forbidden" },
+    });
+
+    let updaterRunning = false;
+    const persistCallsDuringUpdater: number[] = [];
+    const setStatusByModeGuarded = jest.fn(
+      (
+        updater: (
+          prev: Record<UiModeId, StatusResult | null>,
+        ) => Record<UiModeId, StatusResult | null>,
+      ) => {
+        updaterRunning = true;
+        try {
+          return updater({ dev: null, preview: null, production: null });
+        } finally {
+          updaterRunning = false;
+        }
+      },
+    );
+    const persistWizardStatusGuarded = jest.fn(async () => {
+      if (updaterRunning) persistCallsDuringUpdater.push(Date.now());
+    });
+
+    await runStatusRefreshAction({
+      mode: "dev",
+      userJwt: "jwt",
+      supabaseUrl: "https://example.supabase.co",
+      adminKey: "admin-key",
+      repoFullName: "owner/repo",
+      isMounted: () => true,
+      setStatusByMode: setStatusByModeGuarded,
+      safeSetLastError,
+      safeSetLastDebug,
+      persistWizardStatus: persistWizardStatusGuarded,
+    });
+
+    expect(setStatusByModeGuarded).toHaveBeenCalled();
+    expect(persistWizardStatusGuarded).toHaveBeenCalled();
+    expect(persistCallsDuringUpdater).toEqual([]);
+  });
 });

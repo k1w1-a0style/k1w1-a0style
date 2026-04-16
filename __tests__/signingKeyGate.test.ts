@@ -65,4 +65,26 @@ describe("signing key gate", () => {
     expect(result.credentialDetail).toBeNull();
   });
 
+  it("treats stale cached signing status as non-fresh and blocks the gate fail-closed", async () => {
+    const values = new Map<string, string | null>([
+      ["cred_key_exists_preview::project%3Aproject-3", "true"],
+      ["cred_key_exists_preview_state::project%3Aproject-3", "stale"],
+      ["cred_key_exists_preview_detail::project%3Aproject-3", "status stale"],
+    ]);
+
+    const result = await readSigningKeyGateState({
+      buildProfile: "preview",
+      repoFullName: "owner/repo",
+      projectData: { id: "project-3" },
+      deps: {
+        storageGetItem: async (key: string) => values.get(key) ?? null,
+        getAndroidKeystoreExportAdminKey: async () => "keystore-admin-key-12345678901234567890",
+      },
+    });
+
+    expect(result.hasSigningKey).toBe(false);
+    expect(result.freshness).toBe("stale");
+    expect(result.reason).toBe("status stale");
+  });
+
 });

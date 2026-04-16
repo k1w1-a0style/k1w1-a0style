@@ -239,6 +239,16 @@ describe("useConnectionsScreenHelpers", () => {
         supabaseUrl: " https://abc.supabase.co ",
         supabaseAnonKey: " anon ",
         easProjectId: " 550e8400-e29b-41d4-a716-446655440000 ",
+        previous: {
+          githubToken: "gh",
+          expoToken: "ex",
+          workflowAdminKey: "wa",
+          androidKeystoreExportAdminKey: "ka",
+          supabaseRaw: "https://abc.supabase.co:::legacy",
+          supabaseUrl: "https://abc.supabase.co",
+          supabaseAnonKey: "anon",
+          easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+        },
       }),
     ).toEqual({
       githubToken: "gh",
@@ -249,6 +259,8 @@ describe("useConnectionsScreenHelpers", () => {
       supabaseUrl: "https://abc.supabase.co",
       supabaseAnonKey: "anon",
       easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+      shouldClearGitHubConnection: false,
+      shouldClearExpoConnection: false,
       shouldClearSupabaseConnection: false,
       shouldClearEasConnection: false,
     });
@@ -273,9 +285,43 @@ describe("useConnectionsScreenHelpers", () => {
       supabaseUrl: "",
       supabaseAnonKey: "",
       easProjectId: "",
+      shouldClearGitHubConnection: false,
+      shouldClearExpoConnection: false,
       shouldClearSupabaseConnection: true,
       shouldClearEasConnection: true,
     });
+  });
+
+  it("keeps status lights unchanged when credentials remain identical", () => {
+    expect(
+      resolveConnectionsSavePlan({
+        githubToken: "gh",
+        expoToken: "ex",
+        workflowAdminKey: "wa",
+        androidKeystoreExportAdminKey: "ka",
+        supabaseRaw: "https://abc.supabase.co",
+        supabaseUrl: "https://abc.supabase.co",
+        supabaseAnonKey: "anon",
+        easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+        previous: {
+          githubToken: "gh",
+          expoToken: "ex",
+          workflowAdminKey: "wa",
+          androidKeystoreExportAdminKey: "ka",
+          supabaseRaw: "https://abc.supabase.co",
+          supabaseUrl: "https://abc.supabase.co",
+          supabaseAnonKey: "anon",
+          easProjectId: "550e8400-e29b-41d4-a716-446655440000",
+        },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        shouldClearGitHubConnection: false,
+        shouldClearExpoConnection: false,
+        shouldClearSupabaseConnection: false,
+        shouldClearEasConnection: false,
+      }),
+    );
   });
 
   it("resolves shared EAS workflow selection precheck deterministically", () => {
