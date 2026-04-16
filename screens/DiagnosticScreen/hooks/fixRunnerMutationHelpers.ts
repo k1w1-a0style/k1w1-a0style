@@ -90,9 +90,14 @@ export const buildPatchApplyState = async (params: {
 
 export const applyUndoHistoryEntry = async (params: {
   entry: FixHistoryEntry;
-  deleteFile: (path: string) => Promise<void>;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
+  currentFiles: ProjectFile[];
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
 }) => {
-  for (const p of params.entry.createdPaths ?? []) await params.deleteFile(p);
-  if (params.entry.snapshot.length) await params.updateProjectFiles(params.entry.snapshot);
+  const current = new Map(params.currentFiles.map((file) => [file.path, file.content] as const));
+  for (const path of params.entry.createdPaths ?? []) current.delete(path);
+  for (const file of params.entry.snapshot) current.set(file.path, file.content);
+
+  const nextFiles = Array.from(current.entries()).map(([path, content]) => ({ path, content }));
+  await params.replaceProjectFiles(nextFiles);
+  return nextFiles;
 };

@@ -125,8 +125,7 @@ describe("useDiagnosticScreen scope invalidation", () => {
           projectData: { name: "P", files: [], preferredBuildProfile: "preview" } as never,
           linkedRepo: props.linkedRepo,
           linkedBranch: props.linkedBranch,
-          updateProjectFiles: jest.fn(async () => undefined),
-          deleteFile: jest.fn(async () => undefined),
+          replaceProjectFiles: jest.fn(async () => undefined),
         }),
       {
         initialProps: { linkedRepo: "owner/repo-a", linkedBranch: "main" },

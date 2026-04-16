@@ -11,8 +11,7 @@ export type UseDiagnosticScreenOptions = {
   linkedRepo: string;
   linkedBranch?: string;
   setPreferredBuildProfile?: (mode: BuildMode) => void;
-  updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
 };
 
 export type RunDiagnostics = (opts?: { resetSelection?: boolean; resetHistory?: boolean }) => Promise<void>;

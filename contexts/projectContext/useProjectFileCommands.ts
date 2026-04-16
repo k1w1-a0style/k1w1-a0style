@@ -21,23 +21,28 @@ const fileCommandResult = (
 });
 
 export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInput) {
+  const sanitizeFiles = useCallback((files: ProjectFile[]): ProjectFile[] => {
+    const sanitized: ProjectFile[] = [];
+    for (const candidate of files) {
+      const pathValidation = validateFilePath(candidate.path);
+      if (!pathValidation.valid) {
+        throw new Error(`Ungültiger Dateipfad (${candidate.path}): ${pathValidation.errors.join(", ")}`);
+      }
+      const normalizedPath = pathValidation.normalized || candidate.path;
+      const contentValidation = validateFileContent(candidate.content);
+      if (!contentValidation.valid) {
+        throw new Error(
+          `Ungültiger Dateiinhalt (${normalizedPath}): ${contentValidation.error || "Datei ist zu groß"}`,
+        );
+      }
+      sanitized.push({ path: normalizedPath, content: candidate.content });
+    }
+    return sanitized;
+  }, []);
+
   const updateProjectFiles = useCallback(
     async (files: ProjectFile[], newName?: string) => {
-      const sanitizedUpdates: ProjectFile[] = [];
-      for (const candidate of files) {
-        const pathValidation = validateFilePath(candidate.path);
-        if (!pathValidation.valid) {
-          throw new Error(`Ungültiger Dateipfad (${candidate.path}): ${pathValidation.errors.join(", ")}`);
-        }
-        const normalizedPath = pathValidation.normalized || candidate.path;
-        const contentValidation = validateFileContent(candidate.content);
-        if (!contentValidation.valid) {
-          throw new Error(
-            `Ungültiger Dateiinhalt (${normalizedPath}): ${contentValidation.error || "Datei ist zu groß"}`,
-          );
-        }
-        sanitizedUpdates.push({ path: normalizedPath, content: candidate.content });
-      }
+      const sanitizedUpdates = sanitizeFiles(files);
 
       await updateProject((prev) => {
         const mergedFiles = mergeProjectFiles(prev.files, sanitizedUpdates);
@@ -47,7 +52,19 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
         return applyProjectFileUpdates(prev, sanitizedUpdates, newName);
       });
     },
-    [updateProject],
+    [sanitizeFiles, updateProject],
+  );
+
+  const replaceProjectFiles = useCallback(
+    async (files: ProjectFile[]) => {
+      const sanitizedFiles = sanitizeFiles(files);
+      await updateProject((prev) => ({
+        ...prev,
+        files: sanitizedFiles,
+      }));
+      logger.info(`🧱 Dateien atomar ersetzt: ${sanitizedFiles.length} gesamt`);
+    },
+    [sanitizeFiles, updateProject],
   );
 
   const createFile = useCallback(
@@ -268,6 +285,7 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
 
   return {
     updateProjectFiles,
+    replaceProjectFiles,
     createFile,
     deleteFile,
     deleteFiles,

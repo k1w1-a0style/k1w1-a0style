@@ -28,8 +28,7 @@ export function useDiagnosticFixRunner(opts: UseDiagnosticFixRunnerOptions) {
       mountedRef: opts.mountedRef,
       linkedRepo: opts.linkedRepo,
       linkedBranch: opts.linkedBranch,
-      updateProjectFiles: opts.updateProjectFiles,
-      deleteFile: opts.deleteFile,
+      replaceProjectFiles: opts.replaceProjectFiles,
       syncFixesToGitHub: opts.syncFixesToGitHub,
     },
     state: {

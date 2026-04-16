@@ -24,7 +24,7 @@ function createHarness<T>(useHook: () => T) {
 }
 
 function renderRunner(params?: {
-  updateProjectFiles?: jest.Mock;
+  replaceProjectFiles?: jest.Mock;
   runDiagnostics?: jest.Mock;
   rerunAfterFix?: boolean;
   fixableResults?: ReturnType<typeof makePreflightResult>[];
@@ -32,7 +32,7 @@ function renderRunner(params?: {
   sortedResults?: ReturnType<typeof makePreflightResult>[];
   selected?: Record<string, boolean>;
 }) {
-  const updateProjectFiles = params?.updateProjectFiles ?? jest.fn(async () => undefined);
+  const replaceProjectFiles = params?.replaceProjectFiles ?? jest.fn(async () => undefined);
   const runDiagnostics = params?.runDiagnostics ?? jest.fn(async () => undefined);
   const toast = { show: jest.fn() };
   const projectRef = makeProjectRef({
@@ -47,8 +47,7 @@ function renderRunner(params?: {
       mountedRef: createMountedRef(),
       linkedRepo: "owner/repo",
       linkedBranch: "main",
-      updateProjectFiles,
-      deleteFile: jest.fn(async () => undefined),
+      replaceProjectFiles,
       syncFixesToGitHub: false,
       rerunAfterFix: params?.rerunAfterFix ?? false,
       autoFixIncludeWarn: false,
@@ -63,7 +62,7 @@ function renderRunner(params?: {
     }),
   );
 
-  return { getApi, updateProjectFiles, runDiagnostics, toast: toast.show };
+  return { getApi, replaceProjectFiles, runDiagnostics, toast: toast.show };
 }
 
 describe("useDiagnosticFixRunner integration flows", () => {
@@ -72,7 +71,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
   });
 
   test("applyFixList dedupes identical patches before apply", async () => {
-    const { getApi, updateProjectFiles } = renderRunner();
+    const { getApi, replaceProjectFiles } = renderRunner();
     const patch = makePreflightPatch({
       upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"demo-2\"}}" }],
     });
@@ -83,7 +82,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       await getApi().applyFixList([a, b], "Batch");
     });
 
-    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
+    expect(replaceProjectFiles).toHaveBeenCalledTimes(1);
   });
 
   test("applyFixList surfaces pending_recheck when rerun fails", async () => {
@@ -113,13 +112,13 @@ describe("useDiagnosticFixRunner integration flows", () => {
       status: "fail",
       fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"x\"}}" }] }) },
     });
-    const { getApi, updateProjectFiles } = renderRunner({ fixableResults: [fixable] });
+    const { getApi, replaceProjectFiles } = renderRunner({ fixableResults: [fixable] });
 
     await act(async () => {
       await getApi().autoFix();
     });
 
-    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(replaceProjectFiles).not.toHaveBeenCalled();
   });
 
   test("autoFix confirm applies patch", async () => {
@@ -131,13 +130,13 @@ describe("useDiagnosticFixRunner integration flows", () => {
       status: "fail",
       fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"y\"}}" }] }) },
     });
-    const { getApi, updateProjectFiles } = renderRunner({ fixableResults: [fixable] });
+    const { getApi, replaceProjectFiles } = renderRunner({ fixableResults: [fixable] });
 
     await act(async () => {
       await getApi().autoFix();
     });
 
-    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
+    expect(replaceProjectFiles).toHaveBeenCalledTimes(1);
   });
 
   test("applySelected limit prompt cancel does not apply", async () => {
@@ -155,7 +154,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       }),
     );
     const selected = Object.fromEntries(many.map((r) => [r.id, true]));
-    const { getApi, updateProjectFiles } = renderRunner({
+    const { getApi, replaceProjectFiles } = renderRunner({
       sortedResults: many,
       selected,
     });
@@ -164,7 +163,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       await getApi().applySelected();
     });
 
-    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(replaceProjectFiles).not.toHaveBeenCalled();
   });
 
   test("applySelected limit prompt confirm applies selected fixes", async () => {
@@ -180,7 +179,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       }),
     );
     const selected = Object.fromEntries(many.map((r) => [r.id, true]));
-    const { getApi, updateProjectFiles } = renderRunner({
+    const { getApi, replaceProjectFiles } = renderRunner({
       sortedResults: many,
       selected,
     });
@@ -189,7 +188,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       await getApi().applySelected();
     });
 
-    expect(updateProjectFiles).toHaveBeenCalled();
+    expect(replaceProjectFiles).toHaveBeenCalled();
   });
 
   test("applySelected with empty selection shows hint and does not apply", async () => {
@@ -199,7 +198,7 @@ describe("useDiagnosticFixRunner integration flows", () => {
       status: "fail",
       fix: { patch: makePreflightPatch({ upsert: [{ path: "app.json", content: "{\"expo\":{\"name\":\"z\"}}" }] }) },
     });
-    const { getApi, updateProjectFiles } = renderRunner({
+    const { getApi, replaceProjectFiles } = renderRunner({
       sortedResults: [result],
       selected: {},
     });
@@ -209,6 +208,6 @@ describe("useDiagnosticFixRunner integration flows", () => {
     });
 
     expect(alertSpy).toHaveBeenCalledWith("Nichts ausgewählt", "Bitte wähle Fixes aus.");
-    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(replaceProjectFiles).not.toHaveBeenCalled();
   });
 });

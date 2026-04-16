@@ -10,8 +10,7 @@ export function useDiagnosticActions(params: {
   mountedRef: MutableRefObject<boolean>;
   linkedRepo: string;
   linkedBranch?: string;
-  updateProjectFiles: (files: import("../../../shared/types/project").ProjectFile[], newName?: string) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
+  replaceProjectFiles: (files: import("../../../shared/types/project").ProjectFile[]) => Promise<void>;
   syncFixesToGitHub: boolean;
   rerunAfterFix: boolean;
   autoFixIncludeWarn: boolean;
@@ -34,8 +33,7 @@ export function useDiagnosticActions(params: {
     mountedRef,
     linkedRepo,
     linkedBranch,
-    updateProjectFiles,
-    deleteFile,
+    replaceProjectFiles,
     syncFixesToGitHub,
     rerunAfterFix,
     autoFixIncludeWarn,
@@ -59,8 +57,7 @@ export function useDiagnosticActions(params: {
     mountedRef,
     linkedRepo,
     linkedBranch,
-    updateProjectFiles,
-    deleteFile,
+    replaceProjectFiles,
     syncFixesToGitHub,
     rerunAfterFix,
     autoFixIncludeWarn,

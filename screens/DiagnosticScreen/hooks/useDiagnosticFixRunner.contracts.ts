@@ -11,8 +11,7 @@ export interface UseDiagnosticFixRunnerOptions {
   mountedRef: MutableRefObject<boolean>;
   linkedRepo: string;
   linkedBranch?: string;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
-  deleteFile: (path: string) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
   syncFixesToGitHub: boolean;
   rerunAfterFix: boolean;
   autoFixIncludeWarn: boolean;

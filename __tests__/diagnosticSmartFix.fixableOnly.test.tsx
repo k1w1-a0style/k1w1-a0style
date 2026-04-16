@@ -19,7 +19,7 @@ function createHarness<T>(useHook: () => T) {
 
 describe("useDiagnosticFixRunner smartFix", () => {
   test("applies only fixable fail issues", async () => {
-    const updateProjectFiles = jest.fn(async () => undefined);
+    const replaceProjectFiles = jest.fn(async () => undefined);
     const projectRef = makeProjectRef({
       id: "p1",
       name: "demo",
@@ -45,8 +45,7 @@ describe("useDiagnosticFixRunner smartFix", () => {
         mountedRef: createMountedRef(),
         linkedRepo: "",
         linkedBranch: "main",
-        updateProjectFiles,
-        deleteFile: jest.fn(async () => undefined),
+        replaceProjectFiles,
         syncFixesToGitHub: false,
         rerunAfterFix: false,
         autoFixIncludeWarn: false,
@@ -64,12 +63,12 @@ describe("useDiagnosticFixRunner smartFix", () => {
       await getApi().smartFix();
     });
 
-    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
+    expect(replaceProjectFiles).toHaveBeenCalledTimes(1);
   });
 
 
   test("does not auto-apply warn-only fixes in smartFix", async () => {
-    const updateProjectFiles = jest.fn(async () => undefined);
+    const replaceProjectFiles = jest.fn(async () => undefined);
     const projectRef = makeProjectRef({
       id: "p1",
       name: "demo",
@@ -93,8 +92,7 @@ describe("useDiagnosticFixRunner smartFix", () => {
         mountedRef: createMountedRef(),
         linkedRepo: "",
         linkedBranch: "main",
-        updateProjectFiles,
-        deleteFile: jest.fn(async () => undefined),
+        replaceProjectFiles,
         syncFixesToGitHub: false,
         rerunAfterFix: false,
         autoFixIncludeWarn: true,
@@ -112,7 +110,7 @@ describe("useDiagnosticFixRunner smartFix", () => {
       await getApi().smartFix();
     });
 
-    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(replaceProjectFiles).not.toHaveBeenCalled();
     expect(alertSpy).toHaveBeenCalled();
     alertSpy.mockRestore();
   });
