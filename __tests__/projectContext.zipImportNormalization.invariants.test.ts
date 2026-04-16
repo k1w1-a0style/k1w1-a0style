@@ -8,9 +8,10 @@ describe("ZIP import normalization invariants", () => {
   const helperSource = fs.readFileSync(helperFile, "utf8");
 
   it("routes ZIP imports through normalizeLoadedProjectData before persisting", () => {
-    expect(contextSource).toContain("const normalizedProject = normalizeLoadedProjectData(result.project);");
+    expect(contextSource).toContain("const imported = await importNormalizedProjectData(result.project);");
     expect(contextSource).toContain("setProjectData(normalizedProject);");
     expect(contextSource).toContain("await saveProjectToStorage(normalizedProject);");
+    expect(helperSource).toContain("files: getMaterializedProjectFiles(project),");
   });
 
   it("normalizes missing slugs when loading persisted or imported projects", () => {

@@ -1,5 +1,6 @@
 import type { CoreTemplateId, PreferredPreviewMode, ProjectData, ProjectFile, TemplateId } from "../shared/types/project";
 import { normalizePath } from "../lib/validators";
+import { getMaterializedProjectFiles } from "../lib/getMaterializedProjectFiles";
 
 const DEFAULT_PROJECT_NAME = "Neues Projekt";
 const DEFAULT_PROJECT_SLUG = "neues-projekt";
@@ -30,7 +31,7 @@ type BuildProjectForCreationParams = {
 export const normalizeLoadedProjectData = (project: ProjectData): ProjectData => ({
   ...project,
   slug: normalizeProjectSlug(project.slug ?? project.name),
-  files: project.files ?? [],
+  files: getMaterializedProjectFiles(project),
   chatHistory: project.chatHistory ?? [],
   preferredPreviewMode: project.preferredPreviewMode ?? DEFAULT_PREVIEW_MODE,
 });
