@@ -28,6 +28,7 @@ export function useDiagnosticScreen(opts: UseDiagnosticScreenOptions) {
     linkedBranch,
     setPreferredBuildProfile,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile,
   } = opts;
 
@@ -138,6 +139,7 @@ export function useDiagnosticScreen(opts: UseDiagnosticScreenOptions) {
     linkedRepo,
     linkedBranch,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile,
     syncFixesToGitHub,
     rerunAfterFix,

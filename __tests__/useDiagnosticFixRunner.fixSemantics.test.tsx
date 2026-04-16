@@ -37,6 +37,7 @@ function baseProjectRef() {
 
 function renderRunner(params?: {
   updateProjectFiles?: jest.Mock;
+  replaceProjectFiles?: jest.Mock;
   deleteFile?: jest.Mock;
   rerunAfterFix?: boolean;
   linkedRepo?: string;
@@ -44,6 +45,7 @@ function renderRunner(params?: {
   toast?: { show: jest.Mock };
 }) {
   const updateProjectFiles = params?.updateProjectFiles ?? jest.fn(async () => undefined);
+  const replaceProjectFiles = params?.replaceProjectFiles ?? updateProjectFiles;
   const deleteFile = params?.deleteFile ?? jest.fn(async () => undefined);
   const toast = params?.toast ?? { show: jest.fn() };
   const projectRef = baseProjectRef();
@@ -55,6 +57,7 @@ function renderRunner(params?: {
       linkedRepo: params?.linkedRepo ?? "owner/repo",
       linkedBranch: params?.linkedBranch ?? "main",
       updateProjectFiles,
+      replaceProjectFiles,
       deleteFile,
       syncFixesToGitHub: false,
       rerunAfterFix: params?.rerunAfterFix ?? false,
@@ -70,7 +73,7 @@ function renderRunner(params?: {
     }),
   );
 
-  return { getApi, updateProjectFiles, deleteFile, toast: toast.show, projectRef };
+  return { getApi, updateProjectFiles, replaceProjectFiles, deleteFile, toast: toast.show, projectRef };
 }
 
 describe("useDiagnosticFixRunner fix semantics", () => {
@@ -199,7 +202,7 @@ describe("useDiagnosticFixRunner fix semantics", () => {
   });
 
   test("keeps real local patch success semantics for applied fixes", async () => {
-    const { getApi, updateProjectFiles, toast, projectRef } = renderRunner();
+    const { getApi, replaceProjectFiles, toast, projectRef } = renderRunner();
     const result: PreflightCheckResult = makePreflightResult({
       id: "local-success",
       title: "Local patch",
@@ -214,7 +217,7 @@ describe("useDiagnosticFixRunner fix semantics", () => {
       await getApi().applyIssueFix(result);
     });
 
-    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
+    expect(replaceProjectFiles).toHaveBeenCalledTimes(1);
     expect(projectRef.current?.files[0]?.content).toContain("patched");
     expect(toast).toHaveBeenCalledWith("Patch lokal angewendet.");
   });

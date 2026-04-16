@@ -40,6 +40,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
     | "linkedRepo"
     | "linkedBranch"
     | "updateProjectFiles"
+    | "replaceProjectFiles"
     | "deleteFile"
     | "syncFixesToGitHub"
   >;
@@ -61,6 +62,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
     linkedRepo,
     linkedBranch,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile,
     syncFixesToGitHub,
   } = opts;
@@ -110,7 +112,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
           patch,
           projectRef,
           deleteFile,
-          updateProjectFiles,
+          replaceProjectFiles,
         });
 
         projectRef.current = { ...projectRef.current, files: result.nextFiles };
@@ -126,7 +128,16 @@ export function useDiagnosticFixRunnerCoreActions(params: {
         if (mountedRef.current) setApplyBusy(false);
       }
     },
-    [applyBusyRef, deleteFile, mountedRef, projectRef, setApplyBusy, setHistory, updateProjectFiles],
+    [
+      applyBusyRef,
+      deleteFile,
+      mountedRef,
+      projectRef,
+      replaceProjectFiles,
+      setApplyBusy,
+      setHistory,
+      updateProjectFiles,
+    ],
   );
 
   const dispatchWorkflowFix = useCallback(

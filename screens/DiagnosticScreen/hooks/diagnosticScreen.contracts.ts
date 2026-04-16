@@ -12,6 +12,7 @@ export type UseDiagnosticScreenOptions = {
   linkedBranch?: string;
   setPreferredBuildProfile?: (mode: BuildMode) => void;
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
 };
 

@@ -26,9 +26,9 @@ export async function applyPatchLocally(params: {
   patch: PreflightPatch;
   projectRef: MutableRefObject<ProjectData | null>;
   deleteFile: (path: string) => Promise<void>;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
 }): Promise<ApplyPatchLocalResult> {
-  const { label, patch, projectRef, deleteFile: _deleteFile, updateProjectFiles } = params;
+  const { label, patch, projectRef, deleteFile: _deleteFile, replaceProjectFiles } = params;
   void _deleteFile;
 
   const project = projectRef.current;
@@ -72,7 +72,7 @@ export async function applyPatchLocally(params: {
       });
     }
 
-    await updateProjectFiles(nextFiles);
+    await replaceProjectFiles(nextFiles);
 
     return {
       status: "patch_applied",

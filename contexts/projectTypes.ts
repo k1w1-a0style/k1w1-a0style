@@ -17,6 +17,7 @@ export interface ProjectContextProps {
   recoveryModeReason?: string | null;
 
   updateProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[], newName?: string) => Promise<void>;
   createFile: (path: string, content: string) => Promise<FileCommandResult>;
   deleteFile: (path: string) => Promise<FileCommandResult>;
   deleteFiles?: (paths: string[]) => Promise<FileCommandResult>;

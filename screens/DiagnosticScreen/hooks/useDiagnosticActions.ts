@@ -11,6 +11,7 @@ export function useDiagnosticActions(params: {
   linkedRepo: string;
   linkedBranch?: string;
   updateProjectFiles: (files: import("../../../shared/types/project").ProjectFile[], newName?: string) => Promise<void>;
+  replaceProjectFiles: (files: import("../../../shared/types/project").ProjectFile[], newName?: string) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   syncFixesToGitHub: boolean;
   rerunAfterFix: boolean;
@@ -35,6 +36,7 @@ export function useDiagnosticActions(params: {
     linkedRepo,
     linkedBranch,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile,
     syncFixesToGitHub,
     rerunAfterFix,
@@ -60,6 +62,7 @@ export function useDiagnosticActions(params: {
     linkedRepo,
     linkedBranch,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile,
     syncFixesToGitHub,
     rerunAfterFix,

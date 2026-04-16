@@ -12,6 +12,7 @@ export interface UseDiagnosticFixRunnerOptions {
   linkedRepo: string;
   linkedBranch?: string;
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
   deleteFile: (path: string) => Promise<void>;
   syncFixesToGitHub: boolean;
   rerunAfterFix: boolean;

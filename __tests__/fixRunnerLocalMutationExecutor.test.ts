@@ -25,7 +25,7 @@ describe("fixRunnerLocalMutationExecutor", () => {
         patch: makePreflightPatch(),
         projectRef,
         deleteFile: jest.fn(async () => undefined),
-        updateProjectFiles: jest.fn(async () => undefined),
+        replaceProjectFiles: jest.fn(async () => undefined),
       }),
     ).rejects.toMatchObject({ status: "blocked" });
   });
@@ -68,7 +68,7 @@ describe("fixRunnerLocalMutationExecutor", () => {
         }),
         projectRef,
         deleteFile,
-        updateProjectFiles: jest.fn(async () => {
+        replaceProjectFiles: jest.fn(async () => {
           throw new Error("write failed");
         }),
       }),
@@ -90,7 +90,7 @@ describe("fixRunnerLocalMutationExecutor", () => {
       { path: "App.tsx", content: "old" },
       { path: "app.json", content: "{\"name\":\"demo\"}" },
     ]);
-    const updateProjectFiles = jest.fn(async (files) => {
+    const replaceProjectFiles = jest.fn(async (files) => {
       projectRef.current = {
         ...(projectRef.current as ProjectData),
         files,
@@ -105,11 +105,11 @@ describe("fixRunnerLocalMutationExecutor", () => {
       }),
       projectRef,
       deleteFile: jest.fn(async () => undefined),
-      updateProjectFiles,
+      replaceProjectFiles,
     });
 
     expect(result.status).toBe("patch_applied");
-    expect(updateProjectFiles).toHaveBeenCalledTimes(1);
+    expect(replaceProjectFiles).toHaveBeenCalledTimes(1);
     expect(projectRef.current?.files.map((f) => f.path).sort()).toEqual(["app.json"]);
     expect(projectRef.current?.files[0]?.content).toBe("{\"name\":\"changed\"}");
   });

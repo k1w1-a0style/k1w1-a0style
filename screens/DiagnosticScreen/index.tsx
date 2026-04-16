@@ -37,7 +37,7 @@ export default function DiagnosticScreen() {
   const navigation = useNavigation<NavigationProp<ParamListBase>>();
   const route = useRoute<DiagnosticRoute>();
   const autoRunDoneRef = useRef(false);
-  const { projectData, updateProjectFiles, deleteFile, setPreferredBuildProfile } =
+  const { projectData, updateProjectFiles, replaceProjectFiles, deleteFile, setPreferredBuildProfile } =
     useProject();
 
   const linkedRepo = projectData?.linkedRepo ? String(projectData.linkedRepo) : "";
@@ -94,6 +94,7 @@ export default function DiagnosticScreen() {
     linkedBranch,
     setPreferredBuildProfile,
     updateProjectFiles,
+    replaceProjectFiles,
     deleteFile: async (path: string) => {
       await deleteFile(path);
     },

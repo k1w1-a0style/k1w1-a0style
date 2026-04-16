@@ -25,6 +25,7 @@ function createHarness<T>(useHook: () => T) {
 
 function renderRunner(params?: {
   updateProjectFiles?: jest.Mock;
+  replaceProjectFiles?: jest.Mock;
   runDiagnostics?: jest.Mock;
   rerunAfterFix?: boolean;
   fixableResults?: ReturnType<typeof makePreflightResult>[];
@@ -33,6 +34,7 @@ function renderRunner(params?: {
   selected?: Record<string, boolean>;
 }) {
   const updateProjectFiles = params?.updateProjectFiles ?? jest.fn(async () => undefined);
+  const replaceProjectFiles = params?.replaceProjectFiles ?? updateProjectFiles;
   const runDiagnostics = params?.runDiagnostics ?? jest.fn(async () => undefined);
   const toast = { show: jest.fn() };
   const projectRef = makeProjectRef({
@@ -48,6 +50,7 @@ function renderRunner(params?: {
       linkedRepo: "owner/repo",
       linkedBranch: "main",
       updateProjectFiles,
+      replaceProjectFiles,
       deleteFile: jest.fn(async () => undefined),
       syncFixesToGitHub: false,
       rerunAfterFix: params?.rerunAfterFix ?? false,
@@ -63,7 +66,7 @@ function renderRunner(params?: {
     }),
   );
 
-  return { getApi, updateProjectFiles, runDiagnostics, toast: toast.show };
+  return { getApi, updateProjectFiles, replaceProjectFiles, runDiagnostics, toast: toast.show };
 }
 
 describe("useDiagnosticFixRunner integration flows", () => {
