@@ -1,6 +1,6 @@
 # TODO
 
-Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
+Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.

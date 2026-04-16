@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
+Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 
 ## Aktiv und workflow-relevant
 
