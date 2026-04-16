@@ -22,6 +22,7 @@ import { getCanonicalProjectFilesForOps, getSourceProjectFiles } from "../../lib
 import {
   assertBuildReadiness as assertBuildReadinessContract,
   type BuildReadinessDeps,
+  type BuildReadinessOptions,
 } from "../../lib/buildReadiness";
 
 // Invariant marker phrases for operator-provisioning contract checks:
@@ -85,8 +86,9 @@ function asEdgeBuildInvokePayload(raw: unknown): EdgeBuildInvokePayload | null {
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
+  options: BuildReadinessOptions = {},
 ): Promise<void> {
-  await assertBuildReadinessContract(project, deps);
+  await assertBuildReadinessContract(project, deps, options);
 }
 
 async function pushProjectFilesOrAbortBuild(opts: {
@@ -152,7 +154,7 @@ export async function startBuildJob(params: {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
-  await assertBuildReadiness(project, deps);
+  await assertBuildReadiness(project, deps, { projectFiles: canonicalOpsFiles });
 
   // Repo/branch gating now comes from the centralized readiness contract above.
   const githubRepo = (project.linkedRepo?.trim() || "").trim();
