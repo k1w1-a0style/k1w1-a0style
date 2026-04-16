@@ -36,3 +36,14 @@ export type ToTextOptions = {
   redact?: boolean;
 };
 
+const MAX_DEBUG_SEARCH_QUERY_CHARS = 120;
+
+export function sanitizeDebugSearchQuery(raw: string): string {
+  const normalized = truncateWithMarker(redactSecrets(String(raw ?? "")), MAX_DEBUG_SEARCH_QUERY_CHARS);
+  return normalized.trim();
+}
+
+export function formatSanitizedSearchQuery(raw: string): string {
+  const sanitized = sanitizeDebugSearchQuery(raw);
+  return sanitized || "-";
+}

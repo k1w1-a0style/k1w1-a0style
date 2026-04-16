@@ -18,7 +18,9 @@ import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction"
 import {
   MAX_CLIPBOARD_LOGS, MAX_EXPORT_LOGS, MAX_AI_LOGS,
   MAX_CLIPBOARD_CHARS, MAX_EXPORT_CHARS, MAX_AI_CHARS,
+  formatSanitizedSearchQuery,
   safeDir,
+  sanitizeDebugSearchQuery,
 } from "./terminalHelpers";
 import type { ToTextOptions } from "./terminalHelpers";
 
@@ -120,9 +122,11 @@ export function useTerminalScreen() {
     if (isExporting) return;
     setIsExporting(true);
 
+    let tempUri: string | null = null;
     try {
-      const base = safeDir(FileSystem.documentDirectory) || safeDir(FileSystem.cacheDirectory);
+      const base = safeDir(FileSystem.cacheDirectory);
       const uri = `${base}terminal_logs_${Date.now()}.txt`;
+      tempUri = uri;
       const text = toText(filteredLogs, {
         maxLogs: MAX_EXPORT_LOGS,
         maxChars: MAX_EXPORT_CHARS,
@@ -135,8 +139,7 @@ export function useTerminalScreen() {
 
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Export", `Datei gespeichert:\n${uri}`);
-        return;
+        throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
       }
 
       await Sharing.shareAsync(uri, {
@@ -147,6 +150,9 @@ export function useTerminalScreen() {
       console.error("[TerminalScreen] shareVisibleLogsTxt failed", e);
       Alert.alert("Fehler", "TXT Export fehlgeschlagen.");
     } finally {
+      if (tempUri) {
+        await FileSystem.deleteAsync(tempUri, { idempotent: true }).catch(() => undefined);
+      }
       setIsExporting(false);
     }
   }, [filteredLogs, toText, isExporting]);
@@ -160,11 +166,13 @@ export function useTerminalScreen() {
     if (isExporting) return;
     setIsExporting(true);
 
+    let baseDir: string | null = null;
+    let zipPath: string | null = null;
     try {
       const cacheBase = safeDir(FileSystem.cacheDirectory);
       if (!cacheBase) throw new Error("No cacheDirectory available");
 
-      const baseDir = `${cacheBase}debug_dump_${Date.now()}`;
+      baseDir = `${cacheBase}debug_dump_${Date.now()}`;
       await FileSystem.makeDirectoryAsync(baseDir, { intermediates: true });
 
       const logsTxt = `${baseDir}/terminal_logs.txt`;
@@ -193,7 +201,7 @@ export function useTerminalScreen() {
           {
             createdAt: new Date().toISOString(),
             filter: activeFilter,
-            searchQuery,
+            searchQuery: sanitizeDebugSearchQuery(searchQuery),
             visibleCount: filteredLogs.length,
             consoleOverride: isConsoleOverrideEnabled,
             note: "Logs are redacted + truncated for privacy/perf.",
@@ -204,14 +212,12 @@ export function useTerminalScreen() {
         { encoding: FileSystem.EncodingType.UTF8 },
       );
 
-      const outBase = safeDir(FileSystem.documentDirectory) || cacheBase;
-      const zipPath = `${outBase}debug_dump_${Date.now()}.zip`;
+      zipPath = `${cacheBase}debug_dump_${Date.now()}.zip`;
       await zip(baseDir, zipPath);
 
       const available = await Sharing.isAvailableAsync();
       if (!available) {
-        Alert.alert("Debug ZIP", `ZIP gespeichert:\n${zipPath}`);
-        return;
+        throw new Error("Teilen ist auf diesem Gerät nicht verfügbar.");
       }
 
       await Sharing.shareAsync(zipPath, {
@@ -222,6 +228,12 @@ export function useTerminalScreen() {
       console.error("[TerminalScreen] exportDebugZip failed", e);
       Alert.alert("Fehler", "Debug ZIP Export fehlgeschlagen.");
     } finally {
+      if (baseDir) {
+        await FileSystem.deleteAsync(baseDir, { idempotent: true }).catch(() => undefined);
+      }
+      if (zipPath) {
+        await FileSystem.deleteAsync(zipPath, { idempotent: true }).catch(() => undefined);
+      }
       setIsExporting(false);
     }
   }, [
@@ -249,7 +261,7 @@ export function useTerminalScreen() {
     const payload =
       `🧠 Terminal Log Analyse (Auto-Fix)\n\n` +
       `Filter: ${activeFilter}\n` +
-      `Suche: ${searchQuery || "-"}\n` +
+      `Suche: ${formatSanitizedSearchQuery(searchQuery)}\n` +
       `Visible Logs: ${filteredLogs.length}\n` +
       `Sent Logs: ${Math.min(filteredLogs.length, MAX_AI_LOGS)} (redacted)\n\n` +
       `--- LOGS START ---\n` +
