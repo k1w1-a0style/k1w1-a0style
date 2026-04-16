@@ -110,8 +110,10 @@ export function useAppStatusScreen() {
       });
     } else if (!expoParse.config) {
       issues.push({
-        type: 'warning',
-        message: `${expoParse.source} konnte nicht gelesen werden`,
+        type: expoParse.hasCanonicalConflict ? 'error' : 'warning',
+        message: expoParse.hasCanonicalConflict
+          ? `${expoParse.source} enthält widersprüchliche kanonische Duplikate`
+          : `${expoParse.source} konnte nicht gelesen werden`,
         details: expoParse.error,
       });
     } else {

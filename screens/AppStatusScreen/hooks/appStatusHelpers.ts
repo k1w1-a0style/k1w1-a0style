@@ -37,6 +37,7 @@ export type ExpoConfigParseResult = {
   config: ExpoConfigJson | null;
   source: 'app.json' | 'app.config.js' | 'app.config.ts' | null;
   error?: string;
+  hasCanonicalConflict?: boolean;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -103,9 +104,35 @@ export function extractWithRegex(content: string): ExpoConfigJson {
 }
 
 export function parseExpoConfig(files: ProjectFile[]): ExpoConfigParseResult {
-  const byNormalizedPath = new Map(
-    files.map((file) => [normalizePath(String(file.path ?? "")), file] as const),
-  );
+  const byNormalizedPath = new Map<string, ProjectFile>();
+  const configPaths = new Set(["app.json", "app.config.ts", "app.config.js"]);
+
+  for (const file of files) {
+    const normalizedPath = normalizePath(String(file.path ?? ""));
+    if (!normalizedPath) continue;
+    if (!configPaths.has(normalizedPath)) {
+      if (!byNormalizedPath.has(normalizedPath)) {
+        byNormalizedPath.set(normalizedPath, file);
+      }
+      continue;
+    }
+
+    const existing = byNormalizedPath.get(normalizedPath);
+    if (!existing) {
+      byNormalizedPath.set(normalizedPath, file);
+      continue;
+    }
+
+    if (readText(existing) !== readText(file)) {
+      return {
+        config: null,
+        source: normalizedPath as ExpoConfigParseResult['source'],
+        error: `Konflikt: Mehrere kanonische Varianten von ${normalizedPath} mit unterschiedlichem Inhalt gefunden`,
+        hasCanonicalConflict: true,
+      };
+    }
+  }
+
   // Priority: app.json (common & easy) -> app.config.ts -> app.config.js
   const appJson = byNormalizedPath.get('app.json');
   if (appJson) {

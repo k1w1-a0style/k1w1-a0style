@@ -26,28 +26,32 @@ function scopeKey(repo: string, branch: string): string {
 }
 
 function canonicalizeFilesForSignature(files: ProjectFile[]): {
-  normalized: Array<{ path: string; content: string }>;
+  normalized: Array<{ path: string; contents: string[] }>;
   hasConflicts: boolean;
 } {
-  const byPath = new Map<string, string>();
-  let hasConflicts = false;
+  const byPathContents = new Map<string, Set<string>>();
 
   for (const file of Array.isArray(files) ? files : []) {
     const path = normalizePath(String(file?.path ?? ""));
     if (!path) continue;
     const content = String(file?.content ?? "");
-    const previous = byPath.get(path);
-    if (typeof previous === "string" && previous !== content) {
-      hasConflicts = true;
-      continue;
+    if (!byPathContents.has(path)) {
+      byPathContents.set(path, new Set<string>());
     }
-    byPath.set(path, content);
+    byPathContents.get(path)?.add(content);
   }
 
+  let hasConflicts = false;
+  const normalized = Array.from(byPathContents.entries())
+    .map(([path, contentSet]) => {
+      const contents = Array.from(contentSet).sort((a, b) => a.localeCompare(b));
+      if (contents.length > 1) hasConflicts = true;
+      return { path, contents };
+    })
+    .sort((a, b) => a.path.localeCompare(b.path));
+
   return {
-    normalized: Array.from(byPath.entries())
-      .map(([path, content]) => ({ path, content }))
-      .sort((a, b) => a.path.localeCompare(b.path)),
+    normalized,
     hasConflicts,
   };
 }
@@ -57,7 +61,7 @@ export function computeProjectFilesSignature(files: ProjectFile[]): string {
 
   let hash = 2166136261;
   for (const file of normalized) {
-    const line = `${file.path}\n${file.content}\n`;
+    const line = `${file.path}\n${file.contents.length}\n${file.contents.join("\n<<content>>\n")}\n`;
     for (let i = 0; i < line.length; i++) {
       hash ^= line.charCodeAt(i);
       hash = Math.imul(hash, 16777619);

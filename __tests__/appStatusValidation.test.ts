@@ -60,6 +60,32 @@ describe('AppStatusScreen validation helpers', () => {
     expect(parsed.config?.name).toBe('X');
   });
 
+  test('parseExpoConfig fails closed for conflicting canonical app.json duplicates', () => {
+    const files: ProjectFile[] = [
+      f('app.json', JSON.stringify({ expo: { name: 'A' } })),
+      f('./app.json', JSON.stringify({ expo: { name: 'B' } })),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.config).toBeNull();
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.hasCanonicalConflict).toBe(true);
+    expect(parsed.error).toMatch(/konflikt/i);
+  });
+
+  test('parseExpoConfig tolerates identical canonical app.json duplicates', () => {
+    const content = JSON.stringify({ expo: { name: 'A' } });
+    const files: ProjectFile[] = [
+      f('app.json', content),
+      f('./app.json', content),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.hasCanonicalConflict).toBeUndefined();
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.config?.name).toBe('A');
+  });
+
   test('foundation issues stay fail-closed while loading and without project base', () => {
     expect(resolveFoundationValidationIssues({
       isLoading: true,
