@@ -58,4 +58,74 @@ describe("repoSyncOrchestration", () => {
 
     expect(a).toBe(b);
   });
+
+  it("treats path variants as the same canonical file path", async () => {
+    const store = new Map<string, string>();
+    await markRepoSyncSignature({
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      files: [makeProjectFile("./src//App.tsx", "export default 1;")],
+      storageSetItem: async (k, v) => void store.set(k, v),
+    });
+
+    const state = await getRepoSyncState({
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      files: [makeProjectFile("src/App.tsx", "export default 1;")],
+      storageGetItem: async (k) => store.get(k) ?? null,
+    });
+
+    expect(state).toBe("in_sync");
+  });
+
+  it("fails closed as unknown for conflicting duplicate canonical paths", async () => {
+    const store = new Map<string, string>();
+    await markRepoSyncSignature({
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      files: [
+        makeProjectFile("src/App.tsx", "a"),
+        makeProjectFile("./src//App.tsx", "b"),
+      ],
+      storageSetItem: async (k, v) => void store.set(k, v),
+    });
+
+    const state = await getRepoSyncState({
+      linkedRepo: "owner/repo",
+      linkedBranch: "main",
+      files: [
+        makeProjectFile("src/App.tsx", "a"),
+        makeProjectFile("./src//App.tsx", "b"),
+      ],
+      storageGetItem: async (k) => store.get(k) ?? null,
+    });
+
+    expect(state).toBe("unknown");
+  });
+
+  it("produces deterministic fail-closed signature for canonical conflicts (order independent)", () => {
+    const a = computeProjectFilesSignature([
+      makeProjectFile("src/App.tsx", "a"),
+      makeProjectFile("./src//App.tsx", "b"),
+    ]);
+    const b = computeProjectFilesSignature([
+      makeProjectFile("./src//App.tsx", "b"),
+      makeProjectFile("src/App.tsx", "a"),
+    ]);
+
+    expect(a).toBe(b);
+  });
+
+  it("changes signature when only one conflicting duplicate variant changes", () => {
+    const before = computeProjectFilesSignature([
+      makeProjectFile("src/App.tsx", "a"),
+      makeProjectFile("./src//App.tsx", "b"),
+    ]);
+    const after = computeProjectFilesSignature([
+      makeProjectFile("src/App.tsx", "a"),
+      makeProjectFile("./src//App.tsx", "c"),
+    ]);
+
+    expect(before).not.toBe(after);
+  });
 });

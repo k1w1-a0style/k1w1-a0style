@@ -1,5 +1,12 @@
 
-import { parseExpoConfig, resolveEntryPoint } from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
+import {
+  parseExpoConfig,
+  resolveEntryPoint,
+} from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
+import {
+  findFileByCanonicalPath,
+  resolveFoundationValidationIssues,
+} from '../screens/AppStatusScreen/hooks/appStatusHelpers';
 
 import type { ProjectFile } from "../shared/types/project";
 describe('AppStatusScreen validation helpers', () => {
@@ -37,6 +44,14 @@ describe('AppStatusScreen validation helpers', () => {
     expect(res.ok).toBe(true);
   });
 
+  test('resolveEntryPoint treats normalized app directory variants as valid for expo-router', () => {
+    const files: ProjectFile[] = [f('./app/index.tsx', 'export default function Screen() { return null; }')];
+    const pkg = { main: 'expo-router/entry' };
+
+    const res = resolveEntryPoint(files, pkg);
+    expect(res.ok).toBe(true);
+  });
+
   test('resolveEntryPoint fails when main points to missing file', () => {
     const files: ProjectFile[] = [f('index.js', 'console.log("hi")')];
     const pkg = { main: 'missing.js' };
@@ -44,5 +59,61 @@ describe('AppStatusScreen validation helpers', () => {
     const res = resolveEntryPoint(files, pkg);
     expect(res.ok).toBe(false);
     expect(res.missingPath).toBe('missing.js');
+  });
+
+  test('path normalization collapses expo config path variants', () => {
+    const files: ProjectFile[] = [
+      f('./app.json', JSON.stringify({ expo: { name: 'X' } })),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.config?.name).toBe('X');
+  });
+
+  test('findFileByCanonicalPath matches ./package.json as package.json', () => {
+    const files: ProjectFile[] = [f('./package.json', '{"name":"demo"}')];
+    const pkgFile = findFileByCanonicalPath(files, 'package.json');
+    expect(pkgFile).toBeDefined();
+  });
+
+  test('parseExpoConfig fails closed for conflicting canonical app.json duplicates', () => {
+    const files: ProjectFile[] = [
+      f('app.json', JSON.stringify({ expo: { name: 'A' } })),
+      f('./app.json', JSON.stringify({ expo: { name: 'B' } })),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.config).toBeNull();
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.hasCanonicalConflict).toBe(true);
+    expect(parsed.error).toMatch(/konflikt/i);
+  });
+
+  test('parseExpoConfig tolerates identical canonical app.json duplicates', () => {
+    const content = JSON.stringify({ expo: { name: 'A' } });
+    const files: ProjectFile[] = [
+      f('app.json', content),
+      f('./app.json', content),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.hasCanonicalConflict).toBeUndefined();
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.config?.name).toBe('A');
+  });
+
+  test('foundation issues stay fail-closed while loading and without project base', () => {
+    expect(resolveFoundationValidationIssues({
+      isLoading: true,
+      hasProjectData: false,
+      isRecoveryMode: false,
+    })[0]?.message).toMatch(/initialisiert/i);
+
+    expect(resolveFoundationValidationIssues({
+      isLoading: false,
+      hasProjectData: false,
+      isRecoveryMode: false,
+    })[0]?.type).toBe('error');
   });
 });

@@ -115,5 +115,13 @@ describe("projectContextHelpers", () => {
       expect(updated).toBe(files);
       expect(updated).toEqual([{ path: "App.tsx", content: "app" }]);
     });
+
+    it("uses canonical path normalization for delete matching", () => {
+      const files = [{ path: "src/App.tsx", content: "app" }];
+
+      const updated = removeProjectFilesByPaths(files, ["./src//App.tsx"]);
+
+      expect(updated).toEqual([]);
+    });
   });
 });
