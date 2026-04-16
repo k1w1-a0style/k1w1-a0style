@@ -14,12 +14,16 @@ import {
   type BuildReadinessReasonCode,
 } from "./errors/buildReadinessErrors";
 import { readDiagnosticReadinessRecord } from "./diagnosticReadinessRecord";
-import type { ProjectData } from "../shared/types/project";
+import type { ProjectData, ProjectFile } from "../shared/types/project";
 
 export type BuildReadinessDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
   storageSetItem?: (key: string, value: string) => Promise<void>;
   getBranchHeadSha?: (owner: string, repo: string, branch: string) => Promise<string>;
+};
+
+export type BuildReadinessOptions = {
+  projectFiles?: ProjectFile[] | null;
 };
 
 export type BuildReadinessContext = {
@@ -107,6 +111,7 @@ function mapCiLiteReasonToCode(
 export async function evaluateBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
+  options: BuildReadinessOptions = {},
 ): Promise<BuildReadinessResult> {
   const asyncStorageGetItem =
     (AsyncStorage as { getItem?: ((key: string) => Promise<string | null>) | undefined }).getItem ??
@@ -153,7 +158,11 @@ export async function evaluateBuildReadiness(
     readDiagnosticReadinessRecord({
       linkedRepo,
       linkedBranch,
-      projectFiles: Array.isArray(project?.files) ? project.files : [],
+      projectFiles: Array.isArray(options.projectFiles)
+        ? options.projectFiles
+        : Array.isArray(project?.files)
+          ? project.files
+          : [],
       storageGetItem,
     }).catch(() => null),
   ]);
@@ -205,8 +214,9 @@ export async function evaluateBuildReadiness(
 export async function assertBuildReadiness(
   project: ProjectData,
   deps: BuildReadinessDeps = {},
+  options: BuildReadinessOptions = {},
 ): Promise<BuildReadinessOkResult> {
-  const result = await evaluateBuildReadiness(project, deps);
+  const result = await evaluateBuildReadiness(project, deps, options);
   if (!result.ok) {
     throw new Error(
       formatBuildReadinessFailure({

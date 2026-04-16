@@ -20,6 +20,7 @@ function buildScopedGreenStorageMap(params: {
   branch?: string;
   snapshotOverrides?: Record<string, unknown>;
   diagnosticValue?: string;
+  diagnosticFingerprintFiles?: ReturnType<typeof makeProject>["files"];
 } = {}): Record<string, string | null> {
   const repo = params.repo ?? "owner/repo";
   const branch = params.branch ?? "main";
@@ -28,7 +29,7 @@ function buildScopedGreenStorageMap(params: {
       version: 2,
       repo,
       branch,
-      projectFingerprint: computeDiagnosticProjectFingerprint(makeProject().files),
+      projectFingerprint: computeDiagnosticProjectFingerprint(params.diagnosticFingerprintFiles ?? makeProject().files),
       diagnosticOk: params.diagnosticValue !== "false",
       includePipelineChecks: true,
       focusedModes: ["preview"],
@@ -148,6 +149,41 @@ describe("evaluateBuildReadiness", () => {
     expect(result).toMatchObject({
       reasonCode: "diagnostic_not_green",
       message: "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren",
+    });
+  });
+
+  it("uses explicit canonical project files for diagnostic fingerprint checks when provided", async () => {
+    const canonicalFiles = [{ path: "app.json", content: "{\"expo\":{}}" }];
+    const storageMap = buildScopedGreenStorageMap({
+      diagnosticFingerprintFiles: canonicalFiles,
+    });
+
+    const result = await evaluateBuildReadiness(
+      makeProject({
+        files: [],
+      }),
+      {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        getBranchHeadSha: async () => SHA,
+      },
+      {
+        projectFiles: canonicalFiles,
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      reasonCode: null,
+      context: {
+        linkedRepo: "owner/repo",
+        linkedBranch: "main",
+        diagnosticOk: true,
+      },
+      snapshot: {
+        repo: "owner/repo",
+        branch: "main",
+        sha: SHA,
+      },
     });
   });
 
