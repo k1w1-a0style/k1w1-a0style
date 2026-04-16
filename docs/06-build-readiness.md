@@ -192,12 +192,14 @@ if (isMountedRef.current) setHasSigningKey(val === "true");
 **Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`  
 **Symbol:** `refreshPreconditions`
 ```ts
-const diagContract = await evaluateDiagnosticReadiness({
-  repoFullName: normalizedRepo,
-  branchName: normalizedBranch,
+const readiness = await readBuildReadinessState({
+  repoFullName,
+  branchName,
 });
 if (isMountedRef.current) {
-  setHasDiagOk(diagContract.isVerified);
+  setHasDiagOk(readiness.hasDiagOk);
+  setDiagnosticState(readiness.diagnosticState);
+  setDiagnosticReason(readiness.diagnosticReason);
 }
 ```
 
@@ -205,7 +207,8 @@ if (isMountedRef.current) {
 **Datei:** `screens/EnhancedBuildScreen/hooks/useBuildPreconditions.ts`  
 **Symbol:** `refreshPreconditions`
 ```ts
-const hasFiles = files.length > 0;
+const sourceFiles = getSourceProjectFiles(projectData);
+const hasFiles = sourceFiles.length > 0;
 const filesReason = hasFiles
   ? null
   : "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
