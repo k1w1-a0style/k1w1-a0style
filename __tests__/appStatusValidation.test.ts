@@ -3,7 +3,10 @@ import {
   parseExpoConfig,
   resolveEntryPoint,
 } from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
-import { resolveFoundationValidationIssues } from '../screens/AppStatusScreen/hooks/appStatusHelpers';
+import {
+  findFileByCanonicalPath,
+  resolveFoundationValidationIssues,
+} from '../screens/AppStatusScreen/hooks/appStatusHelpers';
 
 import type { ProjectFile } from "../shared/types/project";
 describe('AppStatusScreen validation helpers', () => {
@@ -41,6 +44,14 @@ describe('AppStatusScreen validation helpers', () => {
     expect(res.ok).toBe(true);
   });
 
+  test('resolveEntryPoint treats normalized app directory variants as valid for expo-router', () => {
+    const files: ProjectFile[] = [f('./app/index.tsx', 'export default function Screen() { return null; }')];
+    const pkg = { main: 'expo-router/entry' };
+
+    const res = resolveEntryPoint(files, pkg);
+    expect(res.ok).toBe(true);
+  });
+
   test('resolveEntryPoint fails when main points to missing file', () => {
     const files: ProjectFile[] = [f('index.js', 'console.log("hi")')];
     const pkg = { main: 'missing.js' };
@@ -58,6 +69,12 @@ describe('AppStatusScreen validation helpers', () => {
     const parsed = parseExpoConfig(files);
     expect(parsed.source).toBe('app.json');
     expect(parsed.config?.name).toBe('X');
+  });
+
+  test('findFileByCanonicalPath matches ./package.json as package.json', () => {
+    const files: ProjectFile[] = [f('./package.json', '{"name":"demo"}')];
+    const pkgFile = findFileByCanonicalPath(files, 'package.json');
+    expect(pkgFile).toBeDefined();
   });
 
   test('parseExpoConfig fails closed for conflicting canonical app.json duplicates', () => {

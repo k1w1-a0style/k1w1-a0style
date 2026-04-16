@@ -61,6 +61,15 @@ export function readText(file: ProjectFile | undefined): string {
   return String(file?.content ?? '');
 }
 
+export function findFileByCanonicalPath(
+  files: ProjectFile[],
+  targetPath: string,
+): ProjectFile | undefined {
+  const canonicalTarget = normalizePath(targetPath);
+  if (!canonicalTarget) return undefined;
+  return files.find((file) => normalizePath(String(file.path ?? "")) === canonicalTarget);
+}
+
 export function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
   try {
     return { ok: true, value: JSON.parse(text) as T };
@@ -179,7 +188,7 @@ export function resolveEntryPoint(files: ProjectFile[], pkg: PackageJson | null)
   // expo-router uses "expo-router/entry" (module, not a project file).
   if (main === 'expo-router/entry') {
     const hasLayout = fileExists('app/_layout.tsx') || fileExists('app/_layout.js');
-    const hasAppDir = files.some(f => f.path.startsWith('app/'));
+    const hasAppDir = Array.from(pathSet).some((path) => path === 'app' || path.startsWith('app/'));
     const ok = hasLayout || hasAppDir;
     return {
       entryLabel: 'expo-router/entry',

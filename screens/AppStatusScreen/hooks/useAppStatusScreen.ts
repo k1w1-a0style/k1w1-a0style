@@ -18,7 +18,7 @@ import type {
 
 import {
   readText, safeJsonParse, countLinesSafe, extractWithRegex,
-  parseExpoConfig, resolveEntryPoint, resolveFoundationValidationIssues,
+  findFileByCanonicalPath, parseExpoConfig, resolveEntryPoint, resolveFoundationValidationIssues,
   MAX_DEP_ITEMS, MAX_DIRS, MAX_FILES_PER_DIR,
 } from "./appStatusHelpers";
 import type { PackageJson, DerivedState } from "./appStatusHelpers";
@@ -65,7 +65,7 @@ export function useAppStatusScreen() {
     const issues: ValidationIssue[] = [];
 
     // package.json
-    const pkgFile = files.find(f => f.path === 'package.json');
+    const pkgFile = findFileByCanonicalPath(files, 'package.json');
     let pkg: PackageJson | null = null;
     let pkgName = projectData.name || 'Unknown Project';
     let pkgVersion = '1.0.0';
