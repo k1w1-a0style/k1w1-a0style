@@ -39,8 +39,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
     | "mountedRef"
     | "linkedRepo"
     | "linkedBranch"
-    | "updateProjectFiles"
-    | "deleteFile"
+    | "replaceProjectFiles"
     | "syncFixesToGitHub"
   >;
   state: Pick<
@@ -60,8 +59,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
     mountedRef,
     linkedRepo,
     linkedBranch,
-    updateProjectFiles,
-    deleteFile,
+    replaceProjectFiles,
     syncFixesToGitHub,
   } = opts;
   const {
@@ -109,8 +107,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
           label,
           patch,
           projectRef,
-          deleteFile,
-          updateProjectFiles,
+          replaceProjectFiles,
         });
 
         projectRef.current = { ...projectRef.current, files: result.nextFiles };
@@ -126,7 +123,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
         if (mountedRef.current) setApplyBusy(false);
       }
     },
-    [applyBusyRef, deleteFile, mountedRef, projectRef, setApplyBusy, setHistory, updateProjectFiles],
+    [applyBusyRef, mountedRef, projectRef, replaceProjectFiles, setApplyBusy, setHistory],
   );
 
   const dispatchWorkflowFix = useCallback(
@@ -155,7 +152,14 @@ export function useDiagnosticFixRunnerCoreActions(params: {
     if (mountedRef.current) setApplyBusy(true);
 
     try {
-      await undoHistoryEntry({ entry: last, deleteFile, updateProjectFiles });
+      const nextFiles = await undoHistoryEntry({
+        entry: last,
+        currentFiles: projectRef.current?.files ?? [],
+        replaceProjectFiles,
+      });
+      if (projectRef.current) {
+        projectRef.current = { ...projectRef.current, files: nextFiles };
+      }
       setHistory((prev) => prev.slice(1));
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
@@ -164,7 +168,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
       applyBusyRef.current = false;
       if (mountedRef.current) setApplyBusy(false);
     }
-  }, [applyBusyRef, deleteFile, history, mountedRef, setApplyBusy, setHistory, updateProjectFiles]);
+  }, [applyBusyRef, history, mountedRef, projectRef, replaceProjectFiles, setApplyBusy, setHistory]);
 
   const undoAll = useCallback(async () => {
     if (!history.length) return;
@@ -181,7 +185,11 @@ export function useDiagnosticFixRunnerCoreActions(params: {
 
           let undone = 0;
           try {
-            const undoResult = await undoHistoryEntries({ entries: history, deleteFile, updateProjectFiles });
+            const undoResult = await undoHistoryEntries({
+              entries: history,
+              currentFiles: projectRef.current?.files ?? [],
+              replaceProjectFiles,
+            });
             undone = undoResult.undone;
             if (undoResult.failedMessage) {
               Alert.alert(
@@ -190,6 +198,9 @@ export function useDiagnosticFixRunnerCoreActions(params: {
               );
             }
             if (mountedRef.current && undone > 0) {
+              if (projectRef.current) {
+                projectRef.current = { ...projectRef.current, files: undoResult.nextFiles };
+              }
               setHistory((prev) => prev.slice(undone));
               Alert.alert("✓ Undo", `${undone} Fix(es) rückgängig gemacht.`);
             }
@@ -200,7 +211,7 @@ export function useDiagnosticFixRunnerCoreActions(params: {
         },
       },
     ]);
-  }, [applyBusyRef, deleteFile, history, mountedRef, setApplyBusy, setHistory, updateProjectFiles]);
+  }, [applyBusyRef, history, mountedRef, projectRef, replaceProjectFiles, setApplyBusy, setHistory]);
 
   return {
     openPreview,

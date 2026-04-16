@@ -27,8 +27,7 @@ export function useDiagnosticScreen(opts: UseDiagnosticScreenOptions) {
     linkedRepo,
     linkedBranch,
     setPreferredBuildProfile,
-    updateProjectFiles,
-    deleteFile,
+    replaceProjectFiles,
   } = opts;
 
   const projectRef = useRef(projectData);
@@ -137,8 +136,7 @@ export function useDiagnosticScreen(opts: UseDiagnosticScreenOptions) {
     mountedRef,
     linkedRepo,
     linkedBranch,
-    updateProjectFiles,
-    deleteFile,
+    replaceProjectFiles,
     syncFixesToGitHub,
     rerunAfterFix,
     autoFixIncludeWarn,

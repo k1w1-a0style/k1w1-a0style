@@ -25,10 +25,9 @@ export async function applyPatchLocally(params: {
   label: string;
   patch: PreflightPatch;
   projectRef: MutableRefObject<ProjectData | null>;
-  deleteFile: (path: string) => Promise<void>;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
 }): Promise<ApplyPatchLocalResult> {
-  const { label, patch, projectRef, deleteFile, updateProjectFiles } = params;
+  const { label, patch, projectRef, replaceProjectFiles } = params;
 
   const project = projectRef.current;
   if (!project) throw new Error("Kein Projekt geladen.");
@@ -42,7 +41,6 @@ export async function applyPatchLocally(params: {
     });
   }
 
-  let deletedCount = 0;
   try {
     const normalizedTouched = collectNormalizedTouchedPaths(patch);
 
@@ -56,7 +54,7 @@ export async function applyPatchLocally(params: {
       );
     }
 
-    const { nextFiles, snapshot, createdPaths, deletePaths } = await buildPatchApplyState({
+    const { nextFiles, snapshot, createdPaths } = await buildPatchApplyState({
       patch,
       currentFiles,
       applyJsonMerge: async (files, jsonMerge) => {
@@ -65,11 +63,6 @@ export async function applyPatchLocally(params: {
       },
     });
 
-    for (const p of deletePaths) {
-      await deleteFile(p);
-      deletedCount++;
-    }
-
     if (sameProjectFiles(currentFiles, nextFiles)) {
       throw new DiagnosticFixApplyError({
         message: "Patch hat lokal keine wirksamen Änderungen erzeugt.",
@@ -77,7 +70,7 @@ export async function applyPatchLocally(params: {
       });
     }
 
-    await updateProjectFiles(nextFiles);
+    await replaceProjectFiles(nextFiles);
 
     return {
       status: "patch_applied",
@@ -94,38 +87,39 @@ export async function applyPatchLocally(params: {
     throw new DiagnosticFixApplyError({
       message,
       status: "failed",
-      partial: deletedCount > 0,
-      localChangeApplied: deletedCount > 0,
+      partial: false,
+      localChangeApplied: false,
     });
   }
 }
 
 export async function undoHistoryEntry(params: {
   entry: FixHistoryEntry;
-  deleteFile: (path: string) => Promise<void>;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
+  currentFiles: ProjectFile[];
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
 }) {
-  await applyUndoHistoryEntry(params);
+  return applyUndoHistoryEntry(params);
 }
 
 export async function undoHistoryEntries(params: {
   entries: FixHistoryEntry[];
-  deleteFile: (path: string) => Promise<void>;
-  updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
-}): Promise<{ undone: number; failedMessage?: string }> {
+  currentFiles: ProjectFile[];
+  replaceProjectFiles: (files: ProjectFile[]) => Promise<void>;
+}): Promise<{ undone: number; failedMessage?: string; nextFiles: ProjectFile[] }> {
   let undone = 0;
+  let nextFiles = params.currentFiles;
   for (const entry of params.entries) {
     try {
-      await applyUndoHistoryEntry({
+      nextFiles = await applyUndoHistoryEntry({
         entry,
-        deleteFile: params.deleteFile,
-        updateProjectFiles: params.updateProjectFiles,
+        currentFiles: nextFiles,
+        replaceProjectFiles: params.replaceProjectFiles,
       });
       undone++;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unbekannter Fehler";
-      return { undone, failedMessage: msg };
+      return { undone, failedMessage: msg, nextFiles };
     }
   }
-  return { undone };
+  return { undone, nextFiles };
 }

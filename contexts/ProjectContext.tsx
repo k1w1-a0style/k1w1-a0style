@@ -101,6 +101,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
 
   const {
     updateProjectFiles,
+    replaceProjectFiles,
     createFile,
     deleteFile,
     deleteFiles,
@@ -241,6 +242,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       startBuild,
       currentBuild,
       updateProjectFiles,
+      replaceProjectFiles,
       addChatMessage,
       setChatRetentionLimit,
       clearChatHistory,
@@ -275,6 +277,7 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({
       startBuild,
       currentBuild,
       updateProjectFiles,
+      replaceProjectFiles,
       addChatMessage,
       setChatRetentionLimit,
       clearChatHistory,

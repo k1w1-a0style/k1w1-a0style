@@ -46,16 +46,22 @@ describe("fixRunnerMutationHelpers", () => {
   });
 
   test("applyUndoHistoryEntry replays created deletions and snapshot restore", async () => {
-    const deleteFile = jest.fn(async () => undefined);
-    const updateProjectFiles = jest.fn(async () => undefined);
+    const replaceProjectFiles = jest.fn(async () => undefined);
     const entry: FixHistoryEntry = {
       label: "x",
       at: 1,
       createdPaths: ["new.txt"],
       snapshot: [{ path: "a.txt", content: "old" }],
     };
-    await applyUndoHistoryEntry({ entry, deleteFile, updateProjectFiles });
-    expect(deleteFile).toHaveBeenCalledWith("new.txt");
-    expect(updateProjectFiles).toHaveBeenCalledWith(entry.snapshot);
+    const nextFiles = await applyUndoHistoryEntry({
+      entry,
+      currentFiles: [
+        { path: "a.txt", content: "new" },
+        { path: "new.txt", content: "created" },
+      ],
+      replaceProjectFiles,
+    });
+    expect(nextFiles).toEqual([{ path: "a.txt", content: "old" }]);
+    expect(replaceProjectFiles).toHaveBeenCalledWith(nextFiles);
   });
 });
