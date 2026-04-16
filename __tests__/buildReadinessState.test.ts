@@ -1,4 +1,5 @@
 import { readBuildReadinessState } from "../screens/EnhancedBuildScreen/hooks/buildReadinessState";
+import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
 
 jest.mock("libsodium-wrappers-sumo", () => ({}), { virtual: true });
 
@@ -262,5 +263,35 @@ describe("readBuildReadinessState", () => {
     expect(result.hasCiLiteOk).toBe(false);
     expect(String(result.diagnosticReason || "")).toMatch(/nicht gelesen werden/i);
     expect(String(result.ciLiteReason || "")).toMatch(/nicht gelesen werden/i);
+  });
+
+  it("invalidates a previously green diagnostic record when canonical files drift", async () => {
+    const projectFilesAtRun = [{ path: "App.tsx", content: "export default 1;" }];
+    const currentProjectFiles = [{ path: "App.tsx", content: "export default 2;" }];
+    const storageMap: Record<string, string> = {
+      "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
+        version: 2,
+        repo: "owner/repo",
+        branch: "main",
+        projectFingerprint: computeDiagnosticProjectFingerprint(projectFilesAtRun),
+        diagnosticOk: true,
+        includePipelineChecks: true,
+        focusedModes: ["preview"],
+        checkedAt: new Date().toISOString(),
+      }),
+    };
+
+    const result = await readBuildReadinessState({
+      repoFullName: "owner/repo",
+      branchName: "main",
+      projectFiles: currentProjectFiles,
+      deps: {
+        storageGetItem: async (key: string) => storageMap[key] ?? null,
+        readBranchHeadSha: async () => "a".repeat(40),
+      },
+    });
+
+    expect(result.hasDiagOk).toBe(false);
+    expect(result.diagnosticState).toBe("unknown");
   });
 });

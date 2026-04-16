@@ -410,7 +410,7 @@ describe("useOneClickDeploy", () => {
     expect(startBuild).not.toHaveBeenCalled();
   });
 
-  it("fails readiness early when the project has no files", async () => {
+  it("keeps readiness truth on canonical files even when raw project files are empty", async () => {
     mockAsyncStorageGetItem.mockImplementation(async (k: string) => {
       if (k.includes("cred_key_exists_preview")) return "true";
       if (k === "diagnostic_last_ok::owner%2Frepo::main") return "true";
@@ -441,11 +441,10 @@ describe("useOneClickDeploy", () => {
     await waitFor(() => {
       const steps = getSteps(getByTestId);
       const readiness = findStep(steps, "readiness");
-      expect(readiness.status).toBe("fail");
-      expect(String(readiness.detail || "")).toMatch(/Projekt ist leer/i);
+      expect(readiness.status).toBe("ok");
     });
 
-    expect(startBuild).not.toHaveBeenCalled();
+    expect(startBuild).toHaveBeenCalledTimes(1);
   });
 
   it("happy path: runs through to build when key exists", async () => {
@@ -502,6 +501,36 @@ describe("useOneClickDeploy", () => {
     expect(build.status).toBe("ok");
     expect(startBuild).toHaveBeenCalledTimes(1);
     expect(mockReadLocalBuildGateState).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses one canonical file view for readiness and repo-sync checks in one-click flow", async () => {
+    mockProjectData.files = [{ path: "App.tsx", content: "export default 1;" }];
+    const startBuild = jest.fn(async () => {});
+    const { getByTestId } = render(
+      <Harness
+        profile="preview"
+        repo="owner/repo"
+        branch="main"
+        startBuild={startBuild}
+      />,
+    );
+
+    await pressRun(getByTestId);
+    await waitFor(() => {
+      expect(findStep(getSteps(getByTestId), "build").status).toBe("ok");
+    });
+
+    expect(mockEvaluateBuildReadiness).toHaveBeenCalled();
+    expect(mockGetRepoSyncState).toHaveBeenCalled();
+    const readinessFiles = (mockEvaluateBuildReadiness.mock.calls.at(-1)?.[0]?.files ?? []) as Array<{
+      path: string;
+      content: string;
+    }>;
+    const syncFiles = (mockGetRepoSyncState.mock.calls.at(-1)?.[0]?.files ?? []) as Array<{
+      path: string;
+      content: string;
+    }>;
+    expect(computeProjectFilesSignature(readinessFiles)).toBe(computeProjectFilesSignature(syncFiles));
   });
 
 

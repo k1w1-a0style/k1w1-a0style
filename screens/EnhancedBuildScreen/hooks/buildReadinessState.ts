@@ -13,6 +13,7 @@ import {
   normalizeVerificationContract,
   type VerificationContractState,
 } from "../../../lib/status/verificationContract";
+import type { ProjectFile } from "../../../shared/types/project";
 
 type BuildReadinessStateDeps = {
   storageGetItem?: (key: string) => Promise<string | null>;
@@ -48,9 +49,10 @@ export function describeReadinessContract(params: {
 export async function readBuildReadinessState(params: {
   repoFullName: string;
   branchName: string;
+  projectFiles?: ProjectFile[];
   deps?: BuildReadinessStateDeps;
 }): Promise<BuildReadinessState> {
-  const { repoFullName, branchName, deps } = params;
+  const { repoFullName, branchName, projectFiles, deps } = params;
   const asyncStorageGetItem =
     (AsyncStorage as { getItem?: ((key: string) => Promise<string | null>) | undefined }).getItem ??
     (
@@ -96,6 +98,7 @@ export async function readBuildReadinessState(params: {
     readDiagnosticReadinessRecord({
       linkedRepo: repoFullName,
       linkedBranch: branchName,
+      projectFiles,
       storageGetItem: trackedStorageGetItem,
     }).catch((error: unknown) => {
       logger.warn("[EnhancedBuild] structured diagnostic record read failed", {

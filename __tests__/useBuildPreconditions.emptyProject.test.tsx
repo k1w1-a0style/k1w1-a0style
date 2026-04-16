@@ -65,18 +65,18 @@ function Harness() {
 }
 
 describe("useBuildPreconditions empty project guard", () => {
-  it("marks an empty project as not build-ready before repo sync becomes relevant", async () => {
+  it("derives project-file readiness from canonical files instead of raw source emptiness", async () => {
     const { getRepoSyncState } = jest.requireMock("../lib/repoSyncOrchestration") as {
       getRepoSyncState: jest.Mock;
     };
     const screen = render(<Harness />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("hasProjectFiles").props.children).toBe("false");
-      expect(String(screen.getByTestId("projectFilesReason").props.children)).toMatch(/Projekt ist leer/i);
-      expect(screen.getByTestId("repoSyncState").props.children).toBe("unknown");
+      expect(screen.getByTestId("hasProjectFiles").props.children).toBe("true");
+      expect(String(screen.getByTestId("projectFilesReason").props.children)).toBe("");
+      expect(screen.getByTestId("repoSyncState").props.children).toBe("in_sync");
     });
-    expect(getRepoSyncState).not.toHaveBeenCalled();
+    expect(getRepoSyncState).toHaveBeenCalled();
   });
 
   it("keeps partial truth when readiness read fails after an earlier green snapshot", async () => {
