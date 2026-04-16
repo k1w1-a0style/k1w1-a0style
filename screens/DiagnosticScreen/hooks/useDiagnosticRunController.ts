@@ -40,6 +40,34 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
   const runningRef = useRef(false);
   const diagnosticRunEpochRef = useRef(0);
   const activeSelectionScopeRef = useRef<string | null>(null);
+  const asyncStorageMultiSet =
+    (AsyncStorage as { multiSet?: ((entries: ReadonlyArray<readonly [string, string]>) => Promise<void>) | undefined }).multiSet ??
+    (
+      AsyncStorage as {
+        default?: { multiSet?: ((entries: ReadonlyArray<readonly [string, string]>) => Promise<void>) | undefined } | undefined;
+      }
+    ).default?.multiSet ??
+    (
+      AsyncStorage as {
+        default?: {
+          default?: { multiSet?: ((entries: ReadonlyArray<readonly [string, string]>) => Promise<void>) | undefined } | undefined;
+        } | undefined;
+      }
+    ).default?.default?.multiSet;
+  const asyncStorageMultiRemove =
+    (AsyncStorage as { multiRemove?: ((keys: readonly string[]) => Promise<void>) | undefined }).multiRemove ??
+    (
+      AsyncStorage as {
+        default?: { multiRemove?: ((keys: readonly string[]) => Promise<void>) | undefined } | undefined;
+      }
+    ).default?.multiRemove ??
+    (
+      AsyncStorage as {
+        default?: {
+          default?: { multiRemove?: ((keys: readonly string[]) => Promise<void>) | undefined } | undefined;
+        } | undefined;
+      }
+    ).default?.default?.multiRemove;
 
   useEffect(() => {
     activeSelectionScopeRef.current = buildDiagnosticSelectionScope(linkedRepo, linkedBranch);
@@ -77,11 +105,13 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
         const hasPersistableSelection = Boolean(String(linkedRepo ?? "").trim() && String(linkedBranch ?? "").trim());
         if (!hasPersistableSelection) {
           await runCleanupTask(
-            () =>
-              AsyncStorage.multiRemove([
+            async () => {
+              if (!asyncStorageMultiRemove) return;
+              await asyncStorageMultiRemove([
                 STORAGE_KEYS.DIAGNOSTIC_LAST_OK,
                 STORAGE_KEYS.DIAGNOSTIC_READINESS_RECORD,
-              ]),
+              ]);
+            },
             `[DiagnosticScreen] remove unscoped diagnostic flag failed for key=${STORAGE_KEYS.DIAGNOSTIC_LAST_OK}`,
           );
           return;
@@ -104,7 +134,8 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
         });
         await runCleanupTask(
           async () => {
-            await AsyncStorage.multiSet([
+            if (!asyncStorageMultiSet) return;
+            await asyncStorageMultiSet([
               [scopedDiagnosticKey, params.diagnosticOk ? "true" : "false"],
               [readinessRecordKey, JSON.stringify(readinessRecord)],
             ]);
@@ -211,6 +242,8 @@ export function useDiagnosticRunController(params: DiagnosticRunControllerParams
       projectRef,
       recommendedMode,
       selectedModes,
+      asyncStorageMultiRemove,
+      asyncStorageMultiSet,
     ],
   );
 

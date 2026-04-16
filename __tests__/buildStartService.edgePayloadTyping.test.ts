@@ -1,4 +1,6 @@
 import type { ProjectData } from "../shared/types/project";
+import { buildDiagnosticReadinessRecord, computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
+import { diagnosticReadinessRecordKeyForSelection } from "../lib/storageKeys";
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
@@ -54,8 +56,22 @@ describe("buildStartService edge payload typing", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const now = Date.now();
+    const project = makeProject();
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: project.linkedRepo,
+      linkedBranch: project.linkedBranch,
+    });
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo: project.linkedRepo ?? "",
+      branch: project.linkedBranch ?? "",
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
     mockGetItem.mockImplementation(async (key: string) => ({
       "diagnostic_last_ok::k1w1-a0style%2Fmusik-player::main": "true",
+      [readinessKey]: JSON.stringify(readinessRecord),
       ci_lite_lint_ok: "true",
       ci_lite_typecheck_ok: "true",
       ci_lite_last_run_at: String(now),

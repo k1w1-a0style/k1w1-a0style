@@ -1,29 +1,43 @@
-import { act, renderHook } from "@testing-library/react-native";
-
-import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
-import { makeProjectData, makeProjectFile } from "./helpers/projectTestHelpers";
-import { useDiagnosticRunController } from "../screens/DiagnosticScreen/hooks/useDiagnosticRunController";
-
 const mockMultiSet = jest.fn(async (_entries: ReadonlyArray<readonly [string, string]>) => undefined);
 const mockMultiRemove = jest.fn(async (_keys: ReadonlyArray<string>) => undefined);
 
+const mockRunLocalChecks = jest.fn();
+const mockRunPipelineChecks = jest.fn();
+
 jest.mock("@react-native-async-storage/async-storage", () => ({
+  __esModule: true,
+  default: {
+    multiSet: mockMultiSet,
+    multiRemove: mockMultiRemove,
+  },
   multiSet: mockMultiSet,
   multiRemove: mockMultiRemove,
 }));
-
-const mockRunLocalChecks = jest.fn();
-const mockRunPipelineChecks = jest.fn();
 
 jest.mock("../screens/DiagnosticScreen/hooks/diagnosticRunners", () => ({
   runLocalChecks: (...args: unknown[]) => mockRunLocalChecks(...args),
   runPipelineChecks: (...args: unknown[]) => mockRunPipelineChecks(...args),
 }));
 
+import { act, renderHook } from "@testing-library/react-native";
+import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
+import { makeProjectData, makeProjectFile } from "./helpers/projectTestHelpers";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { useDiagnosticRunController } = require("../screens/DiagnosticScreen/hooks/useDiagnosticRunController");
+
 describe("useDiagnosticRunController fingerprint snapshot contract", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRunPipelineChecks.mockImplementation(async () => undefined);
+    // defensive wiring for environments where default-import interop shape differs.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const asyncStorageModule = require("@react-native-async-storage/async-storage");
+    if (asyncStorageModule?.default) {
+      asyncStorageModule.default.multiSet = mockMultiSet;
+      asyncStorageModule.default.multiRemove = mockMultiRemove;
+    }
+    asyncStorageModule.multiSet = mockMultiSet;
+    asyncStorageModule.multiRemove = mockMultiRemove;
   });
 
   it("persists green readiness with the run-start file fingerprint even when projectRef files mutate mid-run", async () => {
