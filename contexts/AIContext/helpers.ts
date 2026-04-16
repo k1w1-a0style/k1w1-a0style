@@ -199,6 +199,24 @@ export function coerceProvider(value: unknown, fallback: AllAIProviders): AllAIP
 
 
 export async function loadConfig(): Promise<AIConfig | null> {
+  const loaded = await loadConfigWithSource();
+  return loaded?.config ?? null;
+}
+
+export type LoadConfigResult = {
+  sourceKey: string;
+  config: AIConfig;
+};
+
+export async function persistRedactedConfig(config: AIConfig): Promise<void> {
+  const redacted = {
+    ...config,
+    apiKeys: { ...DEFAULT_CONFIG.apiKeys },
+  };
+  await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted));
+}
+
+export async function loadConfigWithSource(): Promise<LoadConfigResult | null> {
   const keys = [CONFIG_STORAGE_KEY, ...STORAGE_FALLBACK_KEYS];
   for (const k of keys) {
     const raw = await AsyncStorage.getItem(k);
@@ -252,11 +270,10 @@ export async function loadConfig(): Promise<AIConfig | null> {
           : getDefaultMode(agentProvider, qm) || base.selectedAgentMode,
       };
 
-      if (k !== CONFIG_STORAGE_KEY) {
-        await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(fixed));
-      }
-
-      return fixed;
+      return {
+        sourceKey: k,
+        config: fixed,
+      };
     } catch {
       continue;
     }

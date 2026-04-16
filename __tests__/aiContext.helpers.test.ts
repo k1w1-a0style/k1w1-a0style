@@ -1,8 +1,11 @@
 import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   AI_KEYS_SECURE_KEY,
   buildProviderSelectionPatch,
   hasAnyApiKeys,
+  loadConfig,
+  loadConfigWithSource,
   loadSecureApiKeys,
   normalizeApiKeys,
   resolveRehydratedApiKeys,
@@ -15,6 +18,10 @@ describe("aiContext helpers", () => {
       __resetMockStorage?: () => void;
       __setMockStorage?: (next: Record<string, string>) => void;
     };
+    const storage = AsyncStorage as typeof AsyncStorage & {
+      __resetMockStorage?: () => void;
+    };
+    storage.__resetMockStorage?.();
     secureStore.__resetMockStorage?.();
     jest.clearAllMocks();
   });
@@ -193,5 +200,52 @@ describe("aiContext helpers", () => {
 
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(AI_KEYS_SECURE_KEY);
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
+  test("loadConfigWithSource keeps legacy source metadata and never writes ai_config_v4 during read", async () => {
+    const storage = AsyncStorage as typeof AsyncStorage & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    storage.__setMockStorage?.({
+      ai_config_v3: JSON.stringify({
+        version: 3,
+        selectedChatProvider: "openai",
+        selectedChatMode: "gpt-5.4-mini",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        apiKeys: {
+          openai: ["legacy-openai-key"],
+        },
+      }),
+    });
+
+    const loaded = await loadConfigWithSource();
+
+    expect(loaded?.sourceKey).toBe("ai_config_v3");
+    expect(loaded?.config.apiKeys.openai).toEqual(["legacy-openai-key"]);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  test("loadConfig still returns normalized config payload without source metadata", async () => {
+    const storage = AsyncStorage as typeof AsyncStorage & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    storage.__setMockStorage?.({
+      ai_config_v3: JSON.stringify({
+        version: 3,
+        selectedChatProvider: "openai",
+        selectedChatMode: "gpt-5.4-mini",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        apiKeys: {
+          openai: ["legacy-openai-key"],
+        },
+      }),
+    });
+
+    const loaded = await loadConfig();
+    expect(loaded?.apiKeys.openai).toEqual(["legacy-openai-key"]);
   });
 });

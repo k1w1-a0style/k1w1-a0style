@@ -53,7 +53,7 @@ export function useAppInfoScreen() {
       ),
     [projectData?.files, projectData?.name, projectData?.slug, projectData?.packageName],
   );
-  const { config, setConfig } = useAI();
+  const { config, setConfig, applyImportedConfig, assertImportedConfigAllowed } = useAI();
   const { activeRepo, activeBranch, recentRepos, addRecentRepo, clearRecentRepos } = useGitHub();
 
   const { appName, setAppName, packageName, setPackageNameState, iconPreview, setIconPreview } = useAppMetadataState(projectData?.name, projectFiles);
@@ -69,7 +69,8 @@ export function useAppInfoScreen() {
     handleImportSecureBackup,
   } = useAppInfoSecureBackupFlow({
     config,
-    setConfig,
+    applyImportedConfig,
+    assertImportedConfigAllowed,
     github: {
       activeRepo,
       activeBranch,

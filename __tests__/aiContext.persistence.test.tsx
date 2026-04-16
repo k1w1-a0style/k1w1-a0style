@@ -101,8 +101,69 @@ describe("AIContext redacted config persistence", () => {
         agentEnabled: true,
       }),
     });
-    (SecureStore as typeof SecureStore & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
-      [AI_KEYS_SECURE_KEY]: JSON.stringify({}),
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("secure unreadable"));
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
+    });
+    await waitFor(() => {
+      expect(SecureStore.getItemAsync).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.config.apiKeys.groq).toEqual([]);
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    await expect(result.current.addApiKey("groq", "new-key")).rejects.toThrow("SecureStore nicht lesbar");
+    expect(result.current.config.apiKeys.groq).toEqual([]);
+    expect(() =>
+      result.current.assertImportedConfigAllowed({
+        ...result.current.config,
+        apiKeys: {
+          ...result.current.config.apiKeys,
+          openai: ["sk-imported-openai"],
+        },
+      }),
+    ).toThrow("SecureStore ist nicht lesbar");
+    expect(() =>
+      result.current.applyImportedConfig({
+        ...result.current.config,
+        apiKeys: {
+          ...result.current.config.apiKeys,
+          openai: ["sk-imported-openai"],
+        },
+      }),
+    ).toThrow("SecureStore ist nicht lesbar");
+    expect(result.current.config.apiKeys.openai).toEqual([]);
+
+    act(() => {
+      result.current.setAgentEnabled(false);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("allows imported api keys when SecureStore is readable", async () => {
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      [CONFIG_STORAGE_KEY]: JSON.stringify({
+        version: 4,
+        selectedChatProvider: "groq",
+        selectedChatMode: "llama-3.1-8b-instant",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+      }),
     });
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -113,17 +174,75 @@ describe("AIContext redacted config persistence", () => {
     await waitFor(() => {
       expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
     });
-    expect(result.current.config.apiKeys.groq).toEqual([]);
-    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
-    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+    expect(() =>
+      result.current.assertImportedConfigAllowed({
+        ...result.current.config,
+        apiKeys: {
+          groq: [],
+          gemini: [],
+          openai: ["sk-imported-openai"],
+          anthropic: [],
+          huggingface: [],
+        },
+      }),
+    ).not.toThrow();
 
     act(() => {
-      result.current.setAgentEnabled(false);
+      result.current.applyImportedConfig({
+        ...result.current.config,
+        apiKeys: {
+          groq: [],
+          gemini: [],
+          openai: ["sk-imported-openai"],
+          anthropic: [],
+          huggingface: [],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.config.apiKeys.openai).toEqual(["sk-imported-openai"]);
+    });
+  });
+
+  it("does not finalize redacted ai_config_v4 when legacy->SecureStore migration fails", async () => {
+    jest.useFakeTimers();
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      ai_config_v3: JSON.stringify({
+        version: 3,
+        selectedChatProvider: "openai",
+        selectedChatMode: "gpt-5.4-mini",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+        apiKeys: {
+          openai: ["legacy-openai-key"],
+        },
+      }),
+    });
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error("secure migrate failed"));
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.selectedChatProvider).toBe("openai");
+    });
+    expect(result.current.config.apiKeys.openai).toEqual([]);
+
+    act(() => {
+      jest.runOnlyPendingTimers();
     });
     await act(async () => {
       await Promise.resolve();
     });
-    expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
-    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      CONFIG_STORAGE_KEY,
+      expect.any(String),
+    );
   });
 });

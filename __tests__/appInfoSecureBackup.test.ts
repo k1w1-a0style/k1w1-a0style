@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import {
   createConfigAndSecretsBackupPayload,
   createSecretBackupPayload,
@@ -14,6 +16,11 @@ import {
   sanitizeAiConfigFromBackup,
   validateApiBackupJson,
 } from "../lib/appInfoBackup";
+import {
+  clearSecureBackupImportRollbackSnapshot,
+  persistSecureBackupImportRollbackSnapshot,
+  readSecureBackupImportRollbackSnapshot,
+} from "../screens/AppInfoScreen/hooks/useAppInfoSecureBackupFlow";
 
 const baseConfig: AIConfig = {
   version: 1,
@@ -39,6 +46,18 @@ beforeAll(() => {
       configurable: true,
     });
   }
+});
+
+beforeEach(() => {
+  const storage = AsyncStorage as typeof AsyncStorage & {
+    __resetMockStorage?: () => void;
+  };
+  storage.__resetMockStorage?.();
+  const secureStore = SecureStore as typeof SecureStore & {
+    __resetMockStorage?: () => void;
+    __setMockStorage?: (next: Record<string, string>) => void;
+  };
+  secureStore.__resetMockStorage?.();
 });
 
 function makeSecretPayload() {
@@ -293,6 +312,33 @@ describe("app info secure backup contract", () => {
     expect(restored.aiConfig.qualityMode).toBe("quality");
     expect(restored.aiConfig.apiKeys.openai).toEqual(["sk-live-openai"]);
     expect(restored.aiConfig.apiKeys.gemini).toEqual([]);
+  });
+
+  test("secure backup rollback snapshot round-trips via SecureStore and not via AsyncStorage journal", async () => {
+    const snapshot = {
+      secrets: makeSecretPayload(),
+      derivedStatus: {
+        entries: [],
+      },
+    };
+    await persistSecureBackupImportRollbackSnapshot(snapshot);
+    const restored = await readSecureBackupImportRollbackSnapshot();
+
+    expect(restored).toEqual(snapshot);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  test("secure backup rollback snapshot helper fails closed for malformed secure payload", async () => {
+    const secureStore = SecureStore as typeof SecureStore & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    secureStore.__setMockStorage?.({
+      secure_backup_import_recoverable_snapshot_v1: "{\"broken\":true}",
+    });
+
+    await expect(readSecureBackupImportRollbackSnapshot()).rejects.toThrow("unvollständig");
+    await clearSecureBackupImportRollbackSnapshot();
+    await expect(readSecureBackupImportRollbackSnapshot()).resolves.toBeNull();
   });
 
   test("legacy api config exports still validate and sanitize independently", () => {

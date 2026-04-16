@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, QualityMode } from "./models";
 import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
-  loadConfig, loadSecureApiKeys, saveSecureApiKeys,
+  loadConfigWithSource, loadSecureApiKeys, persistRedactedConfig, saveSecureApiKeys,
+  hasAnyApiKeys,
   normalizeApiKeys,
   resolveProviderModeForQualityMode,
   resolveRehydratedApiKeys,
@@ -28,13 +29,16 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const [secureApiKeysReadable, setSecureApiKeysReadable] = useState(true);
+  const [allowConfigPersistence, setAllowConfigPersistence] = useState(false);
   const didLoad = useRef(false);
   const persistConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
+        const loadedResult = await loadConfigWithSource();
+        const loaded = loadedResult?.config ?? DEFAULT_CONFIG;
+        const loadedFromLegacySlot = Boolean(loadedResult && loadedResult.sourceKey !== CONFIG_STORAGE_KEY);
 
         // Load keys from SecureStore (authoritative)
         const secureResult = await loadSecureApiKeys();
@@ -48,13 +52,25 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
           loadedApiKeys: loaded.apiKeys,
           secureApiKeys: secureResult.keys,
         });
+        let secureMigrationFailed = false;
         if (secureResult.state !== "unreadable" && shouldMigrateLegacyToSecure) {
-          await saveSecureApiKeys(finalKeys);
+          try {
+            await saveSecureApiKeys(finalKeys);
+          } catch (error) {
+            secureMigrationFailed = true;
+            setSecureApiKeysReadable(false);
+            console.error("[AIContext] SecureStore migration for legacy API keys failed.", error);
+          }
         }
 
+        if (loadedFromLegacySlot && secureResult.state !== "unreadable" && !secureMigrationFailed) {
+          await persistRedactedConfig(loaded);
+        }
+        setAllowConfigPersistence(!loadedFromLegacySlot || (secureResult.state !== "unreadable" && !secureMigrationFailed));
+
         // Keep models/modes untouched; only ensure keys are loaded
-        const nextApiKeys = secureResult.state === "unreadable"
-          ? normalizeApiKeys(loaded.apiKeys)
+        const nextApiKeys = secureResult.state === "unreadable" || secureMigrationFailed
+          ? normalizeApiKeys(undefined)
           : finalKeys;
         setConfigState({ ...loaded, apiKeys: nextApiKeys });
       } finally {
@@ -65,6 +81,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!didLoad.current) return;
+    if (!allowConfigPersistence) return;
     const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
 
     if (persistConfigTimeoutRef.current) {
@@ -84,7 +101,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
         persistConfigTimeoutRef.current = null;
       }
     };
-  }, [config]);
+  }, [allowConfigPersistence, config]);
 
   useEffect(() => {
     if (!didLoad.current) return;
@@ -106,6 +123,24 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
+
+  const assertImportedConfigAllowed = useCallback((next: AIConfig) => {
+    const importedKeys = normalizeApiKeys(next.apiKeys);
+    if (!secureApiKeysReadable && hasAnyApiKeys(importedKeys)) {
+      throw new Error("Import blockiert: SecureStore ist nicht lesbar, API-Keys koennen nicht sicher übernommen werden.");
+    }
+  }, [secureApiKeysReadable]);
+
+  const applyImportedConfig = useCallback((next: AIConfig) => {
+    const importedKeys = normalizeApiKeys(next.apiKeys);
+    assertImportedConfigAllowed({ ...next, apiKeys: importedKeys });
+    if (!secureApiKeysReadable) {
+      setConfigState((prev) => ({ ...next, apiKeys: normalizeApiKeys(prev.apiKeys) }));
+      return;
+    }
+    setConfigState({ ...next, apiKeys: importedKeys });
+  }, [assertImportedConfigAllowed, secureApiKeysReadable]);
+
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
     setConfigState((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -153,7 +188,13 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     setProviderStatus((prev) => prev.filter((p) => p.provider !== provider));
   }, []);
 
+  const assertSecureStoreWritable = useCallback(() => {
+    if (secureApiKeysReadable) return;
+    throw new Error("API-Keys können nicht geändert werden, weil SecureStore nicht lesbar ist.");
+  }, [secureApiKeysReadable]);
+
   const addApiKey = useCallback(async (provider: AllAIProviders, key: string) => {
+    assertSecureStoreWritable();
     const k = key.trim();
     if (!k) return;
     setConfigState((prev) => {
@@ -161,20 +202,23 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       if (current.includes(k)) return prev;
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: [...current, k] } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const removeApiKey = useCallback(async (provider: AllAIProviders, key: string) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => ({
       ...prev,
       apiKeys: { ...prev.apiKeys, [provider]: (prev.apiKeys[provider] ?? []).filter((k) => k !== key) },
     }));
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const clearApiKeys = useCallback(async (provider: AllAIProviders) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => ({ ...prev, apiKeys: { ...prev.apiKeys, [provider]: [] } }));
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const rotateApiKey = useCallback(async (provider: AllAIProviders) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => {
       const keys = [...(prev.apiKeys[provider] ?? [])];
       if (keys.length <= 1) return prev;
@@ -182,9 +226,10 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       keys.push(first);
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: keys } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const moveApiKeyToFront = useCallback(async (provider: AllAIProviders, keyOrIndex: string | number) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => {
       const keys = [...(prev.apiKeys[provider] ?? [])];
       if (keys.length === 0) return prev;
@@ -198,12 +243,14 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       keys.unshift(k);
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: keys } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const value = useMemo(
     () => ({
       config,
       setConfig,
+      assertImportedConfigAllowed,
+      applyImportedConfig,
       updateConfig,
       addApiKey,
       removeApiKey,
@@ -222,6 +269,8 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     [
       config,
       setConfig,
+      assertImportedConfigAllowed,
+      applyImportedConfig,
       updateConfig,
       addApiKey,
       removeApiKey,
