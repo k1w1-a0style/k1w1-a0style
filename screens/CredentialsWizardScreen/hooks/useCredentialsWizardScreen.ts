@@ -29,7 +29,7 @@ import {
   mergePersistedStatusByMode,
   persistWizardStatusByMode,
 } from "./wizardStatusStore";
-import { readCurrentUserJwt } from "./wizardEdgeAuth";
+import { readCurrentUserJwtResult } from "./wizardEdgeAuth";
 import { isWizardRunInputReady, validateWizardRunInputs } from "./credentialRunValidation";
 import { runStatusRefreshAction } from "./wizardEdgeActions";
 import { useCredentialsWizardUiState } from "./useCredentialsWizardUiState";
@@ -40,6 +40,12 @@ export { mergePersistedStatusByMode };
 const MISSING_OPERATOR_JWT_TITLE = "Supabase Login fehlt";
 const MISSING_OPERATOR_JWT_MESSAGE =
   "Keystore-Status/Generate benötigen einen Supabase Operator-JWT mit Rolle build_admin (oder service_role fuer Server-Caller) sowie den lokalen Android Keystore Export Admin Key. build_admin wird im Betriebs-/Provisioning-Prozess ausserhalb dieses Repos per Supabase-User-Claim vergeben. Normale eingeloggte Nutzer ohne extern provisionierten build_admin-Claim sind fuer diesen Operator-Flow fail-closed blockiert.";
+const UNREADABLE_OPERATOR_JWT_TITLE = "Supabase Session nicht lesbar";
+const UNREADABLE_OPERATOR_JWT_MESSAGE =
+  "Der lokale Session-Read ist fehlgeschlagen. Bitte Login erneuern und anschließend erneut versuchen.";
+const SUPABASE_INIT_FAILED_TITLE = "Supabase Initialisierung fehlgeschlagen";
+const SUPABASE_INIT_FAILED_MESSAGE =
+  "Die lokale Supabase-Konfiguration konnte nicht initialisiert werden. Bitte Verbindungen prüfen und erneut versuchen.";
 
 export function useCredentialsWizardScreen() {
   const project = useProject();
@@ -168,8 +174,16 @@ export function useCredentialsWizardScreen() {
 
   const requireUserJwtOrAlert = useCallback(
     async (): Promise<string | null> => {
-      const jwt = await readCurrentUserJwt({ onError: safeSetLastError });
-      if (jwt) return jwt;
+      const jwtResult = await readCurrentUserJwtResult({ onError: safeSetLastError });
+      if (jwtResult.reason === "ok") return jwtResult.jwt;
+      if (jwtResult.reason === "session_unreadable") {
+        Alert.alert(UNREADABLE_OPERATOR_JWT_TITLE, UNREADABLE_OPERATOR_JWT_MESSAGE);
+        return null;
+      }
+      if (jwtResult.reason === "supabase_init_failed") {
+        Alert.alert(SUPABASE_INIT_FAILED_TITLE, SUPABASE_INIT_FAILED_MESSAGE);
+        return null;
+      }
       Alert.alert(MISSING_OPERATOR_JWT_TITLE, MISSING_OPERATOR_JWT_MESSAGE);
       return null;
     },

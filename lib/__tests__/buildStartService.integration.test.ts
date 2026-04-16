@@ -18,6 +18,7 @@ import {
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
+const mockAssertBuildReadiness = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   __esModule: true,
@@ -37,6 +38,14 @@ jest.mock("../../lib/logger", () => ({
     debug: jest.fn(),
   },
 }));
+
+jest.doMock(require.resolve("../../lib/buildReadiness"), () => {
+  const actual = jest.requireActual("../../lib/buildReadiness");
+  return {
+    ...actual,
+    assertBuildReadiness: mockAssertBuildReadiness,
+  };
+});
 
 const mockGitHub = {
   getWorkflowAdminKey: jest.fn(),
@@ -102,6 +111,7 @@ describe("startBuildJob (integration)", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertBuildReadiness.mockResolvedValue(undefined);
     mockSetItem.mockResolvedValue(undefined);
     const project = makeProject();
     const repo = "k1w1-a0style/musik-player";

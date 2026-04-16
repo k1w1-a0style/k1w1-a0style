@@ -4,11 +4,20 @@ import { diagnosticReadinessRecordKeyForSelection } from "../lib/storageKeys";
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
+const mockAssertBuildReadiness = jest.fn();
 
 jest.mock("@react-native-async-storage/async-storage", () => ({
   getItem: (...args: unknown[]) => mockGetItem(...args),
   setItem: (...args: unknown[]) => mockSetItem(...args),
 }));
+
+jest.doMock(require.resolve("../lib/buildReadiness"), () => {
+  const actual = jest.requireActual("../lib/buildReadiness");
+  return {
+    ...actual,
+    assertBuildReadiness: mockAssertBuildReadiness,
+  };
+});
 
 const mockGitHub = {
   getWorkflowAdminKey: jest.fn(),
@@ -56,6 +65,7 @@ function makeProject(overrides: Partial<ProjectData> = {}): ProjectData {
 describe("buildStartService edge payload typing", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAssertBuildReadiness.mockResolvedValue(undefined);
     const now = Date.now();
     const project = makeProject();
     const readinessKey = diagnosticReadinessRecordKeyForSelection({

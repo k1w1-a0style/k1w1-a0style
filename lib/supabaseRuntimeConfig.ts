@@ -28,18 +28,95 @@ export function normalizeSupabaseUrl(value: string | null | undefined): string |
   }
 }
 
-export async function readSupabaseRuntimeConfig(): Promise<{ url: string | null; anonKey: string | null }> {
-  const [storedSupabaseUrl, storedSupabaseAnonKey] = await Promise.all([
-    Promise.resolve(AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL)).catch(() => null),
-    Promise.resolve(getSupabaseAnonKey()).catch(() => null),
+export type SupabaseRuntimeCredentialReason = "ok" | "missing" | "invalid" | "unreadable";
+
+export type SupabaseRuntimeConfigDetailed = {
+  url: string | null;
+  anonKey: string | null;
+  urlReason: SupabaseRuntimeCredentialReason;
+  anonKeyReason: SupabaseRuntimeCredentialReason;
+};
+
+async function readStoredSupabaseUrl(): Promise<{ value: string | null; unreadable: boolean }> {
+  try {
+    return {
+      value: await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+      unreadable: false,
+    };
+  } catch {
+    return {
+      value: null,
+      unreadable: true,
+    };
+  }
+}
+
+async function readStoredSupabaseAnonKey(): Promise<{ value: string | null; unreadable: boolean }> {
+  try {
+    return {
+      value: await getSupabaseAnonKey(),
+      unreadable: false,
+    };
+  } catch {
+    return {
+      value: null,
+      unreadable: true,
+    };
+  }
+}
+
+export async function readSupabaseRuntimeConfigDetailed(): Promise<SupabaseRuntimeConfigDetailed> {
+  const [storedUrlRead, storedAnonRead] = await Promise.all([
+    readStoredSupabaseUrl(),
+    readStoredSupabaseAnonKey(),
   ]);
 
+  const storedSupabaseUrl = storedUrlRead.value;
+  const storedSupabaseAnonKey = storedAnonRead.value;
   const runtimeProcess = getRuntimeProcess();
   const runtimeSupabaseUrl = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_URL ?? null;
   const runtimeSupabaseAnonKey = runtimeProcess?.env?.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? null;
 
+  const normalizedStoredUrl = normalizeSupabaseUrl(storedSupabaseUrl);
+  const normalizedRuntimeUrl = normalizeSupabaseUrl(runtimeSupabaseUrl);
+  const normalizedStoredAnonKey = readNonEmptyTrimmed(storedSupabaseAnonKey);
+  const normalizedRuntimeAnonKey = readNonEmptyTrimmed(runtimeSupabaseAnonKey);
+
+  const url = normalizedStoredUrl ?? normalizedRuntimeUrl;
+  const anonKey = normalizedStoredAnonKey ?? normalizedRuntimeAnonKey;
+
+  const storedUrlRaw = readNonEmptyTrimmed(storedSupabaseUrl);
+  const runtimeUrlRaw = readNonEmptyTrimmed(runtimeSupabaseUrl);
+  const urlReason: SupabaseRuntimeCredentialReason = url
+    ? "ok"
+    : storedUrlRead.unreadable
+      ? "unreadable"
+      : (storedUrlRaw || runtimeUrlRaw)
+        ? "invalid"
+        : "missing";
+
+  const storedAnonRaw = readNonEmptyTrimmed(storedSupabaseAnonKey);
+  const runtimeAnonRaw = readNonEmptyTrimmed(runtimeSupabaseAnonKey);
+  const anonKeyReason: SupabaseRuntimeCredentialReason = anonKey
+    ? "ok"
+    : storedAnonRead.unreadable
+      ? "unreadable"
+      : (storedAnonRaw || runtimeAnonRaw)
+        ? "invalid"
+        : "missing";
+
   return {
-    url: normalizeSupabaseUrl(storedSupabaseUrl) ?? normalizeSupabaseUrl(runtimeSupabaseUrl),
-    anonKey: readNonEmptyTrimmed(storedSupabaseAnonKey) ?? readNonEmptyTrimmed(runtimeSupabaseAnonKey),
+    url,
+    anonKey,
+    urlReason,
+    anonKeyReason,
+  };
+}
+
+export async function readSupabaseRuntimeConfig(): Promise<{ url: string | null; anonKey: string | null }> {
+  const detailed = await readSupabaseRuntimeConfigDetailed();
+  return {
+    url: detailed.url,
+    anonKey: detailed.anonKey,
   };
 }

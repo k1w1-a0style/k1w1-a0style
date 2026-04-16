@@ -44,8 +44,14 @@ export const tryCreateSupabasePreview = async ({
 }): Promise<{ result: PreviewResult | null; handledFailure: boolean }> => {
   let userJwt: string | null = null;
   try {
-    const supabase = await ensureSupabaseClient();
-    const sessionResult = await supabase.auth.getSession().catch(() => null);
+    const supabase = await ensureSupabaseClient().catch((error: unknown) => {
+      const message = error instanceof Error && error.message.trim() ? error.message.trim() : String(error);
+      throw new Error(`Supabase preview init failed: ${message}`);
+    });
+    const sessionResult = await supabase.auth.getSession().catch((error: unknown) => {
+      const message = error instanceof Error && error.message.trim() ? error.message.trim() : String(error);
+      throw new Error(`Supabase session unreadable: ${message}`);
+    });
     userJwt = extractSessionAccessToken(sessionResult);
 
     if (!userJwt) {
