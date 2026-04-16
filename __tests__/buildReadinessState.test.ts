@@ -7,9 +7,10 @@ describe("readBuildReadinessState", () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "owner/repo",
         branch: "main",
+        projectFingerprint: "fp::state-test",
         diagnosticOk: true,
         includePipelineChecks: true,
         focusedModes: ["preview"],
@@ -41,9 +42,10 @@ describe("readBuildReadinessState", () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "owner/repo",
         branch: "main",
+        projectFingerprint: "fp::state-test",
         diagnosticOk: true,
         includePipelineChecks: true,
         focusedModes: ["preview"],
@@ -133,9 +135,10 @@ describe("readBuildReadinessState", () => {
     const sha = "c".repeat(40);
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "owner/repo",
         branch: "main",
+        projectFingerprint: "fp::state-test",
         diagnosticOk: true,
         includePipelineChecks: true,
         focusedModes: ["preview"],
@@ -169,9 +172,10 @@ describe("readBuildReadinessState", () => {
   it("blocks diagnostic readiness when record exists but pipeline checks were excluded", async () => {
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::owner%2Frepo::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "owner/repo",
         branch: "main",
+        projectFingerprint: "fp::state-test",
         diagnosticOk: true,
         includePipelineChecks: false,
         focusedModes: ["preview"],

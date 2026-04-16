@@ -1,6 +1,6 @@
 # 07 — Diagnostics → Fix Playbook (Buildflow wasserdicht)
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-16 (Truthfulness Block B: diagnostic fingerprint binding)**
 
 Dieses Dokument verbindet **alle existierenden Diagnostic Checks** mit den **Build-Readiness Items** aus `docs/06-build-readiness.md` und liefert pro Check einen **Fix-Pfad** (AutoFix vs. Manual) inkl. “Was danach erneut prüfen”.
 
@@ -96,7 +96,7 @@ Build-Readiness Items (Kurz):
 - **BR-1 Repo/Branch gewählt**
 - **BR-2 Build-Profil gültig**
 - **BR-3 Tokens vorhanden (GitHub+Expo)**
-- **BR-4 Diagnostics grün (`DIAGNOSTIC_LAST_OK`)**
+- **BR-4 Diagnostics grün (selection-scoped `diagnostic_readiness_record` + aktueller `projectFingerprint`)**
 - **BR-5 Signing-Key Status (profilbezogen)**
 - **BR-6 Workflows vorhanden**
 - **BR-7 EAS Profile korrekt (apk/withoutCredentials/production signing)**

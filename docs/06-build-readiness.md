@@ -1,6 +1,6 @@
 # 06 — Build Readiness Gate (verbindlich)
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-16 (Truthfulness Block B: diagnostic fingerprint binding)**
 
 ## Ziel
 Ein Build darf nur starten, wenn alle profilabhängigen Voraussetzungen erfüllt sind.
@@ -14,7 +14,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 - Repo + Branch aus SoT (`projectData.linkedRepo`, `projectData.linkedBranch`) müssen gesetzt/valide sein.
 - GitHub + Expo Token vorhanden.
 - Signing-Status `CRED_KEY_EXISTS_DEV === "true"`.
-- Letzte Diagnostik muss fuer **genau diese Repo/Branch-Selection** gruen sein (`diagnostic_last_ok::<repo>::<branch> === "true"` via `diagnosticLastOkKeyForSelection(...)`). Ein globaler Legacy-Key reicht nicht mehr.
+- Letzte Diagnostik muss fuer **genau diese Repo/Branch-Selection und den aktuellen Projektdatei-Stand** gruen sein (`diagnostic_readiness_record::<repo>::<branch>` mit `diagnosticOk=true`, `includePipelineChecks=true` und passendem `projectFingerprint`). Ein globaler Legacy-Key reicht nicht mehr.
 - Workflow-Dateien im Ziel-Repo vorhanden (`eas-build.yml`, `k1w1-triggered-build.yml`, `eas-link.yml`, `release-build.yml`) via AutoFix.
 - `eas.json` enthält `build.development` (APK, `withoutCredentials: true`).
 
@@ -39,7 +39,7 @@ Kein stiller Fallback bei Repo/Branch/Profil/Secrets.
 | Branch ausgewählt | Ja/Ja/Ja | `projectData.linkedBranch` | `branchName.trim().length > 0` | Ja | `Branch fehlt` | Nein | Branch explizit im Repo-Screen wählen |
 | Build-Profil gültig | Ja/Ja/Ja | `preferredBuildProfile` / Start-Parameter | `development|preview|production` | Ja | `Ungültiges Build-Profil` | Teilweise | UI-Picker korrigieren, Service normalisiert nur als Failsafe |
 | GitHub+Expo Token vorhanden | Ja/Ja/Ja | SecureStore (`tokenStore`) | `getGitHubToken` + `getExpoToken` beide nicht leer | Ja | `Tokens fehlen (GitHub + Expo)` | Nein | Verbindungen-Screen Token setzen |
-| Diagnostics grün | Ja/Ja/Ja | `diagnostic_last_ok::<repo>::<branch>` | Selection-scoped AsyncStorage key via `diagnosticLastOkKeyForSelection(...)` muss exakt `"true"` sein | Ja | `Diagnostik nicht grün` | Nein | Diagnostics fuer genau diese Repo/Branch-Selection ausführen |
+| Diagnostics grün | Ja/Ja/Ja | `diagnostic_readiness_record::<repo>::<branch>` | Selection-scoped Structured Record (`version=2`) muss `diagnosticOk=true`, `includePipelineChecks=true` und `projectFingerprint === computeProjectFilesSignature(project.files)` erfüllen | Ja | `Diagnostik nicht grün` | Nein | Diagnostics fuer genau diese Repo/Branch-Selection und den aktuellen Dateistand neu ausführen |
 | Signing-Key vorhanden (profilbezogen) | Ja/Ja/Ja | `CRED_KEY_EXISTS_*` | `credKeyForProfile(profile)` muss `"true"` sein | Ja | `Signing Key fehlt` | Teilweise | Credentials Wizard: Status refresh/generate |
 | EAS Auth Secret in GitHub (`EXPO_TOKEN`) | Ja/Ja/Ja | Repo GitHub Secrets | Workflow Validate Inputs (`Missing GitHub Secret EXPO_TOKEN`) | Ja | `Missing GitHub Secret EXPO_TOKEN` | Ja | `autoSyncRepoSecrets` synct `EXPO_TOKEN` falls lokal vorhanden |
 | Supabase Secrets in GitHub (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`) | Nein/Nein/Ja | Repo GitHub Secrets | `eas-build.yml` blockt production bei fehlenden Werten | Ja (nur prod) | `Production build requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY` | Ja | `autoSyncRepoSecrets` (wenn lokal vorhanden), sonst manuell im Repo-Secret setzen |
@@ -66,7 +66,8 @@ Der Service muss dieselben Regeln servernah erzwingen, damit keine Umgehung via 
 
 ### 3.3 Warnung vs Blocker
 - **Blocker:** Repo ungültig, Branch leer, Profil ungültig, Token fehlt, Signing fehlt, Diagnostics fail/unknown, notwendige profilabhängige Secrets fehlen.
-- **Wichtig (Fix-Durchlauf 1, Scope-Truth):** Das Build-Gate liest fuer aktive Selections nur noch den **selection-scoped** Diagnose-Key. Der globale Legacy-Key `diagnostic_last_ok` ist kein green fallback mehr fuer andere Repos/Branches.
+- **Wichtig (Truthfulness Block B):** Das Build-Gate liest fuer aktive Selections nur noch den **selection-scoped structured Diagnostics-Record** mit Fingerprint-Bindung. Ein alter/globaler `diagnostic_last_ok`-Wert ist kein Green-Fallback mehr.
+- **Wichtig (Truthfulness Block B):** Beim Start eines neuen Diagnostics-Runs wird die bisherige Diagnostics-Readiness sofort fail-closed auf `diagnosticOk=false` gesetzt. Dadurch kann altes Grün waehrend laufender oder fehlgeschlagener Reruns nicht weiter Build-freigeben.
 - **Blocker:** Repo-Sync-Status `unknown` fuer aktive Repo/Branch-Selection mit vorhandenen Projektdateien. UI und Start-Service behandeln diesen Zustand jetzt gleich fail-closed.
 - **Warnung:** CI Lite rot/unknown, optionale Keys (`EAS_PROJECT_ID`, `K1W1_EDGE_WORKFLOW_ADMIN_KEY`, `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) fehlen, solange Build-Flow ohne diese lauffähig bleibt.
 - **Wichtig (lokale Readiness):** Workflow-/Build-/Artifact-Pfade prüfen den **lokalen Workflow Admin Key** getrennt; Keystore-bezogene Pfade prüfen den **lokalen Android Keystore Export Admin Key** getrennt. Ein vorhandener Legacy-Key allein darf kein false-green erzeugen.
