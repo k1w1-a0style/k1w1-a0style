@@ -16,6 +16,7 @@ describe("recoverable multi-store persistence invariants", () => {
 
     expect(src).toContain('SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1"');
     expect(src).toContain("recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>");
+    expect(src).toContain("assertImportedConfigAllowed(importedAiConfig);");
     expect(src).toContain('flow: "secure_backup_import"');
     expect(src).toContain("runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({");
     expect(src).toContain("snapshotDerivedStatusBeforeSecretImport()");
@@ -28,6 +29,15 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(src).toContain('if ("secrets" in snapshot)');
     expect(src).toContain("const importRepoScope = payload.github.linkedRepo ?? null;");
     expect(src).toContain("repoFullName: importRepoScope");
+
+    const recoverIdx = src.indexOf("await recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>({");
+    const preflightIdx = src.indexOf("assertImportedConfigAllowed(importedAiConfig);");
+    const commitIdx = src.indexOf("await runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({");
+    expect(recoverIdx).toBeGreaterThanOrEqual(0);
+    expect(preflightIdx).toBeGreaterThanOrEqual(0);
+    expect(commitIdx).toBeGreaterThanOrEqual(0);
+    expect(recoverIdx).toBeLessThan(preflightIdx);
+    expect(preflightIdx).toBeLessThan(commitIdx);
   });
 
   it("keeps Connections recovery scope journal/snapshot-driven instead of current repo closure", () => {

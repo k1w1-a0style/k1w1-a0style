@@ -321,9 +321,6 @@ export function useAppInfoSecureBackupFlow(params: {
     const importedAiConfig = imported.kind === "config-secret-snapshot"
       ? sanitizeAiConfigFromBackup(imported.aiConfig, config)
       : null;
-    if (importedAiConfig) {
-      assertImportedConfigAllowed(importedAiConfig);
-    }
     const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
     await recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>({
       journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
@@ -342,6 +339,9 @@ export function useAppInfoSecureBackupFlow(params: {
         await clearSecureBackupImportRollbackSnapshot();
       },
     });
+    if (importedAiConfig) {
+      assertImportedConfigAllowed(importedAiConfig);
+    }
     const [rollbackSecrets, rollbackDerivedStatus] = await Promise.all([
       collectSecretBackupPayload(),
       snapshotDerivedStatusBeforeSecretImport(),
