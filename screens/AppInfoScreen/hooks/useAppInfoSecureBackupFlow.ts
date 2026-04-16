@@ -62,6 +62,9 @@ type SecureBackupImportSnapshot = {
   derivedStatus: SecretImportDerivedStatusSnapshot;
 };
 
+type SecureBackupImportJournalSnapshot = {
+  derivedStatus: SecretImportDerivedStatusSnapshot;
+};
 
 async function readSecretOrNull(read: () => Promise<string | null>): Promise<string | null> {
   try {
@@ -280,11 +283,13 @@ export function useAppInfoSecureBackupFlow(params: {
     const result = await importEncryptedScopedBackup(passphrase);
     const imported = result.data;
     const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
-    await recoverFromPendingJournal<SecureBackupImportSnapshot>({
+    await recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>({
       journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
       flow: "secure_backup_import",
       restoreSnapshot: async (snapshot) => {
-        await applySecretBackupPayloadCore(snapshot.secrets);
+        if ("secrets" in snapshot) {
+          await applySecretBackupPayloadCore(snapshot.secrets);
+        }
         await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
       },
     });
@@ -293,11 +298,14 @@ export function useAppInfoSecureBackupFlow(params: {
       snapshotDerivedStatusBeforeSecretImport(),
     ]);
 
-    await runRecoverableCommit({
+    await runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({
       journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
       flow: "secure_backup_import",
       snapshot: {
         secrets: rollbackSecrets,
+        derivedStatus: rollbackDerivedStatus,
+      },
+      journalSnapshot: {
         derivedStatus: rollbackDerivedStatus,
       },
       apply: async () => {

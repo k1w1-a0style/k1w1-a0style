@@ -15,12 +15,14 @@ describe("recoverable multi-store persistence invariants", () => {
     const src = readRepoText("screens/AppInfoScreen/hooks/useAppInfoSecureBackupFlow.ts");
 
     expect(src).toContain('SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1"');
-    expect(src).toContain("recoverFromPendingJournal<SecureBackupImportSnapshot>");
+    expect(src).toContain("recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>");
     expect(src).toContain('flow: "secure_backup_import"');
-    expect(src).toContain("runRecoverableCommit({");
+    expect(src).toContain("runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({");
     expect(src).toContain("snapshotDerivedStatusBeforeSecretImport()");
     expect(src).toContain("derivedStatus: rollbackDerivedStatus");
+    expect(src).toContain("journalSnapshot: {");
     expect(src).toContain("restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus)");
+    expect(src).toContain('if ("secrets" in snapshot)');
     expect(src).toContain("const importRepoScope = payload.github.linkedRepo ?? null;");
     expect(src).toContain("repoFullName: importRepoScope");
   });

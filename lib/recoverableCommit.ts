@@ -79,10 +79,11 @@ export async function recoverFromPendingJournal<TSnapshot>(params: {
   }
 }
 
-export async function runRecoverableCommit<TSnapshot>(params: {
+export async function runRecoverableCommit<TSnapshot, TJournalSnapshot = TSnapshot>(params: {
   journalKey: string;
   flow: string;
   snapshot: TSnapshot;
+  journalSnapshot?: TJournalSnapshot;
   apply: () => Promise<void>;
   rollback: (snapshot: TSnapshot) => Promise<void>;
 }): Promise<void> {
@@ -91,7 +92,7 @@ export async function runRecoverableCommit<TSnapshot>(params: {
     flow: params.flow,
     createdAt: new Date().toISOString(),
     stage: "applying",
-    snapshot: params.snapshot,
+    snapshot: params.journalSnapshot ?? params.snapshot,
   });
 
   try {
@@ -109,7 +110,7 @@ export async function runRecoverableCommit<TSnapshot>(params: {
         flow: params.flow,
         createdAt: new Date().toISOString(),
         stage: "rollback_failed",
-        snapshot: params.snapshot,
+        snapshot: params.journalSnapshot ?? params.snapshot,
         errorMessage: `${getErrorMessage(commitError)} | rollback: ${getErrorMessage(error)}`,
       });
     }

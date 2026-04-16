@@ -54,7 +54,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
         // Keep models/modes untouched; only ensure keys are loaded
         const nextApiKeys = secureResult.state === "unreadable"
-          ? normalizeApiKeys(loaded.apiKeys)
+          ? normalizeApiKeys(undefined)
           : finalKeys;
         setConfigState({ ...loaded, apiKeys: nextApiKeys });
       } finally {
@@ -153,7 +153,13 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     setProviderStatus((prev) => prev.filter((p) => p.provider !== provider));
   }, []);
 
+  const assertSecureStoreWritable = useCallback(() => {
+    if (secureApiKeysReadable) return;
+    throw new Error("API-Keys können nicht geändert werden, weil SecureStore nicht lesbar ist.");
+  }, [secureApiKeysReadable]);
+
   const addApiKey = useCallback(async (provider: AllAIProviders, key: string) => {
+    assertSecureStoreWritable();
     const k = key.trim();
     if (!k) return;
     setConfigState((prev) => {
@@ -161,20 +167,23 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       if (current.includes(k)) return prev;
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: [...current, k] } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const removeApiKey = useCallback(async (provider: AllAIProviders, key: string) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => ({
       ...prev,
       apiKeys: { ...prev.apiKeys, [provider]: (prev.apiKeys[provider] ?? []).filter((k) => k !== key) },
     }));
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const clearApiKeys = useCallback(async (provider: AllAIProviders) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => ({ ...prev, apiKeys: { ...prev.apiKeys, [provider]: [] } }));
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const rotateApiKey = useCallback(async (provider: AllAIProviders) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => {
       const keys = [...(prev.apiKeys[provider] ?? [])];
       if (keys.length <= 1) return prev;
@@ -182,9 +191,10 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       keys.push(first);
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: keys } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const moveApiKeyToFront = useCallback(async (provider: AllAIProviders, keyOrIndex: string | number) => {
+    assertSecureStoreWritable();
     setConfigState((prev) => {
       const keys = [...(prev.apiKeys[provider] ?? [])];
       if (keys.length === 0) return prev;
@@ -198,7 +208,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
       keys.unshift(k);
       return { ...prev, apiKeys: { ...prev.apiKeys, [provider]: keys } };
     });
-  }, []);
+  }, [assertSecureStoreWritable]);
 
   const value = useMemo(
     () => ({

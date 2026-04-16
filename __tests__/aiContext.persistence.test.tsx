@@ -101,9 +101,7 @@ describe("AIContext redacted config persistence", () => {
         agentEnabled: true,
       }),
     });
-    (SecureStore as typeof SecureStore & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
-      [AI_KEYS_SECURE_KEY]: JSON.stringify({}),
-    });
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("secure unreadable"));
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <AIProvider>{children}</AIProvider>
@@ -113,9 +111,18 @@ describe("AIContext redacted config persistence", () => {
     await waitFor(() => {
       expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
     });
+    await waitFor(() => {
+      expect(SecureStore.getItemAsync).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(result.current.config.apiKeys.groq).toEqual([]);
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+
+    await expect(result.current.addApiKey("groq", "new-key")).rejects.toThrow("SecureStore nicht lesbar");
+    expect(result.current.config.apiKeys.groq).toEqual([]);
 
     act(() => {
       result.current.setAgentEnabled(false);

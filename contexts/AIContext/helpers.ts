@@ -253,7 +253,11 @@ export async function loadConfig(): Promise<AIConfig | null> {
       };
 
       if (k !== CONFIG_STORAGE_KEY) {
-        await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(fixed));
+        const redacted = {
+          ...fixed,
+          apiKeys: { ...DEFAULT_CONFIG.apiKeys },
+        };
+        await AsyncStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(redacted));
       }
 
       return fixed;
