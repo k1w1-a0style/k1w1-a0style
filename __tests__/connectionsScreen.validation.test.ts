@@ -29,6 +29,11 @@ describe("ConnectionsScreen validation", () => {
     expect(out.url).toBe("https://xfgnzpcljsuqqdjlxgul.supabase.co");
   });
 
+  test("deriveSupabaseUrl returns empty values for invalid input", () => {
+    const out = deriveSupabaseUrl("not a supabase target");
+    expect(out).toEqual({ projectId: "", url: "" });
+  });
+
   test("validateBeforeSave rejects malformed GitHub token", () => {
     const res = validateBeforeSave(makeValidationInput({ githubToken: "not-a-token" }));
     expect(res.ok).toBe(false);

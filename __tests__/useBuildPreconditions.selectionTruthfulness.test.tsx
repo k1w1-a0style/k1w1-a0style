@@ -39,7 +39,7 @@ jest.mock("../screens/EnhancedBuildScreen/hooks/buildReadinessState", () => ({
 }));
 
 jest.mock("../screens/EnhancedBuildScreen/hooks/signingKeyGate", () => ({
-  readSigningKeyGateState: jest.fn(async () => ({ hasSigningKey: true, reason: null })),
+  readSigningKeyGateState: jest.fn(async () => ({ hasSigningKey: true, reason: null, freshness: "fresh_valid" })),
 }));
 
 jest.mock("../lib/repoSyncOrchestration", () => ({
@@ -77,6 +77,7 @@ describe("useBuildPreconditions selection truthfulness", () => {
       localEdgeAdminKeyPresent: true,
       credentialState: "verified",
       credentialDetail: null,
+      freshness: "fresh_valid",
     });
     readBuildReadinessStateMock.mockResolvedValue({
       hasDiagOk: true,

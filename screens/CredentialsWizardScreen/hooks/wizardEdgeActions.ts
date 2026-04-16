@@ -25,6 +25,7 @@ type RefreshStatusCoreParams = {
   safeSetLastError: (error: unknown) => void;
   safeSetLastDebug: (debug: WizardHttpDebug | null) => void;
   persistWizardStatus: (mode: UiModeId, status: StatusResult | null) => Promise<void>;
+  getCurrentStatusForMode: (mode: UiModeId) => StatusResult | null;
   opts?: { preservePendingOnError?: boolean };
 };
 
@@ -40,6 +41,7 @@ export async function runStatusRefreshAction(params: RefreshStatusCoreParams): P
     safeSetLastError,
     safeSetLastDebug,
     persistWizardStatus,
+    getCurrentStatusForMode,
     opts,
   } = params;
 
@@ -60,30 +62,26 @@ export async function runStatusRefreshAction(params: RefreshStatusCoreParams): P
     if (!r.ok) {
       safeSetLastError(r.error);
       if (isMounted()) {
-        setStatusByMode((prev) => {
-          const nextStatus =
-            opts?.preservePendingOnError && prev[mode]?.credentialState === "generated_pending_verification"
-              ? toGeneratedPendingStatusWithReason(
-                  prev[mode],
-                  "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-                )
-              : toWizardErrorStatus({
-                  previous: prev[mode],
+        const previous = getCurrentStatusForMode(mode);
+        const nextStatus =
+          opts?.preservePendingOnError && previous?.credentialState === "generated_pending_verification"
+            ? toGeneratedPendingStatusWithReason(
+                previous,
+                "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
+              )
+            : toWizardErrorStatus({
+                previous,
+                statusCode: r.debug.status ?? null,
+                error: r.error,
+                detail: describeLocalEdgeAdminKeyIssue({
+                  adminKey,
                   statusCode: r.debug.status ?? null,
                   error: r.error,
-                  detail: describeLocalEdgeAdminKeyIssue({
-                    adminKey,
-                    statusCode: r.debug.status ?? null,
-                    error: r.error,
-                    surface: "keystore",
-                  }),
-                });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
-        });
+                  surface: "keystore",
+                }),
+              });
+        setStatusByMode((prev) => ({ ...prev, [mode]: nextStatus }));
+        await persistWizardStatus(mode, nextStatus);
       }
       return false;
     }
@@ -97,24 +95,20 @@ export async function runStatusRefreshAction(params: RefreshStatusCoreParams): P
   } catch (error: unknown) {
     safeSetLastError(error);
     if (isMounted()) {
-      setStatusByMode((prev) => {
-        const nextStatus =
-          prev[mode]?.credentialState === "generated_pending_verification"
-            ? toGeneratedPendingStatusWithReason(
-                prev[mode],
-                "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-              )
-            : toWizardErrorStatus({
-                previous: prev[mode],
-                error,
-                detail: describeLocalEdgeAdminKeyIssue({ adminKey, error, surface: "keystore" }),
-              });
-        void persistWizardStatus(mode, nextStatus);
-        return {
-          ...prev,
-          [mode]: nextStatus,
-        };
-      });
+      const previous = getCurrentStatusForMode(mode);
+      const nextStatus =
+        previous?.credentialState === "generated_pending_verification"
+          ? toGeneratedPendingStatusWithReason(
+              previous,
+              "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
+            )
+          : toWizardErrorStatus({
+              previous,
+              error,
+              detail: describeLocalEdgeAdminKeyIssue({ adminKey, error, surface: "keystore" }),
+            });
+      setStatusByMode((prev) => ({ ...prev, [mode]: nextStatus }));
+      await persistWizardStatus(mode, nextStatus);
     }
     return false;
   }
@@ -131,6 +125,7 @@ type GenerateActionParams = {
   safeSetLastError: (error: unknown) => void;
   safeSetLastDebug: (debug: WizardHttpDebug | null) => void;
   persistWizardStatus: (mode: UiModeId, status: StatusResult | null) => Promise<void>;
+  getCurrentStatusForMode: (mode: UiModeId) => StatusResult | null;
   onGeneratedPending: () => void;
   refreshStatusAfterGenerate: () => Promise<boolean>;
 };
@@ -147,6 +142,7 @@ export async function runGenerateAction(params: GenerateActionParams): Promise<v
     safeSetLastError,
     safeSetLastDebug,
     persistWizardStatus,
+    getCurrentStatusForMode,
     onGeneratedPending,
     refreshStatusAfterGenerate,
   } = params;
@@ -168,24 +164,19 @@ export async function runGenerateAction(params: GenerateActionParams): Promise<v
     if (!r.ok) {
       safeSetLastError(r.error);
       if (isMounted()) {
-        setStatusByMode((prev) => {
-          const nextStatus = toWizardErrorStatus({
-            previous: prev[mode],
+        const nextStatus = toWizardErrorStatus({
+          previous: getCurrentStatusForMode(mode),
+          statusCode: r.debug.status ?? null,
+          error: r.error,
+          detail: describeLocalEdgeAdminKeyIssue({
+            adminKey,
             statusCode: r.debug.status ?? null,
             error: r.error,
-            detail: describeLocalEdgeAdminKeyIssue({
-              adminKey,
-              statusCode: r.debug.status ?? null,
-              error: r.error,
-              surface: "keystore",
-            }),
-          });
-          void persistWizardStatus(mode, nextStatus);
-          return {
-            ...prev,
-            [mode]: nextStatus,
-          };
+            surface: "keystore",
+          }),
         });
+        setStatusByMode((prev) => ({ ...prev, [mode]: nextStatus }));
+        await persistWizardStatus(mode, nextStatus);
       }
       return;
     }
@@ -197,14 +188,9 @@ export async function runGenerateAction(params: GenerateActionParams): Promise<v
     }
 
     if (isMounted()) {
-      setStatusByMode((prev) => {
-        const nextStatus = toGeneratedPendingStatus(prev[mode]);
-        void persistWizardStatus(mode, nextStatus);
-        return {
-          ...prev,
-          [mode]: nextStatus,
-        };
-      });
+      const nextStatus = toGeneratedPendingStatus(getCurrentStatusForMode(mode));
+      setStatusByMode((prev) => ({ ...prev, [mode]: nextStatus }));
+      await persistWizardStatus(mode, nextStatus);
     }
 
     onGeneratedPending();
@@ -212,24 +198,20 @@ export async function runGenerateAction(params: GenerateActionParams): Promise<v
   } catch (error: unknown) {
     safeSetLastError(error);
     if (isMounted()) {
-      setStatusByMode((prev) => {
-        const nextStatus =
-          prev[mode]?.credentialState === "generated_pending_verification"
-            ? toGeneratedPendingStatusWithReason(
-                prev[mode],
-                "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
-              )
-            : toWizardErrorStatus({
-                previous: prev[mode],
-                error,
-                detail: describeLocalEdgeAdminKeyIssue({ adminKey, error, surface: "keystore" }),
-              });
-        void persistWizardStatus(mode, nextStatus);
-        return {
-          ...prev,
-          [mode]: nextStatus,
-        };
-      });
+      const previous = getCurrentStatusForMode(mode);
+      const nextStatus =
+        previous?.credentialState === "generated_pending_verification"
+          ? toGeneratedPendingStatusWithReason(
+              previous,
+              "Statuscheck konnte den neuen Keystore noch nicht bestaetigen.",
+            )
+          : toWizardErrorStatus({
+              previous,
+              error,
+              detail: describeLocalEdgeAdminKeyIssue({ adminKey, error, surface: "keystore" }),
+            });
+      setStatusByMode((prev) => ({ ...prev, [mode]: nextStatus }));
+      await persistWizardStatus(mode, nextStatus);
     }
   }
 }

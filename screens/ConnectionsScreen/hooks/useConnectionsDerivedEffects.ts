@@ -33,6 +33,6 @@ export function useConnectionsDerivedEffects(params: Params) {
 
   useEffect(() => {
     const d = deriveSupabaseUrl(supabaseRaw);
-    if (d.url) setSupabaseUrl(d.url);
+    setSupabaseUrl(d.url);
   }, [supabaseRaw, setSupabaseUrl]);
 }

@@ -1,7 +1,7 @@
 // screens/CredentialsWizardScreen/hooks/useCredentialsWizardScreen.ts
 // REFACTORED: actions/orchestration -> useCredentialsWizardActions.ts
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -96,6 +96,11 @@ export function useCredentialsWizardScreen() {
   );
 
   const [statusByMode, setStatusByMode] = useState(getEmptyStatusByMode());
+  const statusByModeRef = useRef(statusByMode);
+
+  useEffect(() => {
+    statusByModeRef.current = statusByMode;
+  }, [statusByMode]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -214,6 +219,7 @@ export function useCredentialsWizardScreen() {
         safeSetLastError,
         safeSetLastDebug,
         persistWizardStatus,
+        getCurrentStatusForMode: (nextMode) => statusByModeRef.current[nextMode],
       }),
     [adminKey, persistWizardStatus, repoFullName, safeSetLastDebug, safeSetLastError, supabaseUrl, isMountedRef],
   );

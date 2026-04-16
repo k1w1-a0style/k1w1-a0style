@@ -162,6 +162,7 @@ export const useCredentialsWizardActions = (params: {
         safeSetLastError: params.safeSetLastError,
         safeSetLastDebug: params.safeSetLastDebug,
         persistWizardStatus: params.persistWizardStatus,
+        getCurrentStatusForMode: (nextMode) => params.statusByMode[nextMode],
         onGeneratedPending: () => {
           toast.show("Keystore erzeugt - Verifikation laeuft/steht noch aus");
         },

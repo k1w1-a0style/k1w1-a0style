@@ -318,7 +318,10 @@ export function useConnectionsSaveActions(params: Params) {
 
   const restoreSnapshot = useCallback(
     async (snapshot: ConnectionsSnapshot): Promise<void> => {
-      const plan = resolveConnectionsSavePlan(snapshot);
+      const plan = resolveConnectionsSavePlan({
+        ...snapshot,
+        previous: snapshot,
+      });
       await persistTokenSavePlan(plan);
       await persistSupabaseSavePlan(plan);
       await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
@@ -349,7 +352,10 @@ export function useConnectionsSaveActions(params: Params) {
           restoreSnapshot,
         });
         const rollbackSnapshot = await readCurrentSnapshot();
-        const plan = resolveConnectionsSavePlan(secrets);
+        const plan = resolveConnectionsSavePlan({
+          ...secrets,
+          previous: rollbackSnapshot,
+        });
 
         await runRecoverableCommit({
           journalKey: CONNECTIONS_SAVE_JOURNAL_KEY,
@@ -360,6 +366,12 @@ export function useConnectionsSaveActions(params: Params) {
             await persistSupabaseSavePlan(plan);
             await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
 
+            if (plan.shouldClearGitHubConnection) {
+              await clearGithubConnectionState();
+            }
+            if (plan.shouldClearExpoConnection) {
+              await clearExpoConnectionState();
+            }
             if (plan.shouldClearEasConnection) {
               await clearEasConnectionState();
             }
