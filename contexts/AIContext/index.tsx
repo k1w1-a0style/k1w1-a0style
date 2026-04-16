@@ -8,6 +8,7 @@ import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, Qua
 import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
   loadConfig, loadSecureApiKeys, saveSecureApiKeys,
+  hasAnyApiKeys,
   normalizeApiKeys,
   resolveProviderModeForQualityMode,
   resolveRehydratedApiKeys,
@@ -106,6 +107,18 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
+  const applyImportedConfig = useCallback((next: AIConfig) => {
+    const importedKeys = normalizeApiKeys(next.apiKeys);
+    if (!secureApiKeysReadable && hasAnyApiKeys(importedKeys)) {
+      throw new Error("Import blockiert: SecureStore ist nicht lesbar, API-Keys koennen nicht sicher übernommen werden.");
+    }
+    if (!secureApiKeysReadable) {
+      setConfigState((prev) => ({ ...next, apiKeys: normalizeApiKeys(prev.apiKeys) }));
+      return;
+    }
+    setConfigState({ ...next, apiKeys: importedKeys });
+  }, [secureApiKeysReadable]);
+
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
     setConfigState((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -214,6 +227,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     () => ({
       config,
       setConfig,
+      applyImportedConfig,
       updateConfig,
       addApiKey,
       removeApiKey,
@@ -232,6 +246,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     [
       config,
       setConfig,
+      applyImportedConfig,
       updateConfig,
       addApiKey,
       removeApiKey,

@@ -119,10 +119,10 @@ function isAbortLikeError(error: unknown): boolean {
 
 export function useAppInfoSecureBackupFlow(params: {
   config: AIConfig;
-  setConfig: (next: AIConfig) => void;
+  applyImportedConfig: (next: AIConfig) => void;
   github: GitHubSelectionDeps;
 }) {
-  const { config, setConfig, github } = params;
+  const { config, applyImportedConfig, github } = params;
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
   const SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1";
@@ -319,7 +319,7 @@ export function useAppInfoSecureBackupFlow(params: {
     });
 
     if (imported.kind === "config-secret-snapshot") {
-      setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
+      applyImportedConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
     }
 
     const exportDate = safeFormatBackupDate(result.exportDate);
@@ -328,7 +328,7 @@ export function useAppInfoSecureBackupFlow(params: {
       "✅ Import erfolgreich",
       `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
     );
-  }, [applySecretBackupPayloadCore, collectSecretBackupPayload, setConfig, config]);
+  }, [applySecretBackupPayloadCore, applyImportedConfig, collectSecretBackupPayload, config]);
 
   const handleSubmitSecureBackupPassphrase = useCallback(async (passphrase: string) => {
     if (!secureBackupRequest || secureBackupBusy) return;

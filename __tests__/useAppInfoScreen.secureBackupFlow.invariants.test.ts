@@ -18,6 +18,8 @@ describe("useAppInfoScreen secure backup flow split invariants", () => {
     expect(flow).toContain("await persistImportedTokenSecrets(payload);");
     expect(flow).toContain("await hydrateImportedGitHubSelection(payload);");
     expect(flow).toContain("aiConfig: config,");
+    expect(flow).toContain("applyImportedConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));");
+    expect(flow).not.toContain("setConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));");
     expect(flow).toContain('logger.info("[useAppInfoScreen] Secure-Backup-Flow wurde abgebrochen.");');
   });
 });

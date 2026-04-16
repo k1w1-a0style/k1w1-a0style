@@ -20,6 +20,7 @@ jest.mock("../contexts/AIContext", () => ({
       apiKeys: { groq: [], gemini: [], openai: [], anthropic: [], huggingface: [] },
     },
     setConfig: jest.fn(),
+    applyImportedConfig: jest.fn(),
   }),
 }));
 

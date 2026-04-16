@@ -123,6 +123,16 @@ describe("AIContext redacted config persistence", () => {
 
     await expect(result.current.addApiKey("groq", "new-key")).rejects.toThrow("SecureStore nicht lesbar");
     expect(result.current.config.apiKeys.groq).toEqual([]);
+    expect(() =>
+      result.current.applyImportedConfig({
+        ...result.current.config,
+        apiKeys: {
+          ...result.current.config.apiKeys,
+          openai: ["sk-imported-openai"],
+        },
+      }),
+    ).toThrow("SecureStore ist nicht lesbar");
+    expect(result.current.config.apiKeys.openai).toEqual([]);
 
     act(() => {
       result.current.setAgentEnabled(false);
@@ -132,5 +142,45 @@ describe("AIContext redacted config persistence", () => {
     });
     expect(SecureStore.deleteItemAsync).not.toHaveBeenCalled();
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
+  });
+
+  it("allows imported api keys when SecureStore is readable", async () => {
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      [CONFIG_STORAGE_KEY]: JSON.stringify({
+        version: 4,
+        selectedChatProvider: "groq",
+        selectedChatMode: "llama-3.1-8b-instant",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+      }),
+    });
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
+    });
+
+    act(() => {
+      result.current.applyImportedConfig({
+        ...result.current.config,
+        apiKeys: {
+          groq: [],
+          gemini: [],
+          openai: ["sk-imported-openai"],
+          anthropic: [],
+          huggingface: [],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.config.apiKeys.openai).toEqual(["sk-imported-openai"]);
+    });
   });
 });
