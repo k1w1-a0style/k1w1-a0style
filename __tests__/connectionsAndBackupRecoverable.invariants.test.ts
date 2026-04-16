@@ -20,7 +20,10 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(src).toContain("runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({");
     expect(src).toContain("snapshotDerivedStatusBeforeSecretImport()");
     expect(src).toContain("derivedStatus: rollbackDerivedStatus");
+    expect(src).toContain("secureRollbackSnapshotStored: true");
     expect(src).toContain("journalSnapshot: {");
+    expect(src).toContain("persistSecureBackupImportRollbackSnapshot(rollbackSnapshot)");
+    expect(src).toContain("readSecureBackupImportRollbackSnapshot()");
     expect(src).toContain("restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus)");
     expect(src).toContain('if ("secrets" in snapshot)');
     expect(src).toContain("const importRepoScope = payload.github.linkedRepo ?? null;");

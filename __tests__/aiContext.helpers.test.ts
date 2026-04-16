@@ -2,10 +2,10 @@ import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   AI_KEYS_SECURE_KEY,
-  CONFIG_STORAGE_KEY,
   buildProviderSelectionPatch,
   hasAnyApiKeys,
   loadConfig,
+  loadConfigWithSource,
   loadSecureApiKeys,
   normalizeApiKeys,
   resolveRehydratedApiKeys,
@@ -202,7 +202,32 @@ describe("aiContext helpers", () => {
     expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 
-  test("loadConfig migration from legacy slot persists only redacted apiKeys into ai_config_v4", async () => {
+  test("loadConfigWithSource keeps legacy source metadata and never writes ai_config_v4 during read", async () => {
+    const storage = AsyncStorage as typeof AsyncStorage & {
+      __setMockStorage?: (next: Record<string, string>) => void;
+    };
+    storage.__setMockStorage?.({
+      ai_config_v3: JSON.stringify({
+        version: 3,
+        selectedChatProvider: "openai",
+        selectedChatMode: "gpt-5.4-mini",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        apiKeys: {
+          openai: ["legacy-openai-key"],
+        },
+      }),
+    });
+
+    const loaded = await loadConfigWithSource();
+
+    expect(loaded?.sourceKey).toBe("ai_config_v3");
+    expect(loaded?.config.apiKeys.openai).toEqual(["legacy-openai-key"]);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  test("loadConfig still returns normalized config payload without source metadata", async () => {
     const storage = AsyncStorage as typeof AsyncStorage & {
       __setMockStorage?: (next: Record<string, string>) => void;
     };
@@ -221,18 +246,6 @@ describe("aiContext helpers", () => {
     });
 
     const loaded = await loadConfig();
-
     expect(loaded?.apiKeys.openai).toEqual(["legacy-openai-key"]);
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(CONFIG_STORAGE_KEY, expect.any(String));
-    const persisted = JSON.parse(String((AsyncStorage.setItem as jest.Mock).mock.calls[0][1])) as {
-      apiKeys: Record<string, string[]>;
-    };
-    expect(persisted.apiKeys).toEqual({
-      groq: [],
-      gemini: [],
-      openai: [],
-      anthropic: [],
-      huggingface: [],
-    });
   });
 });

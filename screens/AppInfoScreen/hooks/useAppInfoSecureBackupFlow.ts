@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 import {
   createConfigAndSecretsBackupPayload,
@@ -64,7 +65,41 @@ type SecureBackupImportSnapshot = {
 
 type SecureBackupImportJournalSnapshot = {
   derivedStatus: SecretImportDerivedStatusSnapshot;
+  secureRollbackSnapshotStored: true;
 };
+
+export const SECURE_BACKUP_IMPORT_ROLLBACK_SNAPSHOT_KEY = "secure_backup_import_recoverable_snapshot_v1";
+
+function isValidSecureBackupImportSnapshot(value: unknown): value is SecureBackupImportSnapshot {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const parsed = value as { secrets?: unknown; derivedStatus?: unknown };
+  if (!parsed.secrets || typeof parsed.secrets !== "object" || Array.isArray(parsed.secrets)) return false;
+  if (!parsed.derivedStatus || typeof parsed.derivedStatus !== "object" || Array.isArray(parsed.derivedStatus)) return false;
+  return true;
+}
+
+export async function persistSecureBackupImportRollbackSnapshot(snapshot: SecureBackupImportSnapshot): Promise<void> {
+  await SecureStore.setItemAsync(SECURE_BACKUP_IMPORT_ROLLBACK_SNAPSHOT_KEY, JSON.stringify(snapshot));
+}
+
+export async function readSecureBackupImportRollbackSnapshot(): Promise<SecureBackupImportSnapshot | null> {
+  const raw = await SecureStore.getItemAsync(SECURE_BACKUP_IMPORT_ROLLBACK_SNAPSHOT_KEY);
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw) as unknown;
+  } catch {
+    throw new Error("Secure-Backup-Rollback-Snapshot ist beschädigt.");
+  }
+  if (!isValidSecureBackupImportSnapshot(parsed)) {
+    throw new Error("Secure-Backup-Rollback-Snapshot ist unvollständig.");
+  }
+  return parsed;
+}
+
+export async function clearSecureBackupImportRollbackSnapshot(): Promise<void> {
+  await SecureStore.deleteItemAsync(SECURE_BACKUP_IMPORT_ROLLBACK_SNAPSHOT_KEY);
+}
 
 async function readSecretOrNull(read: () => Promise<string | null>): Promise<string | null> {
   try {
@@ -289,8 +324,15 @@ export function useAppInfoSecureBackupFlow(params: {
       restoreSnapshot: async (snapshot) => {
         if ("secrets" in snapshot) {
           await applySecretBackupPayloadCore(snapshot.secrets);
+        } else {
+          const secureRollbackSnapshot = await readSecureBackupImportRollbackSnapshot();
+          if (!secureRollbackSnapshot) {
+            throw new Error("Wiederherstellung nach vorherigem Import-Abbruch nicht möglich: Rollback-Snapshot fehlt.");
+          }
+          await applySecretBackupPayloadCore(secureRollbackSnapshot.secrets);
         }
         await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
+        await clearSecureBackupImportRollbackSnapshot();
       },
     });
     const [rollbackSecrets, rollbackDerivedStatus] = await Promise.all([
@@ -298,25 +340,37 @@ export function useAppInfoSecureBackupFlow(params: {
       snapshotDerivedStatusBeforeSecretImport(),
     ]);
 
-    await runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({
-      journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
-      flow: "secure_backup_import",
-      snapshot: {
-        secrets: rollbackSecrets,
-        derivedStatus: rollbackDerivedStatus,
-      },
-      journalSnapshot: {
-        derivedStatus: rollbackDerivedStatus,
-      },
-      apply: async () => {
-        await applySecretBackupPayloadCore(secretPayload);
-        await resetDerivedStatusAfterSecretImport();
-      },
-      rollback: async (snapshot) => {
-        await applySecretBackupPayloadCore(snapshot.secrets);
-        await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
-      },
-    });
+    const rollbackSnapshot: SecureBackupImportSnapshot = {
+      secrets: rollbackSecrets,
+      derivedStatus: rollbackDerivedStatus,
+    };
+    await persistSecureBackupImportRollbackSnapshot(rollbackSnapshot);
+    try {
+      await runRecoverableCommit<SecureBackupImportSnapshot, SecureBackupImportJournalSnapshot>({
+        journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
+        flow: "secure_backup_import",
+        snapshot: rollbackSnapshot,
+        journalSnapshot: {
+          derivedStatus: rollbackDerivedStatus,
+          secureRollbackSnapshotStored: true,
+        },
+        apply: async () => {
+          await applySecretBackupPayloadCore(secretPayload);
+          await resetDerivedStatusAfterSecretImport();
+        },
+        rollback: async (snapshot) => {
+          await applySecretBackupPayloadCore(snapshot.secrets);
+          await restoreDerivedStatusAfterSecretImportRollback(snapshot.derivedStatus);
+        },
+      });
+      await clearSecureBackupImportRollbackSnapshot();
+    } catch (error) {
+      const pendingJournal = await AsyncStorage.getItem(SECURE_BACKUP_IMPORT_JOURNAL_KEY);
+      if (!pendingJournal) {
+        await clearSecureBackupImportRollbackSnapshot();
+      }
+      throw error;
+    }
 
     if (imported.kind === "config-secret-snapshot") {
       applyImportedConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));

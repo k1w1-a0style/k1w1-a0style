@@ -183,4 +183,45 @@ describe("AIContext redacted config persistence", () => {
       expect(result.current.config.apiKeys.openai).toEqual(["sk-imported-openai"]);
     });
   });
+
+  it("does not finalize redacted ai_config_v4 when legacy->SecureStore migration fails", async () => {
+    jest.useFakeTimers();
+    (AsyncStorage as typeof AsyncStorage & { __setMockStorage?: (next: Record<string, string>) => void }).__setMockStorage?.({
+      ai_config_v3: JSON.stringify({
+        version: 3,
+        selectedChatProvider: "openai",
+        selectedChatMode: "gpt-5.4-mini",
+        selectedAgentProvider: "anthropic",
+        selectedAgentMode: "claude-sonnet-4-20250514",
+        qualityMode: "speed",
+        agentEnabled: true,
+        apiKeys: {
+          openai: ["legacy-openai-key"],
+        },
+      }),
+    });
+    (SecureStore.setItemAsync as jest.Mock).mockRejectedValueOnce(new Error("secure migrate failed"));
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AIProvider>{children}</AIProvider>
+    );
+    const { result } = renderHook(() => useAI(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.config.selectedChatProvider).toBe("openai");
+    });
+    expect(result.current.config.apiKeys.openai).toEqual([]);
+
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(AsyncStorage.setItem).not.toHaveBeenCalledWith(
+      CONFIG_STORAGE_KEY,
+      expect.any(String),
+    );
+  });
 });

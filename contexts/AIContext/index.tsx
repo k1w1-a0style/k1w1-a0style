@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AIConfig, AIContextProps, AllAIProviders, ProviderLimitStatus, QualityMode } from "./models";
 import {
   CONFIG_STORAGE_KEY, DEFAULT_CONFIG,
-  loadConfig, loadSecureApiKeys, saveSecureApiKeys,
+  loadConfigWithSource, loadSecureApiKeys, persistRedactedConfig, saveSecureApiKeys,
   hasAnyApiKeys,
   normalizeApiKeys,
   resolveProviderModeForQualityMode,
@@ -29,13 +29,16 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfigState] = useState<AIConfig>(DEFAULT_CONFIG);
   const [providerStatus, setProviderStatus] = useState<ProviderLimitStatus[]>([]);
   const [secureApiKeysReadable, setSecureApiKeysReadable] = useState(true);
+  const [allowConfigPersistence, setAllowConfigPersistence] = useState(false);
   const didLoad = useRef(false);
   const persistConfigTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const loaded = (await loadConfig()) ?? DEFAULT_CONFIG;
+        const loadedResult = await loadConfigWithSource();
+        const loaded = loadedResult?.config ?? DEFAULT_CONFIG;
+        const loadedFromLegacySlot = Boolean(loadedResult && loadedResult.sourceKey !== CONFIG_STORAGE_KEY);
 
         // Load keys from SecureStore (authoritative)
         const secureResult = await loadSecureApiKeys();
@@ -49,12 +52,24 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
           loadedApiKeys: loaded.apiKeys,
           secureApiKeys: secureResult.keys,
         });
+        let secureMigrationFailed = false;
         if (secureResult.state !== "unreadable" && shouldMigrateLegacyToSecure) {
-          await saveSecureApiKeys(finalKeys);
+          try {
+            await saveSecureApiKeys(finalKeys);
+          } catch (error) {
+            secureMigrationFailed = true;
+            setSecureApiKeysReadable(false);
+            console.error("[AIContext] SecureStore migration for legacy API keys failed.", error);
+          }
         }
 
+        if (loadedFromLegacySlot && secureResult.state !== "unreadable" && !secureMigrationFailed) {
+          await persistRedactedConfig(loaded);
+        }
+        setAllowConfigPersistence(!loadedFromLegacySlot || (secureResult.state !== "unreadable" && !secureMigrationFailed));
+
         // Keep models/modes untouched; only ensure keys are loaded
-        const nextApiKeys = secureResult.state === "unreadable"
+        const nextApiKeys = secureResult.state === "unreadable" || secureMigrationFailed
           ? normalizeApiKeys(undefined)
           : finalKeys;
         setConfigState({ ...loaded, apiKeys: nextApiKeys });
@@ -66,6 +81,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!didLoad.current) return;
+    if (!allowConfigPersistence) return;
     const redacted: AIConfig = { ...config, apiKeys: { ...DEFAULT_CONFIG.apiKeys } };
 
     if (persistConfigTimeoutRef.current) {
@@ -85,7 +101,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
         persistConfigTimeoutRef.current = null;
       }
     };
-  }, [config]);
+  }, [allowConfigPersistence, config]);
 
   useEffect(() => {
     if (!didLoad.current) return;
