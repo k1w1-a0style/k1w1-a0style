@@ -12,16 +12,17 @@ type PreviewSource = { type: 'url'; uri: string } | { type: 'html'; html: string
 type DeviceFrameProps = {
   webViewRef: React.RefObject<WebView | null>;
   previewSource: PreviewSource;
+  cycleId: number;
   phase: PreviewPhase;
   fadeAnim: Animated.Value;
   flashBorderAnim: Animated.Value;
   originWhitelist: string[];
   errorMessage?: string | null;
   onShouldStartLoadWithRequest: NonNullable<React.ComponentProps<typeof WebView>['onShouldStartLoadWithRequest']>;
-  onLoadStart: () => void;
-  onLoadEnd: () => void;
-  onError: (message: string) => void;
-  onHttpError: (statusCode: number | undefined) => void;
+  onLoadStart: (cycleId: number) => void;
+  onLoadEnd: (cycleId: number) => void;
+  onError: (cycleId: number, message: string) => void;
+  onHttpError: (cycleId: number, statusCode: number | undefined) => void;
   onContentProcessDidTerminate: (event: { nativeEvent?: unknown }) => void;
   onRenderProcessGone: (event: { nativeEvent?: { didCrash?: boolean } }) => boolean;
   onCreate: () => void;
@@ -36,6 +37,7 @@ function getLoadingLabel(phase: PreviewPhase, previewSource: PreviewSource): str
 export function DeviceFrame({
   webViewRef,
   previewSource,
+  cycleId,
   phase,
   fadeAnim,
   flashBorderAnim,
@@ -91,10 +93,10 @@ export function DeviceFrame({
               setSupportMultipleWindows={false}
               javaScriptCanOpenWindowsAutomatically={false}
               onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-              onLoadStart={onLoadStart}
-              onLoadEnd={onLoadEnd}
-              onError={(event) => onError(event.nativeEvent?.description || 'WebView Fehler')}
-              onHttpError={(event) => onHttpError(event.nativeEvent?.statusCode)}
+              onLoadStart={() => onLoadStart(cycleId)}
+              onLoadEnd={() => onLoadEnd(cycleId)}
+              onError={(event) => onError(cycleId, event.nativeEvent?.description || 'WebView Fehler')}
+              onHttpError={(event) => onHttpError(cycleId, event.nativeEvent?.statusCode)}
               onContentProcessDidTerminate={onContentProcessDidTerminate}
               onRenderProcessGone={onRenderProcessGone}
               mixedContentMode={getPreviewMixedContentMode()}

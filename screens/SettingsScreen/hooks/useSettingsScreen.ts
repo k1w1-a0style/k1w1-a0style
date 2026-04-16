@@ -13,6 +13,7 @@ import {
   setChatHistoryPersistence,
   setChatHistoryRetentionLimit,
 } from "../../../lib/chatPrivacySettings";
+import { scrubChatHistoryFromStoredProject } from "../../../infra/storage/projectPersistence";
 
 import {
   getProviderStatusSnapshot,
@@ -68,13 +69,18 @@ export function useSettingsScreen() {
   }, []);
 
   const handleTogglePersistChat = async (v: boolean) => {
+    const previous = persistChatHistory;
     setPersistChatHistory(v);
     try {
       await setChatHistoryPersistence(v);
+      if (!v) {
+        await scrubChatHistoryFromStoredProject();
+      }
       if (Platform.OS === "android") {
         ToastAndroid.show("Privacy gespeichert", ToastAndroid.SHORT);
       }
     } catch (error: unknown) {
+      setPersistChatHistory(previous);
       Alert.alert("Fehler", sanitizeSettingsError(error));
     }
   };

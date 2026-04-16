@@ -133,6 +133,21 @@ export const clearProjectFromStorage = async (): Promise<void> => {
   }
 };
 
+export const scrubChatHistoryFromStoredProject = async (): Promise<void> => {
+  const rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+  if (!rawStoragePayload) return;
+
+  const { projectString } = await deserializeProjectStoragePayload(rawStoragePayload);
+  const parsed = JSON.parse(projectString) as ProjectData & { messages?: ChatMessage[] };
+  parsed.chatHistory = [];
+  if (Array.isArray(parsed.messages)) {
+    delete parsed.messages;
+  }
+  const scrubbedPayload = JSON.stringify(parsed);
+  const encrypted = await encryptProjectStoragePayload(scrubbedPayload);
+  await AsyncStorage.setItem(PROJECT_STORAGE_KEY, encrypted);
+};
+
 // === ECHTE ZIP-FUNKTIONEN ===
 export const exportProjectAsZipFile = async (
   project: ProjectData,

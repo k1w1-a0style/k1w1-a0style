@@ -40,6 +40,7 @@ export default function PreviewScreen() {
     runtimeHint,
     phase,
     setPhase,
+    previewCycleId,
     webError,
     setWebError,
     hotReloadEnabled,
@@ -55,14 +56,20 @@ export default function PreviewScreen() {
     handleContentProcessDidTerminate,
     handleRenderProcessGone,
     resetRecoveryState,
+    startManualReloadCycle,
     handleCreate,
     handleReset,
+    handleLoadStart,
+    handleLoadEnd,
+    handleLoadError,
+    handleHttpError,
     handleCopy,
     handleOpenExternal,
     handleFullscreen,
   } = usePreviewScreen();
 
   const handleReload = () => {
+    startManualReloadCycle();
     resetRecoveryState();
     setWebError(null);
     if (webViewRef.current) {
@@ -148,28 +155,17 @@ export default function PreviewScreen() {
             <DeviceFrame
               webViewRef={webViewRef}
               previewSource={previewSource}
+              cycleId={previewCycleId}
               phase={phase}
               fadeAnim={fadeAnim}
               flashBorderAnim={flashBorderAnim}
               originWhitelist={originWhitelist}
               errorMessage={webError || state.error || state.remoteFailure}
               onShouldStartLoadWithRequest={handleShouldStartLoad}
-              onLoadStart={() => {
-                setPhase('loading');
-                setWebError(null);
-              }}
-              onLoadEnd={() => {
-                resetRecoveryState();
-                setPhase('ready');
-              }}
-              onError={(message) => {
-                setPhase('error');
-                setWebError(message);
-              }}
-              onHttpError={(statusCode) => {
-                setPhase('error');
-                setWebError(`HTTP ${statusCode ?? '?'}`);
-              }}
+              onLoadStart={handleLoadStart}
+              onLoadEnd={handleLoadEnd}
+              onError={handleLoadError}
+              onHttpError={handleHttpError}
               onContentProcessDidTerminate={handleContentProcessDidTerminate}
               onRenderProcessGone={handleRenderProcessGone}
               onCreate={handleCreate}

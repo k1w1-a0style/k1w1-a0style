@@ -52,6 +52,17 @@ export function usePreviewScreen() {
   const isCreatingRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
   const isMountedRef = useRef(true);
+  const previewCycleRef = useRef(0);
+  const cycleWithErrorRef = useRef<number | null>(null);
+  const autoCreateDismissedByResetRef = useRef(false);
+
+  const isCurrentCycle = useCallback((cycleId: number) => previewCycleRef.current === cycleId, []);
+
+  const beginPreviewCycle = useCallback(() => {
+    previewCycleRef.current += 1;
+    cycleWithErrorRef.current = null;
+    return previewCycleRef.current;
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -59,6 +70,12 @@ export function usePreviewScreen() {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    autoCreateDismissedByResetRef.current = false;
+    cycleWithErrorRef.current = null;
+    beginPreviewCycle();
+  }, [projectData?.id, beginPreviewCycle]);
 
   // ─── Preview source ────────────────────────────────────────────────────────
   const hasExpiredSupabaseUrl = useMemo(() => {
@@ -161,6 +178,7 @@ export function usePreviewScreen() {
       webViewRef,
       isMountedRef,
       onError: (message) => {
+        cycleWithErrorRef.current = previewCycleRef.current;
         setPhase('error');
         setWebError(message);
       },
@@ -210,7 +228,9 @@ export function usePreviewScreen() {
   // ─── Create ────────────────────────────────────────────────────────────────
   const handleCreate = useCallback(async () => {
     if (isCreatingRef.current) return;
+    autoCreateDismissedByResetRef.current = false;
     isCreatingRef.current = true;
+    beginPreviewCycle();
     setPhase('creating');
     setWebError(null);
     resetRecoveryState();
@@ -229,12 +249,13 @@ export function usePreviewScreen() {
     } finally {
       isCreatingRef.current = false;
     }
-  }, [createPreview, filesFingerprint, resetRecoveryState]);
+  }, [beginPreviewCycle, createPreview, filesFingerprint, resetRecoveryState]);
 
   // ─── Auto-create on mount ──────────────────────────────────────────────────
   useEffect(() => {
     if (autoCreated) return;
     if (isLoading || !projectData) return;
+    if (autoCreateDismissedByResetRef.current) return;
     if (previewSource) {
       lastFingerprintRef.current = filesFingerprint;
       return;
@@ -266,12 +287,58 @@ export function usePreviewScreen() {
 
   // ─── Other handlers ────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
+    autoCreateDismissedByResetRef.current = true;
+    beginPreviewCycle();
     reset();
-    setAutoCreated(false);
+    setAutoCreated(true);
     setPhase('idle');
     setWebError(null);
     setHotReloadCount(0);
-  }, [reset]);
+  }, [beginPreviewCycle, reset]);
+
+  const handleLoadStart = useCallback(
+    (cycleId: number) => {
+      if (!isCurrentCycle(cycleId)) return;
+      if (cycleWithErrorRef.current === cycleId) return;
+      setPhase('loading');
+      setWebError(null);
+    },
+    [isCurrentCycle],
+  );
+
+  const handleLoadEnd = useCallback(
+    (cycleId: number) => {
+      if (!isCurrentCycle(cycleId)) return;
+      if (cycleWithErrorRef.current === cycleId) return;
+      resetRecoveryState();
+      setPhase('ready');
+    },
+    [isCurrentCycle, resetRecoveryState],
+  );
+
+  const handleLoadError = useCallback(
+    (cycleId: number, message: string) => {
+      if (!isCurrentCycle(cycleId)) return;
+      cycleWithErrorRef.current = cycleId;
+      setPhase('error');
+      setWebError(message);
+    },
+    [isCurrentCycle],
+  );
+
+  const handleHttpError = useCallback(
+    (cycleId: number, statusCode: number | undefined) => {
+      if (!isCurrentCycle(cycleId)) return;
+      cycleWithErrorRef.current = cycleId;
+      setPhase('error');
+      setWebError(`HTTP ${statusCode ?? '?'}`);
+    },
+    [isCurrentCycle],
+  );
+
+  const startManualReloadCycle = useCallback(() => {
+    beginPreviewCycle();
+  }, [beginPreviewCycle]);
 
   const handleCopy = useCallback(async () => {
     if (previewUrl) {
@@ -348,6 +415,7 @@ export function usePreviewScreen() {
     runtimeHint,
     phase,
     setPhase,
+    previewCycleId: previewCycleRef.current,
     webError,
     setWebError,
     hotReloadEnabled,
@@ -363,8 +431,13 @@ export function usePreviewScreen() {
     handleContentProcessDidTerminate,
     handleRenderProcessGone,
     resetRecoveryState,
+    startManualReloadCycle,
     handleCreate,
     handleReset,
+    handleLoadStart,
+    handleLoadEnd,
+    handleLoadError,
+    handleHttpError,
     handleCopy,
     handleOpenExternal,
     handleFullscreen,

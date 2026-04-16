@@ -19,6 +19,7 @@ jest.mock("react-native-webview", () => {
 describe("Preview WebView contract", () => {
   const baseProps = {
     webViewRef: { current: null },
+    cycleId: 1,
     phase: "ready" as const,
     fadeAnim: new Animated.Value(1),
     flashBorderAnim: new Animated.Value(0),
