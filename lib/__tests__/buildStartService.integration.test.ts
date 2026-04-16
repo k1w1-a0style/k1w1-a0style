@@ -9,6 +9,7 @@ import {
   diagnosticReadinessRecordKeyForSelection,
 } from "../../lib/storageKeys";
 import { computeProjectFilesSignature } from "../../lib/repoSyncOrchestration";
+import { getCanonicalProjectFilesForOps } from "../../lib/getMaterializedProjectFiles";
 import { makeProjectData, makeProjectFile } from "../../__tests__/helpers/projectTestHelpers";
 import {
   buildDiagnosticReadinessRecord,
@@ -106,7 +107,7 @@ describe("startBuildJob (integration)", () => {
     const repo = "k1w1-a0style/musik-player";
     const branch = "main";
     const syncKey = repoSyncKey(repo, branch);
-    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const syncSig = `stale:${computeProjectFilesSignature(getCanonicalProjectFilesForOps(project))}`;
     const readinessKey = diagnosticReadinessRecordKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
     const readinessRecord = buildDiagnosticReadinessRecord({
       repo,
@@ -153,10 +154,19 @@ describe("startBuildJob (integration)", () => {
 
   it("pushes files, ensures workflows, then invokes TRIGGER_EAS_BUILD with normalized profile", async () => {
     const project = makeProject({ linkedBranch: "main" });
+    const canonicalFiles = getCanonicalProjectFilesForOps(project);
+    expect(canonicalFiles).not.toEqual(project.files);
+    expect(canonicalFiles.find((file) => file.path === "app.json")?.content).toContain("\"slug\": \"test\"");
 
     const res = await startBuildJob({ project, buildProfile: "development", deps });
 
     expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledTimes(1);
+    expect(mockGitHub.pushFilesToRepo).toHaveBeenCalledWith(
+      "k1w1-a0style",
+      "musik-player",
+      canonicalFiles,
+      "main",
+    );
     expect(mockAutoFix.autoFixCIWorkflows).toHaveBeenCalledWith({
       owner: "k1w1-a0style",
       repo: "musik-player",
@@ -193,7 +203,7 @@ describe("startBuildJob (integration)", () => {
       linkedRepo: "k1w1-a0style/musik-player",
       linkedBranch: "dev",
     });
-    const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const syncSig = `stale:${computeProjectFilesSignature(getCanonicalProjectFilesForOps(project))}`;
     const readinessRecord = buildDiagnosticReadinessRecord({
       repo: "k1w1-a0style/musik-player",
       branch: "dev",
@@ -262,7 +272,7 @@ describe("startBuildJob (integration)", () => {
     const project = makeProject();
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "main");
     const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "main" });
-    const syncSig = computeProjectFilesSignature(project.files);
+    const syncSig = computeProjectFilesSignature(getCanonicalProjectFilesForOps(project));
     const readinessKey = diagnosticReadinessRecordKeyForSelection({
       linkedRepo: "k1w1-a0style/musik-player",
       linkedBranch: "main",
@@ -336,6 +346,58 @@ describe("startBuildJob (integration)", () => {
           return "1111111111111111111111111111111111111111";
         case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
           return String(Date.now());
+        default:
+          return null;
+      }
+    });
+
+    await expect(startBuildJob({ project, buildProfile: "preview", deps })).rejects.toThrow(/Sync-Status/i);
+    expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when raw source files contain conflicting canonical duplicates", async () => {
+    const project = makeProject({
+      files: [
+        makeProjectFile("src/App.tsx", "export default 1;"),
+        makeProjectFile("./src//App.tsx", "export default 2;"),
+      ],
+    });
+    const repo = "k1w1-a0style/musik-player";
+    const branch = "main";
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: repo,
+      linkedBranch: branch,
+    });
+    const syncKey = repoSyncKey(repo, branch);
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo,
+      branch,
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
+    const syncSig = computeProjectFilesSignature(getCanonicalProjectFilesForOps(project));
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case diagKey:
+        case readinessKey:
+          return key === readinessKey ? JSON.stringify(readinessRecord) : "true";
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return repo;
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return branch;
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        case syncKey:
+          return syncSig;
         default:
           return null;
       }
