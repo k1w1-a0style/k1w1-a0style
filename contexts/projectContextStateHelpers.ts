@@ -87,6 +87,10 @@ type BuildSelectionSnapshot = {
 export type BuildHistoryStatusSnapshot = {
   jobId: string;
   status: BuildStatus;
+  htmlUrl: string | null;
+  artifactUrl: string | null;
+  sourceCommitSha: string | null;
+  runId: number | null;
 };
 
 export const resolveHistoryBuildSelection = (params: {
@@ -121,19 +125,33 @@ export const shouldUpdateBuildHistoryStatus = (params: {
   lastSnapshot: BuildHistoryStatusSnapshot | null;
   activeJobId: string;
   status: BuildStatus;
+  details: BuildStatusDetails;
 }): boolean => {
+  const htmlUrl = params.details.urls?.html ?? null;
+  const artifactUrl = params.details.urls?.artifacts ?? null;
+  const sourceCommitSha = params.details.sourceCommitSha ?? null;
+  const runId = params.details.runId ?? null;
   return !(
     params.lastSnapshot?.jobId === params.activeJobId &&
-    params.lastSnapshot?.status === params.status
+    params.lastSnapshot?.status === params.status &&
+    params.lastSnapshot?.htmlUrl === htmlUrl &&
+    params.lastSnapshot?.artifactUrl === artifactUrl &&
+    params.lastSnapshot?.sourceCommitSha === sourceCommitSha &&
+    params.lastSnapshot?.runId === runId
   );
 };
 
 export const createBuildHistoryStatusSnapshot = (params: {
   activeJobId: string;
   status: BuildStatus;
+  details: BuildStatusDetails;
 }): BuildHistoryStatusSnapshot => ({
   jobId: params.activeJobId,
   status: params.status,
+  htmlUrl: params.details.urls?.html ?? null,
+  artifactUrl: params.details.urls?.artifacts ?? null,
+  sourceCommitSha: params.details.sourceCommitSha ?? null,
+  runId: params.details.runId ?? null,
 });
 
 export const resolveBuildHistoryPollUpdate = (params: {
@@ -159,6 +177,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
         htmlUrl: string | null;
         artifactUrl: string | null;
         sourceCommitSha: string | null;
+        runId: number | null;
       };
     }
   | null => {
@@ -171,6 +190,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
       lastSnapshot: params.lastSnapshot,
       activeJobId: params.activeJobId,
       status: params.status,
+      details: params.details,
     })
   ) {
     return null;
@@ -186,6 +206,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
     nextSnapshot: createBuildHistoryStatusSnapshot({
       activeJobId: params.activeJobId,
       status: params.status,
+      details: params.details,
     }),
     update: {
       jobId: params.activeJobId,
@@ -196,6 +217,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
       htmlUrl: params.details.urls?.html ?? null,
       artifactUrl: params.details.urls?.artifacts ?? null,
       sourceCommitSha: params.details.sourceCommitSha ?? null,
+      runId: params.details.runId ?? null,
     },
   };
 };

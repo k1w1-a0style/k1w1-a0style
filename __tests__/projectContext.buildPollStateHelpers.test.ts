@@ -101,12 +101,14 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         lastSnapshot: null,
         activeJobId: "job-1",
         status: "queued",
+        details: { jobId: "job-1", status: "queued", raw: null },
       }),
     ).toBe(true);
 
     const snapshot = createBuildHistoryStatusSnapshot({
       activeJobId: "job-1",
       status: "queued",
+      details: { jobId: "job-1", status: "queued", raw: null },
     });
 
     expect(
@@ -114,6 +116,7 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         lastSnapshot: snapshot,
         activeJobId: "job-1",
         status: "queued",
+        details: { jobId: "job-1", status: "queued", raw: null },
       }),
     ).toBe(false);
 
@@ -122,6 +125,7 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         lastSnapshot: snapshot,
         activeJobId: "job-1",
         status: "building",
+        details: { jobId: "job-1", status: "building", raw: null },
       }),
     ).toBe(true);
   });
@@ -153,6 +157,7 @@ describe("projectContextStateHelpers build poll state mapping", () => {
       lastSnapshot: createBuildHistoryStatusSnapshot({
         activeJobId: "job-1",
         status: "queued",
+        details: { jobId: "job-1", status: "queued", raw: null },
       }),
       selectionSnapshot: {
         jobId: "job-1",
@@ -171,6 +176,10 @@ describe("projectContextStateHelpers build poll state mapping", () => {
       nextSnapshot: {
         jobId: "job-1",
         status: "building",
+        htmlUrl: "https://example.com/run",
+        artifactUrl: "https://example.com/artifacts",
+        sourceCommitSha: "abc123",
+        runId: 11,
       },
       update: {
         jobId: "job-1",
@@ -181,6 +190,7 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         htmlUrl: "https://example.com/run",
         artifactUrl: "https://example.com/artifacts",
         sourceCommitSha: "abc123",
+        runId: 11,
       },
     });
 
@@ -197,9 +207,40 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         lastSnapshot: createBuildHistoryStatusSnapshot({
           activeJobId: "job-1",
           status: "building",
+          details: { jobId: "job-1", status: "building", runId: 11, raw: null },
         }),
       }),
     ).toBeNull();
+  });
+
+  it("updates history when traceability metadata changes even if status stays equal", () => {
+    const next = resolveBuildHistoryPollUpdate({
+      activeJobId: "job-42",
+      details: {
+        jobId: "job-42",
+        status: "building",
+        runId: 202,
+        sourceCommitSha: "def456",
+        urls: {
+          html: "https://example.com/runs/202",
+          artifacts: "https://example.com/runs/202/artifacts",
+        },
+        raw: null,
+      },
+      status: "building",
+      lastSnapshot: {
+        jobId: "job-42",
+        status: "building",
+        htmlUrl: "https://example.com/runs/101",
+        artifactUrl: "https://example.com/runs/101/artifacts",
+        sourceCommitSha: "abc123",
+        runId: 101,
+      },
+    });
+
+    expect(next?.update.runId).toBe(202);
+    expect(next?.update.sourceCommitSha).toBe("def456");
+    expect(next?.nextSnapshot.status).toBe("building");
   });
 
   it("filters invalid chat messages for context value stability", () => {
@@ -252,7 +293,11 @@ describe("projectContextBuildHelpers orchestration guards", () => {
       branch: "release/1",
       buildProfile: "production",
       lastUpdatedAt: "2026-04-05T00:00:02.000Z",
+      runId: null,
+      sourceCommitSha: null,
+      lastError: null,
     });
+    expect(afterStart.urls).toEqual({ html: null, artifacts: null, buildUrl: null });
   });
 
   it("maps starting to an honest pending message and keeps queued after confirmed start", () => {

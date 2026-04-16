@@ -129,4 +129,38 @@ describe("useBuildStatus stability", () => {
     expect(result.current.details?.jobId).toBe("job-2");
     expect(result.current.status).toBe("success");
   });
+
+  it("resets stale poll/detail/error state immediately when job id changes", async () => {
+    const { result, rerender } = renderHook(({ jobId }: { jobId: string }) => useBuildStatus(jobId), {
+      initialProps: { jobId: "job-1" },
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("building");
+      expect(result.current.details?.jobId).toBe("job-1");
+    });
+
+    rerender({ jobId: "job-2" });
+    expect(result.current.status).toBe("idle");
+    expect(result.current.details).toBeNull();
+    expect(result.current.lastError).toBeNull();
+  });
+
+  it("terminates immediately on non-retryable poll errors", async () => {
+    pollBuildStatusOnceMock.mockResolvedValueOnce({
+      ok: false,
+      error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
+      retryable: false,
+    });
+
+    const { result } = renderHook(() => useBuildStatus("job-terminal"));
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("error");
+      expect(result.current.errorCount).toBe(1);
+    });
+
+    jest.advanceTimersByTime(20_000);
+    expect(pollBuildStatusOnceMock).toHaveBeenCalledTimes(1);
+  });
 });

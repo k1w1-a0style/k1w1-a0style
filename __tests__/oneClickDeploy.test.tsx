@@ -34,6 +34,7 @@ jest.mock("@react-native-async-storage/async-storage", () => ({
 const mockGitHub = {
   getGitHubToken: jest.fn(),
   getExpoToken: jest.fn(),
+  getWorkflowAdminKey: jest.fn(),
   getAndroidKeystoreExportAdminKey: jest.fn(),
   getBranchHeadSha: jest.fn(),
 };
@@ -50,16 +51,18 @@ const mockProject = {
   }),
 };
 const mockReadSigningKeyGateState = jest.fn();
-const mockReadBuildReadinessState = jest.fn();
+const mockEvaluateBuildReadiness = jest.fn();
 const mockGetRepoSyncState = jest.fn();
+const mockReadLocalBuildGateState = jest.fn();
 
 // Mock modules by absolute path so it matches regardless of the importer relative string.
 const ghServicePath = require.resolve("../infra/github/githubService");
 const secretsPath = require.resolve("../lib/autoSyncRepoSecrets");
 const projectCtxPath = require.resolve("../contexts/ProjectContext");
 const signingGatePath = require.resolve("../screens/EnhancedBuildScreen/hooks/signingKeyGate");
-const buildReadinessPath = require.resolve("../screens/EnhancedBuildScreen/hooks/buildReadinessState");
+const buildReadinessPath = require.resolve("../lib/buildReadiness");
 const repoSyncPath = require.resolve("../lib/repoSyncOrchestration");
+const buildPreconditionsPath = require.resolve("../screens/EnhancedBuildScreen/hooks/useBuildPreconditions");
 
 jest.doMock(ghServicePath, () => mockGitHub);
 jest.doMock(secretsPath, () => mockSecrets);
@@ -68,10 +71,13 @@ jest.doMock(signingGatePath, () => ({
   readSigningKeyGateState: mockReadSigningKeyGateState,
 }));
 jest.doMock(buildReadinessPath, () => ({
-  readBuildReadinessState: mockReadBuildReadinessState,
+  evaluateBuildReadiness: mockEvaluateBuildReadiness,
 }));
 jest.doMock(repoSyncPath, () => ({
   getRepoSyncState: mockGetRepoSyncState,
+}));
+jest.doMock(buildPreconditionsPath, () => ({
+  readLocalBuildGateState: mockReadLocalBuildGateState,
 }));
 
 // Require AFTER mocks
@@ -142,6 +148,7 @@ describe("useOneClickDeploy", () => {
 
     mockGitHub.getGitHubToken.mockReset();
     mockGitHub.getExpoToken.mockReset();
+    mockGitHub.getWorkflowAdminKey.mockReset();
     mockGitHub.getBranchHeadSha.mockReset();
     mockGitHub.getAndroidKeystoreExportAdminKey.mockReset();
     mockSecrets.autoSyncRepoSecrets.mockReset();
@@ -153,6 +160,7 @@ describe("useOneClickDeploy", () => {
     mockAsyncStorageSetItem.mockResolvedValue(undefined);
     mockAsyncStorageRemoveItem.mockResolvedValue(undefined);
     mockGitHub.getBranchHeadSha.mockResolvedValue("a".repeat(40));
+    mockGitHub.getWorkflowAdminKey.mockResolvedValue("workflow-admin-key");
     mockGitHub.getAndroidKeystoreExportAdminKey.mockResolvedValue("keystore-admin-key-12345678901234567890");
     mockProjectData.files = [];
     mockReadSigningKeyGateState.mockReset();
@@ -163,18 +171,29 @@ describe("useOneClickDeploy", () => {
       credentialState: "verified",
       credentialDetail: null,
     });
-    mockReadBuildReadinessState.mockReset();
-    mockReadBuildReadinessState.mockResolvedValue({
-      hasDiagOk: true,
-      hasCiLiteOk: true,
-      diagnosticState: "verified",
-      diagnosticReason: null,
-      ciLiteReason: null,
-      ciLiteState: "verified",
-      ciLiteStale: false,
+    mockEvaluateBuildReadiness.mockReset();
+    mockEvaluateBuildReadiness.mockResolvedValue({
+      ok: true,
+      reasonCode: null,
+      message: null,
+      snapshot: null,
+      context: {
+        linkedRepo: "owner/repo",
+        linkedBranch: "main",
+        diagnosticOk: true,
+      },
     });
     mockGetRepoSyncState.mockReset();
     mockGetRepoSyncState.mockResolvedValue("in_sync");
+    mockReadLocalBuildGateState.mockReset();
+    mockReadLocalBuildGateState.mockResolvedValue({
+      hasTokens: true,
+      tokenReason: null,
+      hasWorkflowAdminKey: true,
+      workflowAdminKeyReason: null,
+      hasOperatorJwt: true,
+      operatorJwtReason: null,
+    });
   });
 
   afterEach(() => {
@@ -302,14 +321,16 @@ describe("useOneClickDeploy", () => {
 
 
   it("blocks before build when diagnostic/ci-lite readiness is not green", async () => {
-    mockReadBuildReadinessState.mockResolvedValueOnce({
-      hasDiagOk: false,
-      hasCiLiteOk: true,
-      diagnosticState: "unknown",
-      diagnosticReason: "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.",
-      ciLiteReason: null,
-      ciLiteState: "verified",
-      ciLiteStale: false,
+    mockEvaluateBuildReadiness.mockResolvedValueOnce({
+      ok: false,
+      reasonCode: "diagnostic_not_green",
+      message: "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.",
+      snapshot: null,
+      context: {
+        linkedRepo: "owner/repo",
+        linkedBranch: "main",
+        diagnosticOk: false,
+      },
     });
 
     mockAsyncStorageGetItem.mockImplementation(async (k: string) => {
@@ -347,14 +368,16 @@ describe("useOneClickDeploy", () => {
   });
 
   it("does not treat a legacy global diagnostic flag as sufficient for the current repo/branch", async () => {
-    mockReadBuildReadinessState.mockResolvedValueOnce({
-      hasDiagOk: false,
-      hasCiLiteOk: true,
-      diagnosticState: "unknown",
-      diagnosticReason: "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.",
-      ciLiteReason: null,
-      ciLiteState: "verified",
-      ciLiteStale: false,
+    mockEvaluateBuildReadiness.mockResolvedValueOnce({
+      ok: false,
+      reasonCode: "diagnostic_not_green",
+      message: "Diagnose wurde fuer dieses Repo/Branch noch nicht sicher bestaetigt.",
+      snapshot: null,
+      context: {
+        linkedRepo: "owner/repo",
+        linkedBranch: "main",
+        diagnosticOk: false,
+      },
     });
 
     mockAsyncStorageGetItem.mockImplementation(async (k: string) => {
@@ -478,8 +501,7 @@ describe("useOneClickDeploy", () => {
     );
     expect(build.status).toBe("ok");
     expect(startBuild).toHaveBeenCalledTimes(1);
-    expect(mockGitHub.getGitHubToken).toHaveBeenCalledTimes(1);
-    expect(mockGitHub.getExpoToken).toHaveBeenCalledTimes(1);
+    expect(mockReadLocalBuildGateState).toHaveBeenCalledTimes(1);
   });
 
 
@@ -527,14 +549,16 @@ describe("useOneClickDeploy", () => {
   });
 
   it("blocks before build when CI-Lite SHA no longer matches the current branch head", async () => {
-    mockReadBuildReadinessState.mockResolvedValueOnce({
-      hasDiagOk: true,
-      hasCiLiteOk: false,
-      diagnosticState: "verified",
-      diagnosticReason: null,
-      ciLiteReason: "SHA-Mismatch zwischen letztem CI-Lite-Run und aktuellem Branch-Head.",
-      ciLiteState: "unknown",
-      ciLiteStale: false,
+    mockEvaluateBuildReadiness.mockResolvedValueOnce({
+      ok: false,
+      reasonCode: "ci_lite_sha_mismatch",
+      message: "SHA-Mismatch zwischen letztem CI-Lite-Run und aktuellem Branch-Head.",
+      snapshot: null,
+      context: {
+        linkedRepo: "owner/repo",
+        linkedBranch: "main",
+        diagnosticOk: true,
+      },
     });
 
     mockProjectData.files = [{ path: "App.tsx", content: "export default 1;" }];
@@ -573,6 +597,33 @@ describe("useOneClickDeploy", () => {
       expect(String(readiness.detail || "")).toMatch(/SHA-Mismatch/);
     });
 
+    expect(startBuild).not.toHaveBeenCalled();
+  });
+
+  it("uses the same hard local gate blockers as normal start (workflow key/jwt)", async () => {
+    mockReadLocalBuildGateState.mockResolvedValueOnce({
+      hasTokens: true,
+      tokenReason: null,
+      hasWorkflowAdminKey: false,
+      workflowAdminKeyReason: "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen",
+      hasOperatorJwt: true,
+      operatorJwtReason: null,
+    });
+    mockProjectData.files = [{ path: "App.tsx", content: "export default 1;" }];
+    const startBuild = jest.fn(async () => {});
+
+    const { getByTestId } = render(
+      <Harness profile="preview" repo="owner/repo" branch="main" startBuild={startBuild} />,
+    );
+
+    await pressRun(getByTestId);
+
+    await waitFor(() => {
+      const steps = getSteps(getByTestId);
+      const tokens = findStep(steps, "tokens");
+      expect(tokens.status).toBe("fail");
+      expect(String(tokens.detail || "")).toMatch(/Workflow-Admin-Key fehlt/i);
+    });
     expect(startBuild).not.toHaveBeenCalled();
   });
 });

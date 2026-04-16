@@ -153,6 +153,6 @@ export const getBuildStats = async (): Promise<{
     total: history.length,
     success: history.filter(e => e.status === 'success').length,
     failed: history.filter(e => e.status === 'failed' || e.status === 'error').length,
-    building: history.filter(e => e.status === 'building' || e.status === 'queued').length,
+    building: history.filter(e => e.status === 'starting' || e.status === 'building' || e.status === 'queued').length,
   };
 };

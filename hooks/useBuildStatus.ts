@@ -125,6 +125,14 @@ export function useBuildStatus(
 
         callbacksRef.current?.onError?.(errorMsg, errorCountRef.current);
 
+        if (!result.retryable) {
+          statusRef.current = "error";
+          setStatus("error");
+          clearPollTimer();
+          notifyFailure("error");
+          return;
+        }
+
         if (errorCountRef.current >= MAX_ERRORS) {
           statusRef.current = "error";
           setStatus("error");
@@ -250,6 +258,12 @@ export function useBuildStatus(
 
     pollGenerationRef.current += 1;
     const generation = pollGenerationRef.current;
+    clearPollTimer();
+    statusRef.current = "idle";
+    setStatus("idle");
+    setDetails(null);
+    latestDetailsRef.current = null;
+    setLastError(null);
     errorCountRef.current = 0;
     setErrorCount(0);
     hasAlertedRef.current = false;

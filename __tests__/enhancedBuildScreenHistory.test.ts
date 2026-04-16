@@ -25,7 +25,7 @@ describe("enhancedBuildScreenHistory", () => {
       id: "3",
       jobId: "3",
       repoName: "o/r",
-      status: "queued" as const,
+      status: "starting" as const,
       startedAt: "2026-04-05T02:00:00.000Z",
       buildProfile: "preview",
     },

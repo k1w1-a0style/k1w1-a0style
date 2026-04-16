@@ -57,6 +57,7 @@ describe("buildPollingService", () => {
     expect(result).toEqual({
       ok: false,
       error: "Ungültige Server-Antwort",
+      retryable: true,
       statusCode: 200,
     });
   });
@@ -106,5 +107,22 @@ describe("buildPollingService", () => {
       message: "Request timeout - Keine Antwort vom Server",
       timeoutMs: 20,
     });
+  });
+
+  it("marks local auth/key blockers as terminal (non-retryable)", async () => {
+    const { getWorkflowAdminKey } = jest.requireMock("../infra/github/githubService") as {
+      getWorkflowAdminKey: jest.Mock;
+    };
+    getWorkflowAdminKey.mockResolvedValueOnce(null);
+    global.fetch = jest.fn() as unknown as typeof fetch;
+
+    const result = await pollBuildStatusOnce("job-terminal");
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
+      retryable: false,
+    });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });
