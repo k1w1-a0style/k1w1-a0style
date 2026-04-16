@@ -1,5 +1,6 @@
 import {
   readCurrentUserJwt,
+  readCurrentUserJwtResult,
 } from "../screens/CredentialsWizardScreen/hooks/wizardEdgeAuth";
 import { ensureSupabaseClient } from "../lib/supabase";
 
@@ -47,5 +48,29 @@ describe("credentials wizard edge auth helper", () => {
 
     expect(jwt).toBeNull();
     expect(onError).toHaveBeenCalledWith(boom);
+  });
+
+  it("distinguishes missing token from unreadable session reads", async () => {
+    (ensureSupabaseClient as jest.Mock).mockResolvedValue({
+      auth: {
+        getSession: async () => {
+          throw new Error("session storage failure");
+        },
+      },
+    });
+    const onError = jest.fn();
+
+    const result = await readCurrentUserJwtResult({ onError });
+
+    expect(result).toEqual({ jwt: null, reason: "session_unreadable" });
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it("reports supabase init failures separately from missing login", async () => {
+    (ensureSupabaseClient as jest.Mock).mockRejectedValue(new Error("init failed"));
+
+    const result = await readCurrentUserJwtResult({ onError: jest.fn() });
+
+    expect(result).toEqual({ jwt: null, reason: "supabase_init_failed" });
   });
 });

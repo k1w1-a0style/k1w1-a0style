@@ -6,37 +6,48 @@ import { STORAGE_KEYS } from "./storageKeys";
 
 const SUPABASE_ANON_SECURE_KEY = "supabase_anon_key_v1";
 
-export async function getSupabaseAnonKey(): Promise<string | null> {
-  const secureValue = await runWithCleanupFallback(
-    () => SecureStore.getItemAsync(SUPABASE_ANON_SECURE_KEY),
-    null,
-    "[supabaseAnonKeyStorage] secure read failed",
-  );
-  if (secureValue) {
-    return secureValue;
+export type SupabaseAnonKeyReadDetailed = {
+  value: string | null;
+  unreadable: boolean;
+};
+
+export async function readSupabaseAnonKeyDetailed(): Promise<SupabaseAnonKeyReadDetailed> {
+  let secureValue: string | null = null;
+  let secureUnreadable = false;
+  try {
+    secureValue = await SecureStore.getItemAsync(SUPABASE_ANON_SECURE_KEY);
+  } catch {
+    secureUnreadable = true;
   }
 
-  const legacyValue = await runWithCleanupFallback(
-    () => AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY),
-    null,
-    "[supabaseAnonKeyStorage] legacy read failed",
-  );
+  const normalizedSecure = String(secureValue ?? "").trim();
+  if (normalizedSecure) {
+    return { value: normalizedSecure, unreadable: false };
+  }
+
+  let legacyValue: string | null = null;
+  let legacyUnreadable = false;
+  try {
+    legacyValue = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_KEY);
+  } catch {
+    legacyUnreadable = true;
+  }
   if (!legacyValue) {
-    return null;
+    return { value: null, unreadable: secureUnreadable || legacyUnreadable };
   }
 
-  const normalized = legacyValue.trim();
-  if (!normalized) {
+  const normalizedLegacy = legacyValue.trim();
+  if (!normalizedLegacy) {
     await runCleanupTask(
       () => AsyncStorage.removeItem(STORAGE_KEYS.SUPABASE_KEY),
       "[supabaseAnonKeyStorage] remove empty legacy value failed",
     );
-    return null;
+    return { value: null, unreadable: secureUnreadable || legacyUnreadable };
   }
 
   const migratedToSecureStore = await runWithCleanupFallback(
     async () => {
-      await SecureStore.setItemAsync(SUPABASE_ANON_SECURE_KEY, normalized);
+      await SecureStore.setItemAsync(SUPABASE_ANON_SECURE_KEY, normalizedLegacy);
       return true;
     },
     false,
@@ -50,7 +61,12 @@ export async function getSupabaseAnonKey(): Promise<string | null> {
     );
   }
 
-  return normalized;
+  return { value: normalizedLegacy, unreadable: false };
+}
+
+export async function getSupabaseAnonKey(): Promise<string | null> {
+  const detailed = await readSupabaseAnonKeyDetailed();
+  return detailed.value;
 }
 
 export async function saveSupabaseAnonKey(value: string): Promise<void> {
