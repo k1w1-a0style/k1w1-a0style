@@ -93,6 +93,63 @@ export type BuildHistoryStatusSnapshot = {
   runId: number | null;
 };
 
+type HistoryTraceabilityState = Pick<
+  BuildHistoryStatusSnapshot,
+  "htmlUrl" | "artifactUrl" | "sourceCommitSha" | "runId"
+>;
+
+function resolveNonEmptyString(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function resolveEffectiveHistoryTraceability(params: {
+  activeJobId: string;
+  details: BuildStatusDetails;
+  lastSnapshot: BuildHistoryStatusSnapshot | null;
+  currentBuild?: {
+    jobId?: string | null;
+    urls?: {
+      html?: string | null;
+      artifacts?: string | null;
+    } | null;
+    sourceCommitSha?: string | null;
+    runId?: number | null;
+  } | null;
+}): HistoryTraceabilityState {
+  const snapshotForJob =
+    params.lastSnapshot?.jobId === params.activeJobId ? params.lastSnapshot : null;
+  const currentBuildForJob =
+    params.currentBuild?.jobId === params.activeJobId ? params.currentBuild : null;
+
+  const nextHtmlUrl = resolveNonEmptyString(params.details.urls?.html);
+  const nextArtifactUrl = resolveNonEmptyString(params.details.urls?.artifacts);
+  const nextSourceCommitSha = resolveNonEmptyString(params.details.sourceCommitSha);
+  const nextRunId = typeof params.details.runId === "number" ? params.details.runId : null;
+
+  return {
+    htmlUrl:
+      nextHtmlUrl ??
+      snapshotForJob?.htmlUrl ??
+      resolveNonEmptyString(currentBuildForJob?.urls?.html) ??
+      null,
+    artifactUrl:
+      nextArtifactUrl ??
+      snapshotForJob?.artifactUrl ??
+      resolveNonEmptyString(currentBuildForJob?.urls?.artifacts) ??
+      null,
+    sourceCommitSha:
+      nextSourceCommitSha ??
+      snapshotForJob?.sourceCommitSha ??
+      resolveNonEmptyString(currentBuildForJob?.sourceCommitSha) ??
+      null,
+    runId:
+      nextRunId ??
+      snapshotForJob?.runId ??
+      (typeof currentBuildForJob?.runId === "number" ? currentBuildForJob.runId : null) ??
+      null,
+  };
+}
+
 export const resolveHistoryBuildSelection = (params: {
   activeJobId?: string | null;
   snapshot?: BuildSelectionSnapshot | null;
@@ -126,32 +183,43 @@ export const shouldUpdateBuildHistoryStatus = (params: {
   activeJobId: string;
   status: BuildStatus;
   details: BuildStatusDetails;
+  currentBuild?: {
+    jobId?: string | null;
+    urls?: {
+      html?: string | null;
+      artifacts?: string | null;
+    } | null;
+    sourceCommitSha?: string | null;
+    runId?: number | null;
+  } | null;
 }): boolean => {
-  const htmlUrl = params.details.urls?.html ?? null;
-  const artifactUrl = params.details.urls?.artifacts ?? null;
-  const sourceCommitSha = params.details.sourceCommitSha ?? null;
-  const runId = params.details.runId ?? null;
+  const traceability = resolveEffectiveHistoryTraceability({
+    activeJobId: params.activeJobId,
+    details: params.details,
+    lastSnapshot: params.lastSnapshot,
+    currentBuild: params.currentBuild,
+  });
   return !(
     params.lastSnapshot?.jobId === params.activeJobId &&
     params.lastSnapshot?.status === params.status &&
-    params.lastSnapshot?.htmlUrl === htmlUrl &&
-    params.lastSnapshot?.artifactUrl === artifactUrl &&
-    params.lastSnapshot?.sourceCommitSha === sourceCommitSha &&
-    params.lastSnapshot?.runId === runId
+    params.lastSnapshot?.htmlUrl === traceability.htmlUrl &&
+    params.lastSnapshot?.artifactUrl === traceability.artifactUrl &&
+    params.lastSnapshot?.sourceCommitSha === traceability.sourceCommitSha &&
+    params.lastSnapshot?.runId === traceability.runId
   );
 };
 
 export const createBuildHistoryStatusSnapshot = (params: {
   activeJobId: string;
   status: BuildStatus;
-  details: BuildStatusDetails;
+  traceability: HistoryTraceabilityState;
 }): BuildHistoryStatusSnapshot => ({
   jobId: params.activeJobId,
   status: params.status,
-  htmlUrl: params.details.urls?.html ?? null,
-  artifactUrl: params.details.urls?.artifacts ?? null,
-  sourceCommitSha: params.details.sourceCommitSha ?? null,
-  runId: params.details.runId ?? null,
+  htmlUrl: params.traceability.htmlUrl,
+  artifactUrl: params.traceability.artifactUrl,
+  sourceCommitSha: params.traceability.sourceCommitSha,
+  runId: params.traceability.runId,
 });
 
 export const resolveBuildHistoryPollUpdate = (params: {
@@ -161,9 +229,16 @@ export const resolveBuildHistoryPollUpdate = (params: {
   lastSnapshot: BuildHistoryStatusSnapshot | null;
   selectionSnapshot?: BuildSelectionSnapshot | null;
   currentBuild?: {
+    jobId?: string | null;
     githubRepo?: string | null;
     branch?: string | null;
     buildProfile?: string | null;
+    urls?: {
+      html?: string | null;
+      artifacts?: string | null;
+    } | null;
+    sourceCommitSha?: string | null;
+    runId?: number | null;
   } | null;
 }):
   | {
@@ -184,6 +259,12 @@ export const resolveBuildHistoryPollUpdate = (params: {
   if (!params.activeJobId || !params.details) {
     return null;
   }
+  const traceability = resolveEffectiveHistoryTraceability({
+    activeJobId: params.activeJobId,
+    details: params.details,
+    lastSnapshot: params.lastSnapshot,
+    currentBuild: params.currentBuild,
+  });
 
   if (
     !shouldUpdateBuildHistoryStatus({
@@ -191,6 +272,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
       activeJobId: params.activeJobId,
       status: params.status,
       details: params.details,
+      currentBuild: params.currentBuild,
     })
   ) {
     return null;
@@ -206,7 +288,7 @@ export const resolveBuildHistoryPollUpdate = (params: {
     nextSnapshot: createBuildHistoryStatusSnapshot({
       activeJobId: params.activeJobId,
       status: params.status,
-      details: params.details,
+      traceability,
     }),
     update: {
       jobId: params.activeJobId,
@@ -214,10 +296,10 @@ export const resolveBuildHistoryPollUpdate = (params: {
       branch: selection.branch,
       buildProfile: selection.buildProfile,
       repoName: selection.repoName,
-      htmlUrl: params.details.urls?.html ?? null,
-      artifactUrl: params.details.urls?.artifacts ?? null,
-      sourceCommitSha: params.details.sourceCommitSha ?? null,
-      runId: params.details.runId ?? null,
+      htmlUrl: traceability.htmlUrl,
+      artifactUrl: traceability.artifactUrl,
+      sourceCommitSha: traceability.sourceCommitSha,
+      runId: traceability.runId,
     },
   };
 };

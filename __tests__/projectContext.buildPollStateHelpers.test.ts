@@ -108,7 +108,12 @@ describe("projectContextStateHelpers build poll state mapping", () => {
     const snapshot = createBuildHistoryStatusSnapshot({
       activeJobId: "job-1",
       status: "queued",
-      details: { jobId: "job-1", status: "queued", raw: null },
+      traceability: {
+        htmlUrl: null,
+        artifactUrl: null,
+        sourceCommitSha: null,
+        runId: null,
+      },
     });
 
     expect(
@@ -157,7 +162,12 @@ describe("projectContextStateHelpers build poll state mapping", () => {
       lastSnapshot: createBuildHistoryStatusSnapshot({
         activeJobId: "job-1",
         status: "queued",
-        details: { jobId: "job-1", status: "queued", raw: null },
+        traceability: {
+          htmlUrl: null,
+          artifactUrl: null,
+          sourceCommitSha: null,
+          runId: null,
+        },
       }),
       selectionSnapshot: {
         jobId: "job-1",
@@ -207,7 +217,12 @@ describe("projectContextStateHelpers build poll state mapping", () => {
         lastSnapshot: createBuildHistoryStatusSnapshot({
           activeJobId: "job-1",
           status: "building",
-          details: { jobId: "job-1", status: "building", runId: 11, raw: null },
+          traceability: {
+            htmlUrl: null,
+            artifactUrl: null,
+            sourceCommitSha: null,
+            runId: 11,
+          },
         }),
       }),
     ).toBeNull();
@@ -241,6 +256,37 @@ describe("projectContextStateHelpers build poll state mapping", () => {
     expect(next?.update.runId).toBe(202);
     expect(next?.update.sourceCommitSha).toBe("def456");
     expect(next?.nextSnapshot.status).toBe("building");
+  });
+
+  it("preserves known traceability when a later equal-status poll omits metadata fields", () => {
+    const next = resolveBuildHistoryPollUpdate({
+      activeJobId: "job-7",
+      details: {
+        jobId: "job-7",
+        status: "building",
+        raw: null,
+      },
+      status: "building",
+      lastSnapshot: {
+        jobId: "job-7",
+        status: "building",
+        htmlUrl: "https://example.com/runs/101",
+        artifactUrl: "https://example.com/runs/101/artifacts",
+        sourceCommitSha: "abc123",
+        runId: 101,
+      },
+      currentBuild: {
+        jobId: "job-7",
+        runId: 101,
+        sourceCommitSha: "abc123",
+        urls: {
+          html: "https://example.com/runs/101",
+          artifacts: "https://example.com/runs/101/artifacts",
+        },
+      },
+    });
+
+    expect(next).toBeNull();
   });
 
   it("filters invalid chat messages for context value stability", () => {
@@ -295,7 +341,6 @@ describe("projectContextBuildHelpers orchestration guards", () => {
       lastUpdatedAt: "2026-04-05T00:00:02.000Z",
       runId: null,
       sourceCommitSha: null,
-      lastError: null,
     });
     expect(afterStart.urls).toEqual({ html: null, artifacts: null, buildUrl: null });
   });
