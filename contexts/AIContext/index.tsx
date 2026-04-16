@@ -123,17 +123,23 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setConfig = useCallback((next: AIConfig) => setConfigState(next), []);
-  const applyImportedConfig = useCallback((next: AIConfig) => {
+
+  const assertImportedConfigAllowed = useCallback((next: AIConfig) => {
     const importedKeys = normalizeApiKeys(next.apiKeys);
     if (!secureApiKeysReadable && hasAnyApiKeys(importedKeys)) {
       throw new Error("Import blockiert: SecureStore ist nicht lesbar, API-Keys koennen nicht sicher übernommen werden.");
     }
+  }, [secureApiKeysReadable]);
+
+  const applyImportedConfig = useCallback((next: AIConfig) => {
+    const importedKeys = normalizeApiKeys(next.apiKeys);
+    assertImportedConfigAllowed({ ...next, apiKeys: importedKeys });
     if (!secureApiKeysReadable) {
       setConfigState((prev) => ({ ...next, apiKeys: normalizeApiKeys(prev.apiKeys) }));
       return;
     }
     setConfigState({ ...next, apiKeys: importedKeys });
-  }, [secureApiKeysReadable]);
+  }, [assertImportedConfigAllowed, secureApiKeysReadable]);
 
   const updateConfig = useCallback((patch: Partial<AIConfig>) => {
     setConfigState((prev) => ({ ...prev, ...patch }));
@@ -243,6 +249,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     () => ({
       config,
       setConfig,
+      assertImportedConfigAllowed,
       applyImportedConfig,
       updateConfig,
       addApiKey,
@@ -262,6 +269,7 @@ export function AIProvider({ children }: { children: React.ReactNode }) {
     [
       config,
       setConfig,
+      assertImportedConfigAllowed,
       applyImportedConfig,
       updateConfig,
       addApiKey,

@@ -54,6 +54,7 @@ export type AIConfig = {
 export type AIContextProps = {
   config: AIConfig;
   setConfig: (next: AIConfig) => void;
+  assertImportedConfigAllowed: (next: AIConfig) => void;
   applyImportedConfig: (next: AIConfig) => void;
   updateConfig: (patch: Partial<AIConfig>) => void;
 

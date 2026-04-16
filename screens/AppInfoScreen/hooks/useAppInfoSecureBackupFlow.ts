@@ -155,9 +155,10 @@ function isAbortLikeError(error: unknown): boolean {
 export function useAppInfoSecureBackupFlow(params: {
   config: AIConfig;
   applyImportedConfig: (next: AIConfig) => void;
+  assertImportedConfigAllowed: (next: AIConfig) => void;
   github: GitHubSelectionDeps;
 }) {
-  const { config, applyImportedConfig, github } = params;
+  const { config, applyImportedConfig, assertImportedConfigAllowed, github } = params;
   const [secureBackupRequest, setSecureBackupRequest] = useState<SecureBackupRequest | null>(null);
   const [secureBackupBusy, setSecureBackupBusy] = useState(false);
   const SECURE_BACKUP_IMPORT_JOURNAL_KEY = "secure_backup_import_recoverable_journal_v1";
@@ -317,6 +318,12 @@ export function useAppInfoSecureBackupFlow(params: {
   const runSecureBackupImport = useCallback(async (passphrase: string) => {
     const result = await importEncryptedScopedBackup(passphrase);
     const imported = result.data;
+    const importedAiConfig = imported.kind === "config-secret-snapshot"
+      ? sanitizeAiConfigFromBackup(imported.aiConfig, config)
+      : null;
+    if (importedAiConfig) {
+      assertImportedConfigAllowed(importedAiConfig);
+    }
     const secretPayload = imported.kind === "config-secret-snapshot" ? imported.secrets : imported;
     await recoverFromPendingJournal<SecureBackupImportSnapshot | SecureBackupImportJournalSnapshot>({
       journalKey: SECURE_BACKUP_IMPORT_JOURNAL_KEY,
@@ -372,8 +379,8 @@ export function useAppInfoSecureBackupFlow(params: {
       throw error;
     }
 
-    if (imported.kind === "config-secret-snapshot") {
-      applyImportedConfig(sanitizeAiConfigFromBackup(imported.aiConfig, config));
+    if (importedAiConfig) {
+      applyImportedConfig(importedAiConfig);
     }
 
     const exportDate = safeFormatBackupDate(result.exportDate);
@@ -382,7 +389,7 @@ export function useAppInfoSecureBackupFlow(params: {
       "✅ Import erfolgreich",
       `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
     );
-  }, [applySecretBackupPayloadCore, applyImportedConfig, collectSecretBackupPayload, config]);
+  }, [applySecretBackupPayloadCore, applyImportedConfig, assertImportedConfigAllowed, collectSecretBackupPayload, config]);
 
   const handleSubmitSecureBackupPassphrase = useCallback(async (passphrase: string) => {
     if (!secureBackupRequest || secureBackupBusy) return;

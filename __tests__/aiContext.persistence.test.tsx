@@ -124,6 +124,15 @@ describe("AIContext redacted config persistence", () => {
     await expect(result.current.addApiKey("groq", "new-key")).rejects.toThrow("SecureStore nicht lesbar");
     expect(result.current.config.apiKeys.groq).toEqual([]);
     expect(() =>
+      result.current.assertImportedConfigAllowed({
+        ...result.current.config,
+        apiKeys: {
+          ...result.current.config.apiKeys,
+          openai: ["sk-imported-openai"],
+        },
+      }),
+    ).toThrow("SecureStore ist nicht lesbar");
+    expect(() =>
       result.current.applyImportedConfig({
         ...result.current.config,
         apiKeys: {
@@ -165,6 +174,18 @@ describe("AIContext redacted config persistence", () => {
     await waitFor(() => {
       expect(result.current.config.selectedChatMode).toBe("llama-3.1-8b-instant");
     });
+    expect(() =>
+      result.current.assertImportedConfigAllowed({
+        ...result.current.config,
+        apiKeys: {
+          groq: [],
+          gemini: [],
+          openai: ["sk-imported-openai"],
+          anthropic: [],
+          huggingface: [],
+        },
+      }),
+    ).not.toThrow();
 
     act(() => {
       result.current.applyImportedConfig({
