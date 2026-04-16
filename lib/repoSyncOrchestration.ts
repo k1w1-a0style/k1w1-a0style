@@ -56,6 +56,10 @@ function canonicalizeFilesForSignature(files: ProjectFile[]): {
   };
 }
 
+export function hasConflictingCanonicalFileVariants(files: ProjectFile[]): boolean {
+  return canonicalizeFilesForSignature(files).hasConflicts;
+}
+
 export function computeProjectFilesSignature(files: ProjectFile[]): string {
   const { normalized } = canonicalizeFilesForSignature(files);
 
@@ -86,7 +90,7 @@ export async function markRepoSyncSignature(params: {
       ? ((key: string, value: string) => asyncStorageSetItem(key, value))
       : null);
   if (!setItem) return;
-  const { hasConflicts } = canonicalizeFilesForSignature(params.files);
+  const hasConflicts = hasConflictingCanonicalFileVariants(params.files);
   if (hasConflicts) return;
   const sig = computeProjectFilesSignature(params.files);
   await setItem(scopeKey(repo, branch), sig);
@@ -107,7 +111,7 @@ export async function getRepoSyncState(params: {
     params.storageGetItem ??
     (asyncStorageGetItem ? ((key: string) => asyncStorageGetItem(key)) : null);
   if (!getItem) return "unknown";
-  const { hasConflicts } = canonicalizeFilesForSignature(params.files);
+  const hasConflicts = hasConflictingCanonicalFileVariants(params.files);
   if (hasConflicts) return "unknown";
   const stored = (await getItem(scopeKey(repo, branch)).catch(() => null)) ?? "";
   if (!stored.trim()) return "unknown";

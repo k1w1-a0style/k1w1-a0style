@@ -11,10 +11,14 @@ import {
 } from "../../infra/github/githubService";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import { autoFixCIWorkflows } from "../../lib/diagnostics/ciAutoFix";
-import { getRepoSyncState, markRepoSyncSignature } from "../../lib/repoSyncOrchestration";
+import {
+  getRepoSyncState,
+  hasConflictingCanonicalFileVariants,
+  markRepoSyncSignature,
+} from "../../lib/repoSyncOrchestration";
 import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../lib/auth/operatorJwt";
 import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
-import { getCanonicalProjectFilesForOps } from "../../lib/getMaterializedProjectFiles";
+import { getCanonicalProjectFilesForOps, getSourceProjectFiles } from "../../lib/getMaterializedProjectFiles";
 import {
   assertBuildReadiness as assertBuildReadinessContract,
   type BuildReadinessDeps,
@@ -141,6 +145,7 @@ export async function startBuildJob(params: {
   deps?: BuildReadinessDeps;
 }): Promise<StartBuildJobResult> {
   const { project, buildProfile, deps } = params;
+  const sourceFiles = getSourceProjectFiles(project);
   const canonicalOpsFiles = getCanonicalProjectFilesForOps(project);
 
   if (!canonicalOpsFiles.length) {
@@ -153,6 +158,10 @@ export async function startBuildJob(params: {
   const githubRepo = (project.linkedRepo?.trim() || "").trim();
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
+
+  if (hasConflictingCanonicalFileVariants(sourceFiles)) {
+    throw new Error("Build blockiert: Sync-Status lokal↔Repo ist unklar. Bitte zuerst explizit pushen und danach erneut starten.");
+  }
 
   const syncState = await getRepoSyncState({
     linkedRepo: githubRepo,

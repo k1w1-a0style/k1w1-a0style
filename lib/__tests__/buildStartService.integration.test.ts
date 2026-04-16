@@ -356,6 +356,58 @@ describe("startBuildJob (integration)", () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
+  it("fails closed when raw source files contain conflicting canonical duplicates", async () => {
+    const project = makeProject({
+      files: [
+        makeProjectFile("src/App.tsx", "export default 1;"),
+        makeProjectFile("./src//App.tsx", "export default 2;"),
+      ],
+    });
+    const repo = "k1w1-a0style/musik-player";
+    const branch = "main";
+    const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: repo,
+      linkedBranch: branch,
+    });
+    const syncKey = repoSyncKey(repo, branch);
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo,
+      branch,
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
+    const syncSig = computeProjectFilesSignature(getCanonicalProjectFilesForOps(project));
+    mockGetItem.mockImplementation(async (key: string) => {
+      switch (key) {
+        case diagKey:
+        case readinessKey:
+          return key === readinessKey ? JSON.stringify(readinessRecord) : "true";
+        case STORAGE_KEYS.CI_LITE_LINT_OK:
+        case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
+          return "true";
+        case STORAGE_KEYS.CI_LITE_LAST_REPO:
+          return repo;
+        case STORAGE_KEYS.CI_LITE_LAST_BRANCH:
+          return branch;
+        case STORAGE_KEYS.CI_LITE_LAST_SHA:
+          return "1111111111111111111111111111111111111111";
+        case STORAGE_KEYS.CI_LITE_LAST_RUN_AT:
+          return String(Date.now());
+        case syncKey:
+          return syncSig;
+        default:
+          return null;
+      }
+    });
+
+    await expect(startBuildJob({ project, buildProfile: "preview", deps })).rejects.toThrow(/Sync-Status/i);
+    expect(mockGitHub.pushFilesToRepo).not.toHaveBeenCalled();
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
   it("blocks build when no session JWT is available", async () => {
     mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
 
