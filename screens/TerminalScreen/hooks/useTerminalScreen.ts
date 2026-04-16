@@ -18,6 +18,7 @@ import { redactSecrets, truncateWithMarker } from "../../../lib/secretRedaction"
 import {
   MAX_CLIPBOARD_LOGS, MAX_EXPORT_LOGS, MAX_AI_LOGS,
   MAX_CLIPBOARD_CHARS, MAX_EXPORT_CHARS, MAX_AI_CHARS,
+  formatSanitizedSearchQuery,
   safeDir,
   sanitizeDebugSearchQuery,
 } from "./terminalHelpers";
@@ -260,7 +261,7 @@ export function useTerminalScreen() {
     const payload =
       `🧠 Terminal Log Analyse (Auto-Fix)\n\n` +
       `Filter: ${activeFilter}\n` +
-      `Suche: ${searchQuery || "-"}\n` +
+      `Suche: ${formatSanitizedSearchQuery(searchQuery)}\n` +
       `Visible Logs: ${filteredLogs.length}\n` +
       `Sent Logs: ${Math.min(filteredLogs.length, MAX_AI_LOGS)} (redacted)\n\n` +
       `--- LOGS START ---\n` +
