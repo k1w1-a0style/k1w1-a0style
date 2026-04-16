@@ -1,4 +1,5 @@
 import type { CoreTemplateId, PreferredPreviewMode, ProjectData, ProjectFile, TemplateId } from "../shared/types/project";
+import { normalizePath } from "../lib/validators";
 
 const DEFAULT_PROJECT_NAME = "Neues Projekt";
 const DEFAULT_PROJECT_SLUG = "neues-projekt";
@@ -60,8 +61,10 @@ export const removeProjectFilesByPaths = (
   pathsToRemove: readonly string[],
 ): ProjectFile[] => {
   const toDelete = new Set(
-    pathsToRemove.filter((path): path is string => typeof path === "string" && path.length > 0),
+    pathsToRemove
+      .map((path) => (typeof path === "string" ? normalizePath(path) : ""))
+      .filter((path): path is string => path.length > 0),
   );
   if (toDelete.size === 0) return currentFiles;
-  return currentFiles.filter((file) => !toDelete.has(file.path));
+  return currentFiles.filter((file) => !toDelete.has(normalizePath(String(file.path ?? ""))));
 };

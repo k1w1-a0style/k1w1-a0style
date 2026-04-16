@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { normalizePath } from "./validators";
 
 import type { ProjectFile } from "../shared/types/project";
 
@@ -24,14 +25,35 @@ function scopeKey(repo: string, branch: string): string {
   return `repo_sync_signature::${encodeURIComponent(repo.trim().toLowerCase())}::${encodeURIComponent(branch.trim())}`;
 }
 
+function canonicalizeFilesForSignature(files: ProjectFile[]): {
+  normalized: Array<{ path: string; content: string }>;
+  hasConflicts: boolean;
+} {
+  const byPath = new Map<string, string>();
+  let hasConflicts = false;
+
+  for (const file of Array.isArray(files) ? files : []) {
+    const path = normalizePath(String(file?.path ?? ""));
+    if (!path) continue;
+    const content = String(file?.content ?? "");
+    const previous = byPath.get(path);
+    if (typeof previous === "string" && previous !== content) {
+      hasConflicts = true;
+      continue;
+    }
+    byPath.set(path, content);
+  }
+
+  return {
+    normalized: Array.from(byPath.entries())
+      .map(([path, content]) => ({ path, content }))
+      .sort((a, b) => a.path.localeCompare(b.path)),
+    hasConflicts,
+  };
+}
+
 export function computeProjectFilesSignature(files: ProjectFile[]): string {
-  const normalized = (Array.isArray(files) ? files : [])
-    .map((f) => ({
-      path: String(f?.path ?? "").trim(),
-      content: String(f?.content ?? ""),
-    }))
-    .filter((f) => !!f.path)
-    .sort((a, b) => a.path.localeCompare(b.path));
+  const { normalized } = canonicalizeFilesForSignature(files);
 
   let hash = 2166136261;
   for (const file of normalized) {
@@ -60,6 +82,8 @@ export async function markRepoSyncSignature(params: {
       ? ((key: string, value: string) => asyncStorageSetItem(key, value))
       : null);
   if (!setItem) return;
+  const { hasConflicts } = canonicalizeFilesForSignature(params.files);
+  if (hasConflicts) return;
   const sig = computeProjectFilesSignature(params.files);
   await setItem(scopeKey(repo, branch), sig);
 }
@@ -79,6 +103,8 @@ export async function getRepoSyncState(params: {
     params.storageGetItem ??
     (asyncStorageGetItem ? ((key: string) => asyncStorageGetItem(key)) : null);
   if (!getItem) return "unknown";
+  const { hasConflicts } = canonicalizeFilesForSignature(params.files);
+  if (hasConflicts) return "unknown";
   const stored = (await getItem(scopeKey(repo, branch)).catch(() => null)) ?? "";
   if (!stored.trim()) return "unknown";
 

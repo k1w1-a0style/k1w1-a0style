@@ -18,7 +18,7 @@ import type {
 
 import {
   readText, safeJsonParse, countLinesSafe, extractWithRegex,
-  parseExpoConfig, resolveEntryPoint,
+  parseExpoConfig, resolveEntryPoint, resolveFoundationValidationIssues,
   MAX_DEP_ITEMS, MAX_DIRS, MAX_FILES_PER_DIR,
 } from "./appStatusHelpers";
 import type { PackageJson, DerivedState } from "./appStatusHelpers";
@@ -26,10 +26,28 @@ export { parseExpoConfig, resolveEntryPoint } from "./appStatusHelpers";
 
 
 export function useAppStatusScreen() {
-  const { projectData, isLoading, exportProjectAsZip } = useProject();
+  const { projectData, isLoading, isRecoveryMode, exportProjectAsZip } = useProject();
   const [activeSection, setActiveSection] = useState<SectionType>('overview');
 
   const derived = useMemo<DerivedState>(() => {
+    const foundationIssues = resolveFoundationValidationIssues({
+      isLoading,
+      hasProjectData: !!projectData,
+      isRecoveryMode,
+    });
+    if (foundationIssues.length > 0) {
+      return {
+        buildConfig: null,
+        projectStats: null,
+        validationIssues: foundationIssues,
+        dependencies: [],
+        dependenciesTotal: 0,
+        fileTree: [],
+        fileDirsTotal: 0,
+        fileTreeCounts: {},
+      };
+    }
+
     if (!projectData) {
       return {
         buildConfig: null,
@@ -208,7 +226,7 @@ export function useAppStatusScreen() {
       fileDirsTotal: fileTree.length,
       fileTreeCounts,
     };
-  }, [projectData]);
+  }, [isLoading, isRecoveryMode, projectData]);
 
   const handleExport = useCallback(() => {
     Alert.alert(

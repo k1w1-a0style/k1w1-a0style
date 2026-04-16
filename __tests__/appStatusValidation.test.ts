@@ -1,5 +1,9 @@
 
-import { parseExpoConfig, resolveEntryPoint } from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
+import {
+  parseExpoConfig,
+  resolveEntryPoint,
+} from '../screens/AppStatusScreen/hooks/useAppStatusScreen';
+import { resolveFoundationValidationIssues } from '../screens/AppStatusScreen/hooks/appStatusHelpers';
 
 import type { ProjectFile } from "../shared/types/project";
 describe('AppStatusScreen validation helpers', () => {
@@ -44,5 +48,29 @@ describe('AppStatusScreen validation helpers', () => {
     const res = resolveEntryPoint(files, pkg);
     expect(res.ok).toBe(false);
     expect(res.missingPath).toBe('missing.js');
+  });
+
+  test('path normalization collapses expo config path variants', () => {
+    const files: ProjectFile[] = [
+      f('./app.json', JSON.stringify({ expo: { name: 'X' } })),
+    ];
+
+    const parsed = parseExpoConfig(files);
+    expect(parsed.source).toBe('app.json');
+    expect(parsed.config?.name).toBe('X');
+  });
+
+  test('foundation issues stay fail-closed while loading and without project base', () => {
+    expect(resolveFoundationValidationIssues({
+      isLoading: true,
+      hasProjectData: false,
+      isRecoveryMode: false,
+    })[0]?.message).toMatch(/initialisiert/i);
+
+    expect(resolveFoundationValidationIssues({
+      isLoading: false,
+      hasProjectData: false,
+      isRecoveryMode: false,
+    })[0]?.type).toBe('error');
   });
 });
