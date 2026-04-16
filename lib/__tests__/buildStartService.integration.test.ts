@@ -3,9 +3,17 @@
  * Focus: build-profile normalization, fail-closed GitHub push + workflow autofix sequencing,
  * and Supabase Edge invoke payload/headers.
  */
-import { STORAGE_KEYS, diagnosticLastOkKeyForSelection } from "../../lib/storageKeys";
+import {
+  STORAGE_KEYS,
+  diagnosticLastOkKeyForSelection,
+  diagnosticReadinessRecordKeyForSelection,
+} from "../../lib/storageKeys";
 import { computeProjectFilesSignature } from "../../lib/repoSyncOrchestration";
 import { makeProjectData, makeProjectFile } from "../../__tests__/helpers/projectTestHelpers";
+import {
+  buildDiagnosticReadinessRecord,
+  computeDiagnosticProjectFingerprint,
+} from "../../lib/diagnosticReadinessRecord";
 
 const mockGetItem = jest.fn();
 const mockSetItem = jest.fn();
@@ -99,11 +107,22 @@ describe("startBuildJob (integration)", () => {
     const branch = "main";
     const syncKey = repoSyncKey(repo, branch);
     const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({ linkedRepo: repo, linkedBranch: branch });
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo,
+      branch,
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
     mockGetItem.mockImplementation(async (key: string) => {
       if (key.startsWith("diagnostic_last_ok::")) {
         return "true";
       }
       switch (key) {
+        case readinessKey:
+          return JSON.stringify(readinessRecord);
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -170,10 +189,24 @@ describe("startBuildJob (integration)", () => {
     const project = makeProject({ linkedBranch: "dev" });
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "dev");
     const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "dev" });
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: "k1w1-a0style/musik-player",
+      linkedBranch: "dev",
+    });
     const syncSig = `stale:${computeProjectFilesSignature(project.files)}`;
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo: "k1w1-a0style/musik-player",
+      branch: "dev",
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
         case diagKey:
+        case readinessKey:
+          return key === readinessKey ? JSON.stringify(readinessRecord) : "true";
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -230,9 +263,23 @@ describe("startBuildJob (integration)", () => {
     const syncKey = repoSyncKey("k1w1-a0style/musik-player", "main");
     const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "main" });
     const syncSig = computeProjectFilesSignature(project.files);
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: "k1w1-a0style/musik-player",
+      linkedBranch: "main",
+    });
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo: "k1w1-a0style/musik-player",
+      branch: "main",
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
         case diagKey:
+        case readinessKey:
+          return key === readinessKey ? JSON.stringify(readinessRecord) : "true";
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";
@@ -261,9 +308,23 @@ describe("startBuildJob (integration)", () => {
   it("blocks build conservatively when sync state is unknown", async () => {
     const project = makeProject({ linkedBranch: "release" });
     const diagKey = diagnosticLastOkKeyForSelection({ linkedRepo: "k1w1-a0style/musik-player", linkedBranch: "release" });
+    const readinessKey = diagnosticReadinessRecordKeyForSelection({
+      linkedRepo: "k1w1-a0style/musik-player",
+      linkedBranch: "release",
+    });
+    const readinessRecord = buildDiagnosticReadinessRecord({
+      repo: "k1w1-a0style/musik-player",
+      branch: "release",
+      projectFingerprint: computeDiagnosticProjectFingerprint(project.files),
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+    });
     mockGetItem.mockImplementation(async (key: string) => {
       switch (key) {
         case diagKey:
+        case readinessKey:
+          return key === readinessKey ? JSON.stringify(readinessRecord) : "true";
         case STORAGE_KEYS.CI_LITE_LINT_OK:
         case STORAGE_KEYS.CI_LITE_TYPECHECK_OK:
           return "true";

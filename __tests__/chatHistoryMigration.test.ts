@@ -1,4 +1,5 @@
-import { loadProjectFromStorage } from "../infra/storage/projectPersistence";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { loadProjectFromStorage, scrubChatHistoryFromStoredProject } from "../infra/storage/projectPersistence";
 import { resetMockAsyncStorage, seedMockAsyncStorage } from "./helpers/asyncStorageMockHelpers";
 
 describe("chat history migration", () => {
@@ -54,5 +55,30 @@ describe("chat history migration", () => {
     expect(loaded?.chatHistory?.length).toBe(1);
     expect(typeof loaded!.chatHistory[0].id).toBe("string");
     expect(loaded!.chatHistory[0].id.length).toBeGreaterThan(0);
+  });
+
+  it("scrubs already persisted chatHistory immediately when privacy persistence is disabled", async () => {
+    const persistedProject = {
+      name: "chat-project",
+      files: [],
+      chatHistory: [
+        { id: "m1", role: "user", content: "secret", timestamp: "2026-01-02T00:00:00.000Z" },
+      ],
+      createdAt: "2026-01-02T00:00:00.000Z",
+      lastModified: "2026-01-02T00:00:00.000Z",
+    };
+
+    seedMockAsyncStorage({
+      k1w1_project_data: JSON.stringify(persistedProject),
+    });
+
+    await scrubChatHistoryFromStoredProject();
+
+    const loaded = await loadProjectFromStorage();
+    expect(loaded?.chatHistory).toEqual([]);
+
+    const rawPayload = await AsyncStorage.getItem("k1w1_project_data");
+    expect(rawPayload).toBeTruthy();
+    expect(rawPayload).not.toContain('"content":"secret"');
   });
 });

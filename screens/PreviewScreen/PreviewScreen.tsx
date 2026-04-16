@@ -39,9 +39,8 @@ export default function PreviewScreen() {
     displayState,
     runtimeHint,
     phase,
-    setPhase,
+    previewCycleId,
     webError,
-    setWebError,
     hotReloadEnabled,
     setHotReloadEnabled,
     hotReloadCount,
@@ -54,22 +53,17 @@ export default function PreviewScreen() {
     handleShouldStartLoad,
     handleContentProcessDidTerminate,
     handleRenderProcessGone,
-    resetRecoveryState,
+    handleReload,
     handleCreate,
     handleReset,
+    handleLoadStart,
+    handleLoadEnd,
+    handleLoadError,
+    handleHttpError,
     handleCopy,
     handleOpenExternal,
     handleFullscreen,
   } = usePreviewScreen();
-
-  const handleReload = () => {
-    resetRecoveryState();
-    setWebError(null);
-    if (webViewRef.current) {
-      setPhase('loading');
-      webViewRef.current.reload();
-    }
-  };
 
   if (isLoading) {
     return (
@@ -148,28 +142,17 @@ export default function PreviewScreen() {
             <DeviceFrame
               webViewRef={webViewRef}
               previewSource={previewSource}
+              cycleId={previewCycleId}
               phase={phase}
               fadeAnim={fadeAnim}
               flashBorderAnim={flashBorderAnim}
               originWhitelist={originWhitelist}
               errorMessage={webError || state.error || state.remoteFailure}
               onShouldStartLoadWithRequest={handleShouldStartLoad}
-              onLoadStart={() => {
-                setPhase('loading');
-                setWebError(null);
-              }}
-              onLoadEnd={() => {
-                resetRecoveryState();
-                setPhase('ready');
-              }}
-              onError={(message) => {
-                setPhase('error');
-                setWebError(message);
-              }}
-              onHttpError={(statusCode) => {
-                setPhase('error');
-                setWebError(`HTTP ${statusCode ?? '?'}`);
-              }}
+              onLoadStart={handleLoadStart}
+              onLoadEnd={handleLoadEnd}
+              onError={handleLoadError}
+              onHttpError={handleHttpError}
               onContentProcessDidTerminate={handleContentProcessDidTerminate}
               onRenderProcessGone={handleRenderProcessGone}
               onCreate={handleCreate}
