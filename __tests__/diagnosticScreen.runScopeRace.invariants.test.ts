@@ -21,4 +21,13 @@ describe('DiagnosticScreen run scope race hardening', () => {
     expect(source).toContain('setProgressStage: guardedSetProgressStage');
     expect(source).toContain('if (diagnosticRunEpochRef.current === runEpoch) {');
   });
+
+  it('invalidates persisted readiness to false before checks and again on run failures', () => {
+    expect(source).toContain('const runFilesSnapshot = (projectRef.current.files ?? []).map((file) => ({');
+    expect(source).toContain('const runProjectFingerprint = computeDiagnosticProjectFingerprint(runFilesSnapshot);');
+    expect(source).toContain('await persistScopedReadiness({');
+    expect(source).toContain('diagnosticOk: false,');
+    expect(source).toContain('runProjectFingerprint,');
+    expect(source).toContain('Alert.alert("Diagnostics fehlgeschlagen", getDiagnosticUiErrorMessage(e));');
+  });
 });

@@ -1,4 +1,5 @@
 import { assertBuildReadiness } from "../project/services/buildStartService";
+import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
 import { makeProjectData } from "./helpers/projectTestHelpers";
 
 jest.mock("libsodium-wrappers-sumo", () => ({}), { virtual: true });
@@ -16,9 +17,10 @@ describe("build readiness gate - diagnostic scoped selection", () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::k1w1-a0style%2Fmusik-player::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "k1w1-a0style/musik-player",
         branch: "main",
+        projectFingerprint: computeDiagnosticProjectFingerprint(makeProject().files),
         diagnosticOk: true,
         includePipelineChecks: true,
         focusedModes: ["preview"],
@@ -85,9 +87,10 @@ describe("build readiness gate - diagnostic scoped selection", () => {
     const now = Date.now();
     const storageMap: Record<string, string> = {
       "diagnostic_readiness_record::k1w1-a0style%2Fmusik-player::main": JSON.stringify({
-        version: 1,
+        version: 2,
         repo: "k1w1-a0style/musik-player",
         branch: "main",
+        projectFingerprint: computeDiagnosticProjectFingerprint(makeProject().files),
         diagnosticOk: true,
         includePipelineChecks: false,
         focusedModes: ["preview"],

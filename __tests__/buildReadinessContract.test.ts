@@ -1,4 +1,5 @@
 import { CI_LITE_PERSISTENCE_REASONS, CI_LITE_WORKFLOW_ID } from "../lib/ciLitePersistence";
+import { computeDiagnosticProjectFingerprint } from "../lib/diagnosticReadinessRecord";
 import { evaluateBuildReadiness } from "../lib/buildReadiness";
 import { ciLiteSnapshotKeyForSelection } from "../lib/storageKeys";
 import { makeProjectData } from "./helpers/projectTestHelpers";
@@ -23,6 +24,16 @@ function buildScopedGreenStorageMap(params: {
   const repo = params.repo ?? "owner/repo";
   const branch = params.branch ?? "main";
   return {
+    [`diagnostic_readiness_record::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`]: JSON.stringify({
+      version: 2,
+      repo,
+      branch,
+      projectFingerprint: computeDiagnosticProjectFingerprint(makeProject().files),
+      diagnosticOk: params.diagnosticValue !== "false",
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+      checkedAt: new Date(NOW).toISOString(),
+    }),
     [`diagnostic_last_ok::${encodeURIComponent(repo)}::${encodeURIComponent(branch)}`]:
       params.diagnosticValue ?? "true",
     [ciLiteSnapshotKeyForSelection({ linkedRepo: repo, linkedBranch: branch })]: JSON.stringify({
@@ -106,6 +117,31 @@ describe("evaluateBuildReadiness", () => {
 
     const result = await evaluateBuildReadiness(makeProject(), {
       storageGetItem: async (key: string) => storageMap[key] ?? null,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result).toMatchObject({
+      reasonCode: "diagnostic_not_green",
+      message: "Diagnostik nicht gruen – im Diagnostic-Screen ausfuehren",
+    });
+  });
+
+  it("returns diagnostic_not_green when diagnostics are green but bound to an outdated project fingerprint", async () => {
+    const storageMap = buildScopedGreenStorageMap();
+    storageMap["diagnostic_readiness_record::owner%2Frepo::main"] = JSON.stringify({
+      version: 2,
+      repo: "owner/repo",
+      branch: "main",
+      projectFingerprint: "stale-fingerprint",
+      diagnosticOk: true,
+      includePipelineChecks: true,
+      focusedModes: ["preview"],
+      checkedAt: new Date(NOW).toISOString(),
+    });
+
+    const result = await evaluateBuildReadiness(makeProject(), {
+      storageGetItem: async (key: string) => storageMap[key] ?? null,
+      getBranchHeadSha: async () => SHA,
     });
 
     expect(result.ok).toBe(false);

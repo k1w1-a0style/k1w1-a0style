@@ -14,7 +14,6 @@ import {
   type BuildReadinessReasonCode,
 } from "./errors/buildReadinessErrors";
 import { readDiagnosticReadinessRecord } from "./diagnosticReadinessRecord";
-import { diagnosticLastOkKeyForSelection } from "./storageKeys";
 import type { ProjectData } from "../shared/types/project";
 
 export type BuildReadinessDeps = {
@@ -150,23 +149,20 @@ export async function evaluateBuildReadiness(
     });
   }
 
-  const scopedDiagnosticKey = diagnosticLastOkKeyForSelection({
-    linkedRepo,
-    linkedBranch,
-  });
-
-  const [diagRecord, diagScopedVal] = await Promise.all([
+  const [diagRecord] = await Promise.all([
     readDiagnosticReadinessRecord({
       linkedRepo,
       linkedBranch,
+      projectFiles: Array.isArray(project?.files) ? project.files : [],
       storageGetItem,
     }).catch(() => null),
-    storageGetItem(scopedDiagnosticKey).catch(() => null),
   ]);
 
-  const diagnosticOk = diagRecord
-    ? diagRecord.diagnosticOk && diagRecord.includePipelineChecks
-    : diagScopedVal === "true";
+  const diagnosticOk = Boolean(
+    diagRecord &&
+      diagRecord.diagnosticOk &&
+      diagRecord.includePipelineChecks,
+  );
   const context: BuildReadinessContext = {
     ...baseContext,
     diagnosticOk,
