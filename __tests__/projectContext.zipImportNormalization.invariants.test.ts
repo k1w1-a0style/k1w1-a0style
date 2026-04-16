@@ -11,11 +11,13 @@ describe("ZIP import normalization invariants", () => {
     expect(contextSource).toContain("const imported = await importNormalizedProjectData(result.project);");
     expect(contextSource).toContain("setProjectData(normalizedProject);");
     expect(contextSource).toContain("await saveProjectToStorage(normalizedProject);");
-    expect(helperSource).toContain("files: getMaterializedProjectFiles(project),");
+    expect(helperSource).toContain("const normalizedSlug = hasSemanticSlugInput");
+    expect(helperSource).toContain("files: getMaterializedProjectFiles(canonicalBase),");
   });
 
   it("normalizes missing slugs when loading persisted or imported projects", () => {
-    expect(helperSource).toContain("slug: normalizeProjectSlug(project.slug ?? project.name),");
+    expect(helperSource).toContain("const hasSemanticSlugInput = /[a-z0-9]/i.test(");
+    expect(helperSource).toContain("const normalizedSlug = hasSemanticSlugInput");
     expect(helperSource).toContain("export const normalizeProjectSlug");
   });
 });

@@ -28,13 +28,27 @@ type BuildProjectForCreationParams = {
   slug?: string;
 };
 
-export const normalizeLoadedProjectData = (project: ProjectData): ProjectData => ({
-  ...project,
-  slug: normalizeProjectSlug(project.slug ?? project.name),
-  files: getMaterializedProjectFiles(project),
-  chatHistory: project.chatHistory ?? [],
-  preferredPreviewMode: project.preferredPreviewMode ?? DEFAULT_PREVIEW_MODE,
-});
+export const normalizeLoadedProjectData = (project: ProjectData): ProjectData => {
+  const slugInput = String(project.slug ?? "").trim();
+  const hasSemanticSlugInput = /[a-z0-9]/i.test(
+    slugInput.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""),
+  );
+  const normalizedSlug = hasSemanticSlugInput
+    ? normalizeProjectSlug(slugInput)
+    : normalizeProjectSlug(project.name);
+  const canonicalBase: ProjectData = {
+    ...project,
+    slug: normalizedSlug,
+    files: project.files ?? [],
+    chatHistory: project.chatHistory ?? [],
+    preferredPreviewMode: project.preferredPreviewMode ?? DEFAULT_PREVIEW_MODE,
+  };
+
+  return {
+    ...canonicalBase,
+    files: getMaterializedProjectFiles(canonicalBase),
+  };
+};
 
 export const buildProjectForCreation = (
   params: BuildProjectForCreationParams,
