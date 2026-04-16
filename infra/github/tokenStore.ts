@@ -64,7 +64,7 @@ const readSecureToken = async (key: string): Promise<SecureTokenReadResult> => {
 const getSecureToken = async (key: string): Promise<string | null> => {
   const read = await readSecureToken(key);
   if (read.unreadable) {
-    throw new SecureTokenReadError(key, read.errorMessage ?? "unbekannter Fehler");
+    return null;
   }
   return read.value;
 };

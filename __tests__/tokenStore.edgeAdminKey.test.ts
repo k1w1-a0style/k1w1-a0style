@@ -108,4 +108,10 @@ describe("admin key token store split contract", () => {
 
     await expect(getWorkflowAdminKey()).rejects.toBeInstanceOf(SecureTokenReadError);
   });
+
+  it("keeps nullable contract for shared secure-token readers when secure-store read fails", async () => {
+    mockSecureStore.getItemAsync.mockRejectedValue(new Error("secure read blocked"));
+
+    await expect(getAndroidKeystoreExportAdminKey()).resolves.toBeNull();
+  });
 });
