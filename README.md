@@ -2,11 +2,13 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
+Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 
-Zuletzt abgeschlossen: **Patch 782**
+Zuletzt abgeschlossen: **Patch 783**
 
 Der aktuelle Stand bestaetigt:
+- finaler Integrations-/Drift-Pass ueber die bereits umgesetzten Bloecke 1–8 wurde ohne Scope-Creep abgeschlossen; es wurden keine neuen Produktcode-Aenderungen benoetigt
+- der komplette Pflicht-Gate inklusive Docs-/Workflow-Sync-Checks wurde erneut voll gruen verifiziert
 - `typecheck:edge` ist wieder gruen; die offenen Typfehler in `check-eas-build`/`trigger-eas-build` wurden entlang der realen Supabase-Query-Contracts behoben
 - `verify:release` laeuft im lokalen Setup wieder bis zum erwarteten `OK_WITH_SKIPS` durch (ohne Live-Env kein harter Abbruch mehr im Live-Readiness-Skript)
 - lokaler Preview-Eval ist jetzt doppelt fail-closed: neben `allowUnsafeLocalEval` braucht der Builder auch ein explizites CDN-Opt-in; ohne beide Flags wird nur ein gesperrter Hinweis-HTML-Pfad erzeugt
