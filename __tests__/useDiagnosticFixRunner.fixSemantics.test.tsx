@@ -95,7 +95,7 @@ describe("useDiagnosticFixRunner fix semantics", () => {
     expect(getApi().fixSteps[0]?.status).toBe("failed");
   });
 
-  test("reports partial apply honestly when follow-up write fails", async () => {
+  test("fails without partial mutation when local commit write fails", async () => {
     const updateProjectFiles = jest.fn(async () => {
       throw new Error("Speichern fehlgeschlagen");
     });
@@ -116,8 +116,8 @@ describe("useDiagnosticFixRunner fix semantics", () => {
       await getApi().applyIssueFix(result);
     });
 
-    expect(deleteFile).toHaveBeenCalledWith("app.json");
-    expect(toast).toHaveBeenCalledWith("Fix fehlgeschlagen – Änderungen nur teilweise angewendet.");
+    expect(deleteFile).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith("Fix fehlgeschlagen.");
     expect(getApi().fixSteps[0]?.message).toContain("Speichern fehlgeschlagen");
   });
 

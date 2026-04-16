@@ -28,7 +28,8 @@ export async function applyPatchLocally(params: {
   deleteFile: (path: string) => Promise<void>;
   updateProjectFiles: (files: ProjectFile[]) => Promise<void>;
 }): Promise<ApplyPatchLocalResult> {
-  const { label, patch, projectRef, deleteFile, updateProjectFiles } = params;
+  const { label, patch, projectRef, deleteFile: _deleteFile, updateProjectFiles } = params;
+  void _deleteFile;
 
   const project = projectRef.current;
   if (!project) throw new Error("Kein Projekt geladen.");
@@ -42,7 +43,6 @@ export async function applyPatchLocally(params: {
     });
   }
 
-  let deletedCount = 0;
   try {
     const normalizedTouched = collectNormalizedTouchedPaths(patch);
 
@@ -56,7 +56,7 @@ export async function applyPatchLocally(params: {
       );
     }
 
-    const { nextFiles, snapshot, createdPaths, deletePaths } = await buildPatchApplyState({
+    const { nextFiles, snapshot, createdPaths } = await buildPatchApplyState({
       patch,
       currentFiles,
       applyJsonMerge: async (files, jsonMerge) => {
@@ -64,11 +64,6 @@ export async function applyPatchLocally(params: {
         return applyJsonMergePatchSafe(files, jsonMerge);
       },
     });
-
-    for (const p of deletePaths) {
-      await deleteFile(p);
-      deletedCount++;
-    }
 
     if (sameProjectFiles(currentFiles, nextFiles)) {
       throw new DiagnosticFixApplyError({
@@ -94,8 +89,8 @@ export async function applyPatchLocally(params: {
     throw new DiagnosticFixApplyError({
       message,
       status: "failed",
-      partial: deletedCount > 0,
-      localChangeApplied: deletedCount > 0,
+      partial: false,
+      localChangeApplied: false,
     });
   }
 }

@@ -19,6 +19,13 @@ jest.mock("../contexts/ProjectContext", () => ({
 }));
 
 describe("useFileEditor behavior", () => {
+  const mockAlertChoice = (choiceIndex: number): void => {
+    (Alert.alert as jest.Mock).mockImplementation((_title, _message, buttons) => {
+      const btn = Array.isArray(buttons) ? buttons[choiceIndex] : undefined;
+      btn?.onPress?.();
+    });
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     contextState.projectData = {
@@ -64,22 +71,23 @@ describe("useFileEditor behavior", () => {
     expect(result.current.isDirty).toBe(true);
   });
 
-  it("clears editor state when selected file is deleted externally", async () => {
+  it("retains local draft when selected file is deleted externally", async () => {
     const { result, rerender } = renderHook(() => useFileEditor());
 
     await act(async () => {
       result.current.setSelectedFile({ path: "App.tsx", content: "old" });
-      result.current.setEditingContent("old");
+      result.current.setEditingContent("local unsaved draft");
     });
 
     contextState.projectData = { files: [] };
     rerender({});
 
-    expect(result.current.selectedFile).toBeNull();
-    expect(result.current.editingContent).toBe("");
+    expect(result.current.selectedFile?.path).toBe("App.tsx");
+    expect(result.current.editingContent).toBe("local unsaved draft");
+    expect(result.current.isDirty).toBe(true);
   });
 
-  it("does not recreate deleted file on save", async () => {
+  it("blocks save after external deletion unless user explicitly restores draft", async () => {
     const { result, rerender } = renderHook(() => useFileEditor());
 
     await act(async () => {
@@ -90,6 +98,30 @@ describe("useFileEditor behavior", () => {
     contextState.projectData = { files: [] };
     rerender({});
 
+    mockAlertChoice(0);
+    let saved = true;
+    await act(async () => {
+      saved = await result.current.saveSelectedFile();
+    });
+
+    expect(saved).toBe(false);
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+  });
+
+  it("detects external change conflict and does not silently overwrite by default", async () => {
+    const { result, rerender } = renderHook(() => useFileEditor());
+
+    await act(async () => {
+      result.current.setSelectedFile({ path: "App.tsx", content: "base" });
+      result.current.setEditingContent("local draft");
+    });
+
+    contextState.projectData = {
+      files: [{ path: "App.tsx", content: "external change" }],
+    };
+    rerender({});
+
+    mockAlertChoice(0);
     let saved = true;
     await act(async () => {
       saved = await result.current.saveSelectedFile();

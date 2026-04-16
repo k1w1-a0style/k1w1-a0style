@@ -79,6 +79,11 @@ export interface UseFileEditorReturn {
   confirmLoseChanges: (next: () => void) => void;
 }
 
+type ExternalMutationState =
+  | { type: "none" }
+  | { type: "modified"; path: string; externalContent: string }
+  | { type: "deleted"; path: string };
+
 const MAX_SAVE_VALIDATE_CHARS = 200_000;
 
 export const useFileEditor = (): UseFileEditorReturn => {
@@ -88,7 +93,11 @@ export const useFileEditor = (): UseFileEditorReturn => {
   const [editingContent, setEditingContent] = useState<string>("");
   const [viewMode, setViewMode] = useState<ViewMode>("preview");
   const [syntaxErrors, setSyntaxErrors] = useState<ValidationError[]>([]);
+  const [externalMutationState, setExternalMutationState] = useState<ExternalMutationState>({
+    type: "none",
+  });
   const editingContentRef = useRef("");
+  const selectedPathRef = useRef<string | null>(null);
   editingContentRef.current = editingContent;
 
   const selectedOriginalContent = useMemo(
@@ -102,12 +111,29 @@ export const useFileEditor = (): UseFileEditorReturn => {
   }, [editingContent, selectedFile, selectedOriginalContent]);
 
   useEffect(() => {
+    const selectedPath = selectedFile?.path ?? null;
+    if (selectedPathRef.current !== selectedPath) {
+      selectedPathRef.current = selectedPath;
+      setExternalMutationState({ type: "none" });
+    }
+  }, [selectedFile?.path]);
+
+  useEffect(() => {
     if (!selectedFile) return;
     const liveFile = (projectData?.files ?? []).find((file) => file.path === selectedFile.path);
     if (!liveFile) {
+      const previousSourceContent = toContentString(selectedFile);
+      const currentEditorContent = editingContentRef.current;
+      const hasLocalUnsavedEdits = currentEditorContent !== previousSourceContent;
+      if (hasLocalUnsavedEdits) {
+        setExternalMutationState({ type: "deleted", path: selectedFile.path });
+        return;
+      }
+
       setSelectedFile(null);
       setEditingContent("");
       setSyntaxErrors([]);
+      setExternalMutationState({ type: "none" });
       return;
     }
     const previousSourceContent = toContentString(selectedFile);
@@ -120,7 +146,14 @@ export const useFileEditor = (): UseFileEditorReturn => {
     setSelectedFile({ ...liveFile });
     if (!hasLocalUnsavedEdits) {
       setEditingContent(nextSourceContent);
+      setExternalMutationState({ type: "none" });
+      return;
     }
+    setExternalMutationState({
+      type: "modified",
+      path: selectedFile.path,
+      externalContent: nextSourceContent,
+    });
   }, [projectData?.files, selectedFile]);
 
   // Live validation (debounced + deferred via InteractionManager).
@@ -177,12 +210,67 @@ export const useFileEditor = (): UseFileEditorReturn => {
     if (!selectedFile) return false;
 
     try {
-      const stillExists = (projectData?.files ?? []).some((file) => file.path === selectedFile.path);
-      if (!stillExists) {
-        Alert.alert("Datei nicht mehr vorhanden", "Die Datei wurde extern gelöscht. Bitte neu auswählen.");
-        setSelectedFile(null);
-        setEditingContent("");
-        return false;
+      const liveFile = (projectData?.files ?? []).find((file) => file.path === selectedFile.path);
+      const liveContent = liveFile ? toContentString(liveFile) : null;
+
+      const hasExternallyModifiedConflict =
+        (externalMutationState.type === "modified" && externalMutationState.path === selectedFile.path) ||
+        (liveContent !== null &&
+          liveContent !== selectedOriginalContent &&
+          editingContent !== selectedOriginalContent);
+      if (hasExternallyModifiedConflict) {
+        const choice = await alertAsync(
+          "Datei wurde extern geändert",
+          "Diese Datei wurde außerhalb des Editors geändert. Wie soll mit dem Konflikt umgegangen werden?",
+          [
+            { text: "Abbrechen", value: "cancel" as const, style: "cancel" },
+            { text: "Externen Stand laden", value: "reload" as const },
+            {
+              text: "Lokal überschreiben",
+              value: "overwrite" as const,
+              style: "destructive",
+            },
+          ],
+          "cancel",
+        );
+
+        if (choice === "reload") {
+          const reloadContent =
+            externalMutationState.type === "modified" &&
+            externalMutationState.path === selectedFile.path
+              ? externalMutationState.externalContent
+              : liveContent;
+          if (reloadContent !== null) {
+            setEditingContent(reloadContent);
+            setSelectedFile((prev) =>
+              prev ? { ...prev, content: reloadContent } : null,
+            );
+            setExternalMutationState({ type: "none" });
+          }
+          return false;
+        }
+        if (choice !== "overwrite") return false;
+      }
+
+      const hasExternallyDeletedConflict =
+        (externalMutationState.type === "deleted" && externalMutationState.path === selectedFile.path) ||
+        liveContent === null;
+      if (hasExternallyDeletedConflict) {
+        const choice = await alertAsync(
+          "Datei wurde extern gelöscht",
+          "Die Datei existiert nicht mehr im Projekt. Lokalen Entwurf als neue Datei am gleichen Pfad anlegen?",
+          [
+            { text: "Abbrechen", value: "cancel" as const, style: "cancel" },
+            {
+              text: "Entwurf wiederherstellen",
+              value: "restore" as const,
+              style: "destructive",
+            },
+          ],
+          "cancel",
+        );
+
+        if (choice !== "restore") return false;
       }
 
       if (editingContent.length > MAX_SAVE_VALIDATE_CHARS) {
@@ -230,6 +318,7 @@ export const useFileEditor = (): UseFileEditorReturn => {
       await updateProjectFiles([
         { path: selectedFile.path, content: editingContent },
       ]);
+      setExternalMutationState({ type: "none" });
       setSelectedFile((prev) =>
         prev ? { ...prev, content: editingContent } : null,
       );
@@ -240,7 +329,14 @@ export const useFileEditor = (): UseFileEditorReturn => {
       Alert.alert("Fehler", "Datei konnte nicht gespeichert werden.");
       return false;
     }
-  }, [editingContent, projectData?.files, selectedFile, updateProjectFiles]);
+  }, [
+    editingContent,
+    externalMutationState,
+    projectData?.files,
+    selectedFile,
+    selectedOriginalContent,
+    updateProjectFiles,
+  ]);
 
   const handleSaveFile = useCallback(() => {
     void saveSelectedFile();
