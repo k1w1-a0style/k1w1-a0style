@@ -1,6 +1,9 @@
 # PROJECT_CHECKLOG
 
-Stand: **2026-04-15 (Patch 782, StatusClarityOkWithSkipsVsOkFull)**
+Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+
+
+- 2026-04-16: Patch 783: Finaler Integrations-/Drift-Pass über Bloecke 1–8 ohne neue Scope-Erweiterung abgeschlossen — initialer Voll-Gate (`test:silent`, `typecheck`, `lint:ci`, `docs:lint`, `docs:check:contracts`) war bereits voll gruen; anschliessender Quercheck der Kernvertraege (Security/Redaction, Diagnostics/Readiness/Fingerprint, Build/History/Polling, Preview/Privacy/Persistenz, Editor/Fix-Runner-Atomik, Connections/Wizard/Signing-Freshness, Foundation/Repo-Truthfulness, Export-Hygiene) zeigte keine reproduzierbare Integrationsdrift. Ergebnis: kein Produktcode-Fix noetig, nur Dokumentations-/Checklog-Nachzug fuer den verifizierten Endzustand.
 
 - 2026-04-15: Patch 782: kleiner Status-/Doku-Klarheits-Fix fuer Release-Semantik — Review-/Statustext trennt jetzt explizit den **aktuellen lokalen Lauf** (`OK_WITH_SKIPS` ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT`) von einem **Live-env-gebundenen Voll-Gate** (`OK_FULL` nur mit gesetzten Live-Variablen bzw. als historischer Voll-Lauf). Kein Code geaendert.
 - 2026-04-15: Patch 781: snapshot-getreuer Connections-Rollback korrigiert — im Restore-Pfad werden restaurierte Side-States nicht mehr durch nachgelagerte Save-Plan-Clears ueberschrieben. `restoreSnapshot(...)` stellt jetzt den Snapshot exakt wieder her (inkl. Side-States), waehrend Clear-/Normalize-Logik weiterhin ausschliesslich im Apply-Pfad bleibt. Damit sind die Kantenfaelle „leere EAS-/Supabase-Primaerwerte bei vorhandenen Side-States im Snapshot“ rollback-stabil ohne post-restore Wegloeschen. Validation: Typecheck/Lint/gezielte Regressionen + Vollsuite + Edge-/Contract-/Docs-Drift-Gates gruen.
