@@ -75,3 +75,25 @@ Mach einen deep scan und prüfe alles kritisch.
 - gezielte Hotspot-Regressionen ✅
 - `npm run test:silent` ✅
 - `npm run verify:release` mit Live-Variablen ✅ (`OK_FULL`)
+
+
+## Zusatzdurchlauf: Supabase-Advisor-/Management-Check
+- Management API mit persönlichem `SUPABASE_ACCESS_TOKEN` erfolgreich geprüft
+- Projektstatus live: `ACTIVE_HEALTHY`, Region `eu-north-1`, Postgres `17.6.1.031`
+- Live-Edge-Funktionsinventar: 20 aktive Functions
+- Public-Tabellen live erkannt: `build_jobs`, `diagnostic_uploads`, `diagnostics_reports`, `edge_rate_limit_events`, `lint_jobs`, `native_sync_jobs`, `native_sync_reports`, `previews`, `signing_android`, `signing_audit_log`
+- Security-Advisor-Fund: `Leaked Password Protection Disabled` (WARN)
+- Performance-Advisors: 11 `unused_index`-Hinweise, u. a. auf `diagnostics_reports`, `diagnostic_uploads`, `previews`, `native_sync_jobs`, `native_sync_reports`, `build_jobs`
+- Kritischer Live-/Repo-Drift bestätigt:
+  - `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` sind live `ACTIVE`, obwohl sie im Repo als deaktiviert geführt werden
+  - dieselben Live-Functions stehen aktuell auf `verify_jwt=false`, während das Repo `verify_jwt=true` vorgibt
+  - zusätzliche live-only Function `test` vorhanden, die im Repo-Config-Stand nicht geführt ist
+
+## Priorisierter Backlog (aktualisiert)
+### P0
+- Live-Edge-Drift zwischen Repo und Supabase Functions bereinigen: deaktivierte Legacy-/Tooling-Functions live prüfen und entweder deaktivieren/redeployen oder bewusst neu dokumentieren
+- Öffentlich geposteten persönlichen Supabase Access Token sofort widerrufen und neu erstellen
+
+### P1
+- `Leaked Password Protection` in Supabase Auth aktivieren, falls keine bewusste Produktentscheidung dagegen spricht
+- Unused-Index-Liste verifizieren, bevor Indizes entfernt werden (echte Nutzung vs. kalte/neue Pfade)
