@@ -7,6 +7,8 @@ alter table if exists public.edge_rate_limit_events
 create index if not exists edge_rate_limit_events_scope_subject_decision_created_idx
   on public.edge_rate_limit_events (scope, subject, decision, created_at desc);
 
+drop function if exists public.enforce_edge_rate_limit(text, text, integer, integer);
+
 create or replace function public.enforce_edge_rate_limit(
   p_scope text,
   p_subject text,
