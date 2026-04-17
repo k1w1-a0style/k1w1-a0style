@@ -63,6 +63,14 @@ export function describeRemotePreviewFailure(params: {
     return "Preview-Server derzeit nicht erreichbar.";
   }
 
+  if (normalized.includes("supabase preview init failed")) {
+    return "Remote-Preview blockiert: Supabase-Initialisierung fehlgeschlagen.";
+  }
+
+  if (normalized.includes("supabase session unreadable")) {
+    return "Remote-Preview blockiert: Supabase-Session lokal nicht lesbar.";
+  }
+
   const errorCode = getPreviewEdgeErrorCode(params.error);
   if (errorCode) {
     return PREVIEW_EDGE_ERROR_MESSAGES[errorCode];

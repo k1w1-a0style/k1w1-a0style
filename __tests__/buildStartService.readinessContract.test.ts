@@ -75,7 +75,13 @@ describe("startBuildJob readiness contract integration", () => {
       /ci_lite_sha_mismatch/i,
     );
 
-    expect(mockAssertBuildReadiness).toHaveBeenCalledWith(project, {});
+    expect(mockAssertBuildReadiness).toHaveBeenCalledWith(
+      project,
+      {},
+      expect.objectContaining({
+        projectFiles: expect.any(Array),
+      }),
+    );
     expect(mockGetRepoSyncState).not.toHaveBeenCalled();
     expect(mockInvoke).not.toHaveBeenCalled();
   });
@@ -92,7 +98,13 @@ describe("startBuildJob readiness contract integration", () => {
       jobId: "42",
     });
 
-    expect(mockAssertBuildReadiness).toHaveBeenCalledWith(project, {});
+    expect(mockAssertBuildReadiness).toHaveBeenCalledWith(
+      project,
+      {},
+      expect.objectContaining({
+        projectFiles: expect.any(Array),
+      }),
+    );
     expect(mockGetRepoSyncState).toHaveBeenCalledWith({
       linkedRepo: "owner/repo",
       linkedBranch: "main",

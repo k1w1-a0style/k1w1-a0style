@@ -17,6 +17,23 @@ const SIGNING_MASTER_KEY = "signing_master_key_v1";
 const getSafeErrorMessage = (error: unknown): string =>
   error instanceof Error && error.message.trim() ? error.message : String(error);
 
+export class SecureTokenReadError extends Error {
+  readonly code = "securestore_unreadable";
+  readonly storageKey: string;
+
+  constructor(storageKey: string, causeMessage: string) {
+    super(`SecureStore-Lesen fehlgeschlagen (${storageKey}): ${causeMessage}`);
+    this.name = "SecureTokenReadError";
+    this.storageKey = storageKey;
+  }
+}
+
+type SecureTokenReadResult = {
+  value: string | null;
+  unreadable: boolean;
+  errorMessage?: string;
+};
+
 const saveSecureToken = async (key: string, value: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(key, value);
@@ -28,13 +45,28 @@ const saveSecureToken = async (key: string, value: string): Promise<void> => {
   }
 };
 
-const getSecureToken = async (key: string): Promise<string | null> => {
+const readSecureToken = async (key: string): Promise<SecureTokenReadResult> => {
   try {
-    return await SecureStore.getItemAsync(key);
+    return {
+      value: await SecureStore.getItemAsync(key),
+      unreadable: false,
+    };
   } catch (error: unknown) {
     logger.error("[SecureStore] Laden fehlgeschlagen", { key, err: error });
-    return null;
+    return {
+      value: null,
+      unreadable: true,
+      errorMessage: getSafeErrorMessage(error),
+    };
   }
+};
+
+const getSecureToken = async (key: string): Promise<string | null> => {
+  const read = await readSecureToken(key);
+  if (read.unreadable) {
+    throw new SecureTokenReadError(key, read.errorMessage ?? "unbekannter Fehler");
+  }
+  return read.value;
 };
 
 const deleteSecureToken = async (key: string): Promise<void> => {
@@ -46,10 +78,21 @@ const deleteSecureToken = async (key: string): Promise<void> => {
 };
 
 async function migrateLegacyToken(legacyKey: string, newKey: string): Promise<void> {
-  const legacy = await getSecureToken(legacyKey);
+  const legacyRead = await readSecureToken(legacyKey);
+  if (legacyRead.unreadable) {
+    logger.warn("[SecureStore] Legacy-Migration übersprungen: Legacy-Slot unreadable", { legacyKey, newKey });
+    return;
+  }
+
+  const legacy = legacyRead.value;
   if (!legacy) return;
 
-  const current = await getSecureToken(newKey);
+  const currentRead = await readSecureToken(newKey);
+  if (currentRead.unreadable) {
+    logger.warn("[SecureStore] Legacy-Migration übersprungen: neuer Slot unreadable", { legacyKey, newKey });
+    return;
+  }
+  const current = currentRead.value;
   if (!current) {
     await saveSecureToken(newKey, legacy);
   }
@@ -115,14 +158,22 @@ const saveOptionalScopedKey = async (storageKey: string, key: string): Promise<v
 };
 
 export const getWorkflowAdminKey = async (): Promise<string | null> => {
-  const workflowKey = await getSecureToken(WORKFLOW_ADMIN_KEY);
+  const workflowRead = await readSecureToken(WORKFLOW_ADMIN_KEY);
+  if (workflowRead.unreadable) {
+    throw new SecureTokenReadError(WORKFLOW_ADMIN_KEY, workflowRead.errorMessage ?? "unbekannter Fehler");
+  }
+  const workflowKey = workflowRead.value;
   if (workflowKey) {
     return workflowKey;
   }
 
   // Controlled one-time compat migration:
   // If only the legacy edge admin key exists, seed workflow scope once.
-  const legacyEdgeKey = await getSecureToken(LEGACY_EDGE_ADMIN_KEY);
+  const legacyRead = await readSecureToken(LEGACY_EDGE_ADMIN_KEY);
+  if (legacyRead.unreadable) {
+    throw new SecureTokenReadError(LEGACY_EDGE_ADMIN_KEY, legacyRead.errorMessage ?? "unbekannter Fehler");
+  }
+  const legacyEdgeKey = legacyRead.value;
   if (!legacyEdgeKey) {
     return null;
   }

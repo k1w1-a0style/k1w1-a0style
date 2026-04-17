@@ -3,12 +3,14 @@ jest.mock("@supabase/supabase-js", () => ({
 }));
 
 jest.mock("../supabaseAnonKeyStorage", () => ({
-  getSupabaseAnonKey: jest.fn(async () => "stored-anon-key"),
+  readSupabaseAnonKeyDetailed: jest.fn(async () => ({ value: "stored-anon-key", unreadable: false })),
 }));
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ensureSupabaseClient, resetSupabaseClient } from "../supabase";
+import { readSupabaseRuntimeConfigDetailed } from "../supabaseRuntimeConfig";
 import { STORAGE_KEYS } from "../storageKeys";
+import { readSupabaseAnonKeyDetailed } from "../supabaseAnonKeyStorage";
 
 describe("supabase runtime config", () => {
   const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -19,6 +21,10 @@ describe("supabase runtime config", () => {
     await AsyncStorage.clear();
     delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterAll(() => {
@@ -34,5 +40,36 @@ describe("supabase runtime config", () => {
 
     expect(process.env.EXPO_PUBLIC_SUPABASE_URL).toBeUndefined();
     expect(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBeUndefined();
+  });
+
+  it("marks invalid url config separately from missing values", async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "not-a-url");
+    (readSupabaseAnonKeyDetailed as jest.Mock).mockResolvedValueOnce({ value: "stored-anon-key", unreadable: false });
+
+    const result = await readSupabaseRuntimeConfigDetailed();
+
+    expect(result.url).toBeNull();
+    expect(result.urlReason).toBe("invalid");
+    expect(result.anonKeyReason).toBe("ok");
+  });
+
+  it("marks unreadable config reads as unreadable", async () => {
+    jest.spyOn(AsyncStorage, "getItem").mockRejectedValueOnce(new Error("storage io failed"));
+    (readSupabaseAnonKeyDetailed as jest.Mock).mockResolvedValueOnce({ value: null, unreadable: true });
+
+    const result = await readSupabaseRuntimeConfigDetailed();
+
+    expect(result.urlReason).toBe("unreadable");
+    expect(result.anonKeyReason).toBe("unreadable");
+  });
+
+  it("reports supabase init error as unreadable when anon-key read is unreadable", async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "https://stored.supabase.co");
+    (readSupabaseAnonKeyDetailed as jest.Mock).mockResolvedValueOnce({ value: null, unreadable: true });
+
+    await expect(ensureSupabaseClient()).rejects.toMatchObject({
+      name: "SupabaseInitError",
+      code: "supabase_config_unreadable",
+    });
   });
 });

@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from "../storageKeys";
 import {
   deleteSupabaseAnonKey,
   getSupabaseAnonKey,
+  readSupabaseAnonKeyDetailed,
   saveSupabaseAnonKey,
 } from "../supabaseAnonKeyStorage";
 
@@ -67,5 +68,17 @@ describe("supabaseAnonKeyStorage", () => {
 
     expect(secureStoreMock.__getMockStorage().supabase_anon_key_v1).toBeUndefined();
     expect(asyncStorageMock.__getMockStorage()[STORAGE_KEYS.SUPABASE_KEY]).toBeUndefined();
+  });
+
+  it("classifies real local read errors as unreadable in detailed read path", async () => {
+    const secureReadSpy = jest.spyOn(SecureStore, "getItemAsync").mockRejectedValueOnce(new Error("secure read failed"));
+    const legacyReadSpy = jest.spyOn(AsyncStorage, "getItem").mockRejectedValueOnce(new Error("legacy read failed"));
+
+    const result = await readSupabaseAnonKeyDetailed();
+
+    expect(result).toEqual({ value: null, unreadable: true });
+
+    secureReadSpy.mockRestore();
+    legacyReadSpy.mockRestore();
   });
 });

@@ -1,10 +1,35 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { logger } from "./logger";
-import { readSupabaseRuntimeConfig } from "./supabaseRuntimeConfig";
+import {
+  readSupabaseRuntimeConfigDetailed,
+  type SupabaseRuntimeCredentialReason,
+} from "./supabaseRuntimeConfig";
 
 let supabaseClient: SupabaseClient | null = null;
 let initPromise: Promise<SupabaseClient> | null = null;
+
+export type SupabaseInitFailureCode =
+  | "supabase_config_missing"
+  | "supabase_config_invalid"
+  | "supabase_config_unreadable";
+
+export class SupabaseInitError extends Error {
+  readonly code: SupabaseInitFailureCode;
+
+  constructor(code: SupabaseInitFailureCode, message: string) {
+    super(message);
+    this.name = "SupabaseInitError";
+    this.code = code;
+  }
+}
+
+function hasReason(
+  reasons: [SupabaseRuntimeCredentialReason, SupabaseRuntimeCredentialReason],
+  match: SupabaseRuntimeCredentialReason,
+): boolean {
+  return reasons[0] === match || reasons[1] === match;
+}
 
 export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
   // Bereits initialisiert?
@@ -19,13 +44,28 @@ export const ensureSupabaseClient = async (): Promise<SupabaseClient> => {
 
   initPromise = (async () => {
     try {
-      const runtimeConfig = await readSupabaseRuntimeConfig();
+      const runtimeConfig = await readSupabaseRuntimeConfigDetailed();
       const supabaseUrl = runtimeConfig.url;
       const supabaseAnonKey = runtimeConfig.anonKey;
 
       if (!supabaseUrl || !supabaseAnonKey) {
-        const error = new Error(
-          "Supabase Credentials fehlen oder sind ungültig. Bitte in Verbindungen eintragen.",
+        const reasons: [SupabaseRuntimeCredentialReason, SupabaseRuntimeCredentialReason] = [
+          runtimeConfig.urlReason,
+          runtimeConfig.anonKeyReason,
+        ];
+        const code: SupabaseInitFailureCode = hasReason(reasons, "unreadable")
+          ? "supabase_config_unreadable"
+          : hasReason(reasons, "invalid")
+            ? "supabase_config_invalid"
+            : "supabase_config_missing";
+
+        const error = new SupabaseInitError(
+          code,
+          code === "supabase_config_unreadable"
+            ? "Supabase-Konfiguration konnte lokal nicht gelesen werden (SecureStore/Storage unreadable)."
+            : code === "supabase_config_invalid"
+              ? "Supabase-Konfiguration ist vorhanden, aber ungültig."
+              : "Supabase Credentials fehlen. Bitte in Verbindungen eintragen.",
         );
         initPromise = null;
         throw error;

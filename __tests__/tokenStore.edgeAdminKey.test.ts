@@ -14,6 +14,8 @@ jest.mock("../lib/logger", () => ({
 }));
 
 import {
+  getGitHubToken,
+  getExpoToken,
   getWorkflowAdminKey,
   saveWorkflowAdminKey,
   getAndroidKeystoreExportAdminKey,
@@ -22,6 +24,7 @@ import {
   saveLegacyEdgeAdminKey,
   getSigningAdminKey,
   saveSigningAdminKey,
+  SecureTokenReadError,
 } from "../infra/github/tokenStore";
 
 describe("admin key token store split contract", () => {
@@ -100,5 +103,41 @@ describe("admin key token store split contract", () => {
     await saveLegacyEdgeAdminKey("legacy-only-key-12345678901234567890");
     expect(persisted.get("edge_admin_key_v1")).toBe("legacy-only-key-12345678901234567890");
     expect(persisted.get("workflow_admin_key_v1")).toBe("workflow-only-key-12345678901234567890");
+  });
+
+  it("does not degrade secure-store read failures to missing admin keys", async () => {
+    mockSecureStore.getItemAsync.mockRejectedValue(new Error("secure read blocked"));
+
+    await expect(getWorkflowAdminKey()).rejects.toBeInstanceOf(SecureTokenReadError);
+  });
+
+  it("does not let unreadable legacy github slot block readable modern token", async () => {
+    mockSecureStore.getItemAsync.mockImplementation(async (key: string) => {
+      if (key === "github_pat_v1") throw new Error("legacy unreadable");
+      if (key === "github_token") return "modern-gh-token";
+      return null;
+    });
+
+    await expect(getGitHubToken()).resolves.toBe("modern-gh-token");
+  });
+
+  it("does not let unreadable legacy expo slot block readable modern token", async () => {
+    mockSecureStore.getItemAsync.mockImplementation(async (key: string) => {
+      if (key === "expo_token_v1") throw new Error("legacy unreadable");
+      if (key === "expo_token") return "modern-expo-token";
+      return null;
+    });
+
+    await expect(getExpoToken()).resolves.toBe("modern-expo-token");
+  });
+
+  it("keeps migration fail-closed neutral when legacy slot is unreadable and no modern token exists", async () => {
+    mockSecureStore.getItemAsync.mockImplementation(async (key: string) => {
+      if (key === "github_pat_v1") throw new Error("legacy unreadable");
+      if (key === "github_token") return null;
+      return null;
+    });
+
+    await expect(getGitHubToken()).resolves.toBeNull();
   });
 });

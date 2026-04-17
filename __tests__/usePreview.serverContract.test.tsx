@@ -110,6 +110,42 @@ describe("usePreview server contract", () => {
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
   });
 
+  test("distinguishes supabase init failures from missing login JWT", async () => {
+    mockEnsureSupabaseClient.mockRejectedValueOnce(new Error("config unreadable"));
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Supabase-Initialisierung fehlgeschlagen.",
+    );
+  });
+
+  test("distinguishes session unreadable from missing login JWT", async () => {
+    mockEnsureSupabaseClient.mockResolvedValueOnce({
+      auth: {
+        getSession: jest.fn().mockRejectedValue(new Error("secure storage read failed")),
+      },
+    });
+
+    const { result } = renderHook((projectData: ProjectData | null) => usePreview(projectData), {
+      initialProps: baseProject,
+    });
+
+    await act(async () => {
+      await expect(result.current.createPreview()).rejects.toThrow(PREVIEW_FAIL_CLOSED_MESSAGE);
+    });
+
+    expect(result.current.state.remoteFailure).toBe(
+      "Remote-Preview blockiert: Supabase-Session lokal nicht lesbar.",
+    );
+  });
+
   test("reports an unreachable preview server honestly", async () => {
     mockFetch.mockRejectedValue(new Error("Network request failed"));
 
