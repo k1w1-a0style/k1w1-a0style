@@ -1,3 +1,4 @@
+
 # CI-Lite local env (DO NOT COMMIT)
 .env.ci-lite.local
 .env.ci-lite.*.local
@@ -10,28 +11,8 @@ supabase/.temp/
 k1w1-patch-*/
 k1w1-patch-*.patch
 
-# local agent/workspace artifacts
-.emergent/
-.gitconfig
+*.zip
 
 # local live env
 .env.edge.live
 .env.edge.live.bak.*
-
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
-*.pem
-*.key
-.credentials
