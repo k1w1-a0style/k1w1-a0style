@@ -1,13 +1,5 @@
--- Patch 778: Make durable edge rate-limit audits semantically explicit.
--- Separate allowed vs rejected attempts while keeping fail-closed behavior.
-
-alter table if exists public.edge_rate_limit_events
-  add column if not exists decision text not null default 'allowed';
-
-create index if not exists edge_rate_limit_events_scope_subject_decision_created_idx
-  on public.edge_rate_limit_events (scope, subject, decision, created_at desc);
-
-drop function if exists public.enforce_edge_rate_limit(text, text, integer, integer);
+-- Atomic durable rate-limit decision for edge routes.
+-- Uses per-key advisory transaction locks to avoid insert/count races under parallel bursts.
 
 create or replace function public.enforce_edge_rate_limit(
   p_scope text,
@@ -15,17 +7,16 @@ create or replace function public.enforce_edge_rate_limit(
   p_max integer,
   p_window_ms integer
 )
-returns table (allowed boolean, current_count bigint, decision text)
+returns table (allowed boolean, current_count bigint)
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public
 as $$
 declare
   v_now timestamptz := now();
   v_window_start timestamptz;
-  v_allowed_count bigint;
+  v_count bigint;
   v_key text;
-  v_allowed boolean;
 begin
   if p_scope is null or btrim(p_scope) = '' then
     raise exception 'p_scope must be non-empty';
@@ -45,25 +36,18 @@ begin
 
   perform pg_advisory_xact_lock(hashtext(v_key));
 
+  insert into public.edge_rate_limit_events (scope, subject, created_at)
+  values (p_scope, p_subject, v_now);
+
   select count(*)
-  into v_allowed_count
+  into v_count
   from public.edge_rate_limit_events
   where scope = p_scope
     and subject = p_subject
-    and created_at >= v_window_start
-    and decision = 'allowed';
-
-  v_allowed := v_allowed_count < p_max;
-
-  insert into public.edge_rate_limit_events (scope, subject, decision, created_at)
-  values (p_scope, p_subject, case when v_allowed then 'allowed' else 'rejected' end, v_now);
-
-  if v_allowed then
-    v_allowed_count := v_allowed_count + 1;
-  end if;
+    and created_at >= v_window_start;
 
   return query
-  select v_allowed, v_allowed_count, case when v_allowed then 'allowed' else 'rejected' end;
+  select (v_count <= p_max), v_count;
 end;
 $$;
 
