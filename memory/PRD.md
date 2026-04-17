@@ -97,3 +97,20 @@ Mach einen deep scan und prüfe alles kritisch.
 ### P1
 - `Leaked Password Protection` in Supabase Auth aktivieren, falls keine bewusste Produktentscheidung dagegen spricht
 - Unused-Index-Liste verifizieren, bevor Indizes entfernt werden (echte Nutzung vs. kalte/neue Pfade)
+
+
+## Zusatzdurchlauf: Repo-vs-Live-Drift-Analyse ohne Live-Mutation
+- Neuer manueller Audit-Checker hinzugefügt: `scripts/check_supabase_live_management_drift.js`
+- Testabdeckung ergänzt: `__tests__/supabaseLiveManagementDrift.test.ts`
+- Branch-Abgleich durchgeführt:
+  - aktueller Agent-Branch: `emergent`
+  - Zielbranch / origin HEAD: `main`
+  - für die betroffenen Edge-Functions kein relevanter Source-Diff zwischen `emergent` und `origin/main`
+- Verdichtung der Drift-Ursache:
+  - die 6 Lint-/Native-Sync-Functions sind live zuletzt am `2026-03-05` aktualisiert worden, während Repo-SoT sie inzwischen auf `enabled=false` und `verify_jwt=true` führt
+  - `create_codesandbox` und `test` wurden live zuletzt am `2026-03-29` aktualisiert; `create_codesandbox` bleibt damit ebenfalls vor der späteren Repo-Härtung `verify_jwt=true`
+  - daraus ergibt sich aktuell eher ein **älterer/live abweichender Deploy-Stand** als ein agent-branch-spezifischer Drift
+- Zusätzliche Index-Einordnung:
+  - mehrere vom Advisor gemeldete unused indexes sind im Repo vorhanden (`diagnostics_reports_created_at_idx`, `diagnostic_uploads_*`, `build_jobs_*`)
+  - mehrere andere wirken derzeit live-only bzw. nicht im Repo-Migrationsstand nachvollziehbar (`previews_id_secret_idx`, `previews_updated_at_idx`, `previews_secret_idx`, `native_sync_jobs_repo_idx`, `native_sync_jobs_status_idx`, `native_sync_reports_job_id_idx`)
+  - daher aktuell **keine** blinde Lösch-Empfehlung
