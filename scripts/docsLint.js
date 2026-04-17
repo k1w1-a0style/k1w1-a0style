@@ -179,6 +179,7 @@ const redundantDocs = [
   'docs/SCREEN_BY_SCREEN_CHECKLIST.md',
   'docs/expo_web_qr_preview_feasibility.md',
   'docs/snippets/PATCH_21_CI_CORE_SNIPPET.md',
+  'memory/PRD.md',
   'scripts/getEasProjectId.js',
   'docs/README_EXTENDED.md',
   'docs/05-contract-test-coverage-matrix.md',
