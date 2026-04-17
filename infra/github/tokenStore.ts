@@ -78,10 +78,21 @@ const deleteSecureToken = async (key: string): Promise<void> => {
 };
 
 async function migrateLegacyToken(legacyKey: string, newKey: string): Promise<void> {
-  const legacy = await getSecureToken(legacyKey);
+  const legacyRead = await readSecureToken(legacyKey);
+  if (legacyRead.unreadable) {
+    logger.warn("[SecureStore] Legacy-Migration übersprungen: Legacy-Slot unreadable", { legacyKey, newKey });
+    return;
+  }
+
+  const legacy = legacyRead.value;
   if (!legacy) return;
 
-  const current = await getSecureToken(newKey);
+  const currentRead = await readSecureToken(newKey);
+  if (currentRead.unreadable) {
+    logger.warn("[SecureStore] Legacy-Migration übersprungen: neuer Slot unreadable", { legacyKey, newKey });
+    return;
+  }
+  const current = currentRead.value;
   if (!current) {
     await saveSecureToken(newKey, legacy);
   }
