@@ -11,12 +11,14 @@ supabase/.temp/
 k1w1-patch-*/
 k1w1-patch-*.patch
 
-*.zip
+# local agent/workspace artifacts
+.emergent/
+.gitconfig
 
 # local live env
 .env.edge.live
 .env.edge.live.bak.*
--e 
+
 # Environment and credential files
 .env
 .env.*
