@@ -11,7 +11,16 @@ import { getErrorMessage, readJsonSafe, resolveTargetBranch } from "./shared";
 import type { GitHubBranchPayload, GitHubCommitPayload, GitHubMessagePayload, GitHubTreePayload, RepoBlobEntry } from "./types";
 
 const BASE64_PREFIX = "base64:";
+const MAX_GIT_DATA_TREE_ENTRIES = 200;
 type GitHubJson = GitHubCommitPayload & GitHubBranchPayload & GitHubMessagePayload & GitHubTreePayload;
+
+const ensureGitTreeEntryLimit = (count: number, context: string) => {
+  if (count > MAX_GIT_DATA_TREE_ENTRIES) {
+    throw new Error(
+      `Zu viele Repo-Operationen für ${context}: ${count} > ${MAX_GIT_DATA_TREE_ENTRIES}. Bitte in kleineren Batches synchronisieren.`,
+    );
+  }
+};
 
 const validateProjectBase64Content = (content: string, path: string) => {
   const payload = content.slice(BASE64_PREFIX.length).trim();
@@ -190,9 +199,6 @@ export const pushFilesToRepoAdvanced = async (
     message?: string;
   },
 ) => {
-  const { token, headers, targetBranch } = await createRepoApiContext(owner, repo, { branch: options?.branch });
-  const message = (options?.message || "").trim() || "chore: sync";
-
   const normalizedFiles = [...files]
     .map((f) => {
       const originalPath = String(f.path || "").trim();
@@ -220,7 +226,12 @@ export const pushFilesToRepoAdvanced = async (
     }))
     .sort((a, b) => a.path.localeCompare(b.path));
 
+  ensureGitTreeEntryLimit(normalizedFiles.length, "pushFilesToRepoAdvanced");
+
   if (!normalizedFiles.length) return;
+
+  const { token, headers, targetBranch } = await createRepoApiContext(owner, repo, { branch: options?.branch });
+  const message = (options?.message || "").trim() || "chore: sync";
 
   const { baseCommitSha, baseTreeSha } = await readBaseCommitContext({ owner, repo, targetBranch, token, headers });
 
@@ -250,9 +261,6 @@ export const applyRepoFilePatchAtomic = async (
     message?: string;
   },
 ) => {
-  const { token, headers, targetBranch } = await createRepoApiContext(owner, repo, { branch: options?.branch });
-  const message = (options?.message || "").trim() || "chore: sync patch";
-
   const upserts = [...(patch.upsert ?? [])]
     .map((f) => {
       const originalPath = String(f.path || "").trim();
@@ -269,6 +277,11 @@ export const applyRepoFilePatchAtomic = async (
     .filter((p): p is string => !!p)
     .filter((p) => !p.startsWith(".github/workflows/") || MANAGED_WORKFLOWS.has(p))
     .sort((a, b) => a.localeCompare(b));
+
+  ensureGitTreeEntryLimit(upserts.length + deletes.length, "applyRepoFilePatchAtomic");
+
+  const { token, headers, targetBranch } = await createRepoApiContext(owner, repo, { branch: options?.branch });
+  const message = (options?.message || "").trim() || "chore: sync patch";
 
   const seen = new Set<string>();
   const treeEntries: Array<Record<string, unknown>> = [];

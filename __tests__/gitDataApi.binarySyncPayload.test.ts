@@ -80,4 +80,17 @@ describe("gitDataApi binary sync payload", () => {
 
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it("fails closed when too many repo operations are pushed in one batch", async () => {
+    const files = Array.from({ length: 201 }, (_, index) => ({
+      path: `src/file-${index}.ts`,
+      content: `export const value${index} = ${index};`,
+    }));
+
+    await expect(pushFilesToRepoAdvanced("owner", "repo", files)).rejects.toThrow(
+      "Zu viele Repo-Operationen für pushFilesToRepoAdvanced: 201 > 200. Bitte in kleineren Batches synchronisieren.",
+    );
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

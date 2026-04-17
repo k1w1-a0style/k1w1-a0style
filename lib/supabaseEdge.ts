@@ -4,6 +4,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { CONFIG } from "../config";
+import { logger } from "./logger";
 import { STORAGE_KEYS } from "./storageKeys";
 
 /**
@@ -22,19 +23,43 @@ const getRuntimeEnv = (): Record<string, string | undefined> | null => {
   return runtime.env ?? null;
 };
 
+async function readStoredSupabaseUrlDetailed(): Promise<{
+  value: string | null;
+  unreadable: boolean;
+}> {
+  try {
+    return {
+      value: await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+      unreadable: false,
+    };
+  } catch (error: unknown) {
+    logger.warn("[supabaseEdge] Stored Supabase URL unreadable; falling back to env/static config.", {
+      error,
+    });
+    return {
+      value: null,
+      unreadable: true,
+    };
+  }
+}
+
 export async function getSupabaseEdgeUrl(): Promise<string> {
-  const storedUrl = await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).catch(
-    () => null,
-  );
+  const storedUrlRead = await readStoredSupabaseUrlDetailed();
+  const storedUrl = storedUrlRead.value;
 
   const envUrl = getRuntimeEnv()?.EXPO_PUBLIC_SUPABASE_URL ?? null;
+  const staticUrl = CONFIG.API.SUPABASE_EDGE_URL;
 
   const runtimeUrl = (storedUrl || envUrl || "").trim();
   if (runtimeUrl) {
     return `${runtimeUrl.replace(/\/$/, "")}/functions/v1`;
   }
 
-  return CONFIG.API.SUPABASE_EDGE_URL;
+  if (storedUrlRead.unreadable && staticUrl) {
+    logger.warn("[supabaseEdge] Using static Supabase Edge URL fallback after unreadable stored config.");
+  }
+
+  return staticUrl;
 }
 
 export async function requireSupabaseEdgeUrl(): Promise<string> {

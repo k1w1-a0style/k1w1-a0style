@@ -4,41 +4,57 @@
 Mach einen deep scan und prüfe alles kritisch.
 
 ## User Choices
-- Prüfziel: Gesamtzustand des Projekts (Frontend, Backend, Struktur, Risiken)
-- Ergebnisform: Analyse plus Prioritätenliste, danach auf Freigabe warten
-- Testtiefe: Ja, UI/API bzw. verfügbare Prüfpfade aktiv testen
-- Änderungsgrenze: Keine Änderungen am Produktcode, nur reporten
+- Erst Gesamtzustand kritisch prüfen
+- Aktiv testen
+- Danach P0 Live-Supabase/Edge verifizieren, P1 Preview-/supabaseEdge-Härtung und Hotspot-Entschärfung, P2 Observability/Deprecated-Dependencies bereinigen
+- Nur kleine sichere Härtungen, keine großen Refactors
 
 ## Architekturentscheidungen / Ist-Zustand
-- Repository ist kein Standard-Webstack, sondern eine Expo/React-Native-App mit TypeScript
-- Kernbereiche: Screens, Hooks, Kontexte, GitHub-Integrationen, Supabase Edge Functions, lokale Persistenz, Preview-/Build-/Diagnostics-Flows
-- Release-Verifikation basiert stark auf repo-internen Gates (`typecheck`, `lint`, `test`, `docs`, `verify:release`)
-- Live-Supabase-Zustand konnte nicht unabhängig geprüft werden, da für MCP-Supabase-Tools kein gültiger Zugriffstoken verfügbar war
+- Repository ist eine Expo/React-Native-App mit TypeScript, umfangreichen Jest-Regressionen und Supabase Edge Functions
+- Kritische Betriebsqualität wird repo-seitig über `typecheck`, `lint`, `docs`-Checks, `test:silent` und `verify:release` abgesichert
+- Live-Edge-Verifikation erfolgt über `scripts/check_edge_live_contracts.sh` mit `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`
+- Management-/Advisor-Ebene von Supabase-MCP blieb ohne separaten MCP-Zugriffstoken weiterhin außerhalb direkter Tool-Verifikation
 
 ## Was in diesem Durchlauf umgesetzt wurde
-- High-level Repo-Scan von Struktur, README, package.json, Kern-Doku und Einstiegspunkten
-- Aktive Verifikation ausgeführt: `npm ci`, `npm run typecheck`, `npm run lint:ci`, `npm run typecheck:edge`, `npm run docs:lint`, `npm run docs:check:contracts`, `npm run test:silent`, `npm run verify:release`
-- Zusätzliche Risiko-Scans: Pattern-Scan (`@ts-ignore`, `any`, silent catches, console.log), Größen-/Hotspot-Scan großer Dateien, produktiver `npm audit --omit=dev`
-- Sicherheits-/Runtime-Lesung gezielter Dateien: `polyfills.ts`, `lib/supabase.ts`, `lib/supabaseEdge.ts`, `lib/supabaseRuntimeConfig.ts`, `lib/sandpackBuilder.ts`, `hooks/usePreviewCreation.ts`, `supabase/config.toml`, `infra/github/files/gitDataApi.ts`, `screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts`
-- Keine Produktcode-Änderungen vorgenommen
+- Deep Scan des Repos, aktive Ausführung der Kern-Gates und zusätzliche Pattern-/Hotspot-Scans
+- P0 teilweise real verifiziert: Live-Edge-Contracts (`k1w1-handler`, `preview_page`, `save_preview`) erfolgreich gegen die echte Supabase-Edge geprüft
+- `verify:release` mit Live-Variablen erfolgreich auf `OK_FULL` gebracht
+- P1-Härtungen umgesetzt:
+  - `lib/supabaseEdge.ts`: Storage-Unreadable-Fallback loggt jetzt sichtbar statt still auf `null` zu degradieren
+  - `hooks/usePreviewCreation.ts`: Local-Preview nutzt jetzt getrennte Opt-ins für Eval und externes CDN (`EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL` + `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_CDN`)
+  - `infra/github/files/gitDataApi.ts`: Batch-Guard >200 Repo-Operationen fail-closed vor Branch-/Netzwerk-Side-Effects
+- P1-Regressionstests ergänzt:
+  - `__tests__/usePreviewCreation.localEvalGate.test.ts`
+  - `__tests__/gitDataApi.batchGuard.preNetwork.test.ts`
+  - bestehende Tests für `supabaseEdge` / `gitDataApi` erweitert
+- P2-Bereinigung umgesetzt:
+  - ungenutztes/deprecated `@testing-library/jest-native` entfernt
+  - `prepare`-Script von `husky install` auf `husky` modernisiert
+  - `scripts/docsLint.js` angepasst, damit workflow-required `memory/PRD.md` kein falscher Lint-Fehler mehr ist
+- Test-Credentials dokumentiert in `/app/memory/test_credentials.md`
+
+## Validierung
+- `npm run typecheck` ✅
+- `npm run lint:ci` ✅
+- gezielte Jest-Regressionen für die neuen Härtungen ✅
+- `npm run test:silent` ✅
+- `bash scripts/check_edge_live_contracts.sh` mit realem JWT ✅
+- `npm run verify:release` mit Live-Variablen ✅ (`OK_FULL`)
 
 ## Priorisierter Backlog
 
 ### P0
-- Live-Supabase-/Infra-Verifikation unabhängig nachholen (Edge Functions, Advisors, Tabellen, tatsächliche Deploy-Konfiguration), sobald gültiger Zugriff verfügbar ist
-- Prüfen, ob Repo-Status `OK_WITH_SKIPS` in Zielumgebung wirklich zu `OK_FULL` hochgezogen werden kann
+- Optional: Supabase-Management-/Advisor-Ebene zusätzlich mit echtem MCP-/Admin-Zugriff prüfen (Security Advisors, Performance Advisors, Tabellen-/Function-Metadaten)
 
 ### P1
-- Local-Preview-Fallback mit `unsafe-eval` + externen CDNs weiter minimieren oder stärker isolieren (`lib/sandpackBuilder.ts`, `hooks/usePreviewCreation.ts`)
-- Fehlerbehandlung in `lib/supabaseEdge.ts` härten: AsyncStorage-Lesefehler nicht still auf `null` degradieren
-- Kritische Hotspots mit hoher Änderungs-/Regressionsfläche gezielt entschärfen: `infra/github/files/gitDataApi.ts`, `useConnectionsSaveActions.ts`, `usePreviewScreen.ts`, `WebCodeEditor.tsx`
+- Weitere kleine Entschärfung der größten Hotspots nur dort, wo echter Sicherheits- oder Review-Gewinn entsteht (`usePreviewScreen`, `WebCodeEditor`, `useConnectionsSaveActions`)
+- Prüfen, ob zusätzliche harte Grenzen für große Repo-Syncs auch UX-seitig klarer kommuniziert werden sollen
 
 ### P2
-- Observability prüfen: globales Stummschalten von `console.log/info/debug` in Produktion bewerten (`polyfills.ts`)
-- Deprecated Tooling aufräumen (`@testing-library/jest-native`, Husky-Install-Hinweis, transitive Deprecation-Warnungen)
-- Große Style-/Screen-Dateien weiter modularisieren, wo echter Review-/Wartungsgewinn entsteht
+- Weitere Deprecation-/Tooling-Hygiene bei transitive warnings nur, wenn sie ohne Scope-Creep sauber ersetzbar ist
+- Observability-Richtlinie für `polyfills.ts` prüfen (`console.log/info/debug` in Produktion global stumm)
 
 ## Nächste sinnvolle Tasks
-1. P1-Fixes ohne großen Umbau umsetzen
-2. Danach erneut gezielte Regressionstests laufen lassen
-3. Anschließend Live-/Supabase-Validierung mit echtem Zugriff ergänzen
+1. Falls gewünscht: verbleibende P1-Hotspots im kleinen sicheren Rahmen weiter härten
+2. Optional: Supabase-Management-/Advisor-Check nachreichen, sobald passender Admin-/MCP-Zugriff verfügbar ist
+3. Danach erneuter Abschlusslauf mit denselben Gates
