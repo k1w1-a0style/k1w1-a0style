@@ -7,7 +7,10 @@ describe("Preview lifecycle truthfulness invariants", () => {
   test("manual reset dismisses auto-create so reset remains a real reset", () => {
     const src = read("screens/PreviewScreen/hooks/usePreviewScreen.ts");
     expect(src).toContain("autoCreateDismissedByResetRef");
+    expect(src).toContain("const clearHotReloadTimer = useCallback(() => {");
+    expect(src).toContain("hotReloadTimerRef.current = null;");
     expect(src).toContain("autoCreateDismissedByResetRef.current = true;");
+    expect(src).toContain("clearHotReloadTimer();");
     expect(src).toContain("if (autoCreateDismissedByResetRef.current) return;");
   });
 

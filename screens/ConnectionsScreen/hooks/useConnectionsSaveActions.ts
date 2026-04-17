@@ -125,7 +125,9 @@ export function useConnectionsSaveActions(params: Params) {
 
   const CONNECTIONS_SAVE_JOURNAL_KEY = "connections_save_recoverable_journal_v1";
 
-  const readCurrentSnapshot = useCallback(async (): Promise<ConnectionsSnapshot> => {
+  const readCurrentSnapshot = useCallback(async (
+    repoScopeOverride: string | null = effectiveRepo,
+  ): Promise<ConnectionsSnapshot> => {
     const [
       githubToken,
       expoToken,
@@ -157,7 +159,7 @@ export function useConnectionsSaveActions(params: Params) {
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW).then((value) => (value ?? "").trim()),
         AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL).then((value) => (value ?? "").trim()),
         getSupabaseAnonKey().then((value) => (value ?? "").trim()),
-        readScopedEasProjectId(effectiveRepo).then((value) => (value ?? "").trim()),
+        readScopedEasProjectId(repoScopeOverride).then((value) => (value ?? "").trim()),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_OK),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_USER),
         AsyncStorage.getItem(STORAGE_KEYS.CONN_GITHUB_SCOPES),
@@ -174,7 +176,7 @@ export function useConnectionsSaveActions(params: Params) {
       ]);
 
     return {
-      repoScope: effectiveRepo,
+      repoScope: repoScopeOverride,
       githubToken,
       expoToken,
       workflowAdminKey,
@@ -346,12 +348,13 @@ export function useConnectionsSaveActions(params: Params) {
     await runGuardedAction({
       defaultTitle: "❌ Speichern fehlgeschlagen",
       task: async () => {
+        const repoScopeAtSaveStart = effectiveRepo;
         await recoverFromPendingJournal<ConnectionsSnapshot>({
           journalKey: CONNECTIONS_SAVE_JOURNAL_KEY,
           flow: "connections_save",
           restoreSnapshot,
         });
-        const rollbackSnapshot = await readCurrentSnapshot();
+        const rollbackSnapshot = await readCurrentSnapshot(repoScopeAtSaveStart);
         const plan = resolveConnectionsSavePlan({
           ...secrets,
           previous: rollbackSnapshot,
@@ -364,7 +367,7 @@ export function useConnectionsSaveActions(params: Params) {
           apply: async () => {
             await persistTokenSavePlan(plan);
             await persistSupabaseSavePlan(plan);
-            await persistSelectedEasProjectId(plan.easProjectId, effectiveRepo);
+            await persistSelectedEasProjectId(plan.easProjectId, repoScopeAtSaveStart);
 
             if (plan.shouldClearGitHubConnection) {
               await clearGithubConnectionState();

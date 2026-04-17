@@ -59,6 +59,13 @@ export function usePreviewScreen() {
 
   const isCurrentCycle = useCallback((cycleId: number) => activePreviewCycleRef.current === cycleId, []);
 
+  const clearHotReloadTimer = useCallback(() => {
+    if (hotReloadTimerRef.current) {
+      clearTimeout(hotReloadTimerRef.current);
+      hotReloadTimerRef.current = null;
+    }
+  }, []);
+
   const beginPreviewCycle = useCallback(() => {
     setPreviewCycleId((prev) => {
       const next = prev + 1;
@@ -232,6 +239,7 @@ export function usePreviewScreen() {
   // ─── Create ────────────────────────────────────────────────────────────────
   const handleCreate = useCallback(async () => {
     if (isCreatingRef.current) return;
+    clearHotReloadTimer();
     autoCreateDismissedByResetRef.current = false;
     isCreatingRef.current = true;
     beginPreviewCycle();
@@ -253,7 +261,7 @@ export function usePreviewScreen() {
     } finally {
       isCreatingRef.current = false;
     }
-  }, [beginPreviewCycle, createPreview, filesFingerprint, resetRecoveryState]);
+  }, [beginPreviewCycle, clearHotReloadTimer, createPreview, filesFingerprint, resetRecoveryState]);
 
   // ─── Auto-create on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -275,7 +283,7 @@ export function usePreviewScreen() {
     if (phase === 'creating') return;
     if (filesFingerprint === lastFingerprintRef.current) return;
 
-    if (hotReloadTimerRef.current) clearTimeout(hotReloadTimerRef.current);
+    clearHotReloadTimer();
     hotReloadTimerRef.current = setTimeout(() => {
       lastFingerprintRef.current = filesFingerprint;
       blinkHotDot();
@@ -285,12 +293,13 @@ export function usePreviewScreen() {
     }, HOT_RELOAD_DEBOUNCE_MS);
 
     return () => {
-      if (hotReloadTimerRef.current) clearTimeout(hotReloadTimerRef.current);
+      clearHotReloadTimer();
     };
-  }, [filesFingerprint, hotReloadEnabled, previewSource, phase, handleCreate, blinkHotDot, flashBorder]);
+  }, [filesFingerprint, hotReloadEnabled, previewSource, phase, handleCreate, blinkHotDot, flashBorder, clearHotReloadTimer]);
 
   // ─── Other handlers ────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
+    clearHotReloadTimer();
     autoCreateDismissedByResetRef.current = true;
     beginPreviewCycle();
     reset();
@@ -298,7 +307,7 @@ export function usePreviewScreen() {
     setPhase('idle');
     setWebError(null);
     setHotReloadCount(0);
-  }, [beginPreviewCycle, reset]);
+  }, [beginPreviewCycle, clearHotReloadTimer, reset]);
 
   const handleLoadStart = useCallback(
     (cycleId: number) => {

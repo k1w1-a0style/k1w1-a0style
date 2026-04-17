@@ -58,3 +58,20 @@ Mach einen deep scan und prüfe alles kritisch.
 1. Falls gewünscht: verbleibende P1-Hotspots im kleinen sicheren Rahmen weiter härten
 2. Optional: Supabase-Management-/Advisor-Check nachreichen, sobald passender Admin-/MCP-Zugriff verfügbar ist
 3. Danach erneuter Abschlusslauf mit denselben Gates
+
+
+## Zusatzdurchlauf: Hotspot-Härtung
+- `useConnectionsSaveActions.ts`: Save-Flow nutzt jetzt einen stabilen `repoScopeAtSaveStart`, damit Repo-Scoped EAS-Persistenz nicht durch einen parallelen Repo-Wechsel driftet
+- `usePreviewScreen.ts`: Reset/Create räumt ausstehende Hot-Reload-Timer jetzt explizit auf, damit kein verspätetes Re-Create gegen die Reset-Intention läuft
+- `WebCodeEditor.tsx`: Fallback-Bridge dispatcht injizierte Nachrichten jetzt konsistent an `window` und `document`
+- Zusätzliche Regressionen/Invariant-Checks ergänzt in:
+  - `__tests__/connectionsAndBackupRecoverable.invariants.test.ts`
+  - `__tests__/previewLifecycleTruthfulness.invariants.test.ts`
+  - `__tests__/bridgeValidation.test.ts`
+
+## Finaler Validierungsstand
+- `npm run typecheck` ✅
+- `npm run lint:ci` ✅
+- gezielte Hotspot-Regressionen ✅
+- `npm run test:silent` ✅
+- `npm run verify:release` mit Live-Variablen ✅ (`OK_FULL`)

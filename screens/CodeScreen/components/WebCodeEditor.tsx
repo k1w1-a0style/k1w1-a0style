@@ -96,6 +96,11 @@ function parseBridgeMessage(raw: unknown): InboundMsg | null {
   }
 }
 
+export function buildInjectedMessageEventScript(data: string): string {
+  const serializedData = JSON.stringify(data);
+  return `window.dispatchEvent(new MessageEvent('message',{data:${serializedData}}));document.dispatchEvent(new MessageEvent('message',{data:${serializedData}}));true;`;
+}
+
 export const WebCodeEditor = ({
   value,
   onChangeText,
@@ -276,7 +281,7 @@ export const WebCodeEditor = ({
 
     // Fallback: inject JS to dispatch a message event
     webRef.current?.injectJavaScript(
-      `window.dispatchEvent(new MessageEvent('message',{data:${JSON.stringify(data)}}));true;`,
+      buildInjectedMessageEventScript(data),
     );
   }, []);
 
