@@ -16,3 +16,12 @@ k1w1-patch-*.patch
 # local live env
 .env.edge.live
 .env.edge.live.bak.*
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
