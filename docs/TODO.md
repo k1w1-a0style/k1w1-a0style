@@ -96,7 +96,7 @@ Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 - [x] `SUPABASE_RAW`-Persistenz explizit gehaertet: Legacy-Secret-Composite (`url:::key`) wird aktiv verworfen, inkl. Regressionstest.
 - [x] Durable rate-limit fallback transparenter gemacht: Fallback-Warnungen markieren jetzt explizit `local_in_memory_best_effort` + `cluster_safe=false`, inkl. Testabdeckung.
 - [x] RateLimit-Degradation fuer Preview-Routen geschaerft (Patch 751): `save_preview`/`preview_page` setzen `enforceDurable: true`; bei durable-Ausfall jetzt `503 rate_limit_unavailable` statt lokaler Scheinsicherheit.
-- [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
+- [x] Neue Repo-Migration fuer bestaetigte Live-Befunde vorbereitet (`supabase/migrations/20260403060914_supabase_live_findings_hardening.sql`) — fail-closed Re-Assertion fuer `build_jobs`, Legacy-Haertung fuer `cleanup_old_previews(integer)` und explizite deny-Policies fuer `signing_audit_log` (ohne Live-Mutation).
 
 
 - [x] DocsSyncGap (Patch 758): `check_patch_docs_sync.sh` prueft jetzt den echten Kern-SoT-Scope (README/CHECKLOG/PATCHLOG + TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT/EDGE_FUNCTIONS_STATUS) auf denselben Patch-Stand.
@@ -131,7 +131,7 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 
 - Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde operativ bereinigt; daraus bleibt kein privilegierter Testzustand offen.
 - Optionale spaetere Hygiene: Trigger-/Hook-Funktionen ohne `search_path` punktuell live querpruefen.
-- Follow-up-Migration fuer Suchpfad-Reassertion bereits vorbereitet: `20260403010000_search_path_followup.sql`.
+- Follow-up-Migration fuer Suchpfad-Reassertion bereits vorbereitet: `20260403060926_search_path_followup.sql`.
 - Optionale Plattformhygiene: Leaked Password Protection + Duplicate Indexes separat behandeln.
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)

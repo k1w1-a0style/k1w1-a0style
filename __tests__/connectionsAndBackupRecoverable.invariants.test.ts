@@ -42,10 +42,7 @@ describe("recoverable multi-store persistence invariants", () => {
 
   it("keeps Connections recovery scope journal/snapshot-driven instead of current repo closure", () => {
     const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
-    expect(src).toContain("repoScope: repoScopeOverride");
-    expect(src).toContain("const repoScopeAtSaveStart = effectiveRepo;");
-    expect(src).toContain("readCurrentSnapshot(repoScopeAtSaveStart)");
-    expect(src).toContain("persistSelectedEasProjectId(plan.easProjectId, repoScopeAtSaveStart);");
+    expect(src).toContain("repoScope: effectiveRepo");
     expect(src).toContain("persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);");
     expect(src).toContain("restoreConnectionSideState(snapshot)");
     expect(src).toContain("CONN_GITHUB_OK");

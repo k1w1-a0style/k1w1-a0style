@@ -7,7 +7,7 @@ Es wurden **keine** Live-Supabase-Aktionen ausgefuehrt (kein Deploy, kein `db pu
 
 ## Aenderungen
 
-1. Neue Migration `supabase/migrations/20260403000000_supabase_live_findings_hardening.sql`
+1. Neue Migration `supabase/migrations/20260403060914_supabase_live_findings_hardening.sql`
    - re-assertet `build_jobs` fail-closed fuer `anon`/`authenticated` (policy + revoke + RLS on),
    - haertet Legacy-Funktion `cleanup_old_previews(integer)` falls vorhanden (`search_path`, execute nur `service_role`),
    - setzt fuer `signing_audit_log` explizite deny-policies (`select` + `write`) fuer `anon`/`authenticated`.

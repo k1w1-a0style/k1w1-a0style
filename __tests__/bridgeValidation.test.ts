@@ -1,7 +1,6 @@
 // __tests__/bridgeValidation.test.ts
 // Tests for the strict WebView ↔ RN bridge message validation in WebCodeEditor.
 import {
-  buildInjectedMessageEventScript,
   isInboundMsg,
   MAX_BRIDGE_PAYLOAD,
   parseBridgeMessage,
@@ -118,14 +117,5 @@ describe("MAX_BRIDGE_PAYLOAD constant", () => {
   it("is a reasonable size (between 1MB and 10MB)", () => {
     expect(MAX_BRIDGE_PAYLOAD).toBeGreaterThanOrEqual(1_000_000);
     expect(MAX_BRIDGE_PAYLOAD).toBeLessThanOrEqual(10_000_000);
-  });
-});
-
-describe("buildInjectedMessageEventScript", () => {
-  it("dispatches the fallback message to both window and document listeners", () => {
-    const script = buildInjectedMessageEventScript('{"t":"set","value":"x"}');
-    expect(script).toContain("window.dispatchEvent");
-    expect(script).toContain("document.dispatchEvent");
-    expect(script).toContain('data:"{\\"t\\":\\"set\\",\\"value\\":\\"x\\"}"');
   });
 });

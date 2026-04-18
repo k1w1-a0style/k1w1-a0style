@@ -47,7 +47,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Persistenz-/Recovery-Muss-Punkte aus PR-572-Follow-up wurden repo-seitig nachgezogen (NoRekeyOnRead, NoDelayedOverwrite-Guard, Corrupt-Plaintext-Recoverypfad); verbleibende externe Themen bleiben getrennt in `docs/TODO.md` dokumentiert.
 - AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
 - `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
-- Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403010000_search_path_followup.sql`).
+- Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403060926_search_path_followup.sql`).
 - Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
 - Verbleibende offene Themen sind bewusst getrennt als Betriebs-/Produktentscheidungen dokumentiert; es wird kein „vollstaendig risikofrei“-Zustand behauptet.
 - Workflow-Hygiene klein und fail-safe nachgezogen: `k1w1-ci-lite-autofix` nutzt kein unnoetiges `actions: write` mehr; Writeback-/Dispatch-Pfad bleibt ueber `contents: write` unveraendert funktionsfaehig.
