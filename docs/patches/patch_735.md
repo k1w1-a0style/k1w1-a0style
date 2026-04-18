@@ -13,7 +13,7 @@
    - Ergebnis: in diesem Lauf kein riskanter Policy-Toggle; Thema als fachliche A/B-Entscheidung explizit dokumentiert.
 
 2. **Low-risk SQL-Härtung (`search_path`)**
-   - Neue idempotente Migration `supabase/migrations/20260403010000_search_path_followup.sql`.
+   - Neue idempotente Migration `supabase/migrations/20260403060926_search_path_followup.sql`.
    - Re-assertet explizites `search_path = public, pg_temp` für:
      - `public._diagnostic_upload_guard()`
      - `public.cleanup_expired_previews()`

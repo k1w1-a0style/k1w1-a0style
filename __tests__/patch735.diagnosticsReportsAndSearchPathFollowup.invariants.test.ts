@@ -4,7 +4,7 @@ import path from "path";
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
 describe("Patch 735 diagnostics_reports + search_path follow-up invariants", () => {
-  const followupMigration = read("supabase/migrations/20260403010000_search_path_followup.sql");
+  const followupMigration = read("supabase/migrations/20260403060926_search_path_followup.sql");
   const decisionNote = read("docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md");
   const rlsAuditMigration = read("supabase/migrations/20260213000000_rls_audit_hardening.sql");
   const todo = read("docs/TODO.md");
@@ -26,6 +26,6 @@ describe("Patch 735 diagnostics_reports + search_path follow-up invariants", () 
   it("keeps TODO aligned with the clarified diagnostics/search_path status", () => {
     expect(todo).toContain("diagnostics_reports");
     expect(todo).toContain("Decision-Note 2026-04-03");
-    expect(todo).toContain("20260403010000_search_path_followup.sql");
+    expect(todo).toContain("20260403060926_search_path_followup.sql");
   });
 });

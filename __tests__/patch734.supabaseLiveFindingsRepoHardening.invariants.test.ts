@@ -4,7 +4,7 @@ import path from "path";
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
 describe("Patch 734 Supabase live-findings repo hardening invariants", () => {
-  const migration = read("supabase/migrations/20260403000000_supabase_live_findings_hardening.sql");
+  const migration = read("supabase/migrations/20260403060914_supabase_live_findings_hardening.sql");
 
   it("re-asserts build_jobs fail-closed RLS for anon/authenticated", () => {
     expect(migration).toContain('drop policy if exists "Public read build_jobs" on public.build_jobs;');
