@@ -25,14 +25,14 @@ Prüfe supabase
 - Repo-Fix umgesetzt: neue Migration `supabase/migrations/20260418170000_fix_edge_rate_limit_decision_ambiguity.sql` ergänzt, die den Tabellenzugriff auf `events.decision` qualifiziert.
 - Regressionsschutz ergänzt: `__tests__/patch784.edgeRateLimitDecisionAmbiguity.invariants.test.ts` stellt sicher, dass die Mehrdeutigkeit nicht wieder eingeführt wird.
 - Checks erfolgreich ausgeführt: gezielte Jest-Suites grün, `npm run typecheck` grün, `npm run verify:release` grün mit erlaubtem Live-SKIP, `bash scripts/check_supabase_rls_hardening.sh` grün.
-- Echte Live-E2E-Prüfung mit bereitgestelltem Operator-JWT ausgeführt und die 503-Störung reproduziert; Logs bestätigen erneut denselben DB-Fehler.
-- Live-Datenbank konnte in diesem Arbeitsmodus **nicht direkt mutiert** werden, weil Supabase-Migrationsschreibzugriff hier read-only blockiert ist.
+- Echte Live-E2E-Prüfung mit bereitgestelltem Operator-JWT ausgeführt und die 503-Störung reproduziert; Logs bestätigten denselben DB-Fehler.
+- Danach wurde der SQL-Fix vom Nutzer im Supabase-Dashboard angewendet.
+- Abschließende Live-Prüfung erfolgreich: `scripts/check_edge_live_contracts.sh` ist jetzt komplett grün (`k1w1-handler`, `preview_page`, `save_preview`).
+- Abschließende Vollprüfung erfolgreich: `npm run verify:release` läuft jetzt mit Live-Contracts und endet auf `OK_FULL` ohne verbleibenden Live-SKIP.
 
 ## Prioritized backlog
 ### P0
-- Die neue Fix-Migration auf die echte Supabase-Datenbank anwenden.
-- Danach `scripts/check_edge_live_contracts.sh` erneut ausführen, bis `k1w1-handler`, `preview_page` und `save_preview` live grün sind.
-- Anschließend `npm run verify:release` ohne Live-SKIP erneut bestätigen.
+- Keine offenen P0-Blocker mehr aus diesem Supabase-Fehler.
 
 ### P1
 - Optional einen zusätzlichen DB-/Repo-Check ergänzen, der mehrdeutige Bezeichner in `RETURNS TABLE`-PL/pgSQL-RPCs früh erkennt.
@@ -43,6 +43,6 @@ Prüfe supabase
 - Dokumentationsdrift zwischen README/Statusdateien bei nächster Doku-Runde bereinigen.
 
 ## Next tasks
-1. Fix-Migration gegen das Live-Projekt anwenden.
-2. Live-Edge-Contracts erneut end-to-end testen.
-3. Danach vollständige Release-Evidence ohne SKIPs einsammeln.
+1. Optionalen Guard gegen PL/pgSQL-Mehrdeutigkeiten in weiteren RPC-Migrationen ergänzen.
+2. Security-Advisors für Auth-Härtung prüfen (Leaked Password Protection, MFA-Optionen).
+3. Performance-Advisors zu unbenutzten Indizes fachlich sichten.
