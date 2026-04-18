@@ -55,9 +55,12 @@ const ChatComposer: React.FC<Props> = ({
   const canSend = !combinedIsLoading && (hasMessage || !!selectedFileAsset);
 
   const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
+  const isStagedPendingPlan = pendingPlan?.mode === "staged";
 
   const placeholder = pendingPlan
-    ? 'Antwort auf die Fragen... (oder "weiter")'
+    ? isStagedPendingPlan
+      ? 'Stufenmodus aktiv: antworte mit "block 1" oder "weiter"...'
+      : 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
 
   const lastH = useRef<number>(0);
@@ -99,14 +102,23 @@ const ChatComposer: React.FC<Props> = ({
             {guardWriteStatus === "guarded" ? "Guarded path enthalten" : "Normal write"}
           </Text>
         </View>
+
+        {isStagedPendingPlan && (
+          <View
+            style={[styles.guardBadge, styles.guardBadgeStaged]}
+            accessibilityLabel="Stufenmodus aktiv: wartet auf Block 1"
+          >
+            <Text style={styles.guardBadgeText}>Stufenmodus · wartet auf Block 1</Text>
+          </View>
+        )}
       </View>
 
       {pendingPlan && (
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>
-            {
-              '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'
-            }
+            {isStagedPendingPlan
+              ? '🧩 Stufenmodus: Starte mit "block 1" oder "weiter". Danach liefere ich nur den ersten Teilpatch.'
+              : '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'}
           </Text>
         </View>
       )}
