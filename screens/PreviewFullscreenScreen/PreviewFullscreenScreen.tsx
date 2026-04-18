@@ -46,7 +46,7 @@ export default function PreviewFullscreenScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backButton} onPress={handleGoBack}>
+          <Pressable style={styles.backButton} onPress={handleGoBack} testID="preview-fullscreen-back-button" accessibilityLabel="Preview fullscreen zurück">
             <Ionicons name="arrow-back" size={18} color={theme.palette.text.primary} />
             <Text style={styles.backButtonText}>Zurück</Text>
           </Pressable>
@@ -77,7 +77,7 @@ export default function PreviewFullscreenScreen() {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.topBar}>
-          <Pressable style={styles.backButton} onPress={handleGoBack}>
+          <Pressable style={styles.backButton} onPress={handleGoBack} testID="preview-fullscreen-back-button" accessibilityLabel="Preview fullscreen zurück">
             <Ionicons name="chevron-back" size={24} color={theme.palette.text.primary} />
           </Pressable>
           <View style={styles.titleContainer}>
@@ -106,7 +106,7 @@ export default function PreviewFullscreenScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <View style={styles.topBar}>
-        <Pressable style={styles.backButton} onPress={handleGoBack}>
+        <Pressable style={styles.backButton} onPress={handleGoBack} testID="preview-fullscreen-back-button" accessibilityLabel="Preview fullscreen zurück">
           <Ionicons name="arrow-back" size={18} color={theme.palette.text.primary} />
           <Text style={styles.backButtonText}>Zurück</Text>
         </Pressable>
@@ -116,24 +116,24 @@ export default function PreviewFullscreenScreen() {
         </View>
         <View style={styles.actions}>
           {canGoBack && (
-            <Pressable style={styles.iconButton} onPress={handleWebViewGoBack}>
+            <Pressable style={styles.iconButton} onPress={handleWebViewGoBack} testID="preview-fullscreen-webview-back-button" accessibilityLabel="Preview WebView zurück">
               <Ionicons name="chevron-back" size={20} color={theme.palette.text.primary} />
             </Pressable>
           )}
           {canGoForward && (
-            <Pressable style={styles.iconButton} onPress={handleWebViewGoForward}>
+            <Pressable style={styles.iconButton} onPress={handleWebViewGoForward} testID="preview-fullscreen-webview-forward-button" accessibilityLabel="Preview WebView vorwärts">
               <Ionicons name="chevron-forward" size={20} color={theme.palette.text.primary} />
             </Pressable>
           )}
-          <Pressable style={styles.iconButton} onPress={handleReload}>
+          <Pressable style={styles.iconButton} onPress={handleReload} testID="preview-fullscreen-reload-button" accessibilityLabel="Preview fullscreen neu laden">
             <Ionicons name="refresh" size={18} color={theme.palette.text.primary} />
           </Pressable>
           {mode === 'url' && (
-            <Pressable style={styles.iconButton} onPress={handleOpenExternal}>
+            <Pressable style={styles.iconButton} onPress={handleOpenExternal} testID="preview-fullscreen-open-external-button" accessibilityLabel="Preview fullscreen im Browser öffnen">
               <Ionicons name="open-outline" size={18} color={theme.palette.primary} />
             </Pressable>
           )}
-          <Pressable style={styles.iconButton} onPress={handleShare}>
+          <Pressable style={styles.iconButton} onPress={handleShare} testID="preview-fullscreen-share-button" accessibilityLabel="Preview fullscreen teilen">
             <Ionicons name="share-outline" size={18} color={theme.palette.text.primary} />
           </Pressable>
         </View>
