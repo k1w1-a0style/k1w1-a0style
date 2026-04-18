@@ -105,8 +105,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   );
 
   return (
-    <SafeAreaView style={st.root} edges={["top"]}>
+    <SafeAreaView style={st.root} edges={["top"]} testID="enhanced-build-screen-root">
       <ScrollView
+        testID="enhanced-build-screen-scroll"
         style={st.scroll}
         contentContainerStyle={st.content}
         refreshControl={

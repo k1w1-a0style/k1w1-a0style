@@ -13,6 +13,27 @@ jest.mock("react-native/Libraries/Animated/NativeAnimatedHelper", () => ({}), {
   virtual: true,
 });
 
+jest.mock("@expo/vector-icons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
+  const Icon = ({ name, children, ...props }) => (
+    <Text {...props}>{children ?? String(name ?? "icon")}</Text>
+  );
+
+  return {
+    Ionicons: Icon,
+  };
+});
+
+jest.mock("@expo/vector-icons/Ionicons", () => {
+  const React = require("react");
+  const { Text } = require("react-native");
+
+  return ({ name, children, ...props }) => (
+    <Text {...props}>{children ?? String(name ?? "icon")}</Text>
+  );
+});
+
 // Wichtig: Kein Factory-Require, damit __mocks__/expo-secure-store.js genutzt wird
 jest.mock("expo-secure-store");
 

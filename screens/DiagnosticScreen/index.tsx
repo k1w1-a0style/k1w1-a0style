@@ -191,7 +191,7 @@ export default function DiagnosticScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} testID="diagnostic-screen-root">
       <FixRunModal
         styles={styles}
         maxLines={FIX_MODAL_MAX_LINES}
@@ -273,6 +273,7 @@ export default function DiagnosticScreen() {
 
             <View style={styles.btnRow}>
               <TouchableOpacity
+                testID="diagnostic-run-button"
                 style={[styles.btnPrimary, (busy || running) && styles.disabled]}
                 onPress={() => runDiagnostics()}
                 disabled={busy || running}
@@ -282,6 +283,7 @@ export default function DiagnosticScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="diagnostic-auto-fix-button"
                 style={[
                   styles.btnSecondary,
                   (!canFix || busy || running) && styles.disabled,
@@ -294,6 +296,7 @@ export default function DiagnosticScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                testID="diagnostic-report-button"
                 style={[styles.btnTertiary, !hasResults && styles.disabled]}
                 onPress={() => setReportVisible(true)}
                 disabled={!hasResults}

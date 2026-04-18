@@ -26,10 +26,10 @@ export default function CredentialsWizardScreen() {
   const s = useCredentialsWizardScreen();
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} testID="credentials-wizard-screen-root">
       <InlineToast message={s.toast.message} anim={s.toast.anim} />
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView testID="credentials-wizard-screen-scroll" style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <HeaderSection subtitle={s.headerSubtitle} />
 
         <ProjectSection repoFullName={s.repoFullName} branch={s.branch} supabaseUrl={s.supabaseUrl} />

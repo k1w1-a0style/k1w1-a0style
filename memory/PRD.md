@@ -34,6 +34,10 @@ Prüfe supabase
 - Zusätzliche Regression ergänzt: `__tests__/plpgsqlReturnsTableAmbiguityGuard.test.ts` validiert Guard + Release-Wiring.
 - Index-Hygiene vorbereitet: neue Migration `supabase/migrations/20260418183000_drop_unused_native_sync_indexes.sql` entfernt genau drei ungenutzte Legacy-Native-Sync-Indizes im Repo-Vertrag.
 - Supabase-Auth-Härtung fachlich geprüft: Die aktuell sichtbaren Punkte `Leaked Password Protection` und zusätzliche MFA-Optionen sind laut offizieller Doku für gehostete Projekte Dashboard-/Produkt-Settings und in diesem Setup nicht sauber über die öffentliche Management-API automatisierbar.
+- Echter Produkt-/UI-Bugscan für die Hauptscreens durchgeführt: App-/Navigation-/Smoke-Tests sowie gezielte Screen-Suites für GitHub Repos, Connections, Diagnose, Build, Status, Settings, Credentials Wizard und App Info sind grün.
+- Test-Härtung umgesetzt: `@expo/vector-icons` wird in `jest.setup.js` für Tests stabil gemockt, um asynchrone Icon-Nebeneffekte/Warnrauschen zu reduzieren.
+- Testbarkeit der Hauptscreens verbessert: zusätzliche `testID`-Marker auf zentralen Screen-Containern und wichtigen Top-Level-Aktionen in mehreren Hauptscreens ergänzt.
+- Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog
 ### P0
@@ -42,12 +46,15 @@ Prüfe supabase
 ### P1
 - Optional den neuen Guard noch auf weitere SQL-Kontexte (`HAVING`, `ON`, `CASE`) verbreitern.
 - Prepared Migration für Legacy-Native-Sync-Indizes bei Bedarf auch live anwenden.
+- Offene Testhygiene separat untersuchen: gelegentliche Jest-Worker-Leak-Warnung trotz grüner Suites tiefer analysieren.
 
 ### P2
 - Dashboard-Settings für Auth-Sicherheit manuell nachziehen (`Leaked Password Protection`, MFA-Optionen/Enforcement), falls gewünscht.
 - Dokumentationsdrift zwischen README/Statusdateien bei nächster Doku-Runde bereinigen.
+- App-weite `testID`-Abdeckung über weitere tiefere Komponenten ausbauen, falls später echtes E2E/Detox/Playwright-ähnliches Testing gewünscht ist.
 
 ## Next tasks
 1. Optionalen Guard gegen PL/pgSQL-Mehrdeutigkeiten auf weitere SQL-Kontexte erweitern.
 2. Falls gewünscht: Legacy-Native-Sync-Index-Migration live anwenden.
 3. Falls gewünscht: Dashboard-Auth-Sicherheitsoptionen manuell einschalten.
+4. Optional: Jest-Open-Handle-/Worker-Leak-Warnung gezielt isolieren und bereinigen.
