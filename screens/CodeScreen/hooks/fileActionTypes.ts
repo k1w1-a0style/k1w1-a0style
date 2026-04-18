@@ -1,22 +1,14 @@
 // screens/CodeScreen/hooks/fileActionTypes.ts
 // Extracted from useFileActions.ts: types and constants.
 
-// screens/CodeScreen/hooks/useFileActions.ts
-// Handles: file CRUD (create, rename, move, delete, duplicate),
-//          item press / long-press logic, clipboard copy.
-import { useCallback, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { Alert } from "react-native";
 
-import * as Clipboard from "expo-clipboard";
-
 import type { TreeNode } from "../../../components/FileTree";
-import { useProject } from "../../../contexts/ProjectContext";
 
 import { validateFilePath } from "../../../lib/validators";
 
 import type { ViewMode } from "./useFileEditor";
-import { toContentString } from "./useFileEditor";
 
 // Files that are commonly extensionless and should stay that way.
 import type { ProjectFile } from "../../../shared/types/project";

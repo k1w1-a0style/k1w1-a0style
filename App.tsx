@@ -159,8 +159,6 @@ const DrawerRoot = () => {
         options={{ title: "Verbindungen", drawerLabel: "🔌 Verbindungen" }}
       />
 
-      
-
       <Drawer.Screen
         name="CredentialsWizard"
         component={CredentialsWizardScreen}

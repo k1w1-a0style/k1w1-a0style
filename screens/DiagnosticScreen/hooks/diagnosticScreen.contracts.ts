@@ -2,7 +2,7 @@ import type { MutableRefObject } from "react";
 import type { BuildMode } from "../../../components/diagnostics/ModeSelector";
 import type { TabKey } from "../../../components/diagnostics/SegmentedTabs";
 import type { IssueDetail } from "../../../components/diagnostics/IssueDetailSheet";
-import type { PreflightCheckResult, PreflightTarget } from "../../../lib/diagnostics/preflightTypes";
+import type { PreflightCheckResult } from "../../../lib/diagnostics/preflightTypes";
 import type { Status } from "../types";
 import type { ProjectData, ProjectFile } from "../../../shared/types/project";
 

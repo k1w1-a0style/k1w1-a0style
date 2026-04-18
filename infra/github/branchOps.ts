@@ -5,7 +5,7 @@ import { githubLimiter } from "./rateLimit";
 import { githubApiUrl } from "../../shared/constants/github";
 import { getGitHubToken } from "./tokenStore";
 import { fetchGitHub } from "./utils";
-import { readBooleanField, readGitHubMessage, readJsonArraySafe, readJsonRecordSafe, readNestedSha, readNumberField, readStringField } from "./githubResponseHelpers";
+import { readBooleanField, readGitHubMessage, readJsonArraySafe, readJsonRecordSafe, readNestedSha, readStringField } from "./githubResponseHelpers";
 
 export interface GitHubBranch {
   name: string;

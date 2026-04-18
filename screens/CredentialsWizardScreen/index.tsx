@@ -54,7 +54,6 @@ export default function CredentialsWizardScreen() {
           modeHint={s.modeHint}
           modes={s.MODES}
           selectedMode={s.selectedMode}
-          setSelectedMode={s.setSelectedMode}
           canRun={s.canRun}
           busy={s.busy}
           refreshStatus={s.refreshStatus}

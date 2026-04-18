@@ -1,10 +1,7 @@
 // Auto-extracted from lib/diagnostics/preflightChecks.ts
-import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
-  normalizePath, byPath, has, getText, ok, mkFix, mkJsonFix,
-  existsAny, parseJson, statusBySeverity, ensureEndsWithNewline,
-  normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
+  normalizePath, byPath, ok, mkFix,
 } from "../preflightHelpers";
 
 const GH_EXPR_REF_RE =

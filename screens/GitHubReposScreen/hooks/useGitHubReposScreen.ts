@@ -1,7 +1,7 @@
 // screens/GitHubReposScreen/hooks/useGitHubReposScreen.ts
 // REFACTORED: template data → templateFiles.ts
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Linking } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useGitHub } from "../../../contexts/GitHubContext";

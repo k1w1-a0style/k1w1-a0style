@@ -1,30 +1,8 @@
 // screens/GitHubReposScreen/hooks/templateFiles.ts
 // Extracted from useGitHubReposScreen.ts: template data + loading helpers.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Linking } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { STORAGE_KEYS } from "../../../lib/storageKeys";
-import { useGitHub } from "../../../contexts/GitHubContext";
-import { useProject } from "../../../contexts/ProjectContext";
-import {
-  createRepo,
-  pushFilesToRepo,
-  deleteRepo as deleteGitHubRepo,
-  renameRepo as renameGitHubRepo,
-  createBranch,
-  deleteBranch,
-  renameBranch,
-  createOrUpdateFile,
-  getRepoFileText,
-  getGitHubToken,
-} from "../../../infra/github/githubService";
-import { getGitHubUser } from "../../../infra/github/user";
-import { autoSyncRepoSecrets } from "../../../lib/autoSyncRepoSecrets";
-import { useGitHubRepos, GitHubRepo, WorkflowRun } from "../../../hooks/useGitHubRepos";
-import { combineRepos, splitFullName, isValidRepoName } from "../utils/repos";
-import { runTemplateHardChecklist, resolveEffectiveTemplateId } from "../../../lib/diagnostics/templates";
-import type { TemplateId, CoreTemplateId } from "../../../shared/types/project";
+import { runTemplateHardChecklist } from "../../../lib/diagnostics/templates";
+import type { CoreTemplateId } from "../../../shared/types/project";
 
 
 export type TemplateFile = { path: string; content: string };

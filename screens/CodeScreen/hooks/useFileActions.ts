@@ -12,8 +12,6 @@ import * as Clipboard from "expo-clipboard";
 import type { TreeNode } from "../../../components/FileTree";
 import { useProject } from "../../../contexts/ProjectContext";
 
-
-import type { ViewMode } from "./useFileEditor";
 import { toContentString } from "./useFileEditor";
 
 // Files that are commonly extensionless and should stay that way.

@@ -1,8 +1,7 @@
 // Auto-extracted from lib/diagnostics/preflightChecks.ts
-import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
-  normalizePath, byPath, has, getText, ok, mkFix,
+  byPath, has, getText, ok,
   existsAny,
 } from "../preflightHelpers";
 import {

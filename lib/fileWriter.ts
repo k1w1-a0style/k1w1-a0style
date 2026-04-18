@@ -1,8 +1,6 @@
 // lib/fileWriter.ts
 // REFACTORED: helpers → fileWriterHelpers.ts
 
-// lib/fileWriter.ts
-
 import { validateFileContent, validateFilePath, normalizePath } from './validators';
 
 import type { ProjectFile } from '../shared/types/project';
@@ -17,8 +15,7 @@ import type { ProjectFile } from '../shared/types/project';
  */
 
 import {
-  PROTECTED_FROM_OVERWRITE, CODE_EXTS, stripExt, dirname,
-  relativePath, buildImportSpecifiers, isLikelyCodeFile,
+  PROTECTED_FROM_OVERWRITE, isLikelyCodeFile,
   isReferencedByAnyOtherIncoming, isReferencedByAnyExisting,
 } from "./fileWriterHelpers";
 import { canActorModifyPath } from "./projectOwnership";

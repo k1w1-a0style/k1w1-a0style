@@ -1,18 +1,13 @@
 // screens/AppStatusScreen/hooks/appStatusHelpers.ts
 // Extracted from useAppStatusScreen.ts: pure parsing/analysis functions.
 
-import { useCallback, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
-
 import type { ProjectFile } from '../../../shared/types/project';
-import { useProject } from '../../../contexts/ProjectContext';
 import { normalizePath } from '../../../lib/validators';
 import type {
   BuildConfig,
   DependencyItem,
   FileTree,
   ProjectStats,
-  SectionType,
   ValidationIssue,
 } from '../types';
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";

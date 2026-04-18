@@ -305,7 +305,7 @@ export const validateSyntax = (code: string, filePath: string): SyntaxError[] =>
   return errors;
 };
 
-export const validateCodeQuality = (code: string, filePath: string): SyntaxError[] => {
+export const validateCodeQuality = (code: string, _filePath: string): SyntaxError[] => {
   const errors: SyntaxError[] = [];
   const lines = code.split('\n');
 

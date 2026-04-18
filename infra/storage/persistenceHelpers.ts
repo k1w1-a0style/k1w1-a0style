@@ -1,21 +1,14 @@
 // infra/storage/persistenceHelpers.ts
 // Extracted from projectPersistence.ts: private helper functions.
 
-// infra/storage/projectPersistence.ts (moved from contexts/projectStorage.ts)
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ProjectData, ProjectFile } from "../../shared/types/project";
+import type { ProjectFile } from "../../shared/types/project";
 import type { ChatMessage } from "../../shared/types/chat";
 import * as FileSystem from 'expo-file-system/legacy';
-import * as DocumentPicker from 'expo-document-picker';
-import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
-import { materializeProjectFiles } from "../../lib/projectMaterializer";
-import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatValidation
 import { normalizePath, Validators } from '../../lib/validators';
 
-import { zip, unzip } from 'react-native-zip-archive';
 import { logger } from "../../lib/logger";
 
 

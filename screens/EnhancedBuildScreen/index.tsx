@@ -16,7 +16,7 @@ import { WorkflowRunDetailModal } from "./components/WorkflowRunDetailModal";
 import { BuildModeDropdown, RepoInfoBadge } from "./components/RepoProfileSection";
 import { OneClickDeployCard } from "./components/OneClickDeployCard";
 import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
-import { useEnhancedBuildScreen, MAX_RUNS_DISPLAY } from "./hooks/useEnhancedBuildScreen";
+import { useEnhancedBuildScreen } from "./hooks/useEnhancedBuildScreen";
 import { useOneClickDeploy } from "./hooks/useOneClickDeploy";
 
 import { st } from "./index.styles";

@@ -1,10 +1,8 @@
 // Auto-extracted from lib/diagnostics/preflightChecks.ts
-import type { ProjectFile } from "../../../shared/types/project";
 import type { PreflightCheck } from "../preflightTypes";
 import {
-  normalizePath, byPath, has, getText, ok, mkFix, mkJsonFix,
-  existsAny, parseJson, statusBySeverity, ensureEndsWithNewline,
-  normalizeGitignoreEntry, gitignoreAppendMissing, npmrcLockfileSetting,
+  byPath, has, getText, ok, mkJsonFix,
+  parseJson,
 } from "../preflightHelpers";
 
 

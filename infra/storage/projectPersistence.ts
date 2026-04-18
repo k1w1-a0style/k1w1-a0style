@@ -1,9 +1,8 @@
 // infra/storage/projectPersistence.ts
 // REFACTORED: helpers → persistenceHelpers.ts
 
-// infra/storage/projectPersistence.ts (moved from contexts/projectStorage.ts)
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ProjectData, ProjectFile } from "../../shared/types/project";
+import type { ProjectData } from "../../shared/types/project";
 import type { ChatMessage } from "../../shared/types/chat";
 import * as FileSystem from 'expo-file-system/legacy';
 import * as DocumentPicker from 'expo-document-picker';
@@ -25,7 +24,7 @@ import {
 } from "./projectStorageCrypto";
 
 import {
-  PROJECT_STORAGE_KEY, CACHE_DIR, BINARY_EXTENSIONS,
+  PROJECT_STORAGE_KEY, CACHE_DIR,
   isBinaryFilePath, stripBase64Prefix, trimChatHistory,
   ensureChatHistoryHasIds,
   readDirectoryRecursive,

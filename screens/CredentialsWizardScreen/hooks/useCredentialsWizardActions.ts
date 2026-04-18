@@ -13,7 +13,7 @@ import {
   formatWizardBusyLabel,
   resolveWizardStatusPresentation,
 } from "../statusContract";
-import { runGenerateAction, runStatusRefreshAction } from "./wizardEdgeActions";
+import { runGenerateAction } from "./wizardEdgeActions";
 
 export const useCredentialsWizardActions = (params: {
   supabaseUrl: string;

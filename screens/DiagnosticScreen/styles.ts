@@ -4,8 +4,6 @@
 import { StyleSheet } from "react-native";
 import { theme } from "../../theme";
 
-const HAIRLINE = StyleSheet.hairlineWidth;
-
 export const styles = StyleSheet.create({
   screen: {
     flex: 1,

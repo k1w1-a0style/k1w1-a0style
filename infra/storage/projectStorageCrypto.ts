@@ -115,8 +115,19 @@ export async function encryptProjectStoragePayload(plaintext: string): Promise<s
   return JSON.stringify(payload);
 }
 
+function parseProjectStorageJson(serialized: string): unknown {
+  try {
+    return JSON.parse(serialized) as unknown;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Projektzustand konnte nicht gelesen werden: kein gültiges JSON (${reason}).`,
+    );
+  }
+}
+
 export async function decryptProjectStoragePayload(serialized: string): Promise<string> {
-  const parsed = JSON.parse(serialized) as unknown;
+  const parsed = parseProjectStorageJson(serialized);
   if (!isEncryptedProjectStoragePayload(parsed)) {
     throw new Error("Projektzustand ist nicht im erwarteten verschlüsselten Format gespeichert.");
   }
@@ -137,7 +148,7 @@ export async function deserializeProjectStoragePayload(serialized: string): Prom
   projectString: string;
   migratedFromPlaintext: boolean;
 }> {
-  const parsed = JSON.parse(serialized) as unknown;
+  const parsed = parseProjectStorageJson(serialized);
   if (isEncryptedProjectStoragePayload(parsed)) {
     const projectString = await decryptProjectStoragePayload(serialized);
     return { projectString, migratedFromPlaintext: false };

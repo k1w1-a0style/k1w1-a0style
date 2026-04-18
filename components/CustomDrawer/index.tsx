@@ -12,7 +12,7 @@ import { useProject } from "../../contexts/ProjectContext";
 import { theme } from "../../theme";
 
 import { PulseDot } from "./PulseDot";
-import { styles, HAIRLINE } from "./styles";
+import { styles } from "./styles";
 
 function getProfileChipValue(projectData: unknown): string | null {
   if (!projectData || typeof projectData !== "object") return null;

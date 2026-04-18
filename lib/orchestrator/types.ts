@@ -1,8 +1,6 @@
 // lib/orchestrator/types.ts
 // Shared types for the orchestrator module.
 
-import type { AllAIProviders } from '../../contexts/AIContext';
-
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
