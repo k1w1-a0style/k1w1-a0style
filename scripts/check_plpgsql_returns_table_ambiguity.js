@@ -82,7 +82,7 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  console.log("PL/pgSQL RETURNS TABLE ambiguity guard passed.");
+  process.stdout.write("PL/pgSQL RETURNS TABLE ambiguity guard passed.\n");
 }
 
 module.exports = {
