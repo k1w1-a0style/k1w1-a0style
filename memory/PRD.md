@@ -43,6 +43,7 @@ Prüfe supabase
 - Weitere Happy-/Error-Path-Tests ergänzt: Navigation aus dem `Connections`-Statuscard-Shortcut sowie der gesperrte Recovery-CTA im `EnhancedBuildScreen` sind jetzt explizit getestet.
 - Stabilitätsprüfung vertieft: `--detectOpenHandles` lief im erweiterten Scope sauber; eine zuvor beobachtete Worker-/Handle-Warnung ließ sich in diesem erweiterten Prüfpfad nicht hart reproduzieren.
 - Breitere Regressionskette nachgezogen: neue Flow-Regression deckt jetzt explizit die Route `Connections → Build` sowie den Recovery-Pfad `Build → Diagnostic (autoRun)` ab.
+- Preview-Happy-/Error-Paths weiter vertieft: neue Screen-Flow-Tests decken jetzt `PreviewScreen` (Toolbar + Bottom Actions + Empty State) und `PreviewFullscreenScreen` (Guard-State + gültige URL-Aktionen) zusätzlich zu den bestehenden Preview-Guard-/Contract-Tests ab.
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog
