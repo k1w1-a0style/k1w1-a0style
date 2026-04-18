@@ -3,6 +3,16 @@ set -euo pipefail
 
 CONFIG="supabase/config.toml"
 
+if [ ! -f "$CONFIG" ]; then
+  echo "[FAIL] Missing config file: $CONFIG" >&2
+  exit 1
+fi
+
+if ! head -c 1 "$CONFIG" >/dev/null 2>&1; then
+  echo "[FAIL] Config file is not readable: $CONFIG" >&2
+  exit 1
+fi
+
 legacy=(
   "trigger-lint"
   "check-lint"
@@ -10,6 +20,7 @@ legacy=(
   "check-native-sync"
   "native-sync-report"
   "native-sync-report-ingest"
+  "create_codesandbox"
 )
 
 for fn in "${legacy[@]}"; do
