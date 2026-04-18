@@ -112,7 +112,7 @@ const ChatComposer: React.FC<Props> = ({
         {isStagedPendingPlan && (
           <View
             style={[styles.guardBadge, styles.guardBadgeStaged]}
-            accessibilityLabel="Stufenmodus aktiv: wartet auf Block 1"
+            accessibilityLabel={`Stufenmodus aktiv: wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
           >
             <Text style={styles.guardBadgeText}>
               {`Stufenmodus · wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
