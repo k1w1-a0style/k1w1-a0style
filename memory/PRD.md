@@ -29,20 +29,25 @@ Prüfe supabase
 - Danach wurde der SQL-Fix vom Nutzer im Supabase-Dashboard angewendet.
 - Abschließende Live-Prüfung erfolgreich: `scripts/check_edge_live_contracts.sh` ist jetzt komplett grün (`k1w1-handler`, `preview_page`, `save_preview`).
 - Abschließende Vollprüfung erfolgreich: `npm run verify:release` läuft jetzt mit Live-Contracts und endet auf `OK_FULL` ohne verbleibenden Live-SKIP.
+- Zusätzlicher Repo-Guard umgesetzt: `scripts/check_plpgsql_returns_table_ambiguity.js` prüft die neuesten `RETURNS TABLE`-Funktionen auf potenziell mehrdeutige unqualifizierte Ausgabespalten in Prädikaten.
+- Release-Gate erweitert: `verify:release` führt den neuen PL/pgSQL-Guard jetzt verbindlich aus.
+- Zusätzliche Regression ergänzt: `__tests__/plpgsqlReturnsTableAmbiguityGuard.test.ts` validiert Guard + Release-Wiring.
+- Index-Hygiene vorbereitet: neue Migration `supabase/migrations/20260418183000_drop_unused_native_sync_indexes.sql` entfernt genau drei ungenutzte Legacy-Native-Sync-Indizes im Repo-Vertrag.
+- Supabase-Auth-Härtung fachlich geprüft: Die aktuell sichtbaren Punkte `Leaked Password Protection` und zusätzliche MFA-Optionen sind laut offizieller Doku für gehostete Projekte Dashboard-/Produkt-Settings und in diesem Setup nicht sauber über die öffentliche Management-API automatisierbar.
 
 ## Prioritized backlog
 ### P0
 - Keine offenen P0-Blocker mehr aus diesem Supabase-Fehler.
 
 ### P1
-- Optional einen zusätzlichen DB-/Repo-Check ergänzen, der mehrdeutige Bezeichner in `RETURNS TABLE`-PL/pgSQL-RPCs früh erkennt.
-- Unbenutzte Indizes aus den Supabase-Performance-Advisors fachlich bewerten statt blind zu entfernen.
+- Optional den neuen Guard noch auf weitere SQL-Kontexte (`HAVING`, `ON`, `CASE`) verbreitern.
+- Prepared Migration für Legacy-Native-Sync-Indizes bei Bedarf auch live anwenden.
 
 ### P2
-- Auth-Sicherheitsoptionen in Supabase prüfen (`Leaked Password Protection`, zusätzliche MFA-Methoden).
+- Dashboard-Settings für Auth-Sicherheit manuell nachziehen (`Leaked Password Protection`, MFA-Optionen/Enforcement), falls gewünscht.
 - Dokumentationsdrift zwischen README/Statusdateien bei nächster Doku-Runde bereinigen.
 
 ## Next tasks
-1. Optionalen Guard gegen PL/pgSQL-Mehrdeutigkeiten in weiteren RPC-Migrationen ergänzen.
-2. Security-Advisors für Auth-Härtung prüfen (Leaked Password Protection, MFA-Optionen).
-3. Performance-Advisors zu unbenutzten Indizes fachlich sichten.
+1. Optionalen Guard gegen PL/pgSQL-Mehrdeutigkeiten auf weitere SQL-Kontexte erweitern.
+2. Falls gewünscht: Legacy-Native-Sync-Index-Migration live anwenden.
+3. Falls gewünscht: Dashboard-Auth-Sicherheitsoptionen manuell einschalten.
