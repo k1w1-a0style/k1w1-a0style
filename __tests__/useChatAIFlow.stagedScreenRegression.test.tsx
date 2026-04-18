@@ -189,4 +189,92 @@ describe("useChatAIFlow staged screen-near regressions", () => {
     expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(3);
     expect(flow.result.current.pendingChange).not.toBeNull();
   });
+
+  it("handles abort during in-flight auto-continue and allows clean staged restart", async () => {
+    let pendingBlock2Resolver: ((value: boolean) => void) | null = null;
+    let block2Attempts = 0;
+
+    mockedUseChatAIRequestController.mockImplementation((args) => {
+      return async (userContent: string, _isAutoFix?: boolean, forceBuilder?: boolean) => {
+        if (!forceBuilder && userContent === "start staged flow") {
+          args.setPendingPlan({
+            originalRequest: "start staged flow",
+            planText: "Block 1\nBlock 2\nBlock 3",
+            mode: "staged",
+            stagedLastBlockIndex: 0,
+            stagedNextBlockIndex: 1,
+            stagedTotalBlocks: 3,
+          });
+          return true;
+        }
+
+        if (forceBuilder && userContent.includes("Nur Block 1 umsetzen")) {
+          args.setPendingChange(makePendingChange("export default function App(){return null;}"));
+          return true;
+        }
+
+        if (forceBuilder && userContent.includes("Nur Block 2 umsetzen")) {
+          block2Attempts += 1;
+          return await new Promise<boolean>((resolve) => {
+            pendingBlock2Resolver = resolve;
+          });
+        }
+
+        return false;
+      };
+    });
+
+    const flow = renderFlow();
+
+    await act(async () => {
+      await flow.result.current.handleSendWithMeta("start staged flow");
+    });
+    await act(async () => {
+      await flow.result.current.handleSendWithMeta("weiter");
+    });
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(flow.result.current.pendingChange).not.toBeNull();
+
+    let applyPromise: Promise<void> | null = null;
+    act(() => {
+      applyPromise = flow.result.current.applyChanges();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(flow.updateProjectFiles).toHaveBeenCalled();
+    expect(block2Attempts).toBe(1);
+    expect(pendingBlock2Resolver).not.toBeNull();
+
+    act(() => {
+      flow.result.current.abortCurrentRequest();
+    });
+
+    expect(flow.result.current.pendingPlan).toBeNull();
+    expect(flow.result.current.pendingChange).toBeNull();
+    expect(flow.addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("Anfrage manuell abgebrochen"),
+      }),
+    );
+
+    await act(async () => {
+      pendingBlock2Resolver?.(false);
+      await applyPromise;
+    });
+
+    await act(async () => {
+      await flow.result.current.handleSendWithMeta("start staged flow");
+    });
+    await act(async () => {
+      await flow.result.current.handleSendWithMeta("weiter");
+    });
+
+    expect(block2Attempts).toBe(1);
+    expect(flow.result.current.pendingPlan?.mode).toBe("staged");
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(flow.result.current.pendingChange).not.toBeNull();
+  });
 });
