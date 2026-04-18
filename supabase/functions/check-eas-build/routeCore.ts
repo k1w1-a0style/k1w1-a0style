@@ -117,6 +117,7 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
     const job = res.data as BuildJobRow;
     let reconciledStatus: "completed" | "error" | null = null;
     let reconciledFromGitHub = false;
+    let reconciledPatch: Record<string, unknown> | null = null;
     const reconciliationInfo: ReconciliationInfo = { attempted: false, reconciled: false, upstream_status: null, upstream_error: null };
 
     if (job.github_repo && job.github_run_id) {
@@ -135,29 +136,34 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
           reconciledStatus = reconciliation.nextStatus;
           reconciledFromGitHub = true;
           reconciliationInfo.reconciled = true;
+          reconciledPatch = reconciliation.patch;
           await supabase.from("build_jobs").update(reconciliation.patch).eq("id", job.id);
         }
       }
     }
 
-    const githubRunUrl = job.github_run_id && job.github_repo
-      ? `https://github.com/${job.github_repo}/actions/runs/${job.github_run_id}`
+    const effectiveJob = reconciledPatch
+      ? ({ ...job, ...reconciledPatch } as BuildJobRow)
+      : job;
+
+    const githubRunUrl = effectiveJob.github_run_id && effectiveJob.github_repo
+      ? `https://github.com/${effectiveJob.github_repo}/actions/runs/${effectiveJob.github_run_id}`
       : null;
     const artifactsUrl = githubRunUrl ? `${githubRunUrl}#artifacts` : null;
-    const downloadUrl = typeof job.download_url === "string" && job.download_url.trim() ? job.download_url.trim() : null;
-    const buildUrl = typeof job.build_url === "string" && job.build_url.trim() ? job.build_url.trim() : null;
-    const errorMessageRaw = typeof job.error_message === "string" && job.error_message.trim()
-      ? job.error_message.trim()
-      : typeof job.error === "string" && job.error.trim() ? job.error.trim() : null;
+    const downloadUrl = typeof effectiveJob.download_url === "string" && effectiveJob.download_url.trim() ? effectiveJob.download_url.trim() : null;
+    const buildUrl = typeof effectiveJob.build_url === "string" && effectiveJob.build_url.trim() ? effectiveJob.build_url.trim() : null;
+    const errorMessageRaw = typeof effectiveJob.error_message === "string" && effectiveJob.error_message.trim()
+      ? effectiveJob.error_message.trim()
+      : typeof effectiveJob.error === "string" && effectiveJob.error.trim() ? effectiveJob.error.trim() : null;
     const errorMessage = errorMessageRaw ? sanitizeErrorText(errorMessageRaw) : null;
-    const sourceCommitSha = typeof job.source_commit_sha === "string" && job.source_commit_sha.trim()
-      ? job.source_commit_sha.trim()
+    const sourceCommitSha = typeof effectiveJob.source_commit_sha === "string" && effectiveJob.source_commit_sha.trim()
+      ? effectiveJob.source_commit_sha.trim()
       : null;
-    const artifact = typeof job.artifact_name === "string" && job.artifact_name.trim()
+    const artifact = typeof effectiveJob.artifact_name === "string" && effectiveJob.artifact_name.trim()
       ? {
-        name: job.artifact_name,
-        sha256: typeof job.artifact_sha256 === "string" ? job.artifact_sha256 : null,
-        size: typeof job.artifact_size === "number" ? job.artifact_size : null,
+        name: effectiveJob.artifact_name,
+        sha256: typeof effectiveJob.artifact_sha256 === "string" ? effectiveJob.artifact_sha256 : null,
+        size: typeof effectiveJob.artifact_size === "number" ? effectiveJob.artifact_size : null,
       }
       : null;
     const urls = {
@@ -169,29 +175,29 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
 
     return jsonResponse({
       ok: true,
-      status: reconciledStatus ?? job.status ?? null,
+      status: reconciledStatus ?? effectiveJob.status ?? null,
       reconciled_from_github: reconciledFromGitHub,
       reconciliation: reconciliationInfo,
-      runId: job.github_run_id ?? null,
+      runId: effectiveJob.github_run_id ?? null,
       build_url: buildUrl,
       download_url: downloadUrl,
       source_commit_sha: sourceCommitSha,
       urls,
       job: {
-        id: job.id,
-        status: reconciledStatus ?? job.status,
-        github_repo: job.github_repo ?? null,
-        github_run_id: job.github_run_id ?? null,
-        build_profile: job.build_profile ?? null,
-        branch: job.branch ?? null,
+        id: effectiveJob.id,
+        status: reconciledStatus ?? effectiveJob.status,
+        github_repo: effectiveJob.github_repo ?? null,
+        github_run_id: effectiveJob.github_run_id ?? null,
+        build_profile: effectiveJob.build_profile ?? null,
+        branch: effectiveJob.branch ?? null,
         build_url: buildUrl,
         download_url: downloadUrl,
         source_commit_sha: sourceCommitSha,
         urls,
         artifact,
         error_message: errorMessage,
-        created_at: job.created_at ?? null,
-        updated_at: job.updated_at ?? null,
+        created_at: effectiveJob.created_at ?? null,
+        updated_at: effectiveJob.updated_at ?? null,
       },
     }, req, 200);
   } catch (e: unknown) {
