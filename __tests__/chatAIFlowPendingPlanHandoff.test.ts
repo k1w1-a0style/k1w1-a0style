@@ -13,6 +13,12 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     mode: "scout" as const,
   };
 
+  const stagedPlan = {
+    originalRequest: "großes refactoring",
+    planText: "staged plan",
+    mode: "staged" as const,
+  };
+
   it("holds advice plans without proceed command", () => {
     const result = resolvePendingPlanHandoff({
       currentPlan: advicePlan,
@@ -48,6 +54,29 @@ describe("chatAIFlowPendingPlanHandoff", () => {
       expect(forwardResult.combinedRequest).toContain("Planer-Ausgabe");
       expect(forwardResult.combinedRequest).toContain("dateien bauen");
       expect(forwardResult.combinedRequest).toContain("scout plan");
+    }
+  });
+
+  it("holds staged plans until block-1/proceed command is present", () => {
+    const holdResult = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "später",
+      sanitizedAiContent: "später",
+      isDirectBuildCommand: () => false,
+    });
+    expect(holdResult.kind).toBe("hold");
+
+    const forwardResult = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "block 1",
+      sanitizedAiContent: "los gehts",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(forwardResult.kind).toBe("forward");
+    if (forwardResult.kind === "forward") {
+      expect(forwardResult.combinedRequest).toContain("staged plan");
+      expect(forwardResult.combinedRequest).toContain("(User sagt: weiter)");
     }
   });
 

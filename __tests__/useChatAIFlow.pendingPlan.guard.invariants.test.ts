@@ -25,6 +25,12 @@ describe("useChatAIFlow pending plan guard invariants", () => {
     expect(routingHelpersSrc).toContain("Scout-Modus aktiv");
   });
 
+  it("keeps staged-mode guard coupled to block-1/proceed confirmation", () => {
+    expect(routingHelpersSrc).toContain('if (mode === "staged" && !wantsProceed && !wantsDirectBuild)');
+    expect(routingHelpersSrc).toContain('normalizedInput === "block 1"');
+    expect(routingHelpersSrc).toContain("Stufenmodus aktiv");
+  });
+
   it("uses the same direct-build helper for scout handoff and metrics", () => {
     expect(requestControllerSrc).toContain("isDirectBuildCommand(normalizedIntentReply)");
     expect(orchestratorSrc).toContain("resolvePendingPlanHandoff({");

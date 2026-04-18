@@ -20,6 +20,8 @@ describe("chatAIFlowInputRoutingHelpers", () => {
   it("recognizes proceed commands used for advice-mode handoff", () => {
     expect(isProceedCommand("weiter")).toBe(true);
     expect(isProceedCommand("mach weiter")).toBe(true);
+    expect(isProceedCommand("block 1")).toBe(true);
+    expect(isProceedCommand("block1")).toBe(true);
     expect(isProceedCommand("ok")).toBe(true);
     expect(isProceedCommand("ja")).toBe(true);
     expect(isProceedCommand("go")).toBe(true);
@@ -49,6 +51,14 @@ describe("chatAIFlowInputRoutingHelpers", () => {
       wantsProceed: true,
     });
     expect(release).toEqual({ hold: false, message: null });
+
+    const staged = shouldHoldPendingPlan({
+      mode: "staged",
+      wantsDirectBuild: false,
+      wantsProceed: false,
+    });
+    expect(staged.hold).toBe(true);
+    expect(staged.message).toContain("Stufenmodus aktiv");
   });
 
   it("builds combined follow-up payload with explicit proceed marker", () => {

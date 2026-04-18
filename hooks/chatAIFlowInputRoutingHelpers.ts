@@ -25,6 +25,8 @@ export const isProceedCommand = (normalizedInput: string): boolean => {
   return (
     normalizedInput === "weiter" ||
     normalizedInput === "mach weiter" ||
+    normalizedInput === "block 1" ||
+    normalizedInput === "block1" ||
     normalizedInput === "ok" ||
     normalizedInput === "ja" ||
     normalizedInput === "go"
@@ -54,6 +56,15 @@ export const shouldHoldPendingPlan = ({
       hold: true,
       message:
         'Alles klar. Wenn du willst, kann ich das direkt umsetzen – sag einfach **„weiter"** oder nenn die Features.',
+    };
+  }
+
+  if (mode === "staged" && !wantsProceed && !wantsDirectBuild) {
+    return {
+      hold: true,
+      message:
+        "🧩 **Stufenmodus aktiv:** Ich setze große Aufgaben blockweise um.\n\n" +
+        'Starte mit **„block 1"** oder **„weiter"**, dann liefere ich nur den ersten Teilpatch.',
     };
   }
 
