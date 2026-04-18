@@ -80,4 +80,19 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     }
   });
 
+  it("forwards staged plans with explicit block focus when user requests block 2", () => {
+    const forwardResult = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "block 2",
+      sanitizedAiContent: "setz block 2 um",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(forwardResult.kind).toBe("forward");
+    if (forwardResult.kind === "forward") {
+      expect(forwardResult.combinedRequest).toContain("Block-Fokus");
+      expect(forwardResult.combinedRequest).toContain("Nur Block 2 umsetzen");
+    }
+  });
+
 });

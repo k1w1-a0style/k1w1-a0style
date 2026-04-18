@@ -1,4 +1,4 @@
-import { buildPendingPlanCombinedRequest, isProceedCommand, shouldHoldPendingPlan } from "./chatAIFlowInputRoutingHelpers";
+import { buildPendingPlanCombinedRequest, isProceedCommand, readRequestedBlockIndex, shouldHoldPendingPlan } from "./chatAIFlowInputRoutingHelpers";
 import type { PendingPlan } from "./chatAIFlowTypes";
 
 export type PendingPlanHandoffResult =
@@ -23,6 +23,7 @@ export const resolvePendingPlanHandoff = ({
   isDirectBuildCommand: (input: string) => boolean;
 }): PendingPlanHandoffResult => {
   const lower = sanitizedUserContent.trim().toLowerCase();
+  const requestedBlockIndex = readRequestedBlockIndex(lower);
   const wantsDirectBuild = isDirectBuildCommand(lower);
   const wantsProceed = isProceedCommand(lower);
   const holdDecision = shouldHoldPendingPlan({
@@ -44,6 +45,7 @@ export const resolvePendingPlanHandoff = ({
       currentPlan,
       sanitizedAiContent,
       wantsProceed,
+      requestedBlockIndex,
     }),
   };
 };

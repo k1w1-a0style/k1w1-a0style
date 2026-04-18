@@ -1,5 +1,7 @@
 import type { PendingPlan } from "./chatAIFlowTypes";
 
+const BLOCK_COMMAND_RE = /^block\s*(\d+)$/i;
+
 export const getNormalizedSendInputs = (
   rawInput: string,
   aiInput?: string,
@@ -22,15 +24,22 @@ export const getNormalizedSendInputs = (
 };
 
 export const isProceedCommand = (normalizedInput: string): boolean => {
+  if (BLOCK_COMMAND_RE.test(normalizedInput)) return true;
   return (
     normalizedInput === "weiter" ||
     normalizedInput === "mach weiter" ||
-    normalizedInput === "block 1" ||
-    normalizedInput === "block1" ||
     normalizedInput === "ok" ||
     normalizedInput === "ja" ||
     normalizedInput === "go"
   );
+};
+
+export const readRequestedBlockIndex = (normalizedInput: string): number | null => {
+  const match = normalizedInput.match(BLOCK_COMMAND_RE);
+  if (!match?.[1]) return null;
+  const parsed = Number(match[1]);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.trunc(parsed);
 };
 
 export const shouldHoldPendingPlan = ({
@@ -75,15 +84,23 @@ export const buildPendingPlanCombinedRequest = ({
   currentPlan,
   sanitizedAiContent,
   wantsProceed,
+  requestedBlockIndex,
 }: {
   currentPlan: PendingPlan;
   sanitizedAiContent: string;
   wantsProceed: boolean;
+  requestedBlockIndex?: number | null;
 }): string => {
+  const blockDirective =
+    currentPlan.mode === "staged" && requestedBlockIndex && requestedBlockIndex > 0
+      ? `\n\n---\nBlock-Fokus:\nNur Block ${requestedBlockIndex} umsetzen.`
+      : "";
+
   return (
     currentPlan.originalRequest +
     "\n\n---\nPlaner-Ausgabe:\n" +
     currentPlan.planText +
+    blockDirective +
     "\n\n---\nNutzer-Antwort/Details:\n" +
     (wantsProceed ? "(User sagt: weiter)" : sanitizedAiContent)
   );

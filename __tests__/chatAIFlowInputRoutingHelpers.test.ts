@@ -2,6 +2,7 @@ import {
   buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
   isProceedCommand,
+  readRequestedBlockIndex,
   shouldHoldPendingPlan,
 } from "../hooks/chatAIFlowInputRoutingHelpers";
 
@@ -22,10 +23,19 @@ describe("chatAIFlowInputRoutingHelpers", () => {
     expect(isProceedCommand("mach weiter")).toBe(true);
     expect(isProceedCommand("block 1")).toBe(true);
     expect(isProceedCommand("block1")).toBe(true);
+    expect(isProceedCommand("block 12")).toBe(true);
     expect(isProceedCommand("ok")).toBe(true);
     expect(isProceedCommand("ja")).toBe(true);
     expect(isProceedCommand("go")).toBe(true);
     expect(isProceedCommand("nein")).toBe(false);
+  });
+
+  it("parses requested block index from normalized block commands", () => {
+    expect(readRequestedBlockIndex("block 1")).toBe(1);
+    expect(readRequestedBlockIndex("block1")).toBe(1);
+    expect(readRequestedBlockIndex("block 12")).toBe(12);
+    expect(readRequestedBlockIndex("weiter")).toBeNull();
+    expect(readRequestedBlockIndex("block x")).toBeNull();
   });
 
   it("holds pending plan for scout/advice modes when confirmation is missing", () => {
@@ -87,5 +97,21 @@ describe("chatAIFlowInputRoutingHelpers", () => {
 
     expect(combinedWithDetails).toContain("Bitte nur Header ändern");
     expect(combinedWithDetails).not.toContain("(User sagt: weiter)");
+  });
+
+  it("adds explicit block focus section for staged plans when block command is given", () => {
+    const combined = buildPendingPlanCombinedRequest({
+      currentPlan: {
+        originalRequest: "Große Aufgabe",
+        planText: "Blockplan",
+        mode: "staged",
+      },
+      sanitizedAiContent: "block 2 bitte",
+      wantsProceed: false,
+      requestedBlockIndex: 2,
+    });
+
+    expect(combined).toContain("Block-Fokus");
+    expect(combined).toContain("Nur Block 2 umsetzen");
   });
 });
