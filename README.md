@@ -85,7 +85,6 @@ EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<e
 
 - keine stillen Repo-/Branch-Fallbacks in produktiven Deploy-/Build-Pfaden
 - Build-/Workflow-/Artifact-Routen bleiben fail-closed und explizit auth-/scope-gebunden
-- `create_codesandbox` ist deaktiviert und **kein** aktiver Produktpfad mehr
 - `docs/patches/*` bleibt append-only Historie, nicht aktive Produktdoku
 
 ## Hinweis zur Historie

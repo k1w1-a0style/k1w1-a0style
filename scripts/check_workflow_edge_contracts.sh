@@ -66,7 +66,6 @@ KEYSTORE_GENERATE_EDGE="supabase/functions/android-keystore-generate/index.ts"
 KEYSTORE_STATUS_EDGE="supabase/functions/android-keystore-status/index.ts"
 DISPATCH_EDGE="supabase/functions/github-workflow-dispatch/index.ts"
 K1W1_HANDLER_EDGE="supabase/functions/k1w1-handler/index.ts"
-CREATE_CODESANDBOX_EDGE="supabase/functions/create_codesandbox/index.ts"
 SAVE_PREVIEW_EDGE="supabase/functions/save_preview/index.ts"
 LEGACY_TEST_EDGE="supabase/functions/test/index.ts"
 GH_WORKFLOWS_INFRA="infra/github/workflows.ts"
@@ -102,7 +101,7 @@ KEYSTORE_EXPORT_CONFIG="supabase/functions/android-keystore-export/config.toml"
 KEYSTORE_GENERATE_LOCAL_CONFIG="supabase/functions/android-keystore-generate/config.toml"
 KEYSTORE_STATUS_LOCAL_CONFIG="supabase/functions/android-keystore-status/config.toml"
 
-for f in "$TRIGGER_EDGE" "$TRIGGER_FLOW" "$TRIGGER_ROUTE_CORE" "$CHECK_EDGE" "$CHECK_ROUTE_CORE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$CREATE_CODESANDBOX_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$PREVIEW_CREATION_HELPER" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
+for f in "$TRIGGER_EDGE" "$TRIGGER_FLOW" "$TRIGGER_ROUTE_CORE" "$CHECK_EDGE" "$CHECK_ROUTE_CORE" "$ARTIFACT_EDGE" "$RUNS_EDGE" "$LOGS_EDGE" "$KEYSTORE_EDGE" "$KEYSTORE_GENERATE_EDGE" "$KEYSTORE_STATUS_EDGE" "$DISPATCH_EDGE" "$K1W1_HANDLER_EDGE" "$SAVE_PREVIEW_EDGE" "$LEGACY_TEST_EDGE" "$GH_WORKFLOWS_INFRA" "$GH_FILES_INFRA" "$GH_FILES_GITDATA_INFRA" "$GH_FILES_SHARED_INFRA" "$GH_BRANCHOPS_INFRA" "$TRIGGER_WF" "$EAS_WF" "$EDGE_STATUS_DOC" "$BUILD_READINESS_DOC" "$RISK_HOTSPOTS_DOC" "$AUTH_SHARED" "$AUTH_SHARED_JWT" "$AUTH_SHARED_SCOPED" "$AUTH_SHARED_RUNTIME" "$AUTH_SHARED_ADMIN" "$WIZARD_HELPERS" "$WIZARD_HOOK" "$SIGNING_GATE" "$PREVIEW_HOOK" "$PREVIEW_CREATION_HELPER" "$CI_LITE_MODAL" "$BUILD_START_SERVICE" "$BUILD_POLLING_SERVICE" "$WORKFLOW_LOGS_HOOK" "$CI_LITE_WORKFLOW_HOOK" "$ROOT_CONFIG" "$CI_LITE_ENV_LOAD" "$CI_LITE_SMOKE"; do
   require_file "$f"
 done
 
@@ -172,12 +171,6 @@ require_fixed "$KEYSTORE_STATUS_EDGE" 'requirePrivilegedOperatorJwtRole(req, "an
 forbid_fixed "$K1W1_HANDLER_EDGE" 'requireScopedEdgeAuth(req, {'
 forbid_fixed "$K1W1_HANDLER_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
 forbid_fixed "$K1W1_HANDLER_EDGE" 'x-k1w1-admin-key'
-require_fixed "supabase/config.toml" '[functions.create_codesandbox]'
-require_fixed "supabase/config.toml" 'enabled = false'
-forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'requireScopedEdgeAuth(req, {'
-forbid_fixed "$CREATE_CODESANDBOX_EDGE" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
-require_fixed "$CREATE_CODESANDBOX_EDGE" 'status: 410'
-require_fixed "$CREATE_CODESANDBOX_EDGE" 'legacy_create_codesandbox_disabled'
 require_fixed "$SAVE_PREVIEW_EDGE" 'requireVerifiedJwt(req, "save_preview")'
 forbid_fixed "$SAVE_PREVIEW_EDGE" 'requireScopedEdgeAuth(req, {'
 forbid_fixed "$SAVE_PREVIEW_EDGE" 'x-k1w1-admin-key'

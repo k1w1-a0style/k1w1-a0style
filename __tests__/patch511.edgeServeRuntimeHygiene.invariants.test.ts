@@ -5,7 +5,6 @@ const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "ut
 
 const migratedEntryFiles = [
   "supabase/functions/check-eas-build/index.ts",
-  "supabase/functions/create_codesandbox/index.ts",
   "supabase/functions/github-workflow-dispatch/index.ts",
   "supabase/functions/github-workflow-logs/index.ts",
   "supabase/functions/github-workflow-runs/index.ts",
@@ -16,7 +15,6 @@ const migratedEntryFiles = [
 ] as const;
 
 const cleanedHelperFiles = [
-  "supabase/functions/create_codesandbox/helpers.ts",
   "supabase/functions/github-workflow-logs/helpers.ts",
   "supabase/functions/k1w1-handler/helpers.ts",
   "supabase/functions/preview_page/helpers.ts",

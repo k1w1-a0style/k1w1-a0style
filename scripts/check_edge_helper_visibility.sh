@@ -43,7 +43,6 @@ check_contains "supabase/functions/android-keystore-generate/helpers.ts" 'requir
 check_contains "supabase/functions/android-keystore-status/helpers.ts" 'requireScopedEdgeAuth'
 check_contains "supabase/functions/android-keystore-status/helpers.ts" 'requirePrivilegedOperatorJwtRole'
 
-# create_codesandbox is intentionally reduced to a disabled legacy stub; helper visibility
-# checks focus on active/shared helper surfaces only.
+# legacy helper visibility checks focus on active/shared helper surfaces only.
 
 echo "Edge helper visibility check passed."

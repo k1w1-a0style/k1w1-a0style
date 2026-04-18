@@ -30,7 +30,7 @@ Dieses Repo enthaelt **die Builder-App**, nicht den Android-Build selbst. Die Ap
 - produktive Workflow-/Build-/Artifact-/Keystore-Routen sind fail-closed und auth-/scope-gebunden
 - `k1w1-handler` laeuft im aktuellen Repo-Stand auf verified JWT + Claim, ohne lokalen Legacy-Admin-Key als Produktvertrag
 - `save_preview` nutzt einen verifizierten Login-JWT-Vertrag; `preview_page` bleibt bewusst public secret-link
-- `create_codesandbox` ist deaktiviert und nur noch historischer Compat-Kontext
+- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` sind repo-seitig entfernt
 
 ## Bewusst ausserhalb des Repos
 

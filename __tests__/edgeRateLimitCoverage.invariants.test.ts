@@ -21,15 +21,5 @@ describe("edge durable rate-limit coverage for sensitive routes", () => {
     expect(src).toContain('rateLimit(req, "android-keystore-status", 60, 60_000)');
   });
 
-  it("keeps create_codesandbox disabled as a legacy sunset stub", () => {
-    const src = read("supabase/functions/create_codesandbox/index.ts");
-    const cfg = read("supabase/config.toml");
-    expect(cfg).toContain("[functions.create_codesandbox]");
-    expect(cfg).toContain("enabled = false");
-    expect(src).toContain('if (req.method === "OPTIONS")');
-    expect(src).toContain('status: 410');
-    expect(src).toContain('legacy_create_codesandbox_disabled');
-    expect(src).not.toContain('requireDurableRateLimit(req, {');
-    expect(src).not.toContain('requireScopedEdgeAuth(req, {');
-  });
+
 });

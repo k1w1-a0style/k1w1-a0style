@@ -17,7 +17,7 @@ k1w1-a0style fuehrt Operatoren durch eine stabile Kette:
 - keine offenen bestaetigten Repo-Muss-Punkte im aktuell geprueften Stand
 - produktive Deploy-/Workflow-Flows bleiben explizit ref-gesteuert
 - Build-/Workflow-/Artifact-/Keystore-Routen bleiben fail-closed und auth-/scope-gebunden
-- `create_codesandbox` ist deaktiviert und **kein** aktiver Produktpfad mehr
+- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` sind repo-seitig entfernt
 
 ## Source of Truth
 

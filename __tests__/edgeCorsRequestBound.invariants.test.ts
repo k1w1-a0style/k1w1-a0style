@@ -68,36 +68,6 @@ describe("Edge request-bound CORS hardening", () => {
     expect(read("supabase/functions/github-workflow-logs/helpers.ts")).toContain("errorResponse(error, req, status, details)");
   });
 
-  it("removes wildcard CORS usage from the remaining legacy edge stubs in scope", () => {
-    const disabledLegacyFiles = [
-      "supabase/functions/check-lint/index.ts",
-      "supabase/functions/trigger-lint/index.ts",
-      "supabase/functions/check-native-sync/index.ts",
-      "supabase/functions/trigger-native-sync/index.ts",
-      "supabase/functions/native-sync-report/index.ts",
-      "supabase/functions/native-sync-report-ingest/index.ts",
-    ];
-
-    for (const rel of disabledLegacyFiles) {
-      const src = read(rel);
-      expect(src).not.toContain('"Access-Control-Allow-Origin": "*"');
-      expect(src).not.toMatch(/\bcorsHeaders\b/);
-      expect(src).toContain("handleCors(req)");
-      expect(src).toContain("status: 410");
-      expect(src).toContain("corsHeadersForRequest(req)");
-    }
-
-    const testStub = read("supabase/functions/test/index.ts");
-    expect(testStub).not.toContain('"Access-Control-Allow-Origin": "*"');
-    expect(testStub).not.toMatch(/\bcorsHeaders\b/);
-    expect(testStub).toContain("handleCors(req)");
-    expect(testStub).toContain("requireScopedEdgeAuth(req, {");
-    expect(testStub).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-    expect(testStub).toContain("allowAdmin: true");
-        expect(testStub).toContain('scope: "test"');
-    expect(testStub).toContain("status: 410");
-    expect(testStub).toContain("legacy_test_route_disabled");
-  });
   it("fails closed to the production origin when ENVIRONMENT is missing", () => {
     const headers = withEnv({ ENVIRONMENT: undefined }, () => getCorsHeaders("http://localhost:19000"));
     expect(headers["Access-Control-Allow-Origin"]).toBe("https://k1w1.app");
