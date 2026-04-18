@@ -35,6 +35,9 @@ fi
 echo "[verify:release] strict typecheck"
 run_repo_tsc -p tsconfig.strict.json --noEmit --noUnusedLocals --noUnusedParameters
 
+echo "[verify:release] unused imports/locals drift gate (app scope)"
+run_repo_tsc -p tsconfig.unused.json --noEmit
+
 echo "[verify:release] edge typecheck"
 run_repo_tsc -p supabase/functions/tsconfig.json --noEmit --noUnusedLocals --noUnusedParameters
 
