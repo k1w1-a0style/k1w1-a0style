@@ -42,6 +42,7 @@ Prüfe supabase
 - Zusätzliche Testbarkeit im Header ergänzt: `CustomHeader` hat jetzt stabile `testID`-Marker für Menü- und Preview-Button.
 - Weitere Happy-/Error-Path-Tests ergänzt: Navigation aus dem `Connections`-Statuscard-Shortcut sowie der gesperrte Recovery-CTA im `EnhancedBuildScreen` sind jetzt explizit getestet.
 - Stabilitätsprüfung vertieft: `--detectOpenHandles` lief im erweiterten Scope sauber; eine zuvor beobachtete Worker-/Handle-Warnung ließ sich in diesem erweiterten Prüfpfad nicht hart reproduzieren.
+- Breitere Regressionskette nachgezogen: neue Flow-Regression deckt jetzt explizit die Route `Connections → Build` sowie den Recovery-Pfad `Build → Diagnostic (autoRun)` ab.
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog

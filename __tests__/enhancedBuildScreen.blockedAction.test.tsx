@@ -21,11 +21,11 @@ jest.mock("../screens/EnhancedBuildScreen/hooks/useEnhancedBuildScreen", () => (
     currentBuild: null,
     onSelectBuildProfile: jest.fn(),
     buildBlockedAction: {
-      title: "Repo fehlt",
-      detail: "Bitte zuerst ein Repo auswählen.",
-      ctaLabel: "Repo wählen",
-      screen: "GitHubRepos",
-      params: { source: "build" },
+      title: "Diagnose nötig",
+      detail: "Bitte zuerst die Diagnose laufen lassen.",
+      ctaLabel: "Diagnose starten",
+      screen: "Diagnostic",
+      params: { autoRun: true },
     },
     canStartBuildUi: false,
     buildBlockedReason: "Repo fehlt",
@@ -127,6 +127,6 @@ describe("EnhancedBuildScreen blocked action", () => {
 
     fireEvent.press(screen.getByTestId("enhanced-build-blocked-cta-button"));
 
-    expect(mockNavigate).toHaveBeenCalledWith("GitHubRepos", { source: "build" });
+    expect(mockNavigate).toHaveBeenCalledWith("Diagnostic", { autoRun: true });
   });
 });
