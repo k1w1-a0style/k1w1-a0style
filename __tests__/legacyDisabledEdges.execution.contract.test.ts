@@ -51,7 +51,8 @@ function setupFixture(opts?: FixtureOptions): string {
     fs.mkdirSync(path.join(dir, "supabase"), { recursive: true });
     const cfgPath = path.join(dir, "supabase/config.toml");
     if (opts?.unreadableConfig) {
-      fs.symlinkSync("/proc/1/mem", cfgPath);
+      fs.writeFileSync(cfgPath, "# unreadable\n", "utf8");
+      fs.chmodSync(cfgPath, 0o000);
     } else {
       fs.writeFileSync(cfgPath, cfgLines.join("\n"), "utf8");
     }
