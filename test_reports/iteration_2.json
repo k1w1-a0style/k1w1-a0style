@@ -1,0 +1,53 @@
+{
+  "summary": "Backend deep-scan for Supabase Patch 784 completed: migration invariants, durable rate-limit regressions, edge-route invariants, verify:release, and RLS hardening all passed. Live edge E2E contract execution is currently blocked by missing EDGE_BASE_URL/EDGE_OPERATOR_JWT in environment.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/functions/v1/* (live edge contracts)",
+        "issue": "Direct E2E live contract check could not run: scripts/check_edge_live_contracts.sh exits with 'Missing EDGE_BASE_URL'.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/__tests__/patch784.edgeRateLimitDecisionAmbiguity.invariants.test.ts",
+    "/app/__tests__/auth.failClosedAndDurableRateLimit.test.ts",
+    "/app/__tests__/edgeRateLimitCoverage.invariants.test.ts",
+    "/app/__tests__/edgeRateLimitHighRiskRoutes.invariants.test.ts",
+    "/app/__tests__/k1w1Handler.liveReachabilityContracts.test.ts",
+    "/app/__tests__/edgeFunctionContracts.test.ts",
+    "/app/scripts/check_release_readiness.sh",
+    "/app/scripts/check_supabase_rls_hardening.sh",
+    "/app/scripts/check_edge_live_contracts.sh",
+    "/app/test_reports/pytest/jest_patch784_rate_limit_results.json"
+  ],
+  "action_items": [
+    "Provide EDGE_BASE_URL and EDGE_OPERATOR_JWT (or .env.edge.live) and rerun scripts/check_edge_live_contracts.sh for full live Supabase edge E2E evidence.",
+    "After credentials are available, execute yarn verify:release again and ensure no live-check SKIP remains."
+  ],
+  "critical_code_review_comments": [
+    "Patch 784 migration correctly removes PL/pgSQL ambiguity by qualifying the table column as events.decision while preserving decision output contract (allowed/current_count/decision).",
+    "No regression found in durable rate limiting and edge-route invariant tests for executed scope.",
+    "NO MOCKED APIs were introduced in this test run."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_2.json",
+    "/app/test_reports/pytest/jest_patch784_rate_limit_results.json"
+  ],
+  "success_rate": {
+    "backend": "95% (all requested repo checks/tests passed; live edge E2E blocked by missing env)",
+    "frontend": "N/A (skip laut Auftrag)"
+  },
+  "test_credentials": "Read /app/memory/test_credentials.md: 'Keine Testzugänge erstellt oder geändert.' No auth credentials provided for live edge E2E.",
+  "seed_data_creation": "Keine",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Executed and green: targeted Jest suites (patch784 + durable/edge invariants), additional edge contract suites, yarn verify:release (OK_WITH_SKIPS), and scripts/check_supabase_rls_hardening.sh. Remaining gap is live edge contract E2E due to absent EDGE_BASE_URL/EDGE_OPERATOR_JWT.",
+  "rca of the issue": "Original live failure root cause (from prior context) is PostgreSQL ambiguity for identifier 'decision' inside enforce_edge_rate_limit after RETURNS TABLE introduced a same-named output variable. Migration 20260418170000 mitigates by qualifying the source column as events.decision in the count predicate."
+}
