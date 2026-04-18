@@ -39,6 +39,7 @@ Prüfe supabase
 - Test-Härtung erweitert: direkter Subpath-Import `@expo/vector-icons/Ionicons` wird ebenfalls gemockt, damit die Screen-Suites konsistent bleiben.
 - Testbarkeit der Hauptscreens verbessert: zusätzliche `testID`-Marker auf zentralen Screen-Containern und wichtigen Top-Level-Aktionen in mehreren Hauptscreens ergänzt.
 - Realistischere Flow-Tests ergänzt: neuer Screen-Aktionstest für `DiagnosticScreen` (Prüfen / Auto-Fix / Bericht) und neuer Header-Test für den Preview-Shortcut (`CustomHeader` → Fullscreen bei gültiger Preview, sonst Fallback auf Preview-Screen).
+- Zusätzliche Testbarkeit im Header ergänzt: `CustomHeader` hat jetzt stabile `testID`-Marker für Menü- und Preview-Button.
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog
