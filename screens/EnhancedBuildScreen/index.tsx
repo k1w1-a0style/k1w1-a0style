@@ -157,6 +157,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </View>
             <Text style={st.blockedDetail}>{blockedAction.detail}</Text>
             <Pressable
+              testID="enhanced-build-blocked-cta-button"
               style={st.blockedCta}
               onPress={() => navigation.navigate(blockedAction.screen, blockedAction.params)}
             >

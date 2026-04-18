@@ -13,11 +13,13 @@ export function ActionButton(props: {
   onPress: () => void;
   variant?: "primary" | "ghost";
   loading?: boolean;
+  testID?: string;
 }) {
-  const { styles, busy, label, icon, onPress, variant = "primary", loading } = props;
+  const { styles, busy, label, icon, onPress, variant = "primary", loading, testID } = props;
   const isPrimary = variant === "primary";
   return (
     <TouchableOpacity
+      testID={testID}
       onPress={onPress}
       disabled={busy || !!loading}
       style={[

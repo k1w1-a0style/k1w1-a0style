@@ -40,6 +40,8 @@ Prüfe supabase
 - Testbarkeit der Hauptscreens verbessert: zusätzliche `testID`-Marker auf zentralen Screen-Containern und wichtigen Top-Level-Aktionen in mehreren Hauptscreens ergänzt.
 - Realistischere Flow-Tests ergänzt: neuer Screen-Aktionstest für `DiagnosticScreen` (Prüfen / Auto-Fix / Bericht) und neuer Header-Test für den Preview-Shortcut (`CustomHeader` → Fullscreen bei gültiger Preview, sonst Fallback auf Preview-Screen).
 - Zusätzliche Testbarkeit im Header ergänzt: `CustomHeader` hat jetzt stabile `testID`-Marker für Menü- und Preview-Button.
+- Weitere Happy-/Error-Path-Tests ergänzt: Navigation aus dem `Connections`-Statuscard-Shortcut sowie der gesperrte Recovery-CTA im `EnhancedBuildScreen` sind jetzt explizit getestet.
+- Stabilitätsprüfung vertieft: `--detectOpenHandles` lief im erweiterten Scope sauber; eine zuvor beobachtete Worker-/Handle-Warnung ließ sich in diesem erweiterten Prüfpfad nicht hart reproduzieren.
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog
