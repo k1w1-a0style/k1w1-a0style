@@ -66,6 +66,9 @@ function classifyFunctionDrift(repoConfig, liveFunctions) {
       continue;
     }
     if (repo && !live) {
+      if (repo.enabled === false) {
+        continue;
+      }
       drift.push({ slug, severity: "warn", issue: "repo_only", repo });
       continue;
     }
