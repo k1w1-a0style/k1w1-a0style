@@ -59,4 +59,18 @@ describe("promptEngine context prioritization", () => {
     expect(system).toContain("strukturierte Slot-Liste");
     expect(system).toContain("[SLOT] <Name>: <Frage>");
   });
+
+  it("asks for a block plan first when planner context indicates a large task scope", () => {
+    const manyFiles: ProjectFile[] = Array.from({ length: 30 }, (_, index) => ({
+      path: `src/feature/File${index}.ts`,
+      content: `export const file${index} = "${"x".repeat(300)}";`,
+    }));
+
+    const planner = buildPlannerMessages([], "Bitte refactore den ganzen Chat- und Build-Flow", manyFiles, "openai");
+    const userInstruction = planner[planner.length - 1]?.content ?? "";
+
+    expect(userInstruction).toContain("Scope wirkt groß");
+    expect(userInstruction).toContain("Blockplan");
+    expect(userInstruction).toContain("starte nur mit Block 1");
+  });
 });
