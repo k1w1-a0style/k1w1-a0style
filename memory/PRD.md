@@ -36,7 +36,9 @@ Prüfe supabase
 - Supabase-Auth-Härtung fachlich geprüft: Die aktuell sichtbaren Punkte `Leaked Password Protection` und zusätzliche MFA-Optionen sind laut offizieller Doku für gehostete Projekte Dashboard-/Produkt-Settings und in diesem Setup nicht sauber über die öffentliche Management-API automatisierbar.
 - Echter Produkt-/UI-Bugscan für die Hauptscreens durchgeführt: App-/Navigation-/Smoke-Tests sowie gezielte Screen-Suites für GitHub Repos, Connections, Diagnose, Build, Status, Settings, Credentials Wizard und App Info sind grün.
 - Test-Härtung umgesetzt: `@expo/vector-icons` wird in `jest.setup.js` für Tests stabil gemockt, um asynchrone Icon-Nebeneffekte/Warnrauschen zu reduzieren.
+- Test-Härtung erweitert: direkter Subpath-Import `@expo/vector-icons/Ionicons` wird ebenfalls gemockt, damit die Screen-Suites konsistent bleiben.
 - Testbarkeit der Hauptscreens verbessert: zusätzliche `testID`-Marker auf zentralen Screen-Containern und wichtigen Top-Level-Aktionen in mehreren Hauptscreens ergänzt.
+- Realistischere Flow-Tests ergänzt: neuer Screen-Aktionstest für `DiagnosticScreen` (Prüfen / Auto-Fix / Bericht) und neuer Header-Test für den Preview-Shortcut (`CustomHeader` → Fullscreen bei gültiger Preview, sonst Fallback auf Preview-Screen).
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog
@@ -46,7 +48,7 @@ Prüfe supabase
 ### P1
 - Optional den neuen Guard noch auf weitere SQL-Kontexte (`HAVING`, `ON`, `CASE`) verbreitern.
 - Prepared Migration für Legacy-Native-Sync-Indizes bei Bedarf auch live anwenden.
-- Offene Testhygiene separat untersuchen: gelegentliche Jest-Worker-Leak-Warnung trotz grüner Suites tiefer analysieren.
+- Offene Testhygiene separat untersuchen: gelegentliche Jest-Worker-Leak-Warnung trotz grüner Suites tiefer analysieren (unter `--detectOpenHandles` im aktuellen Scope nicht hart reproduziert).
 
 ### P2
 - Dashboard-Settings für Auth-Sicherheit manuell nachziehen (`Leaked Password Protection`, MFA-Optionen/Enforcement), falls gewünscht.
