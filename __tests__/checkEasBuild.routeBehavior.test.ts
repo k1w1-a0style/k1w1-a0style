@@ -50,7 +50,11 @@ describe("check-eas-build route behavior", () => {
     global.fetch = realFetch;
   });
 
-  function depsFor(job: Record<string, unknown>, onUpdate?: (patch: Record<string, unknown>) => void) {
+  function depsFor(
+    job: Record<string, unknown>,
+    onUpdate?: (patch: Record<string, unknown>) => void,
+    updateResult?: unknown,
+  ) {
     return {
       createSupabaseClient: () => ({
         from: () => ({
@@ -61,7 +65,7 @@ describe("check-eas-build route behavior", () => {
           }),
           update: (patch: Record<string, unknown>) => {
             onUpdate?.(patch);
-            return { eq: async () => undefined };
+            return { eq: async () => updateResult };
           },
         }),
       }),
@@ -174,6 +178,26 @@ describe("check-eas-build route behavior", () => {
         error_message: "Reconciled from GitHub terminal state",
       }),
     );
+  });
+
+  it("does not claim reconcile when DB writeback fails", async () => {
+    const response = await handleCheckEasBuildRequest(makeRequest(), {
+      ...depsFor(baseJob, undefined, { error: { message: "write failed" } }),
+      fetchRunState: async () => ({
+        attempted: true,
+        upstream_status: 200,
+        runStatus: "completed",
+        runConclusion: "failure",
+        upstream_error: null,
+      }),
+    });
+
+    const payload = await response.json();
+    expect(payload.status).toBe("queued");
+    expect(payload.reconciled_from_github).toBe(false);
+    expect(payload.reconciliation.reconciled).toBe(false);
+    expect(payload.reconciliation.upstream_error).toContain("reconcile_writeback_failed:write failed");
+    expect(payload.job.error_message).toBeNull();
   });
 
   it("does not claim reconcile when DB row is already terminal", async () => {

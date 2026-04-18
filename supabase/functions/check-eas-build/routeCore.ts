@@ -58,6 +58,15 @@ type CheckBuildRouteDeps = {
   }>;
 };
 
+function getUnknownErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message.trim();
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message.trim();
+  }
+  return String(error);
+}
+
 function isValidationError(
   result: ReturnType<typeof validateCheckBuildRequest>,
 ): result is Extract<ReturnType<typeof validateCheckBuildRequest>, { ok: false }> {
@@ -133,11 +142,20 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
           existingErrorMessage: job.error_message,
         });
         if (reconciliation) {
-          reconciledStatus = reconciliation.nextStatus;
-          reconciledFromGitHub = true;
-          reconciliationInfo.reconciled = true;
-          reconciledPatch = reconciliation.patch;
-          await supabase.from("build_jobs").update(reconciliation.patch).eq("id", job.id);
+          const updateResult = await supabase.from("build_jobs").update(reconciliation.patch).eq("id", job.id);
+          const updateError =
+            updateResult && typeof updateResult === "object" && "error" in updateResult
+              ? (updateResult as { error?: unknown }).error
+              : null;
+
+          if (updateError) {
+            reconciliationInfo.upstream_error = `reconcile_writeback_failed:${sanitizeErrorText(getUnknownErrorMessage(updateError))}`;
+          } else {
+            reconciledStatus = reconciliation.nextStatus;
+            reconciledFromGitHub = true;
+            reconciliationInfo.reconciled = true;
+            reconciledPatch = reconciliation.patch;
+          }
         }
       }
     }
