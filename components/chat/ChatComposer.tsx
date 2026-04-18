@@ -126,6 +126,7 @@ const ChatComposer: React.FC<Props> = ({
             </Text>
           </View>
           <TouchableOpacity
+          testID="chat-composer-clear-attachment-button"
             onPress={onClearSelectedFile}
             activeOpacity={0.7}
             accessibilityLabel="Dateiauswahl entfernen"
@@ -142,6 +143,7 @@ const ChatComposer: React.FC<Props> = ({
 
       <View style={styles.inputContainer}>
         <TouchableOpacity
+          testID="chat-composer-attach-button"
           style={[
             styles.iconButton,
             selectedFileAsset && styles.iconButtonActive,
@@ -179,6 +181,7 @@ const ChatComposer: React.FC<Props> = ({
 
         <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
           <TouchableOpacity
+            testID={combinedIsLoading ? "chat-composer-abort-button" : "chat-composer-send-button"}
             style={[
               styles.sendButton,
               !canSend && !combinedIsLoading && styles.sendButtonDisabled,

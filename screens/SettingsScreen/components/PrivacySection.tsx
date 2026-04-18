@@ -32,7 +32,7 @@ export const PrivacySection: React.FC<Props> = ({
           </Text>
         </View>
 
-        <Switch value={persistChatHistory} onValueChange={onTogglePersist} />
+        <Switch testID="settings-privacy-persist-switch" value={persistChatHistory} onValueChange={onTogglePersist} />
       </View>
 
 
@@ -49,6 +49,7 @@ export const PrivacySection: React.FC<Props> = ({
               placeholderTextColor="#7b7f86"
             />
             <TouchableOpacity
+              testID="settings-privacy-save-retention-button"
               style={styles.retentionSaveBtn}
               onPress={onSaveRetention}
               activeOpacity={0.85}

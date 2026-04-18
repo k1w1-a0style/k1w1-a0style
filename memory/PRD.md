@@ -45,6 +45,8 @@ Prüfe supabase
 - Breitere Regressionskette nachgezogen: neue Flow-Regression deckt jetzt explizit die Route `Connections → Build` sowie den Recovery-Pfad `Build → Diagnostic (autoRun)` ab.
 - Preview-Happy-/Error-Paths weiter vertieft: neue Screen-Flow-Tests decken jetzt `PreviewScreen` (Toolbar + Bottom Actions + Empty State) und `PreviewFullscreenScreen` (Guard-State + gültige URL-Aktionen) zusätzlich zu den bestehenden Preview-Guard-/Contract-Tests ab.
 - Preview-Fullscreen weiter gehärtet: stabile `testID`-/a11y-Selektoren für Zurück-, Reload-, Teilen-, Browser- und WebView-Navigationsbuttons ergänzt.
+- Chat-Flow erweitert: neue Komponenten-Flow-Tests decken jetzt Anhängen, Senden, Abbrechen und Entfernen von Anhängen im `ChatComposer` explizit ab.
+- Settings-Flow erweitert: neue Flow-Tests decken jetzt Privacy-Persistenz/Retention-Save sowie Quality-Mode-Auswahl direkt über die sichtbaren Settings-Komponenten ab.
 - Repo-Gates erneut bestätigt: `lint`, `typecheck`, gezielte Frontend-/Smoke-Tests sowie `verify:release` laufen im aktuellen Stand grün; Live-Edge-Contracts sind weiter OK.
 
 ## Prioritized backlog

@@ -28,6 +28,7 @@ export const QualitySection: React.FC<Props> = ({
 
             return (
               <TouchableOpacity
+                testID={`settings-quality-${m}-button`}
                 key={m}
                 onPress={() => onSetQuality(m)}
                 activeOpacity={0.85}
