@@ -1,43 +1,48 @@
 # PRD
 
 ## Original problem statement
-Mache deep scan
+Mache deep scan und
+Prüfe supabase
 
 ## User choices
-- Scope: ganzer Codebestand
-- Ziel: Architektur-/Code-Quality-Review plus Bug-Finding
-- Aktion: wichtige Probleme automatisch beheben
-- Fokus: API-/Backend-Logik
+- Scope: gesamter Deep-Scan des Repos
+- Supabase: alles rund um Supabase prüfen
+- Ergebnis: Analyse + direkte Fixes, wenn Probleme gefunden werden
+- Priorität: kaputte Features / Fehlermeldungen und Konfiguration
+- Zusatzhinweis: altes Summary sollte Edge Functions end-to-end prüfen
 - Antwortsprache: Deutsch
 
 ## Architecture decisions
-- Bestehender Stack ist **kein** klassisches frontend/backend-Template, sondern eine **Expo/React-Native-App** mit modularem Screen-/Hook-/Context-Aufbau.
-- Die Serverlogik läuft primär über **Supabase Edge Functions** (`supabase/functions/*`) statt über einen separaten Node-/Python-Backend-Ordner.
-- Build-/Deploy-Operatorflüsse hängen an **GitHub Actions / EAS Build**; Client-seitige Services sprechen diese Edge-Routen über Supabase an.
-- Build-Status und Historie werden clientseitig typisiert über `shared/types/build.ts` und lokale Persistenz-/Hook-Schichten geführt.
+- Das Repo ist eine Expo-/React-Native-App mit starkem Fokus auf Supabase Edge Functions statt klassischem separatem Backend-Service.
+- Die sicherheitskritischen Operatorpfade laufen über `supabase/functions/*` und eine Postgres-/RLS-/RPC-Schicht in Supabase.
+- Für diesen Durchlauf wurde der Scan bewusst auf Supabase-relevante SoT-Dateien, Migrations, Edge-Funktionen, Live-Logs und Release-/RLS-Checks fokussiert.
+- Historische Migrationsdateien bleiben unverändert; der Fix für die Live-Ursache wird append-only als neue Migration abgesichert.
 
 ## What has been implemented
-- High-level Deep Scan durchgeführt: README, Package/Skripte, Kern-Entry-Points, Edge-Routen, Build-Services und relevante Tests geprüft.
-- Laufende Repo-Gesundheit verifiziert: `npm run typecheck`, `npm run lint:ci`, `npm run verify:release`, Smoke-/Target-Tests grün.
-- Bugfix 1: `check-eas-build` liefert nach GitHub-Reconciliation jetzt sofort die **aktualisierten Failure-Details** aus derselben Response statt veralteter DB-Felder.
-- Bugfix 2: `buildPollingService` übernimmt `error_message` jetzt korrekt in `BuildStatusDetails.errorMessage`, damit UI/Build-Historie Fehlergründe nicht verlieren.
-- Bugfix 3: Reconciliation-Writeback wird jetzt **truthful** behandelt: wenn das Supabase-Update fehlschlägt, wird keine erfolgreiche Reconciliation behauptet.
-- Regressionstests ergänzt/erweitert für Reconciliation-Failure, Error-Message-Mapping und Writeback-Fehlerfall.
+- Deep-Scan durchgeführt: `AGENTS.md`, README, Package-/Script-Setup, Supabase-Runbooks, Edge-Status, relevante Migrations und Edge-Routen gelesen.
+- Live-Supabase geprüft: Migrationsstand, aktive Edge Functions, Tabellen, Security-/Performance-Advisors sowie Edge-/Postgres-Logs ausgelesen.
+- Echte Ursache des Live-Fehlers identifiziert: **nicht** fehlende Migration, sondern PostgreSQL-Fehler `column reference "decision" is ambiguous` in `public.enforce_edge_rate_limit(...)`.
+- Repo-Fix umgesetzt: neue Migration `supabase/migrations/20260418170000_fix_edge_rate_limit_decision_ambiguity.sql` ergänzt, die den Tabellenzugriff auf `events.decision` qualifiziert.
+- Regressionsschutz ergänzt: `__tests__/patch784.edgeRateLimitDecisionAmbiguity.invariants.test.ts` stellt sicher, dass die Mehrdeutigkeit nicht wieder eingeführt wird.
+- Checks erfolgreich ausgeführt: gezielte Jest-Suites grün, `npm run typecheck` grün, `npm run verify:release` grün mit erlaubtem Live-SKIP, `bash scripts/check_supabase_rls_hardening.sh` grün.
+- Echte Live-E2E-Prüfung mit bereitgestelltem Operator-JWT ausgeführt und die 503-Störung reproduziert; Logs bestätigen erneut denselben DB-Fehler.
+- Live-Datenbank konnte in diesem Arbeitsmodus **nicht direkt mutiert** werden, weil Supabase-Migrationsschreibzugriff hier read-only blockiert ist.
 
 ## Prioritized backlog
 ### P0
-- Live-End-to-End-Validierung der betroffenen Edge-Flows gegen echte Supabase-/GitHub-Umgebung (ohne Mocks).
-- Prüfen, ob weitere Polling-/Statuspfade dieselbe Fehlerdetail-Treue konsequent weiterreichen.
+- Die neue Fix-Migration auf die echte Supabase-Datenbank anwenden.
+- Danach `scripts/check_edge_live_contracts.sh` erneut ausführen, bis `k1w1-handler`, `preview_page` und `save_preview` live grün sind.
+- Anschließend `npm run verify:release` ohne Live-SKIP erneut bestätigen.
 
 ### P1
-- Zusätzliche Truthfulness-Tests für weitere Edge-Routen mit DB-Writebacks und degradierte Response-Pfade.
-- Kleinere Konsistenzprüfung, wo `error_message` vs. `error` in Responses/Typen verwendet wird.
+- Optional einen zusätzlichen DB-/Repo-Check ergänzen, der mehrdeutige Bezeichner in `RETURNS TABLE`-PL/pgSQL-RPCs früh erkennt.
+- Unbenutzte Indizes aus den Supabase-Performance-Advisors fachlich bewerten statt blind zu entfernen.
 
 ### P2
-- Audit weiterer "best-effort"-/Fallback-Pfade auf Nutzertransparenz.
-- Optionales Architektur-Cleanup für besonders große Operator-/Workflow-Strings und Response-Mapper.
+- Auth-Sicherheitsoptionen in Supabase prüfen (`Leaked Password Protection`, zusätzliche MFA-Methoden).
+- Dokumentationsdrift zwischen README/Statusdateien bei nächster Doku-Runde bereinigen.
 
 ## Next tasks
-1. Live-Edge-Test der gefixten Build-Status-Kette mit echter `check-eas-build`-Antwort.
-2. Regressions-Audit für benachbarte Operatorrouten (`trigger-eas-build`, verwandte Workflow-Statuspfade).
-3. UI-Stellen prüfen, die `details.errorMessage` darstellen oder in Historie exportieren.
+1. Fix-Migration gegen das Live-Projekt anwenden.
+2. Live-Edge-Contracts erneut end-to-end testen.
+3. Danach vollständige Release-Evidence ohne SKIPs einsammeln.
