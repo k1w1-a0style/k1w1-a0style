@@ -68,6 +68,9 @@ bash scripts/check_verify_jwt_visibility.sh
 echo "[verify:release] edge rate-limit retention"
 bash scripts/check_edge_rate_limit_retention.sh
 
+echo "[verify:release] plpgsql returns-table ambiguity guard"
+node scripts/check_plpgsql_returns_table_ambiguity.js
+
 echo "[verify:release] legacy disabled edges"
 bash scripts/check_legacy_disabled_edges.sh
 
