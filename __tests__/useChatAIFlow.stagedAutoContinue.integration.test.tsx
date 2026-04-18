@@ -124,4 +124,76 @@ describe("useChatAIFlow staged auto continue integration", () => {
       }),
     );
   });
+
+  it("keeps staged cursor stable and emits fallback notice when auto-continue fails", async () => {
+    const addChatMessage = jest.fn();
+    const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
+
+    mockedUseChatAIRequestController.mockImplementation((args) => {
+      return async (userContent: string, _isAutoFix?: boolean, forceBuilder?: boolean) => {
+        if (!forceBuilder && userContent === "start staged flow") {
+          args.setPendingPlan({
+            originalRequest: "start staged flow",
+            planText: "Block 1\nBlock 2",
+            mode: "staged",
+            stagedLastBlockIndex: 0,
+            stagedNextBlockIndex: 1,
+            stagedTotalBlocks: 2,
+          });
+          return true;
+        }
+
+        if (forceBuilder && userContent.includes("Nur Block 1 umsetzen")) {
+          args.setPendingChange(makePendingChange("export default function App(){return null;}"));
+          return true;
+        }
+
+        if (forceBuilder && userContent.includes("Nur Block 2 umsetzen")) {
+          return false;
+        }
+
+        return false;
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useChatAIFlow({
+        config: makeConfig(),
+        messages: [],
+        projectFiles: [{ path: "App.tsx", content: "export default function App(){return null;}" }],
+        addChatMessage,
+        updateProjectFiles,
+        autoFixRequest: null,
+        clearAutoFixRequest: jest.fn(),
+        hardScrollToBottom: jest.fn(),
+        setIsStreaming: jest.fn(),
+        setStreamingMessage: jest.fn(),
+        setIsAiLoading: jest.fn(),
+        setError: jest.fn(),
+        setShowConfirmModal: jest.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("start staged flow");
+    });
+    await act(async () => {
+      await result.current.handleSendWithMeta("weiter");
+    });
+    expect(result.current.pendingChange).not.toBeNull();
+    await act(async () => {
+      await result.current.applyChanges();
+    });
+
+    expect(updateProjectFiles).toHaveBeenCalled();
+    expect(result.current.pendingPlan?.mode).toBe("staged");
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(result.current.pendingChange).toBeNull();
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining('Bitte mit "weiter" fortsetzen.'),
+      }),
+    );
+  });
 });
