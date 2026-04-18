@@ -91,16 +91,7 @@ describe("patch415 edge auth guard invariants", () => {
     expect(edgeStatus).toContain("`android-keystore-export`");
   });
 
-  it("keeps create_codesandbox disabled and save_preview on verified JWT", () => {
-    const legacySrc = read("supabase/functions/create_codesandbox/index.ts");
-    const cfg = read("supabase/config.toml");
-    expect(cfg).toContain("[functions.create_codesandbox]");
-    expect(cfg).toContain("enabled = false");
-    expect(legacySrc).not.toContain("requireScopedEdgeAuth(req, {");
-    expect(legacySrc).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-    expect(legacySrc).toContain("status: 410");
-    expect(legacySrc).toContain("legacy_create_codesandbox_disabled");
-
+  it("keeps save_preview on verified JWT", () => {
     const previewSrc = read("supabase/functions/save_preview/index.ts");
     expect(previewSrc).toContain('requireVerifiedJwt(req, "save_preview")');
     expect(previewSrc).not.toContain("requireScopedEdgeAuth(req, {");

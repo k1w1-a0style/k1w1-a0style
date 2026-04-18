@@ -13,27 +13,16 @@ const legacy = [
   "native-sync-report-ingest",
 ] as const;
 
-function expectDisabledInConfig(src: string, fn: string) {
-  const escaped = fn.replace(/[-/]/g, "\\$&");
-  const re = new RegExp(`\\[functions\\.${escaped}\\][\\s\\S]{0,120}?enabled = false`);
-  expect(src).toMatch(re);
-}
-
 describe("patch416 legacy edge disablement invariants", () => {
-  test("legacy 410-returning edge functions are disabled in supabase config", () => {
+  test("legacy 410-returning edge functions are removed from supabase config", () => {
     const cfg = read("supabase/config.toml");
-    legacy.forEach((fn) => expectDisabledInConfig(cfg, fn));
+    legacy.forEach((fn) => expect(cfg).not.toContain(`[functions.${fn}]`));
   });
 
-  test("legacy edge implementations still advertise disabled 410 responses", () => {
+  test("legacy edge implementation directories are removed", () => {
     legacy.forEach((fn) => {
-      const src = read(`supabase/functions/${fn}/index.ts`);
-      expect(src).toContain("disabled: true");
-      expect(src).toContain("status: 410");
-      expect(src).toContain("corsHeadersForRequest(req)");
-      expect(src).toContain("requireScopedEdgeAuth(req, {");
-      expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
-            expect(src).not.toContain("requireAdminKey(req)");
+      const rel = path.join(root, "supabase/functions", fn);
+      expect(fs.existsSync(rel)).toBe(false);
     });
   });
 

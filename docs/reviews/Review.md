@@ -75,7 +75,7 @@ Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Secu
 - Preview-Secret-Format-Guard ist als shared Runtime-Helper extrahiert und testseitig ausfuehrbar abgesichert.
 - `PROJECT_CHECKLOG.md` ist explizit als append-only Historie relativiert und wird nicht als alleinige aktuelle Release-Wahrheit gelesen.
 - Legacy-/Compat-Oberflaeche deutlich reduziert
-- `create_codesandbox` deaktiviert
+- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` repo-seitig entfernt
 - verbleibende disabled Legacy-Edges bleiben bewusst als 410-Stubs + `verify_jwt=true` bestehen (kleinste Restoberflaeche, keine unkontrollierte Reaktivierung).
 - Doku-/Review-/TODO-Landschaft auf eine kleine kanonische Menge reduziert
 

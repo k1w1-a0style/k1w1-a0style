@@ -3,14 +3,15 @@ set -euo pipefail
 
 CONFIG="supabase/config.toml"
 
-require_fixed() {
-  local file="$1"
-  local needle="$2"
-  if ! grep -Fq "$needle" "$file"; then
-    echo "[FAIL] Missing in $file: $needle" >&2
-    exit 1
-  fi
-}
+if [ ! -f "$CONFIG" ]; then
+  echo "[FAIL] Missing config file: $CONFIG" >&2
+  exit 1
+fi
+
+if ! head -c 1 "$CONFIG" >/dev/null 2>&1; then
+  echo "[FAIL] Config file is not readable: $CONFIG" >&2
+  exit 1
+fi
 
 legacy=(
   "trigger-lint"
@@ -19,28 +20,19 @@ legacy=(
   "check-native-sync"
   "native-sync-report"
   "native-sync-report-ingest"
+  "create_codesandbox"
 )
 
 for fn in "${legacy[@]}"; do
-  require_fixed "$CONFIG" "[functions.${fn}]"
-  python3 - "$CONFIG" "$fn" <<'PY'
-from pathlib import Path
-import sys
-cfg = Path(sys.argv[1]).read_text().splitlines()
-name = sys.argv[2]
-section = f"[functions.{name}]"
-for i, line in enumerate(cfg):
-    if line.strip() == section:
-        window = cfg[i+1:i+6]
-        if any(l.strip() == 'enabled = false' for l in window):
-            raise SystemExit(0)
-        raise SystemExit(1)
-raise SystemExit(1)
-PY
-  require_fixed "supabase/functions/${fn}/index.ts" 'disabled: true'
-  require_fixed "supabase/functions/${fn}/index.ts" 'status: 410'
-  require_fixed "supabase/functions/${fn}/index.ts" 'requireScopedEdgeAuth(req, {'
-  require_fixed "supabase/functions/${fn}/index.ts" 'adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"'
+  if grep -Fq "[functions.${fn}]" "$CONFIG"; then
+    echo "[FAIL] Legacy function still configured in $CONFIG: $fn" >&2
+    exit 1
+  fi
+
+  if [ -d "supabase/functions/${fn}" ]; then
+    echo "[FAIL] Legacy function directory still present: supabase/functions/${fn}" >&2
+    exit 1
+  fi
 done
 
 echo "legacy disabled edge checks passed."

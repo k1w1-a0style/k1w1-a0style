@@ -30,7 +30,7 @@ npm run test:silent
 
 ## Wichtige aktuelle Regeln
 
-- `create_codesandbox` ist deaktiviert und kein aktiver Produktpfad
+- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` sind repo-seitig entfernt
 - produktive KI-Requests laufen ueber `k1w1-handler`
 - bei Edge-Aenderungen immer Request-Validation, CORS, Rate-Limits und Auth-Vertrag mitdenken
 
