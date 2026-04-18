@@ -29,6 +29,7 @@
     "audit:unused": "tsc -p tsconfig.unused.json",
     "preflight:fast": "npm run typecheck && npm run edge:check && npm run lint:ci && npm run audit:types && npm run audit:imports",
     "docs:lint": "node scripts/docsLint.js",
+    "docs:sync:smoke": "npm run docs:lint && npm run docs:check:contracts && bash scripts/check_patch_docs_sync.sh",
     "lint:edge": "eslint supabase/functions --ext .ts",
     "edge:check": "npm run lint:edge && npm run typecheck:edge",
     "typecheck:edge": "tsc -p supabase/functions/tsconfig.json --noEmit",

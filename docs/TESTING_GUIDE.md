@@ -32,6 +32,7 @@ Optional:
 
 ```bash
 npm run test:e2e:smoke
+npm run docs:sync:smoke
 npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
 ```
 
