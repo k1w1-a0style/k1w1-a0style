@@ -1,6 +1,6 @@
 import type { PendingPlan } from "./chatAIFlowTypes";
 
-const BLOCK_COMMAND_RE = /^block\s*(\d+)$/i;
+const BLOCK_COMMAND_RE = /\bblock\s*(\d+)\b/i;
 const BLOCK_IN_TEXT_RE = /\bblock\s*(\d+)\b/gi;
 
 export const getNormalizedSendInputs = (
@@ -97,7 +97,7 @@ export const shouldHoldPendingPlan = ({
       hold: true,
       message:
         "🧩 **Stufenmodus aktiv:** Ich setze große Aufgaben blockweise um.\n\n" +
-        'Starte mit **„block 1"** oder **„weiter"**, dann liefere ich nur den ersten Teilpatch.',
+        'Starte mit **„block 1"**, **„block 2 bitte"** oder **„weiter"**.',
     };
   }
 

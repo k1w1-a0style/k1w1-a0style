@@ -230,62 +230,78 @@ export function useChatAIFlow({
     setPendingChange,
   });
 
-  const advanceStagedPlanAfterForward = useCallback(
+  const markStagedBlockForwarded = useCallback(
     (currentPlan: PendingPlan, forwardedBlockIndex: number | null) => {
-      const lastBlockIndex = forwardedBlockIndex ?? currentPlan.stagedLastBlockIndex ?? 1;
-      const nextBlockIndex = lastBlockIndex + 1;
-      const totalBlocks = currentPlan.stagedTotalBlocks;
+      const pendingBlockIndex = forwardedBlockIndex ?? currentPlan.stagedNextBlockIndex ?? 1;
+      const nextPlan = {
+        ...currentPlan,
+        stagedPendingBlockIndex: pendingBlockIndex,
+      };
+      pendingPlanRef.current = nextPlan;
+      safe(() => setPendingPlan(nextPlan));
+    },
+    [safe],
+  );
 
-      if (totalBlocks && lastBlockIndex >= totalBlocks) {
+  const markStagedBlockApplied = useCallback(
+    (currentPlan: PendingPlan, appliedBlockIndex: number | null) => {
+      const resolvedAppliedBlock = appliedBlockIndex ?? currentPlan.stagedPendingBlockIndex ?? null;
+      if (!resolvedAppliedBlock || resolvedAppliedBlock <= 0) return null;
+
+      const totalBlocks = currentPlan.stagedTotalBlocks;
+      const nextBlockIndex = resolvedAppliedBlock + 1;
+
+      if (totalBlocks && resolvedAppliedBlock >= totalBlocks) {
         pendingPlanRef.current = null;
         safe(() => setPendingPlan(null));
         addChatMessage(
           buildSystemMessage(
-            `✅ Stufenmodus abgeschlossen (${lastBlockIndex}/${totalBlocks} Blöcke).`,
+            `✅ Stufenmodus abgeschlossen (${resolvedAppliedBlock}/${totalBlocks} Blöcke).`,
           ),
         );
-        return;
+        return null;
       }
 
       const nextPlan = {
         ...currentPlan,
-        stagedLastBlockIndex: lastBlockIndex,
+        stagedLastBlockIndex: resolvedAppliedBlock,
         stagedNextBlockIndex: nextBlockIndex,
+        stagedPendingBlockIndex: undefined,
       };
       pendingPlanRef.current = nextPlan;
       safe(() => setPendingPlan(nextPlan));
       addChatMessage(
         buildSystemMessage(
           totalBlocks
-            ? `🧩 Stufenfortschritt: ${lastBlockIndex}/${totalBlocks} erledigt. Nächster Schritt: "weiter" für Block ${nextBlockIndex}.`
-            : `🧩 Stufenfortschritt: Block ${lastBlockIndex} erledigt. Nächster Schritt: "weiter" für Block ${nextBlockIndex}.`,
+            ? `🧩 Stufenfortschritt: ${resolvedAppliedBlock}/${totalBlocks} angewendet. Nächster Schritt: "weiter" oder "block ${nextBlockIndex}".`
+            : `🧩 Stufenfortschritt: Block ${resolvedAppliedBlock} angewendet. Nächster Schritt: "weiter" oder "block ${nextBlockIndex}".`,
         ),
       );
+      return nextPlan;
     },
     [addChatMessage, safe],
   );
 
   const applyChangesWithAutoStagedNext = useCallback(async () => {
+    const planBeforeApply = pendingPlanRef.current;
+    const appliedBlockIndex =
+      planBeforeApply?.mode === "staged" ? planBeforeApply.stagedPendingBlockIndex ?? null : null;
     const applied = await applyChanges();
     if (!applied) return;
 
-    const currentPlan = pendingPlanRef.current;
-    if (!currentPlan || currentPlan.mode !== "staged") return;
+    if (!planBeforeApply || planBeforeApply.mode !== "staged") return;
 
-    const nextBlockIndex = currentPlan.stagedNextBlockIndex ?? 1;
-    const totalBlocks = currentPlan.stagedTotalBlocks;
-    if (totalBlocks && nextBlockIndex > totalBlocks) {
-      pendingPlanRef.current = null;
-      safe(() => setPendingPlan(null));
-      return;
-    }
+    const nextPlan = markStagedBlockApplied(planBeforeApply, appliedBlockIndex);
+    if (!nextPlan) return;
+
+    const nextBlockIndex = nextPlan.stagedNextBlockIndex ?? 1;
 
     addChatMessage(
       buildSystemMessage(`🚀 Auto-Fortsetzung: Starte jetzt Block ${nextBlockIndex}.`),
     );
 
     const autoRequest = buildPendingPlanCombinedRequest({
-      currentPlan,
+      currentPlan: nextPlan,
       sanitizedAiContent: `(Auto) Bitte Block ${nextBlockIndex} umsetzen.`,
       wantsProceed: true,
       requestedBlockIndex: nextBlockIndex,
@@ -301,8 +317,8 @@ export function useChatAIFlow({
       return;
     }
 
-    advanceStagedPlanAfterForward(currentPlan, nextBlockIndex);
-  }, [addChatMessage, advanceStagedPlanAfterForward, applyChanges, processAIRequest, safe]);
+    markStagedBlockForwarded(nextPlan, nextBlockIndex);
+  }, [addChatMessage, applyChanges, markStagedBlockApplied, markStagedBlockForwarded, processAIRequest]);
 
   const handleSendWithMeta = useCallback(
     async (rawInput: string, aiInput: string = rawInput): Promise<boolean> => {
@@ -372,7 +388,7 @@ export function useChatAIFlow({
         const handoffOk = await processAIRequest(handoff.combinedRequest, false, true);
         if (handoffOk) {
           if (currentPlan.mode === "staged") {
-            advanceStagedPlanAfterForward(currentPlan, handoff.forwardedBlockIndex);
+            markStagedBlockForwarded(currentPlan, handoff.forwardedBlockIndex);
           } else {
             pendingPlanRef.current = null;
             safe(() => setPendingPlan(null));
@@ -384,7 +400,7 @@ export function useChatAIFlow({
 
       return processAIRequest(sanitizedAiContent, false, false);
     },
-    [addChatMessage, advanceStagedPlanAfterForward, processAIRequest, safe, setError],
+    [addChatMessage, markStagedBlockForwarded, processAIRequest, safe, setError],
   );
 
   return useMemo(

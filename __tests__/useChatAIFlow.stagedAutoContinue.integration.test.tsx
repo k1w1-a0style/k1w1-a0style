@@ -106,7 +106,7 @@ describe("useChatAIFlow staged auto continue integration", () => {
       expect(ok).toBe(true);
     });
 
-    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
     expect(result.current.pendingChange).not.toBeNull();
 
     await act(async () => {
@@ -114,7 +114,7 @@ describe("useChatAIFlow staged auto continue integration", () => {
     });
 
     expect(updateProjectFiles).toHaveBeenCalled();
-    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(3);
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
     expect(result.current.pendingChange).not.toBeNull();
     expect(processCalls.some((entry) => entry.includes("Nur Block 2 umsetzen"))).toBe(true);
     expect(addChatMessage).toHaveBeenCalledWith(

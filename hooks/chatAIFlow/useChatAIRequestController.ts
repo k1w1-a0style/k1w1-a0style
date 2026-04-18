@@ -165,6 +165,7 @@ export const useChatAIRequestController = ({
                     pipelineResult.pendingPlan.mode === "staged" ? 0 : undefined,
                   stagedNextBlockIndex:
                     pipelineResult.pendingPlan.mode === "staged" ? 1 : undefined,
+                  stagedPendingBlockIndex: undefined,
                   stagedTotalBlocks:
                     pipelineResult.pendingPlan.mode === "staged"
                       ? inferStagedTotalBlocksFromPlan(pipelineResult.pendingPlan.planText) ?? undefined

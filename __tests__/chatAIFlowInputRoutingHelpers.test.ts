@@ -26,6 +26,9 @@ describe("chatAIFlowInputRoutingHelpers", () => {
     expect(isProceedCommand("block 1")).toBe(true);
     expect(isProceedCommand("block1")).toBe(true);
     expect(isProceedCommand("block 12")).toBe(true);
+    expect(isProceedCommand("block 2 bitte")).toBe(true);
+    expect(isProceedCommand("mach block 2")).toBe(true);
+    expect(isProceedCommand("weiter mit block 2")).toBe(true);
     expect(isProceedCommand("ok")).toBe(true);
     expect(isProceedCommand("ja")).toBe(true);
     expect(isProceedCommand("go")).toBe(true);
@@ -36,6 +39,9 @@ describe("chatAIFlowInputRoutingHelpers", () => {
     expect(readRequestedBlockIndex("block 1")).toBe(1);
     expect(readRequestedBlockIndex("block1")).toBe(1);
     expect(readRequestedBlockIndex("block 12")).toBe(12);
+    expect(readRequestedBlockIndex("block 2 bitte")).toBe(2);
+    expect(readRequestedBlockIndex("mach block 2")).toBe(2);
+    expect(readRequestedBlockIndex("weiter mit block 2")).toBe(2);
     expect(readRequestedBlockIndex("weiter")).toBeNull();
     expect(readRequestedBlockIndex("block x")).toBeNull();
   });

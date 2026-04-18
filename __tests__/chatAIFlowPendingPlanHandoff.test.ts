@@ -98,6 +98,21 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     }
   });
 
+  it("accepts natural block syntax variants in staged mode", () => {
+    const forwardResult = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "weiter mit block 2",
+      sanitizedAiContent: "weiter mit block 2",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(forwardResult.kind).toBe("forward");
+    if (forwardResult.kind === "forward") {
+      expect(forwardResult.forwardedBlockIndex).toBe(2);
+      expect(forwardResult.combinedRequest).toContain("Nur Block 2 umsetzen");
+    }
+  });
+
   it("uses staged next-block cursor when user only says weiter", () => {
     const forwardResult = resolvePendingPlanHandoff({
       currentPlan: {

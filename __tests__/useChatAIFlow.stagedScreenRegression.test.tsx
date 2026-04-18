@@ -163,7 +163,7 @@ describe("useChatAIFlow staged screen-near regressions", () => {
     await act(async () => {
       await flow.result.current.handleSendWithMeta("weiter");
     });
-    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
     expect(flow.result.current.pendingChange).not.toBeNull();
 
     await act(async () => {
@@ -186,7 +186,7 @@ describe("useChatAIFlow staged screen-near regressions", () => {
     });
 
     expect(block2Attempts).toBe(2);
-    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(3);
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
     expect(flow.result.current.pendingChange).not.toBeNull();
   });
 
@@ -232,7 +232,7 @@ describe("useChatAIFlow staged screen-near regressions", () => {
     await act(async () => {
       await flow.result.current.handleSendWithMeta("weiter");
     });
-    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
     expect(flow.result.current.pendingChange).not.toBeNull();
 
     let applyPromise: Promise<void> | null = null;
@@ -274,7 +274,7 @@ describe("useChatAIFlow staged screen-near regressions", () => {
 
     expect(block2Attempts).toBe(1);
     expect(flow.result.current.pendingPlan?.mode).toBe("staged");
-    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(2);
+    expect(flow.result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
     expect(flow.result.current.pendingChange).not.toBeNull();
   });
 });

@@ -9,11 +9,11 @@ import { buildChangeDigest, buildExplainMessages, classifyChatIntent, looksLikeS
 import { extractRawOrchestratorResult, type ExtendedOrchestratorResult, type PendingChange, type PendingPlan } from "./chatAIFlowTypes";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { shouldRetryBuilderAttempt, readOrchestratorErrorText } from "./useChatAIFlowRetryHelpers";
+import { inferStagedTotalBlocksFromPlan } from "./chatAIFlowInputRoutingHelpers";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
 export const BUILDER_RETRY_MAX_ATTEMPTS = 3;
-const STAGED_BLOCK_MARKER = "starte nur mit Block 1";
 
 export class BuilderNonOkError extends Error {
   public readonly result: OrchestratorResult | null;
@@ -98,9 +98,8 @@ export const tryPlanChatRequest = async ({
   }
 
   const planText = planRes.text.trim();
-  const plannerWantsStagedExecution = plannerMsgs.some(
-    (message) => message.role === "user" && String(message.content ?? "").includes(STAGED_BLOCK_MARKER),
-  );
+  const inferredPlanBlockCount = inferStagedTotalBlocksFromPlan(planText) ?? 0;
+  const plannerWantsStagedExecution = inferredPlanBlockCount >= 2;
   return {
     requiresConfirmation: false,
     plannerText: planText,

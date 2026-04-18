@@ -62,6 +62,31 @@ describe("chatAIFlowRequestOrchestrator", () => {
     expect(promptRecorded).not.toHaveBeenCalled();
   });
 
+  it("marks planner result as staged when plan text contains multiple block steps", async () => {
+    const run = jest.fn().mockResolvedValue(
+      okResult({
+        text: "Block 1: Analyse\nBlock 2: Umsetzung",
+      }),
+    );
+
+    const result = await tryPlanChatRequest({
+      config: makeConfig(),
+      currentMessages: [],
+      currentProjectFiles: [{ path: "App.tsx", content: "export default function App() { return null; }" }],
+      requestContent: "Baue alles komplett neu.",
+      runOrchestratorWithTimeout: run,
+      sideEffects: {
+        announceContextBudgetNote: jest.fn(),
+        notifyKeyRotation: jest.fn(),
+        announceRuntimeNote: jest.fn(),
+      },
+      recordConfirmationPrompt: jest.fn(),
+    });
+
+    expect(result.pendingPlan?.mode).toBe("staged");
+    expect(result.pendingPlan?.planText).toContain("Block 2");
+  });
+
   it("retries builder once and returns normalized files after success", async () => {
     const run = jest
       .fn()

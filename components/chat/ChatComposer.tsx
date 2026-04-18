@@ -65,7 +65,7 @@ const ChatComposer: React.FC<Props> = ({
 
   const placeholder = pendingPlan
     ? isStagedPendingPlan
-      ? `Stufenmodus aktiv: antworte mit "block ${stagedNextBlockIndex}" oder "weiter"...`
+      ? `Stufenmodus aktiv: antworte mit "block ${stagedNextBlockIndex}", "weiter mit block ${stagedNextBlockIndex}" oder "weiter"...`
       : 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
 
@@ -125,7 +125,7 @@ const ChatComposer: React.FC<Props> = ({
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>
             {isStagedPendingPlan
-              ? `🧩 Stufenmodus: Starte mit "block ${stagedNextBlockIndex}" oder "weiter". Aktuell: ${stagedProgressLabel}.`
+              ? `🧩 Stufenmodus: Nutze "block ${stagedNextBlockIndex}", "mach block ${stagedNextBlockIndex}" oder "weiter". Aktuell angewendet: ${stagedProgressLabel}.`
               : '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'}
           </Text>
         </View>

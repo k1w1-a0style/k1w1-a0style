@@ -52,6 +52,7 @@ export type PendingPlan = {
   stagedLastBlockIndex?: number;
   stagedNextBlockIndex?: number;
   stagedTotalBlocks?: number;
+  stagedPendingBlockIndex?: number;
 };
 
 export type ExtendedOrchestratorResult = OrchestratorResult & {

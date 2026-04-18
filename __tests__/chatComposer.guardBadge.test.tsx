@@ -44,7 +44,7 @@ describe("ChatComposer guard badge", () => {
     );
 
     expect(getByText("Stufenmodus · wartet auf Block 2 (1/4)")).toBeTruthy();
-    expect(getByText(/Starte mit "block 2" oder "weiter"/)).toBeTruthy();
+    expect(getByText(/Nutze "block 2", "mach block 2" oder "weiter"/)).toBeTruthy();
     expect(getByLabelText("Stufenmodus aktiv: wartet auf Block 2 (1/4)")).toBeTruthy();
   });
 });
