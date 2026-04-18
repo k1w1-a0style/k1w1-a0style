@@ -56,10 +56,16 @@ const ChatComposer: React.FC<Props> = ({
 
   const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
   const isStagedPendingPlan = pendingPlan?.mode === "staged";
+  const stagedNextBlockIndex = pendingPlan?.stagedNextBlockIndex ?? 1;
+  const stagedLastBlockIndex = pendingPlan?.stagedLastBlockIndex ?? 0;
+  const stagedTotalBlocks = pendingPlan?.stagedTotalBlocks;
+  const stagedProgressLabel = stagedTotalBlocks
+    ? `${stagedLastBlockIndex}/${stagedTotalBlocks}`
+    : `${stagedLastBlockIndex}/?`;
 
   const placeholder = pendingPlan
     ? isStagedPendingPlan
-      ? 'Stufenmodus aktiv: antworte mit "block 1" oder "weiter"...'
+      ? `Stufenmodus aktiv: antworte mit "block ${stagedNextBlockIndex}" oder "weiter"...`
       : 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
 
@@ -108,7 +114,9 @@ const ChatComposer: React.FC<Props> = ({
             style={[styles.guardBadge, styles.guardBadgeStaged]}
             accessibilityLabel="Stufenmodus aktiv: wartet auf Block 1"
           >
-            <Text style={styles.guardBadgeText}>Stufenmodus · wartet auf Block 1</Text>
+            <Text style={styles.guardBadgeText}>
+              {`Stufenmodus · wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
+            </Text>
           </View>
         )}
       </View>
@@ -117,7 +125,7 @@ const ChatComposer: React.FC<Props> = ({
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>
             {isStagedPendingPlan
-              ? '🧩 Stufenmodus: Starte mit "block 1" oder "weiter". Danach liefere ich nur den ersten Teilpatch.'
+              ? `🧩 Stufenmodus: Starte mit "block ${stagedNextBlockIndex}" oder "weiter". Aktuell: ${stagedProgressLabel}.`
               : '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'}
           </Text>
         </View>

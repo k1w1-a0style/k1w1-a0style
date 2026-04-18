@@ -1,8 +1,10 @@
 import {
   buildPendingPlanCombinedRequest,
   getNormalizedSendInputs,
+  inferStagedTotalBlocksFromPlan,
   isProceedCommand,
   readRequestedBlockIndex,
+  resolveEffectiveStagedBlockIndex,
   shouldHoldPendingPlan,
 } from "../hooks/chatAIFlowInputRoutingHelpers";
 
@@ -36,6 +38,15 @@ describe("chatAIFlowInputRoutingHelpers", () => {
     expect(readRequestedBlockIndex("block 12")).toBe(12);
     expect(readRequestedBlockIndex("weiter")).toBeNull();
     expect(readRequestedBlockIndex("block x")).toBeNull();
+  });
+
+  it("infers staged block totals and resolves effective next block index", () => {
+    expect(inferStagedTotalBlocksFromPlan("Block 1\nBlock 2\nBlock 4")).toBe(4);
+    expect(inferStagedTotalBlocksFromPlan("ohne blocks")).toBeNull();
+
+    expect(resolveEffectiveStagedBlockIndex({ requestedBlockIndex: 3, stagedNextBlockIndex: 2 })).toBe(3);
+    expect(resolveEffectiveStagedBlockIndex({ requestedBlockIndex: null, stagedNextBlockIndex: 2 })).toBe(2);
+    expect(resolveEffectiveStagedBlockIndex({ requestedBlockIndex: null })).toBe(1);
   });
 
   it("holds pending plan for scout/advice modes when confirmation is missing", () => {

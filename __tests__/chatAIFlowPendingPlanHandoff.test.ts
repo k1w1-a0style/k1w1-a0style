@@ -17,6 +17,7 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     originalRequest: "großes refactoring",
     planText: "staged plan",
     mode: "staged" as const,
+    stagedNextBlockIndex: 1,
   };
 
   it("holds advice plans without proceed command", () => {
@@ -77,6 +78,7 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     if (forwardResult.kind === "forward") {
       expect(forwardResult.combinedRequest).toContain("staged plan");
       expect(forwardResult.combinedRequest).toContain("(User sagt: weiter)");
+      expect(forwardResult.forwardedBlockIndex).toBe(1);
     }
   });
 
@@ -92,6 +94,25 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     if (forwardResult.kind === "forward") {
       expect(forwardResult.combinedRequest).toContain("Block-Fokus");
       expect(forwardResult.combinedRequest).toContain("Nur Block 2 umsetzen");
+      expect(forwardResult.forwardedBlockIndex).toBe(2);
+    }
+  });
+
+  it("uses staged next-block cursor when user only says weiter", () => {
+    const forwardResult = resolvePendingPlanHandoff({
+      currentPlan: {
+        ...stagedPlan,
+        stagedNextBlockIndex: 3,
+      },
+      sanitizedUserContent: "weiter",
+      sanitizedAiContent: "weiter",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(forwardResult.kind).toBe("forward");
+    if (forwardResult.kind === "forward") {
+      expect(forwardResult.combinedRequest).toContain("Nur Block 3 umsetzen");
+      expect(forwardResult.forwardedBlockIndex).toBe(3);
     }
   });
 

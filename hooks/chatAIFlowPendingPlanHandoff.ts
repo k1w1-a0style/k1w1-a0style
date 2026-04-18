@@ -1,4 +1,10 @@
-import { buildPendingPlanCombinedRequest, isProceedCommand, readRequestedBlockIndex, shouldHoldPendingPlan } from "./chatAIFlowInputRoutingHelpers";
+import {
+  buildPendingPlanCombinedRequest,
+  isProceedCommand,
+  readRequestedBlockIndex,
+  resolveEffectiveStagedBlockIndex,
+  shouldHoldPendingPlan,
+} from "./chatAIFlowInputRoutingHelpers";
 import type { PendingPlan } from "./chatAIFlowTypes";
 
 export type PendingPlanHandoffResult =
@@ -9,6 +15,7 @@ export type PendingPlanHandoffResult =
   | {
       kind: "forward";
       combinedRequest: string;
+      forwardedBlockIndex: number | null;
     };
 
 export const resolvePendingPlanHandoff = ({
@@ -39,13 +46,22 @@ export const resolvePendingPlanHandoff = ({
     };
   }
 
+  const forwardedBlockIndex =
+    currentPlan.mode === "staged"
+      ? resolveEffectiveStagedBlockIndex({
+          requestedBlockIndex,
+          stagedNextBlockIndex: currentPlan.stagedNextBlockIndex,
+        })
+      : null;
+
   return {
     kind: "forward",
     combinedRequest: buildPendingPlanCombinedRequest({
       currentPlan,
       sanitizedAiContent,
       wantsProceed,
-      requestedBlockIndex,
+      requestedBlockIndex: forwardedBlockIndex ?? requestedBlockIndex,
     }),
+    forwardedBlockIndex,
   };
 };

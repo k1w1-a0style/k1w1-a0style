@@ -32,11 +32,18 @@ describe("ChatComposer guard badge", () => {
     const { getByText } = render(
       <ChatComposer
         {...baseProps}
-        pendingPlan={{ originalRequest: "x", planText: "y", mode: "staged" }}
+        pendingPlan={{
+          originalRequest: "x",
+          planText: "y",
+          mode: "staged",
+          stagedLastBlockIndex: 1,
+          stagedNextBlockIndex: 2,
+          stagedTotalBlocks: 4,
+        }}
       />,
     );
 
-    expect(getByText("Stufenmodus · wartet auf Block 1")).toBeTruthy();
-    expect(getByText(/Starte mit "block 1" oder "weiter"/)).toBeTruthy();
+    expect(getByText("Stufenmodus · wartet auf Block 2 (1/4)")).toBeTruthy();
+    expect(getByText(/Starte mit "block 2" oder "weiter"/)).toBeTruthy();
   });
 });

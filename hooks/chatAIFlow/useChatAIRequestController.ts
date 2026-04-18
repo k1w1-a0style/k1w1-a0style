@@ -25,6 +25,7 @@ import {
   prepareValidatedChatInput,
   runOrchestratorWithHardTimeout,
 } from "./chatAIFlowPureHelpers";
+import { inferStagedTotalBlocksFromPlan } from "../chatAIFlowInputRoutingHelpers";
 import type { PendingChange, PendingPlan } from "./chatAIFlow.contracts";
 import type { ChatMessage } from "../../shared/types/chat";
 import type { ProjectFile } from "../../shared/types/project";
@@ -160,6 +161,14 @@ export const useChatAIRequestController = ({
                 pendingPlan: {
                   ...pipelineResult.pendingPlan,
                   originProjectId: requestProjectId,
+                  stagedLastBlockIndex:
+                    pipelineResult.pendingPlan.mode === "staged" ? 0 : undefined,
+                  stagedNextBlockIndex:
+                    pipelineResult.pendingPlan.mode === "staged" ? 1 : undefined,
+                  stagedTotalBlocks:
+                    pipelineResult.pendingPlan.mode === "staged"
+                      ? inferStagedTotalBlocksFromPlan(pipelineResult.pendingPlan.planText) ?? undefined
+                      : undefined,
                 },
               }
             : pipelineResult.kind === "change_proposal"

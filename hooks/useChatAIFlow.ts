@@ -297,8 +297,39 @@ export function useChatAIFlow({
 
         const handoffOk = await processAIRequest(handoff.combinedRequest, false, true);
         if (handoffOk) {
-          pendingPlanRef.current = null;
-          safe(() => setPendingPlan(null));
+          if (currentPlan.mode === "staged") {
+            const lastBlockIndex = handoff.forwardedBlockIndex ?? currentPlan.stagedLastBlockIndex ?? 1;
+            const nextBlockIndex = lastBlockIndex + 1;
+            const totalBlocks = currentPlan.stagedTotalBlocks;
+
+            if (totalBlocks && lastBlockIndex >= totalBlocks) {
+              pendingPlanRef.current = null;
+              safe(() => setPendingPlan(null));
+              addChatMessage(
+                buildSystemMessage(
+                  `✅ Stufenmodus abgeschlossen (${lastBlockIndex}/${totalBlocks} Blöcke).`,
+                ),
+              );
+            } else {
+              const nextPlan = {
+                ...currentPlan,
+                stagedLastBlockIndex: lastBlockIndex,
+                stagedNextBlockIndex: nextBlockIndex,
+              };
+              pendingPlanRef.current = nextPlan;
+              safe(() => setPendingPlan(nextPlan));
+              addChatMessage(
+                buildSystemMessage(
+                  totalBlocks
+                    ? `🧩 Stufenfortschritt: ${lastBlockIndex}/${totalBlocks} erledigt. Nächster Schritt: "weiter" für Block ${nextBlockIndex}.`
+                    : `🧩 Stufenfortschritt: Block ${lastBlockIndex} erledigt. Nächster Schritt: "weiter" für Block ${nextBlockIndex}.`,
+                ),
+              );
+            }
+          } else {
+            pendingPlanRef.current = null;
+            safe(() => setPendingPlan(null));
+          }
           return true;
         }
         return false;

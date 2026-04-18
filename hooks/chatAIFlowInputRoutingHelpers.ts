@@ -1,6 +1,7 @@
 import type { PendingPlan } from "./chatAIFlowTypes";
 
 const BLOCK_COMMAND_RE = /^block\s*(\d+)$/i;
+const BLOCK_IN_TEXT_RE = /\bblock\s*(\d+)\b/gi;
 
 export const getNormalizedSendInputs = (
   rawInput: string,
@@ -40,6 +41,29 @@ export const readRequestedBlockIndex = (normalizedInput: string): number | null 
   const parsed = Number(match[1]);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.trunc(parsed);
+};
+
+export const inferStagedTotalBlocksFromPlan = (planText: string): number | null => {
+  let match: RegExpExecArray | null;
+  let max = 0;
+  while ((match = BLOCK_IN_TEXT_RE.exec(planText))) {
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed) && parsed > max) max = Math.trunc(parsed);
+  }
+  BLOCK_IN_TEXT_RE.lastIndex = 0;
+  return max > 0 ? max : null;
+};
+
+export const resolveEffectiveStagedBlockIndex = ({
+  requestedBlockIndex,
+  stagedNextBlockIndex,
+}: {
+  requestedBlockIndex: number | null;
+  stagedNextBlockIndex?: number;
+}): number | null => {
+  if (requestedBlockIndex && requestedBlockIndex > 0) return requestedBlockIndex;
+  if (stagedNextBlockIndex && stagedNextBlockIndex > 0) return stagedNextBlockIndex;
+  return 1;
 };
 
 export const shouldHoldPendingPlan = ({
