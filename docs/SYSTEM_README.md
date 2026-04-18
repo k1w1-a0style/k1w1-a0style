@@ -25,7 +25,7 @@ Dieses Dokument ist das **kompakte Systembild fuer Agenten**. Es ersetzt keine P
 - `k1w1-handler` nutzt verified JWT + Claim
 - Workflow-/Build-/Artifact-Routen nutzen JWT + scoped secret
 - Keystore-Routen nutzen JWT + dedizierten keystore-scoped secret
-- `create_codesandbox` ist deaktiviert
+- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` sind repo-seitig entfernt
 - lokale Legacy-Compat-Oberflaeche wurde reduziert; verbleibende Legacy-Helfer dienen nur noch Migrations-/Import-Kompatibilitaet
 
 ## 4) Agent-Regeln

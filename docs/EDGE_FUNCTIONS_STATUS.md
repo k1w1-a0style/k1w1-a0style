@@ -14,7 +14,6 @@ Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 | `github-run-artifact-json` | Liest JSON-Datei aus GitHub Artifact-ZIP | `text`, `json`, `artifactId`, `artifactName`, `filePath` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_WORKFLOW_ADMIN_KEY`) · Policy: liest nur Repos aus `K1W1_ALLOWED_GITHUB_REPOS` |
 | `save_preview` / `preview_page` | Persistiert und rendert Browser-Previews | `previewUrl`, `expiresAt` (save) / HTML-Response + sichere Fehlerfälle (page) · Auth: `save_preview` nutzt jetzt **verifiziertes Supabase-Login-JWT** (`verify_jwt=true`, `requireVerifiedJwt(...)`, kein lokaler Legacy-Admin-Key mehr), `preview_page` bleibt bewusst `verify_jwt=false` als Secret-Gate-Sonderpfad (Fragment-Link + Header-Handoff, Secret-Format-Guard, **hash-only Secret-Lookup ohne Raw-Compat-Fallback**, TTL/Expiry-Delete, durable Rate-Limit). **Wichtig:** Das ist absichtlich kein Standard-JWT-Endpunkt. |
 | `k1w1-handler` | KI-Provider-Proxy für produktive Chat-Calls | `ok`, `provider`, `model`, `content`, optional `runtime_note` bzw. `ok:false,error,code,status` · Auth: **JWT + Claim** (`verify_jwt=true`, `role in [service_role, build_admin]`, `Authorization: Bearer <jwt>`, kein lokaler Legacy-Admin-Key mehr) |
-| `create_codesandbox` | Legacy-/Compat-Pfad, nicht mehr Teil der aktiven Produktoberflaeche | Immer `410 legacy_create_codesandbox_disabled` · in `supabase/config.toml` deaktiviert |
 | `android-keystore-export` | Liefert Android-Signing-Material für CI | `alias`, `keystoreBase64`, `keystorePassword`, `keyPassword` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-generate` | Generiert/signiert Android-Keystore-Material serverseitig (branch-unabhaengig, Scope `repo + mode`) | `ok`, `repo`, `mode`, `alias`, `bucket`, `path` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
 | `android-keystore-status` | Liefert Keystore-Record-/Storage-Status für Repo/Mode | `ok`, `exists`, optional `record` · Auth: **JWT + Claim + Scoped Secret** (`verify_jwt=true`, `role in [service_role, build_admin]`, `x-k1w1-admin-key`, Secret `K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY`) |
@@ -22,14 +21,7 @@ Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 
 ## Bewusst deaktiviert / Legacy
 
-| Function | Status | Hinweis |
-|---|---|---|
-| `trigger-lint` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
-| `check-lint` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
-| `check-native-sync` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
-| `trigger-native-sync` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
-| `native-sync-report` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
-| `native-sync-report-ingest` | disabled | in `supabase/config.toml` deaktiviert; Stub liefert 410 / stillgelegt |
+Die zuvor stillgelegten Legacy-Functions (`trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox`) sind seit Patch 784 komplett aus dem Repo entfernt (keine Config-Eintraege, keine Function-Verzeichnisse).
 
 ## Hinweise
 
@@ -41,7 +33,7 @@ Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 - Der build_admin-Claim wird nicht im Repo erzeugt: `requireJwtRole(...)` priorisiert nach erfolgreicher Verifikation den Rollenwert aus dem verifizierten JWT-Claim (`role`, danach `app_metadata.role`) und nutzt `GET /auth/v1/user` nur noch defensiv als Fallback; damit bleibt der externe `build_admin`-Provisioning-Vertrag erhalten, ohne `user.role=authenticated`-Drift.
 - Patch 622 schliesst den verbleibenden Live-Decode-Drift im selben Pfad: JWT-Payload-Decoding ist jetzt UTF-8-sicher (`TextDecoder`), damit ein valider `build_admin`-Claim nicht durch Non-ASCII-Nebenclaims im Token verloren geht und der finale `allowedRoles`-Vergleich (`service_role|build_admin`) in Workflow-/Keystore-Operatorrouten stabil greift.
 - Patch 597 zieht den App-Caller-Vertrag des Credentials Wizards final nach: Requests an `android-keystore-status`/`android-keystore-generate` laufen nur noch mit `Authorization: Bearer <Supabase user JWT>` **und** `x-k1w1-admin-key` (lokaler `androidKeystoreExportAdminKey`).
-- Patch 598 reduziert den verbleibenden generischen Legacy-Guard-Scope: `requireAdminKey(...)` akzeptiert nur noch `K1W1_EDGE_ADMIN_KEY` (kein stiller `SIGNING_ADMIN_KEY`-Fallback). Historisch betraf das u.a. `create_codesandbox`, `save_preview` und disabled lint/native-sync Stubs; der **aktuelle** Vertragsstand ist aber: `create_codesandbox` ist jetzt als Legacy-/Compat-Pfad deaktiviert (`enabled = false`, `410 legacy_create_codesandbox_disabled`); `save_preview` bleibt der JWT-geschuetzte Standardpfad.
+- Patch 598 reduziert den verbleibenden generischen Legacy-Guard-Scope: `requireAdminKey(...)` akzeptiert nur noch `K1W1_EDGE_ADMIN_KEY` (kein stiller `SIGNING_ADMIN_KEY`-Fallback). Historisch betraf das u.a. `create_codesandbox`, `save_preview` und disabled lint/native-sync Stubs; der aktuelle Vertragsstand ist nach dem Legacy-Cleanup: diese Legacy-Functions sind komplett aus dem Repo entfernt, waehrend `save_preview` der JWT-geschuetzte Standardpfad bleibt.
 - Fix-Durchlauf 2 zieht `k1w1-handler` auf denselben fail-closed JWT-/RBAC-Grundvertrag wie andere privilegierte Operatorpfade: `verify_jwt=true`, `Authorization: Bearer <jwt>` serverseitig `requireAiOperatorJwtRole(...)` fuer `service_role|build_admin`, ohne lokalen Legacy-Key-Zwang.
 - Fix-Durchlauf 2 zieht ausserdem die Workflow-Read-Pfade (`github-workflow-runs`, `github-workflow-logs`, `github-run-artifact-json`) auf dieselbe Repo-Allowlist wie Dispatch/Build; Reads ausserhalb von `K1W1_ALLOWED_GITHUB_REPOS` werden jetzt fail-closed mit `403 githubRepo not allowed` abgewiesen.
 - Patch 599 beseitigt den aktuellen Keystore-Config-Split-Brain: die funktionslokalen Config-Dateien fuer `android-keystore-status`/`android-keystore-generate` wurden entfernt, damit `supabase/config.toml` als einzige fail-closed SoT (`verify_jwt=true`) gilt und kein lokaler `verify_jwt=false`-Schattenzustand mehr existiert.
@@ -73,6 +65,6 @@ Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
 2. Lokale scoped Keys setzen (Workflow vs. Keystore getrennt).
 3. Supabase- und GitHub-Secrets sowie DB-/Storage-Objekte fuer Build/Signing/Preview verifizieren.
 4. Erst danach Repair-/Provisioning-Flows (falls noetig) und normalen Dispatch/Build starten.
-5. Legacy-/Compat-Pfade (`create_codesandbox`, lokale Alt-Admin-Keys) nie als Standard-Produktpfad interpretieren; `save_preview` ist jetzt wieder ein JWT-geschuetzter Standardpfad, und `k1w1-handler` verlangt einen Operator-JWT.
+5. Legacy-/Compat-Altpfade und lokale Alt-Admin-Keys nie als Standard-Produktpfad interpretieren; `save_preview` ist der JWT-geschuetzte Standardpfad, und `k1w1-handler` verlangt einen Operator-JWT.
 
 Dieser Vertrag ist bewusst darauf ausgelegt, Setup-Luecken als Setup-Luecken sichtbar zu machen statt als scheinbaren Code-Defekt.

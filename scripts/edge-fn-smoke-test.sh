@@ -232,7 +232,7 @@ fi
 echo
 echo "BLOCK F — Legacy Stubs"
 echo "──────────────────────────────────────────────────────"
-for FN in create_codesandbox test; do
+for FN in test; do
   R="$(call "$FN" POST "$SRK" '{}')"
   S="$(status_of "$R")"
   B="$(body_of "$R")"
