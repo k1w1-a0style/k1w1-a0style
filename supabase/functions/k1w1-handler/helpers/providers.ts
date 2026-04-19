@@ -103,13 +103,16 @@ export async function callGemini(
       : {}),
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
   const res = await fetchWithTimeout(url, {
     timeoutMs: PROVIDER_UPSTREAM_TIMEOUT_MS,
     timeoutMessage: `Gemini request timed out after ${PROVIDER_UPSTREAM_TIMEOUT_MS}ms`,
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
     body: JSON.stringify(payload),
   });
 

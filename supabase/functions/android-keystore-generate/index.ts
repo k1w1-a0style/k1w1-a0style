@@ -9,6 +9,7 @@ import {
   errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 function randomCertSerialHex(): string {
@@ -210,6 +211,8 @@ Deno.serve(async (req) => {
       req,
     );
   } catch (e) {
-    return errorResponse("Unhandled error", req, 500, { message: e?.message || String(e) });
+    const safeDebugMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("android-keystore-generate unhandled error", { message: safeDebugMessage });
+    return errorResponse("Unhandled error", req, 500, { code: "internal_error" });
   }
 });

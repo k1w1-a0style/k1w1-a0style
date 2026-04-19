@@ -35,8 +35,10 @@ describe('k1w1-handler runtime mapping behavior', () => {
       messages: [{ role: 'user', content: 'Hi' }],
     });
 
-    const [calledUrl] = mockFetchWithTimeout.mock.calls[0];
+    const [calledUrl, request] = mockFetchWithTimeout.mock.calls[0];
     expect(String(calledUrl)).toContain('/models/gemini-2.5-flash:generateContent');
+    expect(String(calledUrl)).not.toContain('?key=');
+    expect(request.headers["x-goog-api-key"]).toBe('test-key');
     expect(result.model).toBe('gemini-3-flash');
     expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
   });
@@ -56,8 +58,10 @@ describe('k1w1-handler runtime mapping behavior', () => {
       messages: [{ role: 'user', content: 'Hi' }],
     });
 
-    const [calledUrl] = mockFetchWithTimeout.mock.calls[0];
+    const [calledUrl, request] = mockFetchWithTimeout.mock.calls[0];
     expect(String(calledUrl)).toContain('/models/gemini-2.5-flash-lite:generateContent');
+    expect(String(calledUrl)).not.toContain('?key=');
+    expect(request.headers["x-goog-api-key"]).toBe('test-key');
     expect(result.model).toBe('gemini-3.1-flash-lite');
     expect(String(result.runtimeNote || '')).toContain('Runtime-Mapping aktiv');
   });
