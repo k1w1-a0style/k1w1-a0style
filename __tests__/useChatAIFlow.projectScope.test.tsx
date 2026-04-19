@@ -1,6 +1,4 @@
 import { act, renderHook } from "@testing-library/react-native";
-import fs from "node:fs";
-import path from "node:path";
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
 import type { AIConfig } from "../contexts/AIContext/models";
 import type { ChatMessage } from "../shared/types/chat";
@@ -183,14 +181,56 @@ describe("useChatAIFlow project scoping", () => {
     expect(setIsAiLoading).toHaveBeenLastCalledWith(false);
   });
 
-  test("pending plan/apply paths keep originProjectId guards", () => {
-    const orchestratorSrc = fs.readFileSync(path.join(process.cwd(), "hooks/useChatAIFlow.ts"), "utf8");
-    const applySrc = fs.readFileSync(
-      path.join(process.cwd(), "hooks/chatAIFlow/useChatAIChangeLifecycle.ts"),
-      "utf8",
+  test("stale send-handler reference does not forward an old pending plan after project switch", async () => {
+    mockExecuteChatRequestPipeline
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "planner_preview",
+        message: "Plan for A",
+        pendingPlan: { originalRequest: "x", planText: "1) Schritt", mode: "advice" },
+      }))
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "confirmation_required",
+        message: "Weiter bitte",
+      }));
+
+    const { result, rerender } = renderHook(
+      ({ projectId }: { projectId: string }) =>
+        useChatAIFlow({
+          config: makeConfig(),
+          projectId,
+          messages: baseMessages,
+          projectFiles: baseFiles,
+          addChatMessage: jest.fn(),
+          updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+          autoFixRequest: null,
+          clearAutoFixRequest: jest.fn(),
+          hardScrollToBottom: jest.fn(),
+          setIsStreaming: jest.fn(),
+          setStreamingMessage: jest.fn(),
+          setIsAiLoading: jest.fn(),
+          setError: jest.fn(),
+          setShowConfirmModal: jest.fn(),
+        }),
+      { initialProps: { projectId: "project-a" } },
     );
-    expect(orchestratorSrc).toContain("currentPlan.originProjectId !== undefined");
-    expect(applySrc).toContain("pendingChange.originProjectId !== undefined");
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte plane den nächsten Schritt.");
+    });
+    expect(result.current.pendingPlan).not.toBeNull();
+
+    const staleHandlerRef = result.current.handleSendWithMeta;
+    rerender({ projectId: "project-b" });
+    expect(result.current.pendingPlan).toBeNull();
+
+    await act(async () => {
+      await staleHandlerRef("weiter");
+    });
+
+    expect(mockExecuteChatRequestPipeline).toHaveBeenCalledTimes(2);
+    const secondCallArg = mockExecuteChatRequestPipeline.mock.calls[1]?.[0];
+    expect(secondCallArg?.currentPendingPlan).toBeNull();
+    expect(secondCallArg?.sanitizedRequestContent).toBe("weiter");
   });
 
   test("project switch resets stale plan context and rebuilds send handler scope", async () => {
