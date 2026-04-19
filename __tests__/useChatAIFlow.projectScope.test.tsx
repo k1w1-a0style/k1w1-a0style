@@ -188,4 +188,9 @@ describe("useChatAIFlow project scoping", () => {
     expect(orchestratorSrc).toContain("currentPlan.originProjectId !== undefined");
     expect(applySrc).toContain("pendingChange.originProjectId !== undefined");
   });
+
+  test("send handler callback tracks latest projectId dependency", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "hooks/useChatAIFlow.ts"), "utf8");
+    expect(source).toContain("[addChatMessage, markStagedBlockForwarded, processAIRequest, projectId, safe, setError]");
+  });
 });
