@@ -150,16 +150,18 @@ describe("useChatAIFlow project scoping", () => {
       }),
     );
 
-    const firstRun = act(async () => {
-      await result.current.handleSendWithMeta("run 1");
+    let firstRun!: Promise<boolean>;
+    act(() => {
+      firstRun = result.current.handleSendWithMeta("run 1");
     });
 
     act(() => {
       result.current.abortCurrentRequest();
     });
 
-    const secondRun = act(async () => {
-      await result.current.handleSendWithMeta("run 2");
+    let secondRun!: Promise<boolean>;
+    act(() => {
+      secondRun = result.current.handleSendWithMeta("run 2");
     });
 
     await act(async () => {
@@ -174,8 +176,10 @@ describe("useChatAIFlow project scoping", () => {
       await Promise.resolve();
     });
 
-    await firstRun;
-    await secondRun;
+    await act(async () => {
+      await firstRun;
+      await secondRun;
+    });
     expect(setIsAiLoading).toHaveBeenLastCalledWith(false);
   });
 
@@ -189,8 +193,63 @@ describe("useChatAIFlow project scoping", () => {
     expect(applySrc).toContain("pendingChange.originProjectId !== undefined");
   });
 
-  test("send handler callback tracks latest projectId dependency", () => {
-    const source = fs.readFileSync(path.join(process.cwd(), "hooks/useChatAIFlow.ts"), "utf8");
-    expect(source).toContain("[addChatMessage, markStagedBlockForwarded, processAIRequest, projectId, safe, setError]");
+  test("project switch resets stale plan context and rebuilds send handler scope", async () => {
+    mockExecuteChatRequestPipeline
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "planner_preview",
+        message: "Plan for A",
+        pendingPlan: { originalRequest: "x", planText: "1) Schritt", mode: "advice" },
+      }))
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "confirmation_required",
+        message: "Weiter bitte",
+      }));
+
+    const addChatMessage = jest.fn();
+    const setIsAiLoading = jest.fn();
+    const setError = jest.fn();
+    const setShowConfirmModal = jest.fn();
+
+    const { result, rerender } = renderHook(
+      ({ projectId }: { projectId: string }) =>
+        useChatAIFlow({
+          config: makeConfig(),
+          projectId,
+          messages: baseMessages,
+          projectFiles: baseFiles,
+          addChatMessage,
+          updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+          autoFixRequest: null,
+          clearAutoFixRequest: jest.fn(),
+          hardScrollToBottom: jest.fn(),
+          setIsStreaming: jest.fn(),
+          setStreamingMessage: jest.fn(),
+          setIsAiLoading,
+          setError,
+          setShowConfirmModal,
+        }),
+      { initialProps: { projectId: "project-a" } },
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte plane den nächsten Schritt.");
+    });
+
+    expect(result.current.pendingPlan).not.toBeNull();
+    const handlerBeforeSwitch = result.current.handleSendWithMeta;
+
+    rerender({ projectId: "project-b" });
+
+    expect(result.current.pendingPlan).toBeNull();
+    expect(result.current.handleSendWithMeta).not.toBe(handlerBeforeSwitch);
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("weiter");
+    });
+
+    expect(mockExecuteChatRequestPipeline).toHaveBeenCalledTimes(2);
+    const secondCallArg = mockExecuteChatRequestPipeline.mock.calls[1]?.[0];
+    expect(secondCallArg?.currentPendingPlan).toBeNull();
+    expect(secondCallArg?.sanitizedRequestContent).toBe("weiter");
   });
 });
