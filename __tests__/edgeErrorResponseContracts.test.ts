@@ -83,6 +83,21 @@ describe("Supabase Edge errorResponse contract", () => {
     expect(raw).not.toContain("session=xyz");
   });
 
+
+  it("keeps structured error codes in details (not as automatic top-level code)", async () => {
+    const req = new Request("http://localhost/test", {
+      headers: { origin: "http://localhost" },
+    });
+
+    const res = errorResponse("Unhandled error", req, 500, { code: "internal_error" });
+    const body = await readJsonRecord(res);
+
+    expect(body.ok).toBe(false);
+    expect(body.error).toBe("Unhandled error");
+    expect(body).not.toHaveProperty("code");
+    expect(body.details).toEqual({ code: "internal_error" });
+  });
+
   it("sanitizes error text patterns (JWT/Bearer/GitHub tokens)", async () => {
     const req = new Request("http://localhost/test", {
       headers: { origin: "http://localhost" },
