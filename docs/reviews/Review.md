@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Status-SoT / Governance

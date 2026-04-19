@@ -19,6 +19,9 @@ export const styles = StyleSheet.create({
   guardBadgeRow: {
     marginHorizontal: 12,
     marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   guardBadge: {
     alignSelf: "flex-start",
@@ -34,6 +37,10 @@ export const styles = StyleSheet.create({
   guardBadgeWarn: {
     borderColor: "rgba(255, 180, 0, 0.45)",
     backgroundColor: "rgba(255, 180, 0, 0.14)",
+  },
+  guardBadgeStaged: {
+    borderColor: "rgba(0, 220, 130, 0.45)",
+    backgroundColor: "rgba(0, 220, 130, 0.12)",
   },
   guardBadgeText: {
     color: theme.palette.text.primary,

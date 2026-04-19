@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 
 ## Aktiv und workflow-relevant
 

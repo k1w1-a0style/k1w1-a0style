@@ -79,6 +79,16 @@ function buildAllowedPathHint(): string {
   return buildEffectiveChatWriteHint();
 }
 
+const LARGE_TASK_DROPPED_FILES_THRESHOLD = 4;
+const LARGE_TASK_TRIMMED_FILES_THRESHOLD = 4;
+
+function hasLargeTaskBudgetSignal(stats: { droppedFileCount: number; trimmedFileCount: number }): boolean {
+  return (
+    stats.droppedFileCount >= LARGE_TASK_DROPPED_FILES_THRESHOLD ||
+    stats.trimmedFileCount >= LARGE_TASK_TRIMMED_FILES_THRESHOLD
+  );
+}
+
 /**
  * CALL 1: PLANER (Kommunikation)
  * - 1–3 Rückfragen ODER Mini-Plan + Dateiliste + optional 1 Snippet
@@ -125,9 +135,17 @@ export function buildPlannerMessages(
   const MAX_HISTORY = 8;
   const recentHistory = budgeted.history.length > MAX_HISTORY ? budgeted.history.slice(budgeted.history.length - MAX_HISTORY) : budgeted.history;
 
+  const largeTaskPlanHint = hasLargeTaskBudgetSignal(budgeted.stats)
+    ? '\n\nWichtig: Der Scope wirkt groß. Gib zuerst einen Blockplan mit 2–4 klaren Schritten (Analyse → Plan → Patch-Schritte → Recheck) und starte nur mit Block 1.'
+    : '';
+
   const userTask: LlmMessage = {
     role: 'user',
-    content: 'Nutzerwunsch:\n' + sanitizeTextForLlm(userContent) + '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).',
+    content:
+      'Nutzerwunsch:\n' +
+      sanitizeTextForLlm(userContent) +
+      '\n\nBitte antworte als PLANER (Fragen ODER Plan+Dateiliste).' +
+      largeTaskPlanHint,
   };
 
   return [systemMessage, projectMessage, ...recentHistory, userTask];
@@ -205,12 +223,17 @@ export function buildBuilderMessages(
   const MAX_HISTORY = 10;
   const recentHistory = budgeted.history.length > MAX_HISTORY ? budgeted.history.slice(budgeted.history.length - MAX_HISTORY) : budgeted.history;
 
+  const largeTaskBuildHint = hasLargeTaskBudgetSignal(budgeted.stats)
+    ? '\n\nWichtig: Der Scope wirkt groß. Liefere nur Block 1 als minimalen, lauffähigen Teilpatch und verschiebe weitere Schritte explizit in den nächsten Durchlauf.'
+    : '';
+
   const userTask: LlmMessage = {
     role: 'user',
     content:
       'Aufgabe (aktuelle User-Eingabe):\n' +
       sanitizeTextForLlm(userContent) +
-      '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ohne zusätzliche Erklärungen.',
+      '\n\nDenke daran: Antworte ausschließlich mit einem JSON-Array von Dateien, ohne zusätzliche Erklärungen.' +
+      largeTaskBuildHint,
   };
 
   return [systemMessage, projectMessage, ...recentHistory, userTask];

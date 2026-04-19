@@ -25,9 +25,24 @@ describe("useChatAIFlow pending plan guard invariants", () => {
     expect(routingHelpersSrc).toContain("Scout-Modus aktiv");
   });
 
+  it("keeps staged-mode guard coupled to block-1/proceed confirmation", () => {
+    expect(routingHelpersSrc).toContain('if (mode === "staged" && !wantsProceed && !wantsDirectBuild)');
+    expect(routingHelpersSrc).toContain("const BLOCK_COMMAND_PATTERNS");
+    expect(routingHelpersSrc).toContain("readBlockCommandIntent");
+    expect(routingHelpersSrc).toContain("readRequestedBlockIndex");
+    expect(routingHelpersSrc).toContain("Stufenmodus aktiv");
+  });
+
   it("uses the same direct-build helper for scout handoff and metrics", () => {
     expect(requestControllerSrc).toContain("isDirectBuildCommand(normalizedIntentReply)");
     expect(orchestratorSrc).toContain("resolvePendingPlanHandoff({");
     expect(orchestratorSrc).toContain("isDirectBuildCommand,");
+  });
+
+  it("keeps staged auto-continue wired to applyChanges with explicit fallback notice", () => {
+    expect(orchestratorSrc).toContain("const applyChangesWithAutoStagedNext = useCallback(async () => {");
+    expect(orchestratorSrc).toContain("Auto-Fortsetzung: Starte jetzt Block");
+    expect(orchestratorSrc).toContain('Bitte mit "weiter" fortsetzen.');
+    expect(orchestratorSrc).toContain("buildPendingPlanCombinedRequest({");
   });
 });

@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 
-Zuletzt abgeschlossen: **Patch 783**
+Zuletzt abgeschlossen: **Patch 784**
 
 Der aktuelle Stand bestaetigt:
 - finaler Integrations-/Drift-Pass ueber die bereits umgesetzten Bloecke 1–8 wurde ohne Scope-Creep abgeschlossen; es wurden keine neuen Produktcode-Aenderungen benoetigt

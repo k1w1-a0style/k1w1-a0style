@@ -48,7 +48,11 @@ export type PendingPlan = {
   originProjectId?: string | null;
   originalRequest: string;
   planText: string;
-  mode: "advice" | "build" | "scout";
+  mode: "advice" | "build" | "scout" | "staged";
+  stagedLastBlockIndex?: number;
+  stagedNextBlockIndex?: number;
+  stagedTotalBlocks?: number;
+  stagedPendingBlockIndex?: number;
 };
 
 export type ExtendedOrchestratorResult = OrchestratorResult & {
