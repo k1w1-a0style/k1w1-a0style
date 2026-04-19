@@ -57,6 +57,8 @@ const ChatComposer: React.FC<Props> = ({
   const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
   const isStagedPendingPlan = pendingPlan?.mode === "staged";
   const stagedNextBlockIndex = pendingPlan?.stagedNextBlockIndex ?? 1;
+  const stagedPendingBlockIndex = pendingPlan?.stagedPendingBlockIndex;
+  const stagedTargetBlockIndex = stagedPendingBlockIndex ?? stagedNextBlockIndex;
   const stagedLastBlockIndex = pendingPlan?.stagedLastBlockIndex ?? 0;
   const stagedTotalBlocks = pendingPlan?.stagedTotalBlocks;
   const stagedProgressLabel = stagedTotalBlocks
@@ -65,7 +67,7 @@ const ChatComposer: React.FC<Props> = ({
 
   const placeholder = pendingPlan
     ? isStagedPendingPlan
-      ? `Stufenmodus aktiv: antworte mit "block ${stagedNextBlockIndex}", "weiter mit block ${stagedNextBlockIndex}" oder "weiter"...`
+      ? `Stufenmodus aktiv: antworte mit "block ${stagedTargetBlockIndex}", "weiter mit block ${stagedTargetBlockIndex}" oder "weiter"...`
       : 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
 
@@ -112,10 +114,10 @@ const ChatComposer: React.FC<Props> = ({
         {isStagedPendingPlan && (
           <View
             style={[styles.guardBadge, styles.guardBadgeStaged]}
-            accessibilityLabel={`Stufenmodus aktiv: wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
+            accessibilityLabel={`Stufenmodus aktiv: wartet auf Block ${stagedTargetBlockIndex} (${stagedProgressLabel})`}
           >
             <Text style={styles.guardBadgeText}>
-              {`Stufenmodus · wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
+              {`Stufenmodus · wartet auf Block ${stagedTargetBlockIndex} (${stagedProgressLabel})`}
             </Text>
           </View>
         )}
@@ -125,7 +127,7 @@ const ChatComposer: React.FC<Props> = ({
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>
             {isStagedPendingPlan
-              ? `🧩 Stufenmodus: Nutze "block ${stagedNextBlockIndex}", "mach block ${stagedNextBlockIndex}" oder "weiter". Aktuell angewendet: ${stagedProgressLabel}.`
+              ? `🧩 Stufenmodus: Nutze "block ${stagedTargetBlockIndex}", "mach block ${stagedTargetBlockIndex}" oder "weiter". Aktuell angewendet: ${stagedProgressLabel}.`
               : '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'}
           </Text>
         </View>

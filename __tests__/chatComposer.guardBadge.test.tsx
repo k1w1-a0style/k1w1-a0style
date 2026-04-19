@@ -47,4 +47,30 @@ describe("ChatComposer guard badge", () => {
     expect(getByText(/Nutze "block 2", "mach block 2" oder "weiter"/)).toBeTruthy();
     expect(getByLabelText("Stufenmodus aktiv: wartet auf Block 2 (1/4)")).toBeTruthy();
   });
+
+  it("prefers stagedPendingBlockIndex over stagedNextBlockIndex in staged messaging", () => {
+    const { getByText, getByLabelText, getByPlaceholderText } = render(
+      <ChatComposer
+        {...baseProps}
+        pendingPlan={{
+          originalRequest: "x",
+          planText: "y",
+          mode: "staged",
+          stagedLastBlockIndex: 1,
+          stagedNextBlockIndex: 2,
+          stagedPendingBlockIndex: 3,
+          stagedTotalBlocks: 4,
+        }}
+      />,
+    );
+
+    expect(getByText("Stufenmodus · wartet auf Block 3 (1/4)")).toBeTruthy();
+    expect(getByText(/Nutze "block 3", "mach block 3" oder "weiter"/)).toBeTruthy();
+    expect(getByLabelText("Stufenmodus aktiv: wartet auf Block 3 (1/4)")).toBeTruthy();
+    expect(
+      getByPlaceholderText(
+        'Stufenmodus aktiv: antworte mit "block 3", "weiter mit block 3" oder "weiter"...',
+      ),
+    ).toBeTruthy();
+  });
 });
