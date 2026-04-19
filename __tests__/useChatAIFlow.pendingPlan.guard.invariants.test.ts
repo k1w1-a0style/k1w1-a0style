@@ -27,8 +27,8 @@ describe("useChatAIFlow pending plan guard invariants", () => {
 
   it("keeps staged-mode guard coupled to block-1/proceed confirmation", () => {
     expect(routingHelpersSrc).toContain('if (mode === "staged" && !wantsProceed && !wantsDirectBuild)');
-    expect(routingHelpersSrc).toContain("const BLOCK_COMMAND_RE");
-    expect(routingHelpersSrc).toContain("BLOCK_COMMAND_RE.test(normalizedInput)");
+    expect(routingHelpersSrc).toContain("const BLOCK_COMMAND_PATTERNS");
+    expect(routingHelpersSrc).toContain("readBlockCommandIntent");
     expect(routingHelpersSrc).toContain("readRequestedBlockIndex");
     expect(routingHelpersSrc).toContain("Stufenmodus aktiv");
   });

@@ -11,7 +11,11 @@ import {
   getEmptyMessageNoticeText,
   getXssSanitizationNoticeText,
 } from "./chatAIFlowNoticeMessageHelpers";
-import { buildPendingPlanCombinedRequest, getNormalizedSendInputs } from "./chatAIFlowInputRoutingHelpers";
+import {
+  buildPendingPlanCombinedRequest,
+  getNormalizedSendInputs,
+  isValidStagedBlockIndex,
+} from "./chatAIFlowInputRoutingHelpers";
 import {
   announceContextBudgetNoteEffect,
   announceRuntimeNoteEffect,
@@ -233,6 +237,14 @@ export function useChatAIFlow({
   const markStagedBlockForwarded = useCallback(
     (currentPlan: PendingPlan, forwardedBlockIndex: number | null) => {
       const pendingBlockIndex = forwardedBlockIndex ?? currentPlan.stagedNextBlockIndex ?? 1;
+      if (
+        !isValidStagedBlockIndex({
+          blockIndex: pendingBlockIndex,
+          stagedTotalBlocks: currentPlan.stagedTotalBlocks,
+        })
+      ) {
+        return;
+      }
       const nextPlan = {
         ...currentPlan,
         stagedPendingBlockIndex: pendingBlockIndex,
@@ -245,9 +257,29 @@ export function useChatAIFlow({
 
   const markStagedBlockApplied = useCallback(
     (currentPlan: PendingPlan, appliedBlockIndex: number | null) => {
-      const resolvedAppliedBlock = appliedBlockIndex ?? currentPlan.stagedPendingBlockIndex ?? null;
-      if (!resolvedAppliedBlock || resolvedAppliedBlock <= 0) return null;
+      const resolvedAppliedBlockCandidate = appliedBlockIndex ?? currentPlan.stagedPendingBlockIndex ?? null;
+      if (
+        !isValidStagedBlockIndex({
+          blockIndex: resolvedAppliedBlockCandidate,
+          stagedTotalBlocks: currentPlan.stagedTotalBlocks,
+        })
+      ) {
+        const safePlan = {
+          ...currentPlan,
+          stagedPendingBlockIndex: undefined,
+        };
+        pendingPlanRef.current = safePlan;
+        safe(() => setPendingPlan(safePlan));
+        addChatMessage(
+          buildSystemMessage(
+            "⚠️ Ungültiger Stufenstatus erkannt. Es wurde kein Fortschritt übernommen. Bitte mit einem gültigen Block fortfahren.",
+            { error: true },
+          ),
+        );
+        return null;
+      }
 
+      const resolvedAppliedBlock = Number(resolvedAppliedBlockCandidate);
       const totalBlocks = currentPlan.stagedTotalBlocks;
       const nextBlockIndex = resolvedAppliedBlock + 1;
 

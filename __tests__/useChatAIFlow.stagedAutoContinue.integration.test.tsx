@@ -196,4 +196,183 @@ describe("useChatAIFlow staged auto continue integration", () => {
       }),
     );
   });
+
+  it("rejects out-of-range staged block commands without forwarding or progress changes", async () => {
+    const addChatMessage = jest.fn();
+    const processCalls: string[] = [];
+    mockedUseChatAIRequestController.mockImplementation((args) => {
+      return async (userContent: string, _isAutoFix?: boolean, forceBuilder?: boolean) => {
+        processCalls.push(userContent);
+        if (!forceBuilder && userContent === "start staged flow") {
+          args.setPendingPlan({
+            originalRequest: "start staged flow",
+            planText: "Block 1\nBlock 2\nBlock 3",
+            mode: "staged",
+            stagedLastBlockIndex: 0,
+            stagedNextBlockIndex: 1,
+            stagedTotalBlocks: 3,
+          });
+          return true;
+        }
+        return false;
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useChatAIFlow({
+        config: makeConfig(),
+        messages: [],
+        projectFiles: [{ path: "App.tsx", content: "export default function App(){return null;}" }],
+        addChatMessage,
+        updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+        autoFixRequest: null,
+        clearAutoFixRequest: jest.fn(),
+        hardScrollToBottom: jest.fn(),
+        setIsStreaming: jest.fn(),
+        setStreamingMessage: jest.fn(),
+        setIsAiLoading: jest.fn(),
+        setError: jest.fn(),
+        setShowConfirmModal: jest.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("start staged flow");
+    });
+
+    await act(async () => {
+      const ok = await result.current.handleSendWithMeta("block 99");
+      expect(ok).toBe(true);
+    });
+
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
+    expect(result.current.pendingPlan?.stagedLastBlockIndex).toBe(0);
+    expect(result.current.pendingChange).toBeNull();
+    expect(processCalls.filter((entry) => entry.includes("Block-Fokus")).length).toBe(0);
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "assistant",
+        content: expect.stringContaining("außerhalb des gültigen Bereichs"),
+      }),
+    );
+  });
+
+  it("does not forward staged flow for plain text that only mentions block number", async () => {
+    const addChatMessage = jest.fn();
+    const processCalls: string[] = [];
+    mockedUseChatAIRequestController.mockImplementation((args) => {
+      return async (userContent: string, _isAutoFix?: boolean, forceBuilder?: boolean) => {
+        processCalls.push(userContent);
+        if (!forceBuilder && userContent === "start staged flow") {
+          args.setPendingPlan({
+            originalRequest: "start staged flow",
+            planText: "Block 1\nBlock 2\nBlock 3",
+            mode: "staged",
+            stagedLastBlockIndex: 0,
+            stagedNextBlockIndex: 1,
+            stagedTotalBlocks: 3,
+          });
+          return true;
+        }
+        return false;
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useChatAIFlow({
+        config: makeConfig(),
+        messages: [],
+        projectFiles: [{ path: "App.tsx", content: "export default function App(){return null;}" }],
+        addChatMessage,
+        updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+        autoFixRequest: null,
+        clearAutoFixRequest: jest.fn(),
+        hardScrollToBottom: jest.fn(),
+        setIsStreaming: jest.fn(),
+        setStreamingMessage: jest.fn(),
+        setIsAiLoading: jest.fn(),
+        setError: jest.fn(),
+        setShowConfirmModal: jest.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("start staged flow");
+    });
+
+    await act(async () => {
+      const ok = await result.current.handleSendWithMeta("kannst du block 2 kurz erklären?");
+      expect(ok).toBe(true);
+    });
+
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
+    expect(result.current.pendingChange).toBeNull();
+    expect(processCalls).toEqual(["start staged flow"]);
+  });
+
+  it("does not complete or advance staged plan when pending applied block index is invalid", async () => {
+    const addChatMessage = jest.fn();
+    const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
+    mockedUseChatAIRequestController.mockImplementation((args) => {
+      return async (userContent: string) => {
+        if (userContent === "start staged flow") {
+          args.setPendingPlan({
+            originalRequest: "start staged flow",
+            planText: "Block 1\nBlock 2\nBlock 3",
+            mode: "staged",
+            stagedLastBlockIndex: 0,
+            stagedNextBlockIndex: 1,
+            stagedPendingBlockIndex: 99,
+            stagedTotalBlocks: 3,
+          });
+          args.setPendingChange(makePendingChange("export default function App(){return null;}"));
+          return true;
+        }
+        return false;
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useChatAIFlow({
+        config: makeConfig(),
+        messages: [],
+        projectFiles: [{ path: "App.tsx", content: "export default function App(){return null;}" }],
+        addChatMessage,
+        updateProjectFiles,
+        autoFixRequest: null,
+        clearAutoFixRequest: jest.fn(),
+        hardScrollToBottom: jest.fn(),
+        setIsStreaming: jest.fn(),
+        setStreamingMessage: jest.fn(),
+        setIsAiLoading: jest.fn(),
+        setError: jest.fn(),
+        setShowConfirmModal: jest.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("start staged flow");
+    });
+    await act(async () => {
+      await result.current.applyChanges();
+    });
+
+    expect(updateProjectFiles).toHaveBeenCalled();
+    expect(result.current.pendingPlan?.mode).toBe("staged");
+    expect(result.current.pendingPlan?.stagedLastBlockIndex).toBe(0);
+    expect(result.current.pendingPlan?.stagedNextBlockIndex).toBe(1);
+    expect(result.current.pendingPlan?.stagedPendingBlockIndex).toBeUndefined();
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("Ungültiger Stufenstatus erkannt"),
+      }),
+    );
+    expect(addChatMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("Stufenmodus abgeschlossen"),
+      }),
+    );
+  });
 });

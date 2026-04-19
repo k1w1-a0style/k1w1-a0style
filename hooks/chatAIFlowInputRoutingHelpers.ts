@@ -1,7 +1,16 @@
 import type { PendingPlan } from "./chatAIFlowTypes";
 
-const BLOCK_COMMAND_RE = /\bblock\s*(\d+)\b/i;
+const BLOCK_COMMAND_PATTERNS = [
+  /^block\s*(-?\d+)(?:\s+bitte)?$/i,
+  /^mach\s+block\s*(-?\d+)$/i,
+  /^weiter\s+mit\s+block\s*(-?\d+)$/i,
+] as const;
 const BLOCK_IN_TEXT_RE = /\bblock\s*(\d+)\b/gi;
+
+type BlockCommandIntent = {
+  isBlockCommand: boolean;
+  parsedIndex: number | null;
+};
 
 export const getNormalizedSendInputs = (
   rawInput: string,
@@ -25,7 +34,7 @@ export const getNormalizedSendInputs = (
 };
 
 export const isProceedCommand = (normalizedInput: string): boolean => {
-  if (BLOCK_COMMAND_RE.test(normalizedInput)) return true;
+  if (readRequestedBlockIndex(normalizedInput) !== null) return true;
   return (
     normalizedInput === "weiter" ||
     normalizedInput === "mach weiter" ||
@@ -35,10 +44,24 @@ export const isProceedCommand = (normalizedInput: string): boolean => {
   );
 };
 
+export const readBlockCommandIntent = (normalizedInput: string): BlockCommandIntent => {
+  const trimmed = normalizedInput.trim();
+  for (const pattern of BLOCK_COMMAND_PATTERNS) {
+    const match = trimmed.match(pattern);
+    if (!match?.[1]) continue;
+    const parsed = Number(match[1]);
+    if (!Number.isFinite(parsed)) {
+      return { isBlockCommand: true, parsedIndex: null };
+    }
+    return { isBlockCommand: true, parsedIndex: Math.trunc(parsed) };
+  }
+  return { isBlockCommand: false, parsedIndex: null };
+};
+
 export const readRequestedBlockIndex = (normalizedInput: string): number | null => {
-  const match = normalizedInput.match(BLOCK_COMMAND_RE);
-  if (!match?.[1]) return null;
-  const parsed = Number(match[1]);
+  const { isBlockCommand, parsedIndex } = readBlockCommandIntent(normalizedInput);
+  if (!isBlockCommand || parsedIndex === null) return null;
+  const parsed = Number(parsedIndex);
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.trunc(parsed);
 };
@@ -64,6 +87,18 @@ export const resolveEffectiveStagedBlockIndex = ({
   if (requestedBlockIndex && requestedBlockIndex > 0) return requestedBlockIndex;
   if (stagedNextBlockIndex && stagedNextBlockIndex > 0) return stagedNextBlockIndex;
   return 1;
+};
+
+export const isValidStagedBlockIndex = ({
+  blockIndex,
+  stagedTotalBlocks,
+}: {
+  blockIndex: number | null;
+  stagedTotalBlocks?: number;
+}): boolean => {
+  if (!blockIndex || !Number.isFinite(blockIndex) || blockIndex <= 0) return false;
+  if (stagedTotalBlocks && blockIndex > stagedTotalBlocks) return false;
+  return true;
 };
 
 export const shouldHoldPendingPlan = ({

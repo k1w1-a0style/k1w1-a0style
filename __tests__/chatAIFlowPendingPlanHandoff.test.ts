@@ -18,6 +18,7 @@ describe("chatAIFlowPendingPlanHandoff", () => {
     planText: "staged plan",
     mode: "staged" as const,
     stagedNextBlockIndex: 1,
+    stagedTotalBlocks: 3,
   };
 
   it("holds advice plans without proceed command", () => {
@@ -111,6 +112,46 @@ describe("chatAIFlowPendingPlanHandoff", () => {
       expect(forwardResult.forwardedBlockIndex).toBe(2);
       expect(forwardResult.combinedRequest).toContain("Nur Block 2 umsetzen");
     }
+  });
+
+  it("holds staged handoff for out-of-range block requests", () => {
+    const result = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "block 99",
+      sanitizedAiContent: "block 99",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(result.kind).toBe("hold");
+    if (result.kind === "hold") {
+      expect(result.message).toContain("gültigen Bereichs");
+      expect(result.message).toContain("1 bis 3");
+    }
+  });
+
+  it("holds staged handoff for invalid explicit block index", () => {
+    const result = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "block 0",
+      sanitizedAiContent: "block 0",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(result.kind).toBe("hold");
+    if (result.kind === "hold") {
+      expect(result.message).toContain("Ungültiger Blockindex");
+    }
+  });
+
+  it("does not treat plain text mentioning block 2 as proceed command", () => {
+    const result = resolvePendingPlanHandoff({
+      currentPlan: stagedPlan,
+      sanitizedUserContent: "kannst du block 2 erklären?",
+      sanitizedAiContent: "kannst du block 2 erklären?",
+      isDirectBuildCommand: () => false,
+    });
+
+    expect(result.kind).toBe("hold");
   });
 
   it("uses staged next-block cursor when user only says weiter", () => {
