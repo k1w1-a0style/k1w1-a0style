@@ -432,7 +432,7 @@ export function useChatAIFlow({
 
       return processAIRequest(sanitizedAiContent, false, false);
     },
-    [addChatMessage, markStagedBlockForwarded, processAIRequest, safe, setError],
+    [addChatMessage, markStagedBlockForwarded, processAIRequest, projectId, safe, setError],
   );
 
   return useMemo(
