@@ -1,5 +1,6 @@
 import { act, renderHook } from "@testing-library/react-native";
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
+import { useChatAIChangeLifecycle } from "../hooks/chatAIFlow/useChatAIChangeLifecycle";
 import type { AIConfig } from "../contexts/AIContext/models";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
@@ -291,5 +292,53 @@ describe("useChatAIFlow project scoping", () => {
     const secondCallArg = mockExecuteChatRequestPipeline.mock.calls[1]?.[0];
     expect(secondCallArg?.currentPendingPlan).toBeNull();
     expect(secondCallArg?.sanitizedRequestContent).toBe("weiter");
+  });
+
+  test("applyChanges rejects pending change from another project scope", async () => {
+    const pendingChange = {
+      summary: "scope check",
+      files: [{ path: "App.tsx", content: "export default function App(){ return null; }" }],
+      created: [],
+      updated: ["App.tsx"],
+      skipped: [],
+      errors: [],
+      aiResponse: { ok: true },
+      originProjectId: "project-a",
+    };
+    const setPendingChange = jest.fn();
+    const setShowConfirmModal = jest.fn();
+    const addChatMessage = jest.fn();
+    const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
+    const projectFilesRef = { current: baseFiles };
+
+    const { result } = renderHook(() =>
+      useChatAIChangeLifecycle({
+        pendingChange,
+        activeProjectId: "project-b",
+        safe: (fn) => fn(),
+        projectFilesRef,
+        updateProjectFiles,
+        addChatMessage,
+        hardScrollToBottom: jest.fn(),
+        setShowConfirmModal,
+        setPendingChange,
+      }),
+    );
+
+    let applyResult = true;
+    await act(async () => {
+      applyResult = await result.current.applyChanges();
+    });
+
+    expect(applyResult).toBe(false);
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(setShowConfirmModal).toHaveBeenCalledWith(false);
+    expect(setPendingChange).toHaveBeenCalledWith(null);
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("anderen Projekt"),
+      }),
+    );
   });
 });
