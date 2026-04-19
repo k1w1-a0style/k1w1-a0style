@@ -155,6 +155,8 @@ Deno.serve(async (req: Request) => {
 
     const found = pickFileFromZip(files, filePath);
     if (!found) {
+      // Operator diagnostics: keep a bounded preview of zip entries to debug wrong `filePath`
+      // values without re-downloading artifacts. This route is auth-scoped + no-store.
       return secureError(`File not found in artifact zip: ${filePath}`, 404, {
         runId,
         artifactId: artifact.id,

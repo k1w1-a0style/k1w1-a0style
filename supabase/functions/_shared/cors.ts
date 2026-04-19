@@ -130,7 +130,11 @@ export function jsonResponse(
 }
 
 /**
- * Erstellt eine Error Response mit korrekten CORS-Headern
+ * Erstellt eine Error Response mit korrekten CORS-Headern.
+ *
+ * Vertrag: strukturierte Zusatzdaten werden unter `details` serialisiert.
+ * Beispiel: `errorResponse("Unhandled error", req, 500, { code: "internal_error" })`
+ * ergibt `{ ok:false, error:"Unhandled error", details:{ code:"internal_error" } }`.
  */
 export function errorResponse(
   error: string,
