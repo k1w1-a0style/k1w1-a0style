@@ -4,10 +4,13 @@
  *
  * Allowed:
  *   uses: owner/repo@<40-hex>
+ *   - uses: owner/repo@<40-hex>
  *
  * Disallowed:
  *   uses: owner/repo@v4
  *   uses: owner/repo@main
+ *
+ * Ignored (no pinning requirement):
  *   uses: docker://...
  *   uses: ./local-action
  */
@@ -34,7 +37,7 @@ function checkFile(file) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const m = line.match(/^\s*uses:\s*([^\s#]+)\s*(?:#.*)?$/);
+    const m = line.match(/^\s*(?:-\s*)?uses:\s*["']?([^"'\s#]+)["']?\s*(?:#.*)?$/);
     if (!m) continue;
 
     const ref = m[1];
