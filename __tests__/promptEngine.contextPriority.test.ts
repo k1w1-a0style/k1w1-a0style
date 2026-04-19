@@ -74,7 +74,7 @@ describe("promptEngine context prioritization", () => {
     expect(userInstruction).toContain("starte nur mit Block 1");
   });
 
-  it("limits builder output to block 1 when budget indicates a large task scope", () => {
+  it("limits builder output to the currently requested block when budget indicates a large task scope", () => {
     const manyFiles: ProjectFile[] = Array.from({ length: 40 }, (_, index) => ({
       path: `src/builder/File${index}.ts`,
       content: `export const builder${index} = "${"y".repeat(400)}";`,
@@ -84,7 +84,7 @@ describe("promptEngine context prioritization", () => {
     const userInstruction = builder[builder.length - 1]?.content ?? "";
 
     expect(userInstruction).toContain("Scope wirkt groß");
-    expect(userInstruction).toContain("Liefere nur Block 1");
+    expect(userInstruction).toContain("Liefere nur den aktuell angeforderten Block");
     expect(userInstruction).toContain("nächsten Durchlauf");
   });
 });

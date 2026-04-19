@@ -224,7 +224,7 @@ export function buildBuilderMessages(
   const recentHistory = budgeted.history.length > MAX_HISTORY ? budgeted.history.slice(budgeted.history.length - MAX_HISTORY) : budgeted.history;
 
   const largeTaskBuildHint = hasLargeTaskBudgetSignal(budgeted.stats)
-    ? '\n\nWichtig: Der Scope wirkt groß. Liefere nur Block 1 als minimalen, lauffähigen Teilpatch und verschiebe weitere Schritte explizit in den nächsten Durchlauf.'
+    ? '\n\nWichtig: Der Scope wirkt groß. Liefere nur den aktuell angeforderten Block als minimalen, lauffähigen Teilpatch und verschiebe weitere Schritte explizit in den nächsten Durchlauf.'
     : '';
 
   const userTask: LlmMessage = {

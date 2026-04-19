@@ -183,10 +183,9 @@ Deno.serve(async (req) => {
       },
     );
   } catch (e) {
-    const safeMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
-    return errorResponse("Unhandled error", req, 500, {
-      message: safeMessage,
-    }, {
+    const safeDebugMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("android-keystore-export unhandled error", { message: safeDebugMessage });
+    return errorResponse("Unhandled error", req, 500, { code: "internal_error" }, {
       noStore: true,
     });
   }

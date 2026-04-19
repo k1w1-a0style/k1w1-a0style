@@ -8,6 +8,7 @@ import {
 } from "../_shared/auth.ts";
 import { githubFetchJson, githubFetchRaw, getGithubToken, isAllowedGithubRepo } from "../_shared/github.ts";
 import { isParsedJsonBodyError, isSafeGitHubRepoFullName, parseJsonBody } from "../_shared/validation.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
 // is often blocked by edge bundlers. Use a small, bundler-friendly unzipper.
@@ -142,8 +143,14 @@ Deno.serve(async (req: Request) => {
     let files: Record<string, Uint8Array>;
     try {
       files = unzipSync(zipBytes);
-    } catch (e) {
-      return secureError(`Failed to unzip artifact: ${String(e)}`, 502, { runId });
+    } catch (e: unknown) {
+      const safeDebugMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+      console.error("github-run-artifact-json unzip failed", {
+        runId,
+        artifactId: artifact.id,
+        message: safeDebugMessage,
+      });
+      return secureError("Failed to unzip artifact archive", 502, { runId });
     }
 
     const found = pickFileFromZip(files, filePath);
@@ -186,8 +193,10 @@ Deno.serve(async (req: Request) => {
       200,
       { noStore: true },
     );
-  } catch (e) {
-    return errorResponse(String(e instanceof Error ? e.message : e), req, 500, undefined, {
+  } catch (e: unknown) {
+    const safeDebugMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("github-run-artifact-json unhandled error", { message: safeDebugMessage });
+    return errorResponse("Unhandled error", req, 500, { code: "internal_error" }, {
       noStore: true,
     });
   }

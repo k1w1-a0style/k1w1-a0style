@@ -13,6 +13,10 @@ describe("sensitive operator routes apply no-store", () => {
   it("github-run-artifact-json uses secure no-store responses", () => {
     const src = read("supabase/functions/github-run-artifact-json/index.ts");
     expect(src).toContain("noStore: true");
+    expect(src).toContain("sanitizeErrorText");
+    expect(src).toContain('return errorResponse("Unhandled error", req, 500, { code: "internal_error" }, {');
+    expect(src).not.toContain("return errorResponse(String(e instanceof Error ? e.message : e), req, 500, undefined, {");
+    expect(src).not.toContain("Failed to unzip artifact: ${String(e)}");
   });
 
   it("android-keystore-export uses secure no-store responses", () => {

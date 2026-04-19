@@ -24,10 +24,11 @@ describe("keystore routes enforce repo allowlist + durable fail-closed", () => {
   it("status + generate final catch keep internal errors sanitized and do not return raw e.message", () => {
     const statusSrc = read("supabase/functions/android-keystore-status/index.ts");
     const generateSrc = read("supabase/functions/android-keystore-generate/index.ts");
+    const exportSrc = read("supabase/functions/android-keystore-export/index.ts");
 
-    for (const src of [statusSrc, generateSrc]) {
+    for (const src of [statusSrc, generateSrc, exportSrc]) {
       expect(src).toContain("sanitizeErrorText");
-      expect(src).toContain('return errorResponse("Unhandled error", req, 500, { code: "internal_error" });');
+      expect(src).toContain('errorResponse("Unhandled error", req, 500, { code: "internal_error" }');
       expect(src).not.toContain("message: e instanceof Error ? e.message : String(e)");
     }
   });
