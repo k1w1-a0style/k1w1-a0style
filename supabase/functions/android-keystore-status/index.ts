@@ -19,6 +19,7 @@ import {
   resolveMode,
   safeString,
 } from "./helpers.ts";
+import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 Deno.serve(async (req) => {
@@ -117,8 +118,8 @@ Deno.serve(async (req) => {
       req,
     );
   } catch (e: unknown) {
-    return errorResponse("Unhandled error", req, 500, {
-      message: e instanceof Error ? e.message : String(e),
-    });
+    const safeDebugMessage = sanitizeErrorText(e instanceof Error ? e.message : String(e));
+    console.error("android-keystore-status unhandled error", { message: safeDebugMessage });
+    return errorResponse("Unhandled error", req, 500, { code: "internal_error" });
   }
 });
