@@ -13,10 +13,13 @@ describe("patch 435 github-run-artifact-json zip path normalization", () => {
     expect(src).toContain("endsWith(\"/\" + target)");
   });
   it("keeps bounded availableFiles diagnostics in 404 details", () => {
-    const src = read("supabase/functions/github-run-artifact-json/index.ts");
+    const routeSrc = read("supabase/functions/github-run-artifact-json/index.ts");
+    const contractSrc = read("supabase/functions/github-run-artifact-json/responseContracts.ts");
 
-    expect(src).toContain("availableFiles: Object.keys(files).slice(0, 50)");
-    expect(src).toContain("Operator diagnostics: keep a bounded preview");
+    expect(routeSrc).toContain("fileNotFoundInArtifactZipResponse");
+    expect(routeSrc).toContain("Operator diagnostics: keep a bounded preview");
+    expect(contractSrc).toContain("File not found in artifact zip");
+    expect(contractSrc).toContain("availableFiles: availableFiles.slice(0, 50)");
   });
 
 });

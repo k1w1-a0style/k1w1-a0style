@@ -9,6 +9,7 @@ import {
 import { githubFetchJson, githubFetchRaw, getGithubToken, isAllowedGithubRepo } from "../_shared/github.ts";
 import { isParsedJsonBodyError, isSafeGitHubRepoFullName, parseJsonBody } from "../_shared/validation.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import { fileNotFoundInArtifactZipResponse } from "./responseContracts.ts";
 
 // GitHub Artifacts are delivered as ZIP. The Deno std ZIP module moved around and
 // is often blocked by edge bundlers. Use a small, bundler-friendly unzipper.
@@ -157,11 +158,12 @@ Deno.serve(async (req: Request) => {
     if (!found) {
       // Operator diagnostics: keep a bounded preview of zip entries to debug wrong `filePath`
       // values without re-downloading artifacts. This route is auth-scoped + no-store.
-      return secureError(`File not found in artifact zip: ${filePath}`, 404, {
+      return fileNotFoundInArtifactZipResponse({
+        req,
+        filePath,
         runId,
-        artifactId: artifact.id,
-        artifactName: artifact.name,
-        availableFiles: Object.keys(files).slice(0, 50),
+        artifact,
+        availableFiles: Object.keys(files),
       });
     }
 
