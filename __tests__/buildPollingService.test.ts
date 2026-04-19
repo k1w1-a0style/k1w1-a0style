@@ -83,6 +83,27 @@ describe("buildPollingService", () => {
     expect(result.status).toBe("success");
   });
 
+  it("propagates error_message into polling details for failed builds", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        ok: true,
+        status: "error",
+        job: {
+          error_message: "Build failed. Check logs.",
+        },
+      }),
+    })) as unknown as typeof fetch;
+
+    const result = await pollBuildStatusOnce("job-error");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.status).toBe("error");
+    expect(result.details.errorMessage).toBe("Build failed. Check logs.");
+  });
+
   it("sends JWT + x-k1w1-admin-key headers for check-eas-build", async () => {
     global.fetch = jest.fn(async () => ({
       ok: true,

@@ -50,7 +50,6 @@ function buildCompactDiff(before: string, after: string): { diffSnippet: string;
   const afterDelta = afterLines.slice(prefix, Math.max(prefix, afterLines.length - suffix));
   const contextStart = Math.max(0, prefix - 1);
   const beforeContext = beforeLines.slice(contextStart, prefix);
-  const afterContext = afterLines.slice(contextStart, prefix);
   const commonTail = suffix > 0 ? afterLines.slice(afterLines.length - 1, afterLines.length) : [];
 
   const diffLines: string[] = [];

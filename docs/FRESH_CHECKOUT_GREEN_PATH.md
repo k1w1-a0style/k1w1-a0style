@@ -1,6 +1,6 @@
 # Fresh Checkout Green Path
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 
 Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 

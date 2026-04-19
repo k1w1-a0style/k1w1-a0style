@@ -78,11 +78,11 @@ const ChatScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.root} edges={["left", "right"]}>
+    <SafeAreaView style={styles.root} edges={["left", "right"]} testID="chat-screen-root">
       {/* ✅ FIX #4: Removed TouchableWithoutFeedback wrapper.
           Keyboard dismiss is handled by onScrollBeginDrag on the FlatList.
           The wrapper was blocking scroll gestures on some Android devices. */}
-      <View style={styles.container}>
+      <View style={styles.container} testID="chat-screen-container">
         <View style={styles.listContainer}>
           <ChatLoadingOverlay
             visible={combinedIsLoading && messages.length === 0}

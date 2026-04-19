@@ -11,7 +11,7 @@ import {
   NativeScrollEvent,
 } from "react-native";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
-import type { NavigationProp, ParamListBase, RouteProp } from "@react-navigation/native";
+import type { NavigationProp, RouteProp } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useProject } from "../../../contexts/ProjectContext";
@@ -57,20 +57,11 @@ export const useChatScreen = () => {
 
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
-  // ✅ FIX #17/#18: Removed .unref() — it doesn't exist in React Native runtime.
-  // Track short-lived timers so cleanup can clear them on unmount.
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Track the pending scroll retry so cleanup can clear it on unmount.
   const scrollRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
-    const id = setTimeout(fn, ms);
-    timersRef.current.push(id);
-    return id;
-  }, []);
 
   useEffect(() => {
     return () => {
-      timersRef.current.forEach((t) => clearTimeout(t));
-      timersRef.current = [];
       if (scrollRetryRef.current) {
         clearTimeout(scrollRetryRef.current);
         scrollRetryRef.current = null;

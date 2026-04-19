@@ -34,7 +34,7 @@ export function SegmentedTabs({
 
   return (
     <View style={styles.wrap}>
-      {tabs.map((t, idx) => {
+      {tabs.map((t) => {
         const on = t.key === value;
         return (
           <TouchableOpacity

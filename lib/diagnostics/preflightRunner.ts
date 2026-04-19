@@ -7,7 +7,7 @@ import type {
   PreflightSeverity,
   PreflightTarget,
 } from "./preflightTypes";
-import { PREFLIGHT_CHECKS, PRECHECKS_REGISTRY } from "./preflightChecks";
+import { PRECHECKS_REGISTRY } from "./preflightChecks";
 
 const ORDER: PreflightSeverity[] = ["critical", "high", "normal", "low"];
 

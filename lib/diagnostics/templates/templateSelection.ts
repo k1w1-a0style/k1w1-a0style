@@ -44,7 +44,7 @@ export function detectCoreTemplateId(files: ProjectFile[]): CoreTemplateId {
 
 export function resolveEffectiveTemplateId(
   templateId: TemplateId | undefined,
-  files: ProjectFile[]
+  _files: ProjectFile[],
 ): { mode: TemplateId; effective: CoreTemplateId } {
   const mode: TemplateId = templateId ?? "auto";
   // Auto-Mode soll **immer** "full" als Default nehmen.

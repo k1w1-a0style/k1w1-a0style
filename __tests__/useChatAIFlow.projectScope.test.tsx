@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react-native";
-import fs from "node:fs";
-import path from "node:path";
 import { useChatAIFlow } from "../hooks/useChatAIFlow";
+import { useChatAIChangeLifecycle } from "../hooks/chatAIFlow/useChatAIChangeLifecycle";
 import type { AIConfig } from "../contexts/AIContext/models";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
@@ -150,16 +149,18 @@ describe("useChatAIFlow project scoping", () => {
       }),
     );
 
-    const firstRun = act(async () => {
-      await result.current.handleSendWithMeta("run 1");
+    let firstRun!: Promise<boolean>;
+    act(() => {
+      firstRun = result.current.handleSendWithMeta("run 1");
     });
 
     act(() => {
       result.current.abortCurrentRequest();
     });
 
-    const secondRun = act(async () => {
-      await result.current.handleSendWithMeta("run 2");
+    let secondRun!: Promise<boolean>;
+    act(() => {
+      secondRun = result.current.handleSendWithMeta("run 2");
     });
 
     await act(async () => {
@@ -174,18 +175,170 @@ describe("useChatAIFlow project scoping", () => {
       await Promise.resolve();
     });
 
-    await firstRun;
-    await secondRun;
+    await act(async () => {
+      await firstRun;
+      await secondRun;
+    });
     expect(setIsAiLoading).toHaveBeenLastCalledWith(false);
   });
 
-  test("pending plan/apply paths keep originProjectId guards", () => {
-    const orchestratorSrc = fs.readFileSync(path.join(process.cwd(), "hooks/useChatAIFlow.ts"), "utf8");
-    const applySrc = fs.readFileSync(
-      path.join(process.cwd(), "hooks/chatAIFlow/useChatAIChangeLifecycle.ts"),
-      "utf8",
+  test("stale send-handler reference does not forward an old pending plan after project switch", async () => {
+    mockExecuteChatRequestPipeline
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "planner_preview",
+        message: "Plan for A",
+        pendingPlan: { originalRequest: "x", planText: "1) Schritt", mode: "advice" },
+      }))
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "confirmation_required",
+        message: "Weiter bitte",
+      }));
+
+    const { result, rerender } = renderHook(
+      ({ projectId }: { projectId: string }) =>
+        useChatAIFlow({
+          config: makeConfig(),
+          projectId,
+          messages: baseMessages,
+          projectFiles: baseFiles,
+          addChatMessage: jest.fn(),
+          updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+          autoFixRequest: null,
+          clearAutoFixRequest: jest.fn(),
+          hardScrollToBottom: jest.fn(),
+          setIsStreaming: jest.fn(),
+          setStreamingMessage: jest.fn(),
+          setIsAiLoading: jest.fn(),
+          setError: jest.fn(),
+          setShowConfirmModal: jest.fn(),
+        }),
+      { initialProps: { projectId: "project-a" } },
     );
-    expect(orchestratorSrc).toContain("currentPlan.originProjectId !== undefined");
-    expect(applySrc).toContain("pendingChange.originProjectId !== undefined");
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte plane den nächsten Schritt.");
+    });
+    expect(result.current.pendingPlan).not.toBeNull();
+
+    const staleHandlerRef = result.current.handleSendWithMeta;
+    rerender({ projectId: "project-b" });
+    expect(result.current.pendingPlan).toBeNull();
+
+    await act(async () => {
+      await staleHandlerRef("weiter");
+    });
+
+    expect(mockExecuteChatRequestPipeline).toHaveBeenCalledTimes(2);
+    const secondCallArg = mockExecuteChatRequestPipeline.mock.calls[1]?.[0];
+    expect(secondCallArg?.currentPendingPlan).toBeNull();
+    expect(secondCallArg?.sanitizedRequestContent).toBe("weiter");
+  });
+
+  test("project switch resets stale plan context and rebuilds send handler scope", async () => {
+    mockExecuteChatRequestPipeline
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "planner_preview",
+        message: "Plan for A",
+        pendingPlan: { originalRequest: "x", planText: "1) Schritt", mode: "advice" },
+      }))
+      .mockReturnValueOnce(Promise.resolve({
+        kind: "confirmation_required",
+        message: "Weiter bitte",
+      }));
+
+    const addChatMessage = jest.fn();
+    const setIsAiLoading = jest.fn();
+    const setError = jest.fn();
+    const setShowConfirmModal = jest.fn();
+
+    const { result, rerender } = renderHook(
+      ({ projectId }: { projectId: string }) =>
+        useChatAIFlow({
+          config: makeConfig(),
+          projectId,
+          messages: baseMessages,
+          projectFiles: baseFiles,
+          addChatMessage,
+          updateProjectFiles: jest.fn().mockResolvedValue(undefined),
+          autoFixRequest: null,
+          clearAutoFixRequest: jest.fn(),
+          hardScrollToBottom: jest.fn(),
+          setIsStreaming: jest.fn(),
+          setStreamingMessage: jest.fn(),
+          setIsAiLoading,
+          setError,
+          setShowConfirmModal,
+        }),
+      { initialProps: { projectId: "project-a" } },
+    );
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("Bitte plane den nächsten Schritt.");
+    });
+
+    expect(result.current.pendingPlan).not.toBeNull();
+    const handlerBeforeSwitch = result.current.handleSendWithMeta;
+
+    rerender({ projectId: "project-b" });
+
+    expect(result.current.pendingPlan).toBeNull();
+    expect(result.current.handleSendWithMeta).not.toBe(handlerBeforeSwitch);
+
+    await act(async () => {
+      await result.current.handleSendWithMeta("weiter");
+    });
+
+    expect(mockExecuteChatRequestPipeline).toHaveBeenCalledTimes(2);
+    const secondCallArg = mockExecuteChatRequestPipeline.mock.calls[1]?.[0];
+    expect(secondCallArg?.currentPendingPlan).toBeNull();
+    expect(secondCallArg?.sanitizedRequestContent).toBe("weiter");
+  });
+
+  test("applyChanges rejects pending change from another project scope", async () => {
+    const pendingChange = {
+      summary: "scope check",
+      files: [{ path: "App.tsx", content: "export default function App(){ return null; }" }],
+      created: [],
+      updated: ["App.tsx"],
+      skipped: [],
+      errors: [],
+      aiResponse: { ok: true },
+      originProjectId: "project-a",
+    };
+    const setPendingChange = jest.fn();
+    const setShowConfirmModal = jest.fn();
+    const addChatMessage = jest.fn();
+    const updateProjectFiles = jest.fn().mockResolvedValue(undefined);
+    const projectFilesRef = { current: baseFiles };
+
+    const { result } = renderHook(() =>
+      useChatAIChangeLifecycle({
+        pendingChange,
+        activeProjectId: "project-b",
+        safe: (fn) => fn(),
+        projectFilesRef,
+        updateProjectFiles,
+        addChatMessage,
+        hardScrollToBottom: jest.fn(),
+        setShowConfirmModal,
+        setPendingChange,
+      }),
+    );
+
+    let applyResult = true;
+    await act(async () => {
+      applyResult = await result.current.applyChanges();
+    });
+
+    expect(applyResult).toBe(false);
+    expect(updateProjectFiles).not.toHaveBeenCalled();
+    expect(setShowConfirmModal).toHaveBeenCalledWith(false);
+    expect(setPendingChange).toHaveBeenCalledWith(null);
+    expect(addChatMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: "system",
+        content: expect.stringContaining("anderen Projekt"),
+      }),
+    );
   });
 });

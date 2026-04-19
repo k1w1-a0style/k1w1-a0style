@@ -11,7 +11,11 @@ import {
   getEmptyMessageNoticeText,
   getXssSanitizationNoticeText,
 } from "./chatAIFlowNoticeMessageHelpers";
-import { getNormalizedSendInputs } from "./chatAIFlowInputRoutingHelpers";
+import {
+  buildPendingPlanCombinedRequest,
+  getNormalizedSendInputs,
+  isValidStagedBlockIndex,
+} from "./chatAIFlowInputRoutingHelpers";
 import {
   announceContextBudgetNoteEffect,
   announceRuntimeNoteEffect,
@@ -230,6 +234,124 @@ export function useChatAIFlow({
     setPendingChange,
   });
 
+  const markStagedBlockForwarded = useCallback(
+    (currentPlan: PendingPlan, forwardedBlockIndex: number | null) => {
+      const pendingBlockIndex = forwardedBlockIndex ?? currentPlan.stagedNextBlockIndex ?? 1;
+      if (
+        !isValidStagedBlockIndex({
+          blockIndex: pendingBlockIndex,
+          stagedTotalBlocks: currentPlan.stagedTotalBlocks,
+        })
+      ) {
+        return;
+      }
+      const nextPlan = {
+        ...currentPlan,
+        stagedPendingBlockIndex: pendingBlockIndex,
+      };
+      pendingPlanRef.current = nextPlan;
+      safe(() => setPendingPlan(nextPlan));
+    },
+    [safe],
+  );
+
+  const markStagedBlockApplied = useCallback(
+    (currentPlan: PendingPlan, appliedBlockIndex: number | null) => {
+      const resolvedAppliedBlockCandidate = appliedBlockIndex ?? currentPlan.stagedPendingBlockIndex ?? null;
+      if (
+        !isValidStagedBlockIndex({
+          blockIndex: resolvedAppliedBlockCandidate,
+          stagedTotalBlocks: currentPlan.stagedTotalBlocks,
+        })
+      ) {
+        const safePlan = {
+          ...currentPlan,
+          stagedPendingBlockIndex: undefined,
+        };
+        pendingPlanRef.current = safePlan;
+        safe(() => setPendingPlan(safePlan));
+        addChatMessage(
+          buildSystemMessage(
+            "⚠️ Ungültiger Stufenstatus erkannt. Es wurde kein Fortschritt übernommen. Bitte mit einem gültigen Block fortfahren.",
+            { error: true },
+          ),
+        );
+        return null;
+      }
+
+      const resolvedAppliedBlock = Number(resolvedAppliedBlockCandidate);
+      const totalBlocks = currentPlan.stagedTotalBlocks;
+      const nextBlockIndex = resolvedAppliedBlock + 1;
+
+      if (totalBlocks && resolvedAppliedBlock >= totalBlocks) {
+        pendingPlanRef.current = null;
+        safe(() => setPendingPlan(null));
+        addChatMessage(
+          buildSystemMessage(
+            `✅ Stufenmodus abgeschlossen (${resolvedAppliedBlock}/${totalBlocks} Blöcke).`,
+          ),
+        );
+        return null;
+      }
+
+      const nextPlan = {
+        ...currentPlan,
+        stagedLastBlockIndex: resolvedAppliedBlock,
+        stagedNextBlockIndex: nextBlockIndex,
+        stagedPendingBlockIndex: undefined,
+      };
+      pendingPlanRef.current = nextPlan;
+      safe(() => setPendingPlan(nextPlan));
+      addChatMessage(
+        buildSystemMessage(
+          totalBlocks
+            ? `🧩 Stufenfortschritt: ${resolvedAppliedBlock}/${totalBlocks} angewendet. Nächster Schritt: "weiter" oder "block ${nextBlockIndex}".`
+            : `🧩 Stufenfortschritt: Block ${resolvedAppliedBlock} angewendet. Nächster Schritt: "weiter" oder "block ${nextBlockIndex}".`,
+        ),
+      );
+      return nextPlan;
+    },
+    [addChatMessage, safe],
+  );
+
+  const applyChangesWithAutoStagedNext = useCallback(async () => {
+    const planBeforeApply = pendingPlanRef.current;
+    const appliedBlockIndex =
+      planBeforeApply?.mode === "staged" ? planBeforeApply.stagedPendingBlockIndex ?? null : null;
+    const applied = await applyChanges();
+    if (!applied) return;
+
+    if (!planBeforeApply || planBeforeApply.mode !== "staged") return;
+
+    const nextPlan = markStagedBlockApplied(planBeforeApply, appliedBlockIndex);
+    if (!nextPlan) return;
+
+    const nextBlockIndex = nextPlan.stagedNextBlockIndex ?? 1;
+
+    addChatMessage(
+      buildSystemMessage(`🚀 Auto-Fortsetzung: Starte jetzt Block ${nextBlockIndex}.`),
+    );
+
+    const autoRequest = buildPendingPlanCombinedRequest({
+      currentPlan: nextPlan,
+      sanitizedAiContent: `(Auto) Bitte Block ${nextBlockIndex} umsetzen.`,
+      wantsProceed: true,
+      requestedBlockIndex: nextBlockIndex,
+    });
+    const autoForwardOk = await processAIRequest(autoRequest, false, true);
+    if (!autoForwardOk) {
+      addChatMessage(
+        buildSystemMessage(
+          `⚠️ Auto-Fortsetzung für Block ${nextBlockIndex} konnte nicht gestartet werden. Bitte mit "weiter" fortsetzen.`,
+          { error: true },
+        ),
+      );
+      return;
+    }
+
+    markStagedBlockForwarded(nextPlan, nextBlockIndex);
+  }, [addChatMessage, applyChanges, markStagedBlockApplied, markStagedBlockForwarded, processAIRequest]);
+
   const handleSendWithMeta = useCallback(
     async (rawInput: string, aiInput: string = rawInput): Promise<boolean> => {
       const { userContent, candidateInput } = getNormalizedSendInputs(rawInput, aiInput);
@@ -297,8 +419,12 @@ export function useChatAIFlow({
 
         const handoffOk = await processAIRequest(handoff.combinedRequest, false, true);
         if (handoffOk) {
-          pendingPlanRef.current = null;
-          safe(() => setPendingPlan(null));
+          if (currentPlan.mode === "staged") {
+            markStagedBlockForwarded(currentPlan, handoff.forwardedBlockIndex);
+          } else {
+            pendingPlanRef.current = null;
+            safe(() => setPendingPlan(null));
+          }
           return true;
         }
         return false;
@@ -306,7 +432,7 @@ export function useChatAIFlow({
 
       return processAIRequest(sanitizedAiContent, false, false);
     },
-    [addChatMessage, processAIRequest, safe, setError],
+    [addChatMessage, markStagedBlockForwarded, processAIRequest, projectId, safe, setError],
   );
 
   return useMemo(
@@ -316,14 +442,14 @@ export function useChatAIFlow({
       isAtBottomRef,
       setAtBottom,
       handleSendWithMeta,
-      applyChanges,
+      applyChanges: applyChangesWithAutoStagedNext,
       rejectChanges,
       resetTransientState,
       handleScreenBlurCleanup,
       abortCurrentRequest,
     }),
     [
-      applyChanges,
+      applyChangesWithAutoStagedNext,
       handleScreenBlurCleanup,
       handleSendWithMeta,
       pendingChange,

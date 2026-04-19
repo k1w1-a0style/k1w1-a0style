@@ -1,6 +1,5 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 
 import { SectionCard } from "../../../components/diagnostics/SectionCard";
 import { theme } from "../../../theme";
@@ -12,7 +11,6 @@ export function ModeSection({
   modeHint,
   modes,
   selectedMode,
-  setSelectedMode,
   canRun,
   busy,
   refreshStatus,
@@ -21,7 +19,6 @@ export function ModeSection({
   modeHint: string;
   modes: ModeDef[];
   selectedMode: UiModeId;
-  setSelectedMode: (v: UiModeId) => void;
   canRun: boolean;
   busy: string | null;
   refreshStatus: (mode: UiModeId) => void | Promise<void>;

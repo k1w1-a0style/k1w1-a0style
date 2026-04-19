@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { theme } from "../../../theme";
@@ -404,6 +404,7 @@ export function StatusCard(props: {
           busy={busy}
           label="Repos"
           icon="logo-github"
+          testID="connections-status-go-repos-button"
           onPress={onNavigateRepos}
         />
         <ActionButton
@@ -412,6 +413,7 @@ export function StatusCard(props: {
           label="Build/CI"
           icon="construct-outline"
           variant="ghost"
+          testID="connections-status-go-build-button"
           onPress={onNavigateBuild}
         />
         <ActionButton
@@ -420,6 +422,7 @@ export function StatusCard(props: {
           label="Diagnose"
           icon="flask-outline"
           variant="ghost"
+          testID="connections-status-go-diagnostic-button"
           onPress={onNavigateDiagnostic}
         />
       </View>

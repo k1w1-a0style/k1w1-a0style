@@ -126,7 +126,31 @@ Deno.serve(async (req) => {
 
     const encrypted = await file.text();
     const decrypted = await decryptKeystorePayload(encrypted, masterKey);
-    const parsed = JSON.parse(decrypted);
+    let parsed: {
+      alias: string;
+      keystoreBase64: string;
+      keystorePassword: string;
+      keyPassword: string;
+    };
+    {
+      let raw: unknown;
+      try {
+        raw = JSON.parse(decrypted);
+      } catch {
+        return secureError("Decrypted keystore payload is not valid JSON", 500);
+      }
+      if (
+        !raw ||
+        typeof raw !== "object" ||
+        typeof (raw as { alias?: unknown }).alias !== "string" ||
+        typeof (raw as { keystoreBase64?: unknown }).keystoreBase64 !== "string" ||
+        typeof (raw as { keystorePassword?: unknown }).keystorePassword !== "string" ||
+        typeof (raw as { keyPassword?: unknown }).keyPassword !== "string"
+      ) {
+        return secureError("Decrypted keystore payload has unexpected shape", 500);
+      }
+      parsed = raw as typeof parsed;
+    }
 
     try {
       const payload = getJwtPayload(req);

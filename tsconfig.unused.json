@@ -1,0 +1,31 @@
+{
+  "// purpose":
+    "Drift gate: Enforces noUnusedLocals / noUnusedParameters over the full app scope.",
+  "// scope": [
+    "Extends the default app tsconfig (React-Native scope).",
+    "Excludes tests, scripts and tool archives where intentionally-unused",
+    "imports can legitimately appear (jest setup, fixtures, prop-drill shapes).",
+    "Edge functions are covered by supabase/functions/tsconfig.json and are",
+    "already strict-checked in verify:release."
+  ],
+  "// how to run": [
+    "npm run audit:unused             # on demand (dev)",
+    "npm run verify:release           # enforced as part of release gate"
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "exclude": [
+    "node_modules",
+    "supabase/functions/**",
+    "tools/_archive/**",
+    "backups/**",
+    "**/backups/**",
+    "__tests__/**",
+    "scripts/**",
+    "test/**",
+    "**/__tests__/**"
+  ]
+}

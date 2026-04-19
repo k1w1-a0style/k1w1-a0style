@@ -11,7 +11,7 @@ import {
   deleteRepoFile,
   pushFilesToRepo,
 } from "../../../infra/github/githubService";
-import { normalizePreflightPatch, safeUi } from "../../ciLite/ciLiteUtils";
+import { normalizePreflightPatch } from "../../ciLite/ciLiteUtils";
 import { validateFileContent, validateFilePath } from "../../../lib/validators";
 import {
   checkPatchLimits,

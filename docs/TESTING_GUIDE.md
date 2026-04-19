@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
@@ -32,6 +32,7 @@ Optional:
 
 ```bash
 npm run test:e2e:smoke
+npm run docs:sync:smoke
 npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
 ```
 

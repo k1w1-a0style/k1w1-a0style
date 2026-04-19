@@ -35,7 +35,7 @@ export const useChatAIChangeLifecycle = ({
   setPendingChange,
 }: UseChatAIChangeLifecycleArgs) => {
   const applyChanges = useCallback(async () => {
-    if (!pendingChange) return;
+    if (!pendingChange) return false;
     if (
       pendingChange.originProjectId !== undefined &&
       pendingChange.originProjectId !== activeProjectId
@@ -48,7 +48,7 @@ export const useChatAIChangeLifecycle = ({
           { stateDrift: true },
         ),
       );
-      return;
+      return false;
     }
 
     safe(() => setShowConfirmModal(false));
@@ -88,6 +88,7 @@ export const useChatAIChangeLifecycle = ({
       );
 
       requestAnimationFrame(() => hardScrollToBottom(true));
+      return true;
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
       Alert.alert(
@@ -100,6 +101,7 @@ export const useChatAIChangeLifecycle = ({
           { error: true },
         ),
       );
+      return false;
     } finally {
       safe(() => setPendingChange(null));
     }

@@ -4,11 +4,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
-import type { ProjectFile } from '../../../shared/types/project';
 import { useProject } from '../../../contexts/ProjectContext';
 import type {
   BuildConfig,
-  DependencyItem,
   FileTree,
   ProjectStats,
   SectionType,
@@ -17,7 +15,7 @@ import type {
 
 
 import {
-  readText, safeJsonParse, countLinesSafe, extractWithRegex,
+  readText, safeJsonParse, countLinesSafe,
   findFileByCanonicalPath, parseExpoConfig, resolveEntryPoint, resolveFoundationValidationIssues,
   MAX_DEP_ITEMS, MAX_DIRS, MAX_FILES_PER_DIR,
 } from "./appStatusHelpers";

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -126,6 +126,7 @@ export default function ConnectionsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView
+        testID="connections-screen-scroll"
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
@@ -133,6 +134,7 @@ export default function ConnectionsScreen() {
           <Text style={styles.h1}>Verbindungen</Text>
           <View style={styles.titleActions}>
             <Pressable
+              testID="connections-debug-button"
               onPress={() => setDebugOpen(true)}
               style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
               accessibilityRole="button"
@@ -141,6 +143,7 @@ export default function ConnectionsScreen() {
               <Ionicons name="bug-outline" size={18} color={theme.palette.primary} />
             </Pressable>
             <Pressable
+              testID="connections-sync-summary-button"
               onPress={() => setShowSyncSummary(true)}
               style={({ pressed }) => [styles.summaryBtn, pressed && styles.summaryBtnPressed]}
               accessibilityRole="button"

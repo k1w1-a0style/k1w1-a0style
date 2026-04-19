@@ -1,8 +1,6 @@
 // utils/chatValidation.ts
 // Path/file validation utilities.
 
-import { jsonrepair } from 'jsonrepair';
-
 import { CONFIG } from '../config';
 import { normalizePath as libNormalizePath, validateFilePath as libValidateFilePath } from '../lib/validators';
 

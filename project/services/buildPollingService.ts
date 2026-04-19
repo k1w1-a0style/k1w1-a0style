@@ -208,6 +208,15 @@ export async function pollBuildStatusOnce(
     readString(dataRecord, "source_commit_sha") ??
     null;
 
+  const errorMessage =
+    readString(job, "error_message") ??
+    readString(responseObject, "error_message") ??
+    readString(dataRecord, "error_message") ??
+    readString(job, "error") ??
+    readString(responseObject, "error") ??
+    readString(dataRecord, "error") ??
+    null;
+
   const details: BuildStatusDetails = {
     jobId,
     status: mapped,
@@ -224,6 +233,7 @@ export async function pollBuildStatusOnce(
     raw: json,
     runId: runId ?? null,
     sourceCommitSha,
+    errorMessage: errorMessage ?? undefined,
   };
 
   return {

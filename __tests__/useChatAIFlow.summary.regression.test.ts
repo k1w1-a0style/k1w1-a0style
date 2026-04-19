@@ -59,6 +59,20 @@ describe("useChatAIFlow summary regression", () => {
     expect(note).toContain("Snapshot-Dateien: -1");
   });
 
+  it("adds large-task hint when context was strongly reduced", () => {
+    const note = extractContextBudgetNotice([
+      {
+        role: "system",
+        content:
+          "Kontext – aktueller Projektzustand:\n\n[intern] Kontext gekürzt (ältere History: -3, Snapshot-Dateien: -7, Dateiausschnitte gekürzt: 5).\n\n...",
+      },
+    ]);
+
+    expect(note).toContain("🏷️ **Kontext gekürzt:**");
+    expect(note).toContain("Hinweis große Aufgabe");
+    expect(note).toContain("Analyse → Plan → Patch-Schritte → Recheck");
+  });
+
   it("returns empty when no internal context marker exists", () => {
     const note = extractContextBudgetNotice([
       { role: "assistant", content: "Kein Marker" },

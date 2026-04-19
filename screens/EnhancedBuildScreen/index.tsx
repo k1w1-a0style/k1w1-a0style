@@ -16,7 +16,7 @@ import { WorkflowRunDetailModal } from "./components/WorkflowRunDetailModal";
 import { BuildModeDropdown, RepoInfoBadge } from "./components/RepoProfileSection";
 import { OneClickDeployCard } from "./components/OneClickDeployCard";
 import { LogsAnalysisSection } from "./components/LogsAnalysisSection";
-import { useEnhancedBuildScreen, MAX_RUNS_DISPLAY } from "./hooks/useEnhancedBuildScreen";
+import { useEnhancedBuildScreen } from "./hooks/useEnhancedBuildScreen";
 import { useOneClickDeploy } from "./hooks/useOneClickDeploy";
 
 import { st } from "./index.styles";
@@ -105,8 +105,9 @@ export default function EnhancedBuildScreen(): React.ReactElement {
   );
 
   return (
-    <SafeAreaView style={st.root} edges={["top"]}>
+    <SafeAreaView style={st.root} edges={["top"]} testID="enhanced-build-screen-root">
       <ScrollView
+        testID="enhanced-build-screen-scroll"
         style={st.scroll}
         contentContainerStyle={st.content}
         refreshControl={
@@ -156,6 +157,7 @@ export default function EnhancedBuildScreen(): React.ReactElement {
             </View>
             <Text style={st.blockedDetail}>{blockedAction.detail}</Text>
             <Pressable
+              testID="enhanced-build-blocked-cta-button"
               style={st.blockedCta}
               onPress={() => navigation.navigate(blockedAction.screen, blockedAction.params)}
             >

@@ -1,9 +1,7 @@
 // lib/fileWriterHelpers.ts
 // Extracted from fileWriter.ts: private helper functions.
 
-// lib/fileWriter.ts
-
-import { validateFileContent, validateFilePath, normalizePath } from './validators';
+import { normalizePath } from './validators';
 
 import type { ProjectFile } from '../shared/types/project';
 

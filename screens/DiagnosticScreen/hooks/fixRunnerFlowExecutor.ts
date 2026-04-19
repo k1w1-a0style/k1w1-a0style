@@ -10,7 +10,7 @@ import {
   runDispatchStep,
 } from "./fixRunnerExecutionHelpers";
 import { resolveWorkflowDispatchTarget } from "./fixRunnerOrchestrationHelpers";
-import type { RunFixStep, FinishWithResult, OpenFixModal, SharedFlowDeps, PatchDeps } from "./fixRunnerFlowExecutor.shared";
+import type { SharedFlowDeps, PatchDeps } from "./fixRunnerFlowExecutor.shared";
 import {
   markStepBlocked,
   runOptionalVerify,

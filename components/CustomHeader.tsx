@@ -59,6 +59,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
     >
       <View style={styles.left}>
         <Pressable
+          testID="custom-header-menu-button"
           onPress={() => navigation.openDrawer()}
           style={({ pressed }) => [
             styles.iconBtn,
@@ -85,6 +86,7 @@ const CustomHeader: React.FC<DrawerHeaderProps> = ({ navigation, options }) => {
 
       <View style={styles.right}>
         <Pressable
+          testID="custom-header-preview-button"
           onPress={handlePreviewPress}
           style={({ pressed }) => [
             styles.iconBtn,

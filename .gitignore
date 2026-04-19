@@ -1,18 +1,42 @@
+# Dependencies
+node_modules/
 
-# CI-Lite local env (DO NOT COMMIT)
+# Expo / React Native local artifacts
+.expo/
+android/.gradle/
+supabase/.temp/
+
+# Environment and credentials
+.env
+.env.*
+*.env
+.env.local
+.env.edge.live
+.env.edge.live.bak.*
 .env.ci-lite.local
 .env.ci-lite.*.local
+credentials.json
+*.pem
+*.key
+.credentials
 
-.env.local
-.expo/
-node_modules/
-supabase/.temp/
+# Local patch/export artifacts
 *.zip
 k1w1-patch-*/
 k1w1-patch-*.patch
 
-*.zip
+# Local agent / memory / report artifacts
+.gitconfig
+.emergent/
+memory/
+test_reports/
 
-# local live env
-.env.edge.live
-.env.edge.live.bak.*
+# Temporary/debug/editor artifacts
+*.tmp
+*.temp
+*.log
+*.bak
+*.bak.*
+*.orig
+*.rej
+*~

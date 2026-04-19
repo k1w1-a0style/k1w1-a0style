@@ -154,7 +154,7 @@ export default function GitHubReposScreen() {
 
   if (!token && !tokenLoading) {
     return (
-      <SafeAreaView style={s.safeArea} edges={["top"]}>
+      <SafeAreaView style={s.safeArea} edges={["top"]} testID="github-repos-screen-root">
         <View style={s.center}>
           <Ionicons name="key-outline" size={48} color={theme.palette.text.secondary} />
           <Text style={s.noTokenTitle}>Kein GitHub Token</Text>
@@ -251,7 +251,7 @@ export default function GitHubReposScreen() {
   });
 
   return (
-    <SafeAreaView style={s.safeArea} edges={["top"]}>
+    <SafeAreaView style={s.safeArea} edges={["top"]} testID="github-repos-screen-root">
       <FlatList
         testID="github-repos-flatlist"
         style={s.container}

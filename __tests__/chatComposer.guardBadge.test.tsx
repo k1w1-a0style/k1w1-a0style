@@ -27,4 +27,24 @@ describe("ChatComposer guard badge", () => {
     const { getByText } = render(<ChatComposer {...baseProps} guardWriteStatus="guarded" />);
     expect(getByText("Guarded path enthalten")).toBeTruthy();
   });
+
+  it("shows staged badge and block-1 hint when pending plan is staged", () => {
+    const { getByText, getByLabelText } = render(
+      <ChatComposer
+        {...baseProps}
+        pendingPlan={{
+          originalRequest: "x",
+          planText: "y",
+          mode: "staged",
+          stagedLastBlockIndex: 1,
+          stagedNextBlockIndex: 2,
+          stagedTotalBlocks: 4,
+        }}
+      />,
+    );
+
+    expect(getByText("Stufenmodus · wartet auf Block 2 (1/4)")).toBeTruthy();
+    expect(getByText(/Nutze "block 2", "mach block 2" oder "weiter"/)).toBeTruthy();
+    expect(getByLabelText("Stufenmodus aktiv: wartet auf Block 2 (1/4)")).toBeTruthy();
+  });
 });

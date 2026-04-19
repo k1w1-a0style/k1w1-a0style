@@ -179,7 +179,6 @@ export function useEnhancedBuildScreen() {
   });
 
   const {
-    normalizedRepo,
     buildBlockedReason,
     buildBlockedAction,
     shouldLoadLogs,

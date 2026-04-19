@@ -9,6 +9,7 @@ import { buildChangeDigest, buildExplainMessages, classifyChatIntent, looksLikeS
 import { extractRawOrchestratorResult, type ExtendedOrchestratorResult, type PendingChange, type PendingPlan } from "./chatAIFlowTypes";
 import { normalizeResultFiles, readBuilderFilesOrThrow } from "./chatAIFlowResultHelpers";
 import { shouldRetryBuilderAttempt, readOrchestratorErrorText } from "./useChatAIFlowRetryHelpers";
+import { inferStagedTotalBlocksFromPlan } from "./chatAIFlowInputRoutingHelpers";
 import type { ChatMessage } from "../shared/types/chat";
 import type { ProjectFile } from "../shared/types/project";
 
@@ -97,13 +98,15 @@ export const tryPlanChatRequest = async ({
   }
 
   const planText = planRes.text.trim();
+  const inferredPlanBlockCount = inferStagedTotalBlocksFromPlan(planText) ?? 0;
+  const plannerWantsStagedExecution = inferredPlanBlockCount >= 2;
   return {
     requiresConfirmation: false,
     plannerText: planText,
     pendingPlan: {
       originalRequest: requestContent,
       planText,
-      mode: scoutOnly ? "scout" : advice ? "advice" : "build",
+      mode: scoutOnly ? "scout" : advice ? "advice" : plannerWantsStagedExecution ? "staged" : "build",
     },
   };
 };

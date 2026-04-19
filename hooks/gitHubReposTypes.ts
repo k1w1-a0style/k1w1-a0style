@@ -1,22 +1,10 @@
 // hooks/gitHubReposTypes.ts
-// Extracted from useGitHubRepos.ts: types and helpers.
+// Extracted from useGitHubRepos.ts: public types and the small `encodePathSegments` helper.
 
-// hooks/useGitHubRepos.ts - Custom hook for GitHub repository management
-import { useState, useCallback } from "react";
-import { Buffer } from "buffer";
-
-import { fetchWithBackoff } from "../lib/retryWithBackoff";
-import { githubApiUrl } from "../shared/constants/github";
-import type { ProjectFile } from "../shared/types/project";
-import { logger } from "../lib/logger";
-import {
-  getBranches as apiBranches,
-  getAllWorkflowRuns as apiWorkflowRuns,
-  getDefaultBranch as apiDefaultBranch,
+import type {
   GitHubBranch,
   WorkflowRun,
 } from "../infra/github/githubService";
-
 
 export type { GitHubBranch, WorkflowRun };
 

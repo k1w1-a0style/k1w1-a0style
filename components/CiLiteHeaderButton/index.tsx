@@ -20,7 +20,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { theme } from "../../theme";
 import { useProject } from "../../contexts/ProjectContext";
 import { styles } from "./styles";
-import { WORKFLOW_CI_LITE } from "./types";
 import { useCiLiteWorkflow } from "./hooks/useCiLiteWorkflow";
 import { useCiLitePatch } from "./hooks/useCiLitePatch";
 import { useCiLiteAnimations } from "./hooks/useCiLiteAnimations";

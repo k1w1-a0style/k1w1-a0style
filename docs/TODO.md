@@ -1,11 +1,15 @@
 # TODO
 
-Stand: **2026-04-16 (Patch 783, FinalIntegrationDriftPassGreen)**
+Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 > Ehrliche Restpunkt-SoT: getrennt nach (a) jetzt im Repo gefixt, (b) externen Live-/Supabase-Themen, (c) spaeteren Härtungen.
 
 ## 1) In diesem Durchlauf im Repo gefixt (nicht-live)
+
+- [x] `ReturnsTableAmbiguityGuard` (Patch 784 Follow-up): neuer Repo-/Release-Guard `scripts/check_plpgsql_returns_table_ambiguity.js` prüft die neuesten `RETURNS TABLE`-PL/pgSQL-Funktionsdefinitionen auf potenziell mehrdeutige unqualifizierte Ausgabespalten in Prädikaten; `verify:release` führt den Guard jetzt verbindlich aus.
+- [x] `ReturnsTableAmbiguityRegression` (Patch 784 Follow-up): zusätzliche Regression `__tests__/plpgsqlReturnsTableAmbiguityGuard.test.ts` deckt Guard-Wiring und den aktuellen migrationsbasierten Fixvertrag ab.
+- [x] `NativeSyncLegacyIndexCleanupPrepared` (Patch 784 Follow-up): neue Migration `20260418183000_drop_unused_native_sync_indexes.sql` entfernt genau drei ungenutzte Legacy-Indizes auf `native_sync_jobs`/`native_sync_reports` im Repo-Vertrag.
 
 - [x] `EdgeTypecheckBlockerClosure` (Patch 777): offene TS-Fehler in `check-eas-build`/`trigger-eas-build` behoben (Catch-Return-Typing, stabile Supabase-Client-Contracts, sauberes Union-Narrowing und Job-ID-Validierung im Trigger-Flow).
 - [x] `ReleaseReadinessLiveEnvSkipFix` (Patch 777): `check_edge_live_env_readiness.sh` behandelt fehlende lokale Live-Env jetzt als SKIP statt Hard-Fail, sodass `verify:release` ohne Live-Secrets wieder korrekt mit `OK_WITH_SKIPS` endet.
@@ -132,7 +136,8 @@ Legacy-Contract-Marker: **Supabase-/Operator-Runbook-Restpunkt geschlossen** (hi
 - Temporaerer Test-User `h91874350@gmail.com` / `BlauBeerToni84` wurde operativ bereinigt; daraus bleibt kein privilegierter Testzustand offen.
 - Optionale spaetere Hygiene: Trigger-/Hook-Funktionen ohne `search_path` punktuell live querpruefen.
 - Follow-up-Migration fuer Suchpfad-Reassertion bereits vorbereitet: `20260403060926_search_path_followup.sql`.
-- Optionale Plattformhygiene: Leaked Password Protection + Duplicate Indexes separat behandeln.
+- Optionale Plattformhygiene: Dashboard-Auth-Settings (`Leaked Password Protection`, MFA-Optionen) separat manuell behandeln; laut aktueller Doku kein sauberer oeffentlicher Management-API-Pfad im gehosteten Setup belegt.
+- Optionale Live-Hygiene: vorbereitete Migration `20260418183000_drop_unused_native_sync_indexes.sql` bei Bedarf auch auf das Live-Projekt anwenden.
 
 ## 3) Offen: Repo-Haertungen/Hygiene fuer spaeter (bewusst nicht in diesem kleinen Lauf)
 

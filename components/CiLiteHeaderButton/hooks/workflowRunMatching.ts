@@ -29,7 +29,6 @@ export type WorkflowRunCandidateSelection = {
 };
 
 const MAX_RUN_START_SKEW_MS = 10_000;
-const CHAIN_FRESH_WINDOW_MS = 90_000;
 const DISPATCH_SHA_FRESH_WINDOW_MS = 120_000;
 const DISPATCH_UNIQUE_FRESH_WINDOW_MS = 45_000;
 

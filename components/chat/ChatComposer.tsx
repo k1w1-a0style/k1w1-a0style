@@ -55,9 +55,18 @@ const ChatComposer: React.FC<Props> = ({
   const canSend = !combinedIsLoading && (hasMessage || !!selectedFileAsset);
 
   const sendColor = canSend ? theme.palette.primary : theme.palette.text.secondary;
+  const isStagedPendingPlan = pendingPlan?.mode === "staged";
+  const stagedNextBlockIndex = pendingPlan?.stagedNextBlockIndex ?? 1;
+  const stagedLastBlockIndex = pendingPlan?.stagedLastBlockIndex ?? 0;
+  const stagedTotalBlocks = pendingPlan?.stagedTotalBlocks;
+  const stagedProgressLabel = stagedTotalBlocks
+    ? `${stagedLastBlockIndex}/${stagedTotalBlocks}`
+    : `${stagedLastBlockIndex}/?`;
 
   const placeholder = pendingPlan
-    ? 'Antwort auf die Fragen... (oder "weiter")'
+    ? isStagedPendingPlan
+      ? `Stufenmodus aktiv: antworte mit "block ${stagedNextBlockIndex}", "weiter mit block ${stagedNextBlockIndex}" oder "weiter"...`
+      : 'Antwort auf die Fragen... (oder "weiter")'
     : "Beschreibe deine App oder den nächsten Schritt ...";
 
   const lastH = useRef<number>(0);
@@ -99,14 +108,25 @@ const ChatComposer: React.FC<Props> = ({
             {guardWriteStatus === "guarded" ? "Guarded path enthalten" : "Normal write"}
           </Text>
         </View>
+
+        {isStagedPendingPlan && (
+          <View
+            style={[styles.guardBadge, styles.guardBadgeStaged]}
+            accessibilityLabel={`Stufenmodus aktiv: wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
+          >
+            <Text style={styles.guardBadgeText}>
+              {`Stufenmodus · wartet auf Block ${stagedNextBlockIndex} (${stagedProgressLabel})`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {pendingPlan && (
         <View style={styles.planHint}>
           <Text style={styles.planHintText}>
-            {
-              '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'
-            }
+            {isStagedPendingPlan
+              ? `🧩 Stufenmodus: Nutze "block ${stagedNextBlockIndex}", "mach block ${stagedNextBlockIndex}" oder "weiter". Aktuell angewendet: ${stagedProgressLabel}.`
+              : '💡 Planer wartet: Beantworte kurz die Fragen oder tippe "weiter".'}
           </Text>
         </View>
       )}
@@ -126,6 +146,7 @@ const ChatComposer: React.FC<Props> = ({
             </Text>
           </View>
           <TouchableOpacity
+          testID="chat-composer-clear-attachment-button"
             onPress={onClearSelectedFile}
             activeOpacity={0.7}
             accessibilityLabel="Dateiauswahl entfernen"
@@ -142,6 +163,7 @@ const ChatComposer: React.FC<Props> = ({
 
       <View style={styles.inputContainer}>
         <TouchableOpacity
+          testID="chat-composer-attach-button"
           style={[
             styles.iconButton,
             selectedFileAsset && styles.iconButtonActive,
@@ -179,6 +201,7 @@ const ChatComposer: React.FC<Props> = ({
 
         <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
           <TouchableOpacity
+            testID={combinedIsLoading ? "chat-composer-abort-button" : "chat-composer-send-button"}
             style={[
               styles.sendButton,
               !canSend && !combinedIsLoading && styles.sendButtonDisabled,

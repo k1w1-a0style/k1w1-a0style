@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { theme, getNeonGlow } from "../theme";
+import { logger } from "../lib/logger";
 
 import { styles } from "./ErrorBoundary.styles";
 
@@ -42,7 +43,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[ErrorBoundary] Caught error:", error, errorInfo);
+    logger.error("[ErrorBoundary] Caught error:", error, errorInfo);
     this.setState({
       error,
       errorInfo,

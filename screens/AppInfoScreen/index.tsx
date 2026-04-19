@@ -41,8 +41,8 @@ export default function AppInfoScreen() {
   } = useAppInfoScreen();
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]} testID="app-info-screen-root">
+      <ScrollView testID="app-info-screen-scroll" style={styles.container} contentContainerStyle={styles.contentContainer}>
         <AppSettingsSection
           styles={styles}
           appName={appName}

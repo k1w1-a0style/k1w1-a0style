@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import { View, Text, TouchableOpacity} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { theme, getNeonGlow } from "../theme";
+import { theme } from "../theme";
 import { TreeNode } from "./FileTree";
 
 import { styles } from "./FileItem.styles";
