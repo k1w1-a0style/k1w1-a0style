@@ -15,7 +15,7 @@ export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 export {
-  getJwtPayload,
+  resolveVerifiedJwtActor,
   getRequestClientIp,
   getRequestRateLimitSubject,
   requireJwtRole,

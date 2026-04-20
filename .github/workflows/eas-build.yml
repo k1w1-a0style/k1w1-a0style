@@ -772,11 +772,10 @@ jobs:
             ci-logs/eas-version.log
             ci-logs/eas-whoami.log
             ci-logs/eas-build.log
-            ci-logs/keystore-request.json
             ci-logs/keystore-response.http_code
             ci-logs/keystore-response.summary.json
             ci-logs/keystore-response.sanitized.txt
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: ignore
 
       - name: Cleanup signing files

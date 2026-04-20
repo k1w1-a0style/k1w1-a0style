@@ -17,6 +17,7 @@ import {
   getPreviewServiceRoleKey,
   getPreviewSupabaseUrl,
   getRequestClientIp,
+  getRequestRateLimitSubject,
   getRuntimeEnv,
   rateLimit,
   requireDurableRateLimit,
@@ -24,7 +25,7 @@ import {
 // NOTE: Supabase Edge (Deno) bundler requires explicit file extensions for local imports.
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
 
-export { getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText };
+export { getRequestClientIp, getRequestRateLimitSubject, rateLimit, requireDurableRateLimit, sanitizeErrorText };
 
 export type SnackFiles = Record<string, { type?: string; contents: string }>;
 

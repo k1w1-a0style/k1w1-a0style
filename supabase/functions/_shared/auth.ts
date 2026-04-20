@@ -8,6 +8,7 @@ export {
 export {
   getBearerToken,
   getJwtPayload,
+  resolveVerifiedJwtActor,
   requireVerifiedJwt,
   requireJwtRole,
   requireWorkflowOperatorJwtRole,
@@ -17,7 +18,7 @@ export {
   PRIVILEGED_OPERATOR_ALLOWED_ROLES,
   AI_OPERATOR_ALLOWED_ROLES,
 } from "./auth/jwt.ts";
-export type { JwtPayload, JwtRoleGuardConfig } from "./auth/jwt.ts";
+export type { JwtPayload, JwtRoleGuardConfig, VerifiedJwtActorResult } from "./auth/jwt.ts";
 
 export {
   getAdminKeyHeader,

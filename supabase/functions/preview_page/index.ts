@@ -6,6 +6,7 @@ import {
   approxFilesPayloadSize,
   classifyPreviewPageUnexpectedError,
   getRequestClientIp,
+  getRequestRateLimitSubject,
   html,
   htmlPreviewError,
   isValidPreviewSecretFormat,
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "preview_page",
-    subject: getRequestClientIp(req),
+    subject: getRequestRateLimitSubject(req),
     max: 60,
     windowMs: 60_000,
     enforceDurable: true,

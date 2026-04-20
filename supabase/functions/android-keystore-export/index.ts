@@ -2,7 +2,7 @@ import {
   createClient,
   decryptKeystorePayload,
   errorResponse,
-  getJwtPayload,
+  resolveVerifiedJwtActor,
   getServiceRoleKey,
   getSigningMasterKey,
   getSupabaseUrl,
@@ -153,8 +153,8 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const payload = getJwtPayload(req);
-      const actor = typeof payload?.sub === "string" ? payload.sub : "service_role";
+      const actorContext = await resolveVerifiedJwtActor(req, "service_role");
+      const actor = actorContext.actor;
       const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
       const { error: auditError } = await supabase.from("signing_audit_log").insert({

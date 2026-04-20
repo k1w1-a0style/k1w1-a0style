@@ -59,6 +59,11 @@ type VerifiedJwtContext = {
   user: VerifiedJwtUser;
 };
 
+export type VerifiedJwtActorResult = {
+  actor: string;
+  source: "verified_user_id" | "verified_payload_sub" | "fallback";
+};
+
 function readNonEmptyRole(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -119,6 +124,32 @@ async function verifyJwtViaSupabaseAuth(req: Request): Promise<VerifiedJwtLookup
   } catch {
     return { ok: false, reason: "invalid_or_unverifiable" };
   }
+}
+
+export async function resolveVerifiedJwtActor(
+  req: Request,
+  fallbackActor = "service_role",
+): Promise<VerifiedJwtActorResult> {
+  const verified = await verifyJwtViaSupabaseAuth(req);
+  if (verified.ok === false) {
+    return { actor: fallbackActor, source: "fallback" };
+  }
+
+  const userId = typeof verified.context.user?.id === "string"
+    ? verified.context.user.id.trim()
+    : "";
+  if (userId) {
+    return { actor: userId, source: "verified_user_id" };
+  }
+
+  const verifiedSub = typeof verified.context.payload?.sub === "string"
+    ? verified.context.payload.sub.trim()
+    : "";
+  if (verifiedSub) {
+    return { actor: verifiedSub, source: "verified_payload_sub" };
+  }
+
+  return { actor: fallbackActor, source: "fallback" };
 }
 
 export async function requireVerifiedJwt(req: Request, scope: string): Promise<Response | null> {

@@ -103,7 +103,7 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(savePreviewIndex)).not.toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
     expect(read(previewHelpers)).toContain(
-      "export { getRequestClientIp, rateLimit, requireDurableRateLimit, sanitizeErrorText };",
+      "export { getRequestClientIp, getRequestRateLimitSubject, rateLimit, requireDurableRateLimit, sanitizeErrorText };",
     );
   });
 

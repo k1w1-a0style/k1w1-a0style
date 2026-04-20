@@ -1,4 +1,9 @@
-import { getJwtPayload, requireDurableRateLimit, requireJwtRole } from "../supabase/functions/_shared/auth";
+import {
+  getJwtPayload,
+  requireDurableRateLimit,
+  requireJwtRole,
+  resolveVerifiedJwtActor,
+} from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -56,6 +61,27 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(fetchSpy.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
+  });
+
+  it("falls back to service_role actor when JWT is not verifiable", async () => {
+    const token = jwtWithPayload({ role: "service_role", sub: "attacker-sub" });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "invalid token" }), { status: 401 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => resolveVerifiedJwtActor(req, "service_role"),
+    );
+
+    expect(result).toEqual({ actor: "service_role", source: "fallback" });
   });
 
   it("does not trust auth user.role over verified JWT role claims", async () => {

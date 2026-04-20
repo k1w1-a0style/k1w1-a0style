@@ -67,4 +67,11 @@ describe("recoverable multi-store persistence invariants", () => {
     expect(applyBlock).toContain("if (plan.shouldClearEasConnection)");
     expect(applyBlock).toContain("if (plan.shouldClearSupabaseConnection)");
   });
+
+  it("resets the cached supabase client only when the saved URL changes", () => {
+    const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
+    expect(src).toContain("import { resetSupabaseClient } from \"../../../lib/supabase\";");
+    expect(src).toContain("if (plan.supabaseUrl !== previousSupabaseUrl) {");
+    expect(src).toContain("resetSupabaseClient();");
+  });
 });
