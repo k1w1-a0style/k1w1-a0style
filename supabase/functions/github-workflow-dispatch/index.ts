@@ -39,6 +39,7 @@ async function findWorkflowIdByPath(
   token: string,
   workflowFile: string,
 ): Promise<number | null> {
+  if (!ALLOWED_WORKFLOW_FILES.has(workflowFile)) return null;
   // Paginate defensively (rarely > 100 workflows).
   let page = 1;
   while (page <= 5) {
@@ -54,6 +55,20 @@ async function findWorkflowIdByPath(
   }
   return null;
 }
+
+const ALLOWED_WORKFLOW_ALIASES: Record<string, string> = {
+  "ci": "k1w1-ci-lite.yml",
+  "ci-lite": "k1w1-ci-lite.yml",
+  "cilite": "k1w1-ci-lite.yml",
+  "diagnose": "k1w1-diagnostics.yml",
+  "diagnostics": "k1w1-diagnostics.yml",
+};
+
+const ALLOWED_WORKFLOW_FILES = new Set<string>([
+  "k1w1-ci-lite.yml",
+  "k1w1-ci-lite-autofix.yml",
+  "k1w1-diagnostics.yml",
+]);
 
 
 /**
@@ -126,14 +141,7 @@ Deno.serve(async (req) => {
 
     // `workflow` can be id, filename, or a short alias.
     const raw = (workflow ?? "").trim();
-    const aliasMap: Record<string, string> = {
-      "ci": "k1w1-ci-lite.yml",
-      "ci-lite": "k1w1-ci-lite.yml",
-      "cilite": "k1w1-ci-lite.yml",
-      "diagnose": "k1w1-diagnostics.yml",
-      "diagnostics": "k1w1-diagnostics.yml",
-    };
-    const normalized = aliasMap[raw] ?? raw;
+    const normalized = ALLOWED_WORKFLOW_ALIASES[raw] ?? raw;
 
     const dispatchByIdOrName = async (wf: string | number): Promise<Response> => {
       const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows/${wf}/dispatches`;
@@ -157,13 +165,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2) Build candidate filenames.
-    const candidates: string[] = [];
-    if (normalized) candidates.push(normalized);
-    if (normalized && !normalized.includes(".")) {
-      candidates.push(`${normalized}.yml`);
-      candidates.push(`${normalized}.yaml`);
+    // 2) Build fail-closed candidate filenames.
+    if (!ALLOWED_WORKFLOW_FILES.has(normalized)) {
+      return errorResponse(
+        "GitHub workflow dispatch failed (missing_workflow)",
+        req,
+        404,
+        {
+          code: "missing_workflow",
+          hint: "Workflow alias/file is not allowlisted for dispatch.",
+        },
+      );
     }
+    const candidates = [normalized];
 
     // 3) First try: resolve workflow id by path and dispatch.
     for (const wfFile of candidates) {

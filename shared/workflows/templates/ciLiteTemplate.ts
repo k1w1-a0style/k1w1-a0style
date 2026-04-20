@@ -6,7 +6,7 @@ export const WORKFLOW_K1W1_CI_LITE_TEMPLATE = `
 name: K1W1 CI Lite (Lint + Typecheck + Expo Preflight)
 
 run-name: >-
-  CI Lite\${{ (github.event.client_payload.job_id || inputs.job_id) && format(' [{0}]', github.event.client_payload.job_id || inputs.job_id) || '' }} • \${{ github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref') }}
+  CI Lite • run-\${{ github.run_id }}-\${{ github.run_attempt }}
 
 on:
   repository_dispatch:
@@ -50,18 +50,46 @@ jobs:
           input_ref: \${{ inputs.ref || '' }}
           github_ref_name: \${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
           default_ref: ""
-          allowed_ref_regex: \${{ env.ALLOWED_REF_REGEX }}
+          allowed_refs_csv: work,codex,dev,develop
 
-      - name: Export run metadata
+      - name: Sanitize run metadata
         shell: bash
         run: |
           set -euo pipefail
-          echo "TARGET_REF=\${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
-          echo "JOB_ID=\${{ github.event.client_payload.job_id || inputs.job_id || '' }}" >> "$GITHUB_ENV"
-          echo "TRIGGER_MODE=\${{ github.event_name }}" >> "$GITHUB_ENV"
-          echo "SOURCE_WORKFLOW=\${{ github.event.client_payload.source_workflow || '' }}" >> "$GITHUB_ENV"
-          echo "SOURCE_RUN_ID=\${{ github.event.client_payload.source_run_id || '' }}" >> "$GITHUB_ENV"
-          echo "SOURCE_SHA=\${{ github.event.client_payload.source_sha || '' }}" >> "$GITHUB_ENV"
+          RAW_JOB_ID="\${{ github.event.client_payload.job_id || inputs.job_id || '' }}"
+          RAW_SOURCE_WORKFLOW="\${{ github.event.client_payload.source_workflow || '' }}"
+          RAW_SOURCE_RUN_ID="\${{ github.event.client_payload.source_run_id || '' }}"
+          RAW_SOURCE_SHA="\${{ github.event.client_payload.source_sha || '' }}"
+
+          JOB_ID=""
+          SOURCE_WORKFLOW=""
+          SOURCE_RUN_ID=""
+          SOURCE_SHA=""
+
+          if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            JOB_ID="\${RAW_JOB_ID,,}"
+          fi
+
+          if [[ "$RAW_SOURCE_WORKFLOW" =~ ^[A-Za-z0-9._/-]{1,120}$ ]]; then
+            SOURCE_WORKFLOW="$RAW_SOURCE_WORKFLOW"
+          fi
+
+          if [[ "$RAW_SOURCE_RUN_ID" =~ ^[0-9]{1,20}$ ]]; then
+            SOURCE_RUN_ID="$RAW_SOURCE_RUN_ID"
+          fi
+
+          if [[ "$RAW_SOURCE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            SOURCE_SHA="\${RAW_SOURCE_SHA,,}"
+          fi
+
+          {
+            printf 'TARGET_REF=%s\n' "\${{ steps.target_ref.outputs.checkout_ref }}"
+            printf 'JOB_ID=%s\n' "$JOB_ID"
+            printf 'TRIGGER_MODE=%s\n' "\${{ github.event_name }}"
+            printf 'SOURCE_WORKFLOW=%s\n' "$SOURCE_WORKFLOW"
+            printf 'SOURCE_RUN_ID=%s\n' "$SOURCE_RUN_ID"
+            printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
+          } >> "$GITHUB_ENV"
 
       - name: Run info
         shell: bash
