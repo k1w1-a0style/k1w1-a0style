@@ -327,12 +327,15 @@ export function useConnectionsSaveActions(params: Params) {
 
   const restoreSnapshot = useCallback(
     async (snapshot: ConnectionsSnapshot): Promise<void> => {
+      const liveSupabaseUrl = (
+        await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL)
+      )?.trim() ?? "";
       const plan = resolveConnectionsSavePlan({
         ...snapshot,
         previous: snapshot,
       });
       await persistTokenSavePlan(plan);
-      await persistSupabaseSavePlan(plan, snapshot.supabaseUrl);
+      await persistSupabaseSavePlan(plan, liveSupabaseUrl);
       await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
       await restoreConnectionSideState(snapshot);
     },
