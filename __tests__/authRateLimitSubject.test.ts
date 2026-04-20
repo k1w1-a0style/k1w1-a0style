@@ -31,14 +31,14 @@ describe("auth rate limit subject helpers", () => {
     expect(subject).toBe("ip:203.0.113.9");
   });
 
-  it("ignores untrusted cf-connecting-ip and degrades to isolated anon subject", () => {
+  it("ignores untrusted cf-connecting-ip and degrades to a non-manipulable untrusted subject", () => {
     const req = new Request("https://example.test", {
       headers: {
         "cf-connecting-ip": "203.0.113.9",
       },
     });
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
+    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
   });
 
   it("does not trust x-forwarded-for without an explicit trusted proxy boundary", () => {
@@ -49,7 +49,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
+    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
   });
 
   it("does not trust a client-provided trusted-proxy marker", () => {
@@ -61,7 +61,31 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
+    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
+  });
+
+  it("does not allow header-rotation to create fresh untrusted subjects", () => {
+    const reqA = new Request("https://example.test/a", {
+      headers: {
+        authorization: "Bearer token-a",
+        "user-agent": "ua-a",
+        "x-forwarded-for": "198.51.100.8, 10.0.0.1",
+        "cf-connecting-ip": "203.0.113.5",
+      },
+    });
+    const reqB = new Request("https://example.test/b", {
+      headers: {
+        authorization: "Bearer token-b",
+        "user-agent": "ua-b",
+        "x-forwarded-for": "203.0.113.10, 10.0.0.1",
+        "cf-connecting-ip": "203.0.113.10",
+      },
+    });
+
+    expect(getRequestClientIp(reqA)).toBe("unknown");
+    expect(getRequestClientIp(reqB)).toBe("unknown");
+    expect(getRequestRateLimitSubject(reqA)).toBe("ip:untrusted");
+    expect(getRequestRateLimitSubject(reqB)).toBe("ip:untrusted");
   });
 
   it("trusts x-forwarded-for only when trusted proxy hops are configured server-side", () => {

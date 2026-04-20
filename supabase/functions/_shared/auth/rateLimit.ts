@@ -68,35 +68,10 @@ export function getRequestClientIp(req: Request): string {
   return "unknown";
 }
 
-function hashSubjectFragment(input: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
-}
-
-function getUntrustedClientSubject(req: Request): string {
-  const auth = (req.headers.get("authorization") ?? "").slice(0, 32);
-  const ua = (req.headers.get("user-agent") ?? "").slice(0, 128);
-  const forwarded = (req.headers.get("x-forwarded-for") ?? "").slice(0, 128);
-  const ipHint = (req.headers.get("cf-connecting-ip") ?? "").slice(0, 64);
-  const urlPath = (() => {
-    try {
-      return new URL(req.url).pathname;
-    } catch {
-      return "";
-    }
-  })();
-  const stableInput = `${req.method}|${urlPath}|${auth}|${ua}|${forwarded}|${ipHint}`;
-  return `anon:${hashSubjectFragment(stableInput)}`;
-}
-
 export function getRequestRateLimitSubject(req: Request): string {
   const clientIp = getRequestClientIp(req);
   if (clientIp !== "unknown") return `ip:${clientIp}`;
-  return getUntrustedClientSubject(req);
+  return "ip:untrusted";
 }
 
 const rl = new Map<string, { t: number; c: number; windowMs: number }>();
