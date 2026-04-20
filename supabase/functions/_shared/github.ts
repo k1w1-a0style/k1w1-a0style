@@ -47,15 +47,53 @@ export function isAllowedGitRef(ref: string | null | undefined): boolean {
   if (!r) return false;
   if (r.startsWith("refs/")) return false;
   if (/^[0-9a-f]{40}$/i.test(r)) return false;
+  if (r.length > 200) return false;
+  if (/[\u0000-\u001f\u007f\s]/.test(r)) return false;
+  if (r.startsWith("-")) return false;
+  if (r.includes("..") || r.includes("@{") || r.endsWith(".lock")) return false;
+  if (r.endsWith("/") || r.includes("//")) return false;
+  if (/[\\~^?*\[]/.test(r)) return false;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(r)) return false;
 
   const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
   if (!regexStr) return false;
-  try {
-    const re = new RegExp(regexStr);
-    return re.test(r);
-  } catch {
-    return false;
+  const wrapped = regexStr.match(/^\^\((.+)\)\$$/);
+  if (!wrapped) return false;
+  const tokens = wrapped[1].split("|").map((token) => token.trim()).filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 32) return false;
+
+  for (const token of tokens) {
+    if (!/^[A-Za-z0-9._/-]+(?:\/\.\+)?$/.test(token)) {
+      return false;
+    }
+    if (token.endsWith("/.+")) {
+      const prefix = token.slice(0, -2);
+      if (!prefix.endsWith("/")) return false;
+      if (r.startsWith(prefix) && r.length > prefix.length) return true;
+      continue;
+    }
+    if (r === token) return true;
   }
+
+  return false;
+}
+
+export function isGitRefPolicyConfigured(): boolean {
+  const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
+  if (!regexStr) return false;
+  const wrapped = regexStr.match(/^\^\((.+)\)\$$/);
+  if (!wrapped) return false;
+  const tokens = wrapped[1].split("|").map((token) => token.trim()).filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 32) return false;
+  for (const token of tokens) {
+    if (!/^[A-Za-z0-9._/-]+(?:\/\.\+)?$/.test(token)) {
+      return false;
+    }
+    if (token.endsWith("/.+") && !token.slice(0, -2).endsWith("/")) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function githubHeaders(

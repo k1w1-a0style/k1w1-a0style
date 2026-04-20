@@ -45,9 +45,18 @@ function getClientIpFromForwardedFor(forwardedFor: string, trustedProxyHops: num
   return normalizeClientIpCandidate(candidate);
 }
 
+function isTrustedCloudflareProxyContext(req: Request): boolean {
+  const trustCfHeader = (getRuntimeEnv("K1W1_TRUST_CF_CONNECTING_IP") ?? "").trim() === "1";
+  if (!trustCfHeader) return false;
+  const cfRay = (req.headers.get("cf-ray") ?? "").trim();
+  return cfRay.length > 0;
+}
+
 export function getRequestClientIp(req: Request): string {
-  const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
-  if (cf) return cf;
+  if (isTrustedCloudflareProxyContext(req)) {
+    const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
+    if (cf) return cf;
+  }
 
   const trustedProxyHops = getTrustedProxyHops();
   if (trustedProxyHops) {
@@ -59,8 +68,35 @@ export function getRequestClientIp(req: Request): string {
   return "unknown";
 }
 
+function hashSubjectFragment(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+function getUntrustedClientSubject(req: Request): string {
+  const auth = (req.headers.get("authorization") ?? "").slice(0, 32);
+  const ua = (req.headers.get("user-agent") ?? "").slice(0, 128);
+  const forwarded = (req.headers.get("x-forwarded-for") ?? "").slice(0, 128);
+  const ipHint = (req.headers.get("cf-connecting-ip") ?? "").slice(0, 64);
+  const urlPath = (() => {
+    try {
+      return new URL(req.url).pathname;
+    } catch {
+      return "";
+    }
+  })();
+  const stableInput = `${req.method}|${urlPath}|${auth}|${ua}|${forwarded}|${ipHint}`;
+  return `anon:${hashSubjectFragment(stableInput)}`;
+}
+
 export function getRequestRateLimitSubject(req: Request): string {
-  return `ip:${getRequestClientIp(req)}`;
+  const clientIp = getRequestClientIp(req);
+  if (clientIp !== "unknown") return `ip:${clientIp}`;
+  return getUntrustedClientSubject(req);
 }
 
 const rl = new Map<string, { t: number; c: number; windowMs: number }>();
@@ -72,8 +108,8 @@ export function __resetLocalRateLimitForTests(): void {
 }
 
 export function rateLimit(req: Request, key: string, max = 10, windowMs = 10_000): Response | null {
-  const ip = getRequestClientIp(req);
-  const k = `${key}:${ip}`;
+  const subject = getRequestRateLimitSubject(req);
+  const k = `${key}:${subject}`;
   const now = Date.now();
   if (now - rlLastPruneAt > Math.max(windowMs, 10_000) || rl.size > 5_000) {
     rlLastPruneAt = now;

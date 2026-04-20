@@ -18,15 +18,27 @@ function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T 
 }
 
 describe("auth rate limit subject helpers", () => {
-  it("uses canonical client ip even when a JWT is present", () => {
+  it("uses canonical client ip only in trusted Cloudflare proxy context", () => {
     const req = new Request("https://example.test", {
       headers: {
         Authorization: "Bearer xxx." + btoa(JSON.stringify({ sub: "user-123" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") + ".sig",
+        "cf-ray": "abc123",
         "cf-connecting-ip": "203.0.113.9",
       },
     });
 
-    expect(getRequestRateLimitSubject(req)).toBe("ip:203.0.113.9");
+    const subject = withEnv({ K1W1_TRUST_CF_CONNECTING_IP: "1" }, () => getRequestRateLimitSubject(req));
+    expect(subject).toBe("ip:203.0.113.9");
+  });
+
+  it("ignores untrusted cf-connecting-ip and degrades to isolated anon subject", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "cf-connecting-ip": "203.0.113.9",
+      },
+    });
+    expect(getRequestClientIp(req)).toBe("unknown");
+    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
   });
 
   it("does not trust x-forwarded-for without an explicit trusted proxy boundary", () => {
@@ -37,7 +49,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
+    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
   });
 
   it("does not trust a client-provided trusted-proxy marker", () => {
@@ -49,7 +61,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
+    expect(getRequestRateLimitSubject(req)).toMatch(/^anon:[0-9a-f]{8}$/);
   });
 
   it("trusts x-forwarded-for only when trusted proxy hops are configured server-side", () => {

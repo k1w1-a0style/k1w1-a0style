@@ -10,6 +10,7 @@ import {
   githubHeaders,
   getGithubToken,
   GITHUB_API_BASE,
+  isGitRefPolicyConfigured,
   isAllowedGitRef,
   isAllowedGithubRepo,
 } from "../_shared/github.ts";
@@ -97,17 +98,6 @@ Deno.serve(async (req) => {
     const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch");
     if (jwtRoleGuard) return jwtRoleGuard;
 
-    const durableRl = await requireDurableRateLimit(req, {
-      scope: "github-workflow-dispatch",
-      subject: getRequestRateLimitSubject(req),
-      max: 20,
-      windowMs: 60_000,
-    });
-    if (durableRl) return durableRl;
-
-    const rl = rateLimit(req, "github-workflow-dispatch");
-    if (rl) return rl;
-
     const parsed = await parseJsonBody(req, 200_000);
     if (isParsedJsonBodyError(parsed)) return errorResponse(parsed.error, req, 400);
 
@@ -131,9 +121,26 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!isGitRefPolicyConfigured()) {
+      return errorResponse("ref policy unavailable", req, 503, {
+        code: "ref_policy_unavailable",
+      });
+    }
+
     if (!isAllowedGitRef(ref)) {
       return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
     }
+
+    const durableRl = await requireDurableRateLimit(req, {
+      scope: "github-workflow-dispatch",
+      subject: getRequestRateLimitSubject(req),
+      max: 20,
+      windowMs: 60_000,
+    });
+    if (durableRl) return durableRl;
+
+    const rl = rateLimit(req, "github-workflow-dispatch");
+    if (rl) return rl;
 
     const [owner, repo] = githubRepo.split("/");
 

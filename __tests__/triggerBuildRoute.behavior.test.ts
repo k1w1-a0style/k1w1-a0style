@@ -28,7 +28,7 @@ describe("trigger-eas-build route behavior", () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role";
     process.env.GITHUB_TOKEN = "gh-token";
     process.env.K1W1_ALLOWED_GITHUB_REPOS = "owner/repo";
-    process.env.K1W1_ALLOWED_REF_REGEX = "^[A-Za-z0-9._/-]+$";
+    process.env.K1W1_ALLOWED_REF_REGEX = "^(main|develop|feature/.+|release/.+)$";
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/auth/v1/user")) {
