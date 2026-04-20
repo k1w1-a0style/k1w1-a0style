@@ -73,7 +73,7 @@ runs:
           exit 1
         fi
 
-        if [[ "$REF" == */ ]] || [[ "$REF" == *///* ]]; then
+        if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
           echo "❌ Ref contains forbidden slash placement."
           exit 1
         fi

@@ -10,6 +10,7 @@ describe("patch790 prompt-3 hardening invariants", () => {
     expect(action).toContain("allowed_refs_csv");
     expect(action).not.toContain("allowed_ref_regex");
     expect(action).not.toContain('[[ "$REF" =~ $ALLOWED ]]');
+    expect(action).toContain('[[ "$REF" == *//* ]]');
     expect(action).toContain("Ref not in allowlist");
   });
 
