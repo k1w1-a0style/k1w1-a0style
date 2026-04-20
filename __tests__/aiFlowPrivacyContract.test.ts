@@ -126,6 +126,17 @@ describe('AI flow privacy and prompt contract', () => {
     expect(result.message?.meta).toEqual({ localOnly: true, metaCommand: true, containsFilePreview: true });
   });
 
+  test('blocks sensitive file preview for meta command', () => {
+    const result = handleMetaCommand('zeige datei .npmrc', [
+      { path: '.npmrc', content: '//registry.npmjs.org/:_authToken=npm_secret_token' },
+    ]);
+
+    expect(result.handled).toBe(true);
+    expect(result.message?.content).toContain('sensitive Datei markiert');
+    expect(result.message?.content).not.toContain('_authToken');
+    expect(result.message?.meta).toEqual({ localOnly: true, metaCommand: true, containsFilePreview: true });
+  });
+
 
   test('marks non-preview meta command results as local-only meta history', () => {
     const result = handleMetaCommand('liste alle dateien', [
@@ -161,6 +172,7 @@ describe('AI flow privacy and prompt contract', () => {
     expect(canActorModifyPath('chat', 'supabase/functions/example/index.ts').allowed).toBe(false);
 
     expect(policy.writableRoots).not.toContain('package.json');
+    expect(policy.writableRoots).not.toContain('.npmrc');
     expect(policy.writableRoots).not.toContain('app.config.js');
     expect(policy.writablePrefixes).not.toContain('.github/');
     expect(policy.writablePrefixes).not.toContain('supabase/');

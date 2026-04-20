@@ -8,6 +8,16 @@ describe("project ownership guards", () => {
     expect(decision.reason).toContain("kritisch");
   });
 
+  it("blocks .npmrc for chat and diagnosis as manual-critical", () => {
+    const chat = canActorModifyPath("chat", ".npmrc");
+    const diagnosis = canActorModifyPath("diagnosisAutofix", ".npmrc");
+
+    expect(chat.allowed).toBe(false);
+    expect(diagnosis.allowed).toBe(false);
+    expect(chat.reason).toContain("kritisch");
+    expect(diagnosis.reason).toContain("Zuständigkeitsbereich");
+  });
+
   it("blocks both actors from template/baseline managed paths", () => {
     const chat = canActorModifyPath("chat", "templates/expo-sdk54-base.json");
     const diagnosis = canActorModifyPath("diagnosisAutofix", "docs/patches/patch_431.md");

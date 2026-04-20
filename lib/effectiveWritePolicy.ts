@@ -19,7 +19,6 @@ const NORMAL_CHAT_WRITE_ROOT_PROBES = [
   'jest.setup.js',
   'expo-env.d.ts',
   '.gitignore',
-  '.npmrc',
   'README.md',
 ];
 
@@ -50,6 +49,7 @@ const GUARDED_CHAT_PATH_PROBES = [
   'eas-project.json',
   'metro.config.js',
   'tsconfig.json',
+  '.npmrc',
   '.github/workflows/eas-build.yml',
   '.github/actions/example/action.yml',
   'supabase/functions/example/index.ts',

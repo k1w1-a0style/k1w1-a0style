@@ -33,6 +33,8 @@ export const parseAssetCandidates = (cfgText: string): string[] => {
 
 export const REQUIRED_GITIGNORE_ENTRIES = [
   "node_modules/",
+  ".npmrc",
+  "**/.npmrc",
   ".expo/",
   ".expo-shared/",
   ".vscode/",
@@ -56,6 +58,10 @@ export const collectMissingGitignoreEntries = (content: string): string[] => {
 
 export const GITIGNORE_TEMPLATE = `# Dependencies
 node_modules/
+
+# Sensitive npm credentials
+.npmrc
+**/.npmrc
 
 # Expo
 .expo/

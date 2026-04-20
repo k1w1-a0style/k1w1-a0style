@@ -7,6 +7,8 @@ android/.gradle/
 supabase/.temp/
 
 # Environment and credentials
+.npmrc
+**/.npmrc
 .env
 .env.*
 *.env

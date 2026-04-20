@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // ✅ Step 4B: normalizePath direkt aus lib/validators (Single Source of Truth)
 import { normalizePath } from '../lib/validators';
+import { shouldStronglyRedactFile } from '../lib/promptSanitizer';
 
 import { validateProjectFiles } from './chatValidation';
 
@@ -117,6 +118,22 @@ export const handleMetaCommand = (
 
     const normalized = normalizePath(file.path);
     const content = String(file.content ?? '');
+    const isSensitive = shouldStronglyRedactFile(normalized, content);
+
+    if (isSensitive) {
+      return {
+        handled: true,
+        message: {
+          id: uuidv4(),
+          role: 'assistant',
+          content:
+            `🔒 **${normalized}** ist als sensitive Datei markiert.` +
+            '\n\nRohinhalt wird aus Sicherheitsgründen nicht per Meta-Command angezeigt.',
+          timestamp: new Date().toISOString(),
+          meta: { ...LOCAL_META_MESSAGE, containsFilePreview: true },
+        },
+      };
+    }
 
     const isTruncated = content.length > MAX_FILE_PREVIEW_CHARS;
     const shown = isTruncated ? content.slice(0, MAX_FILE_PREVIEW_CHARS) : content;
