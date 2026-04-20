@@ -8,6 +8,9 @@ describe("patch552 keystore export caller JWT contract invariants", () => {
     const easBuild = read(".github/workflows/eas-build.yml");
     expect(easBuild).toContain('/functions/v1/android-keystore-export');
     expect(easBuild).toContain('Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}');
+    const diagnosticsBlock = easBuild.split("- name: Upload build diagnostics")[1]?.split("- name: Cleanup signing files")[0] ?? "";
+    expect(diagnosticsBlock).not.toContain("ci-logs/keystore-request.json");
+    expect(easBuild).toContain("retention-days: 3");
 
     const releaseBuild = read(".github/workflows/release-build.yml");
     expect(releaseBuild).toContain('/functions/v1/android-keystore-export');

@@ -21,6 +21,7 @@ import { deleteSupabaseAnonKey, saveSupabaseAnonKey } from "../../../lib/supabas
 import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { readScopedEasProjectId } from "../../../lib/easProjectIdScope";
 import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
+import { resetSupabaseClient } from "../../../lib/supabase";
 import { normalizeStoredSupabaseRaw, validateBeforeSave } from "../utils/validation";
 import { isPersistedEasState, resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
@@ -277,7 +278,10 @@ export function useConnectionsSaveActions(params: Params) {
   );
 
   const persistSupabaseSavePlan = useCallback(
-    async (plan: ReturnType<typeof resolveConnectionsSavePlan>) => {
+    async (
+      plan: ReturnType<typeof resolveConnectionsSavePlan>,
+      previousSupabaseUrl: string,
+    ): Promise<void> => {
       const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
@@ -286,6 +290,9 @@ export function useConnectionsSaveActions(params: Params) {
         save: saveSupabaseAnonKey,
         remove: deleteSupabaseAnonKey,
       });
+      if (plan.supabaseUrl !== previousSupabaseUrl) {
+        resetSupabaseClient();
+      }
     },
     [persistOptionalSecret],
   );
@@ -320,12 +327,15 @@ export function useConnectionsSaveActions(params: Params) {
 
   const restoreSnapshot = useCallback(
     async (snapshot: ConnectionsSnapshot): Promise<void> => {
+      const liveSupabaseUrl = (
+        await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL)
+      )?.trim() ?? "";
       const plan = resolveConnectionsSavePlan({
         ...snapshot,
         previous: snapshot,
       });
       await persistTokenSavePlan(plan);
-      await persistSupabaseSavePlan(plan);
+      await persistSupabaseSavePlan(plan, liveSupabaseUrl);
       await persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);
       await restoreConnectionSideState(snapshot);
     },
@@ -366,7 +376,7 @@ export function useConnectionsSaveActions(params: Params) {
           snapshot: rollbackSnapshot,
           apply: async () => {
             await persistTokenSavePlan(plan);
-            await persistSupabaseSavePlan(plan);
+            await persistSupabaseSavePlan(plan, rollbackSnapshot.supabaseUrl);
             await persistSelectedEasProjectId(plan.easProjectId, repoScopeAtSaveStart);
 
             if (plan.shouldClearGitHubConnection) {

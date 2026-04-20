@@ -43,6 +43,8 @@ describe("recoverable multi-store persistence invariants", () => {
   it("keeps Connections recovery scope journal/snapshot-driven instead of current repo closure", () => {
     const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
     expect(src).toContain("repoScope: repoScopeOverride");
+    expect(src).toContain("const liveSupabaseUrl = (");
+    expect(src).toContain("await persistSupabaseSavePlan(plan, liveSupabaseUrl);");
     expect(src).toContain("persistSelectedEasProjectId(plan.easProjectId, snapshot.repoScope);");
     expect(src).toContain("restoreConnectionSideState(snapshot)");
     expect(src).toContain("CONN_GITHUB_OK");
@@ -66,5 +68,12 @@ describe("recoverable multi-store persistence invariants", () => {
     const applyBlock = src.split("apply: async () => {")[1]?.split("},\n          rollback: restoreSnapshot,")[0] ?? "";
     expect(applyBlock).toContain("if (plan.shouldClearEasConnection)");
     expect(applyBlock).toContain("if (plan.shouldClearSupabaseConnection)");
+  });
+
+  it("resets the cached supabase client only when the saved URL changes", () => {
+    const src = readRepoText("screens/ConnectionsScreen/hooks/useConnectionsSaveActions.ts");
+    expect(src).toContain("import { resetSupabaseClient } from \"../../../lib/supabase\";");
+    expect(src).toContain("if (plan.supabaseUrl !== previousSupabaseUrl) {");
+    expect(src).toContain("resetSupabaseClient();");
   });
 });
