@@ -46,4 +46,45 @@ describe("projectPersistence ZIP export cleanup", () => {
       expect.objectContaining({ idempotent: true }),
     );
   });
+
+  it("excludes sensitive files like .npmrc from ZIP payload", async () => {
+    const FileSystem = require("expo-file-system/legacy");
+    const Sharing = require("expo-sharing");
+
+    Sharing.shareAsync.mockResolvedValueOnce(undefined);
+
+    await exportProjectAsZipFile({
+      name: "Demo",
+      files: [
+        { path: ".npmrc", content: "//registry.npmjs.org/:_authToken=npm_secret_token" },
+        { path: "App.tsx", content: "export default function App(){}" },
+      ],
+      chatHistory: [],
+    } as any);
+
+    const writeCalls = FileSystem.writeAsStringAsync.mock.calls.map((call: [string]) => call[0]);
+    expect(writeCalls.some((path: string) => path.endsWith("/.npmrc"))).toBe(false);
+    expect(writeCalls.some((path: string) => path.endsWith("/App.tsx"))).toBe(true);
+  });
+
+  it("does not exclude regular files only because content contains auth-like text", async () => {
+    const FileSystem = require("expo-file-system/legacy");
+    const Sharing = require("expo-sharing");
+
+    Sharing.shareAsync.mockResolvedValueOnce(undefined);
+
+    await exportProjectAsZipFile({
+      name: "Demo",
+      files: [
+        {
+          path: "src/client.ts",
+          content: "const sample = 'authorization: Bearer test'; export default sample;",
+        },
+      ],
+      chatHistory: [],
+    } as any);
+
+    const writeCalls = FileSystem.writeAsStringAsync.mock.calls.map((call: [string]) => call[0]);
+    expect(writeCalls.some((path: string) => path.endsWith("/src/client.ts"))).toBe(true);
+  });
 });

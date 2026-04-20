@@ -117,6 +117,8 @@ export function minimalAppJson() {
 export function defaultEasIgnore(): string {
   return [
     ".git",
+    ".npmrc",
+    "**/.npmrc",
     "node_modules",
     "android",
     "ios",

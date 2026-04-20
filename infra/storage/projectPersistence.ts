@@ -10,6 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
 import { materializeProjectFiles } from "../../lib/projectMaterializer";
 import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
+import { shouldStronglyRedactPath } from "../../lib/promptSanitizer";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatValidation
 import { normalizePath, Validators, validateZipImport } from '../../lib/validators';
@@ -169,6 +170,12 @@ export const exportProjectAsZipFile = async (
     for (const file of projectFiles) {
       const contentString =
         typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
+      const normalized = normalizePath(file.path);
+
+      if (shouldStronglyRedactPath(normalized)) {
+        logger.warn('[projectStorage] Sensitive Datei vom ZIP-Export ausgeschlossen', { path: normalized });
+        continue;
+      }
 
       const filePath = `${tempDir}${file.path}`;
       const dirName = filePath.substring(0, filePath.lastIndexOf('/'));
@@ -177,7 +184,6 @@ export const exportProjectAsZipFile = async (
         await FileSystem.makeDirectoryAsync(dirName, { intermediates: true });
       }
 
-      const normalized = normalizePath(file.path);
       const isBinary = isBinaryFilePath(normalized);
       const hasBase64 = typeof contentString === "string" && contentString.startsWith("base64:");
 

@@ -26,6 +26,8 @@ supabase/functions/**/node_modules
 .git/
 .gitignore
 .github/
+.npmrc
+**/.npmrc
 
 # images / local junk
 .DS_Store

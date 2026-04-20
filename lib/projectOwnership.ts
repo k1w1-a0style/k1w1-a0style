@@ -27,6 +27,7 @@ const MANUAL_CRITICAL_PREFIXES = [
 ];
 
 const MANUAL_CRITICAL_FILES = new Set([
+  ".npmrc",
   "package.json",
   "package-lock.json",
   "yarn.lock",
@@ -48,7 +49,6 @@ const DIAGNOSIS_ALLOWED_PREFIXES = [
 
 const DIAGNOSIS_ALLOWED_FILES = new Set([
   ".gitignore",
-  ".npmrc",
   "package.json",
   "package-lock.json",
   "yarn.lock",
