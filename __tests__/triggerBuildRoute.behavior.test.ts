@@ -12,6 +12,7 @@ function makeRequest(body: Record<string, unknown>): Request {
       "content-type": "application/json",
       "x-k1w1-admin-key": "admin-secret",
       authorization: `Bearer ${makeJwt({ role: "service_role" })}`,
+      "x-forwarded-for": "198.51.100.8, 10.0.0.1",
     },
     body: JSON.stringify(body),
   });
@@ -29,6 +30,7 @@ describe("trigger-eas-build route behavior", () => {
     process.env.GITHUB_TOKEN = "gh-token";
     process.env.K1W1_ALLOWED_GITHUB_REPOS = "owner/repo";
     process.env.K1W1_ALLOWED_REF_REGEX = "^(main|develop|feature/.+|release/.+)$";
+    process.env.K1W1_TRUSTED_PROXY_HOPS = "1";
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/auth/v1/user")) {

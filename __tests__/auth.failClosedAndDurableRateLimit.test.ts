@@ -209,6 +209,19 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     expect(result).toBeNull();
   });
 
+  it("fails closed when no trusted rate-limit subject is available", async () => {
+    const req = new Request("http://localhost/edge");
+    const result = await requireDurableRateLimit(req, {
+      scope: "github-workflow-dispatch",
+      subject: null,
+      max: 20,
+      windowMs: 60_000,
+    });
+
+    expect(result?.status).toBe(400);
+    await expect(result?.text()).resolves.toContain("untrusted_client_ip");
+  });
+
   it("fails closed when durable rate limiting is required but durable secrets are missing", async () => {
     const req = new Request("http://localhost/edge", {
       headers: { "x-forwarded-for": "1.2.3.4" },

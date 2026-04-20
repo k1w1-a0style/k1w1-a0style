@@ -1,9 +1,15 @@
 import { __resetLocalRateLimitForTests, rateLimit } from "../supabase/functions/_shared/auth";
 
 describe("local in-memory rateLimit prune window isolation", () => {
-  const req = new Request("http://localhost/edge", { headers: { "x-forwarded-for": "1.2.3.4" } });
+  const req = new Request("http://localhost/edge", {
+    headers: {
+      "cf-ray": "abc123",
+      "cf-connecting-ip": "203.0.113.9",
+    },
+  });
 
   beforeEach(() => {
+    process.env.K1W1_TRUST_CF_CONNECTING_IP = "1";
     __resetLocalRateLimitForTests();
     jest.restoreAllMocks();
   });

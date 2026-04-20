@@ -75,12 +75,16 @@ describe("save_preview auth/error header consistency + auth runtime env fallback
   it("returns rate-limit failure headers compatible with save_preview headers", () => {
     const req = new Request("http://localhost/save-preview", {
       method: "POST",
-      headers: { origin: ORIGIN, "x-forwarded-for": "1.2.3.4" },
+      headers: {
+        origin: ORIGIN,
+        "cf-ray": "abc123",
+        "cf-connecting-ip": "203.0.113.9",
+      },
     });
 
     const bucket = `save_preview_invariant_${Date.now()}`;
-    expect(withEnv({ ENVIRONMENT: "development" }, () => rateLimit(req, bucket, 1, 10_000))).toBeNull();
-    const res = withEnv({ ENVIRONMENT: "development" }, () => rateLimit(req, bucket, 1, 10_000));
+    expect(withEnv({ ENVIRONMENT: "development", K1W1_TRUST_CF_CONNECTING_IP: "1" }, () => rateLimit(req, bucket, 1, 10_000))).toBeNull();
+    const res = withEnv({ ENVIRONMENT: "development", K1W1_TRUST_CF_CONNECTING_IP: "1" }, () => rateLimit(req, bucket, 1, 10_000));
     expect(res).toBeTruthy();
 
     const savePreviewHeaders = withEnv({ ENVIRONMENT: "development" }, () => savePreviewCorsHeaders(ORIGIN));

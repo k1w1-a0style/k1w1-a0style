@@ -1,4 +1,4 @@
-import { getRequestClientIp, getRequestRateLimitSubject } from "../supabase/functions/_shared/auth";
+import { getRequestClientIp, getRequestRateLimitSubject, rateLimit } from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -38,7 +38,7 @@ describe("auth rate limit subject helpers", () => {
       },
     });
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
   });
 
   it("does not trust x-forwarded-for without an explicit trusted proxy boundary", () => {
@@ -49,7 +49,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
   });
 
   it("does not trust a client-provided trusted-proxy marker", () => {
@@ -61,7 +61,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:untrusted");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
   });
 
   it("does not allow header-rotation to create fresh untrusted subjects", () => {
@@ -84,8 +84,23 @@ describe("auth rate limit subject helpers", () => {
 
     expect(getRequestClientIp(reqA)).toBe("unknown");
     expect(getRequestClientIp(reqB)).toBe("unknown");
-    expect(getRequestRateLimitSubject(reqA)).toBe("ip:untrusted");
-    expect(getRequestRateLimitSubject(reqB)).toBe("ip:untrusted");
+    expect(getRequestRateLimitSubject(reqA)).toBeNull();
+    expect(getRequestRateLimitSubject(reqB)).toBeNull();
+  });
+
+  it("fails closed instead of using a global shared bucket when subject is missing", async () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "user-agent": "any-client",
+      },
+    });
+
+    const rlRes = rateLimit(req, "github-workflow-dispatch");
+    expect(rlRes?.status).toBe(400);
+    const payload = await rlRes?.json();
+    expect(payload).toEqual(expect.objectContaining({
+      error: "untrusted_client_ip",
+    }));
   });
 
   it("trusts x-forwarded-for only when trusted proxy hops are configured server-side", () => {

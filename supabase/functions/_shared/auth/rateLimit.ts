@@ -68,10 +68,10 @@ export function getRequestClientIp(req: Request): string {
   return "unknown";
 }
 
-export function getRequestRateLimitSubject(req: Request): string {
+export function getRequestRateLimitSubject(req: Request): string | null {
   const clientIp = getRequestClientIp(req);
   if (clientIp !== "unknown") return `ip:${clientIp}`;
-  return "ip:untrusted";
+  return null;
 }
 
 const rl = new Map<string, { t: number; c: number; windowMs: number }>();
@@ -84,6 +84,12 @@ export function __resetLocalRateLimitForTests(): void {
 
 export function rateLimit(req: Request, key: string, max = 10, windowMs = 10_000): Response | null {
   const subject = getRequestRateLimitSubject(req);
+  if (!subject) {
+    return errorResponse("untrusted_client_ip", req, 400, {
+      reason: "missing_trusted_client_ip",
+      mode: "local_best_effort",
+    });
+  }
   const k = `${key}:${subject}`;
   const now = Date.now();
   if (now - rlLastPruneAt > Math.max(windowMs, 10_000) || rl.size > 5_000) {
@@ -115,7 +121,7 @@ export function rateLimit(req: Request, key: string, max = 10, windowMs = 10_000
 
 export type DurableRateLimitConfig = {
   scope: string;
-  subject: string;
+  subject: string | null;
   max: number;
   windowMs: number;
   enforceDurable?: boolean;
@@ -159,6 +165,14 @@ async function fetchWithEdgeTimeout(input: RequestInfo | URL, init: RequestInit,
 }
 
 export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimitConfig): Promise<Response | null> {
+  if (!cfg.subject) {
+    return errorResponse("untrusted_client_ip", req, 400, {
+      scope: cfg.scope,
+      reason: "missing_trusted_client_ip",
+      mode: "durable",
+    });
+  }
+
   const localFallbackRisk = { fallback_mode: "local_in_memory_best_effort", cluster_safe: false } as const;
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();
