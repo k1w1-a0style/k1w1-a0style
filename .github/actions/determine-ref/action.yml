@@ -21,10 +21,10 @@ inputs:
     description: Fallback ref if everything else is empty
     required: false
     default: "main"
-  allowed_ref_regex:
-    description: Bash regex for allowed refs (defense against injection)
+  allowed_refs_csv:
+    description: Optional comma-separated allowlist (exact branch/ref names)
     required: false
-    default: "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
+    default: ""
 
 outputs:
   checkout_ref:
@@ -48,8 +48,67 @@ runs:
         # Trim CR/LF (copy/paste + payload weirdness)
         REF="$(printf '%s' "$REF" | tr -d '\r\n')"
 
-        ALLOWED="${{ inputs.allowed_ref_regex }}"
-        if ! [[ "$REF" =~ $ALLOWED ]]; then
+        if [ -z "$REF" ]; then
+          echo "❌ Ref is empty."
+          exit 1
+        fi
+
+        if [ "${#REF}" -gt 200 ]; then
+          echo "❌ Ref too long."
+          exit 1
+        fi
+
+        if [[ "$REF" =~ [[:cntrl:]] ]] || [[ "$REF" =~ [[:space:]] ]]; then
+          echo "❌ Ref contains control/space characters."
+          exit 1
+        fi
+
+        if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
+          echo "❌ Ref has a forbidden prefix."
+          exit 1
+        fi
+
+        if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
+          echo "❌ Ref contains forbidden git sequences."
+          exit 1
+        fi
+
+        if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
+          echo "❌ Ref contains forbidden slash placement."
+          exit 1
+        fi
+
+        if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
+          echo "❌ Ref contains forbidden metacharacters."
+          exit 1
+        fi
+
+        if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+          echo "❌ Ref violates safe character policy."
+          exit 1
+        fi
+
+        ALLOWED_REFS="${{ inputs.allowed_refs_csv }}"
+        if [ -n "$ALLOWED_REFS" ]; then
+          SAFE_MATCHED=0
+          IFS=',' read -r -a TOKENS <<< "$ALLOWED_REFS"
+          for RAW_TOKEN in "${TOKENS[@]}"; do
+            TOKEN="$(printf '%s' "$RAW_TOKEN" | tr -d '\r\n' | xargs)"
+            if [ -z "$TOKEN" ]; then
+              continue
+            fi
+            if [ "$TOKEN" = "$REF" ]; then
+              SAFE_MATCHED=1
+              break
+            fi
+          done
+          if [ "$SAFE_MATCHED" -ne 1 ]; then
+            echo "❌ Ref not in allowlist: $REF"
+            exit 1
+          fi
+        fi
+
+        if [ -z "$REF" ]; then
           echo "❌ Ref not allowed: $REF"
           exit 1
         fi

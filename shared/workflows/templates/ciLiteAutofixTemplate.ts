@@ -6,7 +6,7 @@ export const WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE = `
 name: K1W1 CI Lite Autofix (ESLint --fix)
 
 run-name: >-
-  CI Lite Autofix\${{ inputs.job_id && format(' [{0}]', inputs.job_id) || '' }} • \${{ inputs.ref }}
+  CI Lite Autofix • run-\${{ github.run_id }}-\${{ github.run_attempt }}
 
 on:
   workflow_dispatch:
@@ -33,8 +33,6 @@ jobs:
     timeout-minutes: 25
 
     env:
-      JOB_ID: \${{ inputs.job_id }}
-      TARGET_BRANCH: \${{ inputs.ref }}
       ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
       WORKFLOW_VERSION: "${CI_LITE_WORKFLOW_VERSION}"
 
@@ -46,13 +44,22 @@ jobs:
           input_ref: \${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_ref_regex: \${{ env.ALLOWED_REF_REGEX }}
+          allowed_refs_csv: work,codex,dev,develop
 
-      - name: Export target branch
+      - name: Sanitize run metadata
         shell: bash
         run: |
           set -euo pipefail
-          echo "TARGET_BRANCH=\${{ steps.target_ref.outputs.checkout_ref }}" >> "$GITHUB_ENV"
+          RAW_JOB_ID="\${{ inputs.job_id || '' }}"
+          JOB_ID=""
+          if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            JOB_ID="\${RAW_JOB_ID,,}"
+          fi
+
+          {
+            printf 'TARGET_BRANCH=%s\n' "\${{ steps.target_ref.outputs.checkout_ref }}"
+            printf 'JOB_ID=%s\n' "$JOB_ID"
+          } >> "$GITHUB_ENV"
 
       - name: Run info
         shell: bash

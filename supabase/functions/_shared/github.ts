@@ -15,8 +15,8 @@ async function readResponseTextOrSentinel(response: Response, context: string): 
 /**
  * Shared GitHub helpers for Supabase Edge Functions
  * - Uses GitHub recommended headers
- * - Fine-grained PATs prefer `Bearer`
- * - Provides a fetch wrapper with a safe fallback
+ * - Fine-grained PATs use `Bearer`
+ * - Provides a fetch wrapper with fail-closed auth behavior
  */
 
 export function getGithubToken(): string {
@@ -88,34 +88,18 @@ export async function githubFetch(
   const token = getGithubToken();
   const timeoutMs = GITHUB_FETCH_TIMEOUT_MS;
 
-  // Primary attempt: Bearer (best for fine-grained PAT)
+  // Single attempt: Bearer
   const h1 = new Headers(init.headers);
   for (const [k, v] of Object.entries(githubHeaders(token, "Bearer"))) {
     h1.set(k, v);
   }
 
-  const r1 = await fetchWithTimeout(url, {
+  return await fetchWithTimeout(url, {
     ...init,
     headers: h1,
     timeoutMs,
     timeoutMessage: githubTimeoutMessage(url, timeoutMs),
   });
-
-  // Fallback: classic `token` scheme (some setups still use it)
-  if (r1.status === 401) {
-    const h2 = new Headers(init.headers);
-    for (const [k, v] of Object.entries(githubHeaders(token, "token"))) {
-      h2.set(k, v);
-    }
-    return await fetchWithTimeout(url, {
-      ...init,
-      headers: h2,
-      timeoutMs,
-      timeoutMessage: githubTimeoutMessage(url, timeoutMs),
-    });
-  }
-
-  return r1;
 }
 
 // --- New helpers for deterministic CI-Lite backchannel ---
@@ -132,29 +116,15 @@ export async function githubFetchRaw(
   const t = (token ?? "").trim();
   const timeoutMs = GITHUB_FETCH_TIMEOUT_MS;
 
-  // Primary attempt: Bearer
+  // Single attempt: Bearer
   const h1 = new Headers(init.headers);
   for (const [k, v] of Object.entries(githubHeaders(t, "Bearer"))) h1.set(k, v);
-  const r1 = await fetchWithTimeout(url, {
+  return await fetchWithTimeout(url, {
     ...init,
     headers: h1,
     timeoutMs,
     timeoutMessage: githubTimeoutMessage(url, timeoutMs),
   });
-
-  // Fallback: classic token
-  if (r1.status === 401) {
-    const h2 = new Headers(init.headers);
-    for (const [k, v] of Object.entries(githubHeaders(t, "token"))) h2.set(k, v);
-    return await fetchWithTimeout(url, {
-      ...init,
-      headers: h2,
-      timeoutMs,
-      timeoutMessage: githubTimeoutMessage(url, timeoutMs),
-    });
-  }
-
-  return r1;
 }
 
 export async function githubFetchJson<T>(
