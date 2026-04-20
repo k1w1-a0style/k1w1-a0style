@@ -30,10 +30,14 @@ export function shouldStronglyRedactFile(path: string, content: string): boolean
   const normalizedPath = String(path ?? '').trim();
   const safeContent = String(content ?? '');
   return (
-    SENSITIVE_FILE_PATH_RE.test(normalizedPath) ||
-    SENSITIVE_FILE_NAME_HINT_RE.test(normalizedPath) ||
+    shouldStronglyRedactPath(normalizedPath) ||
     SENSITIVE_CONTENT_HINT_RE.test(safeContent)
   );
+}
+
+export function shouldStronglyRedactPath(path: string): boolean {
+  const normalizedPath = String(path ?? '').trim();
+  return SENSITIVE_FILE_PATH_RE.test(normalizedPath) || SENSITIVE_FILE_NAME_HINT_RE.test(normalizedPath);
 }
 
 export function sanitizeFileContentForPrompt(

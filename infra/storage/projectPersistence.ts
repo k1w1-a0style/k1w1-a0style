@@ -10,7 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { v4 as uuidv4 } from 'uuid';
 import { materializeProjectFiles } from "../../lib/projectMaterializer";
 import { loadChatHistorySettings } from "../../lib/chatPrivacySettings";
-import { shouldStronglyRedactFile } from "../../lib/promptSanitizer";
+import { shouldStronglyRedactPath } from "../../lib/promptSanitizer";
 
 // ✅ Phase 1 Step 3: normalizePath aus lib/validators statt utils/chatValidation
 import { normalizePath, Validators, validateZipImport } from '../../lib/validators';
@@ -172,7 +172,7 @@ export const exportProjectAsZipFile = async (
         typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
       const normalized = normalizePath(file.path);
 
-      if (shouldStronglyRedactFile(normalized, contentString)) {
+      if (shouldStronglyRedactPath(normalized)) {
         logger.warn('[projectStorage] Sensitive Datei vom ZIP-Export ausgeschlossen', { path: normalized });
         continue;
       }
