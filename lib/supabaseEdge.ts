@@ -6,6 +6,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CONFIG } from "../config";
 import { logger } from "./logger";
 import { STORAGE_KEYS } from "./storageKeys";
+import { deriveSupabaseUrl, normalizeStoredSupabaseRaw } from "../screens/ConnectionsScreen/utils/validation";
+import { normalizeSupabaseUrl } from "./supabaseRuntimeConfig";
 
 /**
  * Returns the Supabase Edge Functions base URL.
@@ -28,8 +30,14 @@ async function readStoredSupabaseUrlDetailed(): Promise<{
   unreadable: boolean;
 }> {
   try {
+    const [storedRaw, storedUrlMirror] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
+      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+    ]);
+    const normalizedRaw = normalizeStoredSupabaseRaw(storedRaw ?? "", storedUrlMirror ?? "");
+    const derivedUrl = normalizeSupabaseUrl(deriveSupabaseUrl(normalizedRaw).url);
     return {
-      value: await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+      value: derivedUrl ?? storedUrlMirror,
       unreadable: false,
     };
   } catch (error: unknown) {

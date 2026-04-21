@@ -15,6 +15,19 @@ describe("Terminal secret redaction", () => {
     expect(out).not.toContain("abcdefghijklmnopqrstuvwxyz012345");
   });
 
+  test("redacts github tokens and x-k1w1-admin-key header", () => {
+    const input = [
+      "x-k1w1-admin-key: super-secret-admin-key",
+      "token=ghp_abcdefghijklmnopqrstuvwxyz1234567890",
+      "github_pat_11ABCDEF_abcdefghijklmnopqrstuvwxyz1234567890",
+    ].join("\n");
+    const out = redactSecrets(input);
+    expect(out).toMatch(/x-k1w1-admin-key[:=]"?<redacted>"?/i);
+    expect(out).not.toContain("super-secret-admin-key");
+    expect(out).not.toContain("ghp_abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(out).not.toContain("github_pat_11ABCDEF_abcdefghijklmnopqrstuvwxyz1234567890");
+  });
+
   test("redacts jwt-like tokens", () => {
     const jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTYifQ.abcdefghijklmnopqrstuv";
     const out = redactSecrets(jwt);
@@ -32,6 +45,20 @@ describe("Terminal secret redaction", () => {
     expect(out).not.toContain("abc123");
     expect(out).not.toContain("hunter2");
     expect(out).not.toContain("topsecret");
+  });
+
+  test("redacts project-style key assignments while preserving harmless debug text", () => {
+    const input = [
+      "workflow_admin_key=my-long-secret-value",
+      "SIGNING_MASTER_KEY=another-secret",
+      "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiJ9.aaaaabbbbb.ccccdddd",
+      "status: waiting for next retry",
+    ].join("\n");
+    const out = redactSecrets(input);
+    expect(out).toContain('workflow_admin_key="<redacted>"');
+    expect(out).toContain('SIGNING_MASTER_KEY="<redacted>"');
+    expect(out).toContain('SUPABASE_ANON_KEY="<redacted>"');
+    expect(out).toContain("status: waiting for next retry");
   });
 
   test("truncateWithMarker adds marker", () => {

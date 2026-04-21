@@ -35,11 +35,21 @@ describe("supabase runtime config", () => {
   });
 
   it("does not mutate process.env while resolving stored runtime config", async () => {
-    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "https://stored.supabase.co");
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, "xfgnzpcljsuqqdjlxgul");
     await ensureSupabaseClient();
 
     expect(process.env.EXPO_PUBLIC_SUPABASE_URL).toBeUndefined();
     expect(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY).toBeUndefined();
+  });
+
+  it("derives runtime url from SUPABASE_RAW as canonical source", async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, "xfgnzpcljsuqqdjlxgul");
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "https://stale.supabase.co");
+
+    const result = await readSupabaseRuntimeConfigDetailed();
+
+    expect(result.url).toBe("https://xfgnzpcljsuqqdjlxgul.supabase.co");
+    expect(result.urlReason).toBe("ok");
   });
 
   it("marks invalid url config separately from missing values", async () => {

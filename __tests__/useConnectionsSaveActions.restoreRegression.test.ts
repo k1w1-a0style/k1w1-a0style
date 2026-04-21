@@ -183,4 +183,21 @@ describe("useConnectionsSaveActions supabase reset restore regression", () => {
 
     expect(resetSupabaseClient).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps SUPABASE_URL mirror synchronized from canonical SUPABASE_RAW", async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "https://old.supabase.co");
+    const params = makeParams("https://xfgnzpcljsuqqdjlxgul.supabase.co");
+    params.secrets.supabaseRaw = "xfgnzpcljsuqqdjlxgul";
+
+    const { result } = renderHook(() => useConnectionsSaveActions(params));
+
+    await act(async () => {
+      await result.current.saveAll();
+    });
+
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW)).toBe("xfgnzpcljsuqqdjlxgul");
+    expect(await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL)).toBe(
+      "https://xfgnzpcljsuqqdjlxgul.supabase.co",
+    );
+  });
 });

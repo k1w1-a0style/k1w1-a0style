@@ -70,6 +70,13 @@ export function redactSecrets(input: string): string {
     `$1${REDACTED}`
   );
 
+  // Project admin headers.
+  out = replaceAllSafe(
+    out,
+    /(x-k1w1-admin-key\s*[:=]\s*)([^\s\n\r]+)/gi,
+    `$1${REDACTED}`
+  );
+
   // Cookie / Set-Cookie headers.
   out = replaceAllSafe(
     out,
@@ -84,6 +91,20 @@ export function redactSecrets(input: string): string {
     `$1="${REDACTED}"`
   );
 
+  // Project-specific admin/signing/master/workflow/keystore assignments.
+  out = replaceAllSafe(
+    out,
+    /\b((?!x-k1w1-admin-key\b)(?=[a-z0-9_-]*(?:admin|signing|master|workflow|keystore))[a-z0-9_-]*(?:key|token|secret))\s*[:=]\s*"?([^\s"\n\r]{8,})"?/gi,
+    `$1="${REDACTED}"`
+  );
+
+  // Common Supabase/Expo env-style assignments.
+  out = replaceAllSafe(
+    out,
+    /\b((?:supabase|expo)(?:[_-]?(?:url|anon|token|key|secret|service[_-]?role|access[_-]?token|refresh[_-]?token))+)\s*[:=]\s*"?([^\s"\n\r]{8,})"?/gi,
+    `$1="${REDACTED}"`
+  );
+
   // npm auth tokens in .npmrc style files.
   out = replaceAllSafe(
     out,
@@ -93,6 +114,13 @@ export function redactSecrets(input: string): string {
 
   // Bearer tokens inside text.
   out = replaceAllSafe(out, /\bBearer\s+([A-Za-z0-9._-]{10,})\b/g, `Bearer ${REDACTED}`);
+
+  // GitHub PATs and fine-grained token formats.
+  out = replaceAllSafe(
+    out,
+    /\b(gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g,
+    REDACTED
+  );
 
   // token= / access_token= / refresh_token=
   out = replaceAllSafe(
