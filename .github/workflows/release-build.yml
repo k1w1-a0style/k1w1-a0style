@@ -15,6 +15,12 @@ on:
       ref:
         description: "Branch/Tag/SHA to build"
         required: true
+      strict_lockfile:
+        description: "Lockfile policy override (auto|true|false)"
+        required: false
+        type: choice
+        options: [auto, "true", "false"]
+        default: auto
 
 permissions:
   contents: read
@@ -139,8 +145,41 @@ jobs:
         with:
           node-version: 20
 
+      - name: Determine strict lockfile policy
+        id: strict_lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="${{ inputs.profile }}"
+          OVERRIDE="${{ inputs.strict_lockfile }}"
+          case "$OVERRIDE" in
+            true|false)
+              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
+              ;;
+            ""|auto)
+              case "$PROFILE" in
+                preview|production)
+                  echo "strict=true" >> "$GITHUB_OUTPUT"
+                  ;;
+                development)
+                  echo "strict=false" >> "$GITHUB_OUTPUT"
+                  ;;
+                *)
+                  echo "::error::Unknown profile '$PROFILE' while computing strict lockfile policy"
+                  exit 1
+                  ;;
+              esac
+              ;;
+            *)
+              echo "::error::Invalid strict_lockfile override '$OVERRIDE' (allowed: auto|true|false)"
+              exit 1
+              ;;
+          esac
+
       - name: Install deps (package-manager-aware)
         shell: bash
+        env:
+          STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
         run: |
           set -euo pipefail
 
@@ -164,11 +203,11 @@ jobs:
                 exit 1
                 ;;
             esac
-          elif [ "$PROFILE" != "development" ]; then
-            echo "::error::Release workflow requires a lockfile for profile '$PROFILE'."
+          elif [ "${STRICT_LOCKFILE}" = "true" ]; then
+            echo "::error::Strict lockfile policy enabled for profile '${PROFILE}', but no lockfile was found. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running preview/production builds."
             exit 1
           else
-            echo "::warning::No lockfile found; allowing npm install only for development profile."
+            echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
             npm install --no-audit --no-fund
           fi
 
@@ -323,6 +362,7 @@ jobs:
             echo "- Ref: ${{ inputs.ref }}"
             echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
+            echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""
