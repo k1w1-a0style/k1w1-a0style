@@ -22,7 +22,7 @@ import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { readScopedEasProjectId } from "../../../lib/easProjectIdScope";
 import { recoverFromPendingJournal, runRecoverableCommit } from "../../../lib/recoverableCommit";
 import { resetSupabaseClient } from "../../../lib/supabase";
-import { normalizeStoredSupabaseRaw, validateBeforeSave } from "../utils/validation";
+import { deriveSupabaseUrl, normalizeStoredSupabaseRaw, validateBeforeSave } from "../utils/validation";
 import { isPersistedEasState, resolveConnectionsSavePlan } from "./useConnectionsScreenHelpers";
 import type { VerificationContractState } from "../../../lib/status/verificationContract";
 
@@ -134,8 +134,8 @@ export function useConnectionsSaveActions(params: Params) {
       expoToken,
       workflowAdminKey,
       androidKeystoreExportAdminKey,
-      supabaseRaw,
-      supabaseUrl,
+      supabaseRawStored,
+      supabaseUrlStored,
       supabaseAnonKey,
       easProjectId,
       githubOkRaw,
@@ -176,14 +176,21 @@ export function useConnectionsSaveActions(params: Params) {
         AsyncStorage.getItem(STORAGE_KEYS.CONN_EAS_LAST_VERIFIED_AT),
       ]);
 
+    const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(supabaseRawStored, supabaseUrlStored);
+    const normalizedSupabaseUrl = (() => {
+      const derived = deriveSupabaseUrl(normalizedSupabaseRaw);
+      if (derived.url) return derived.url;
+      return (supabaseUrlStored ?? "").trim();
+    })();
+
     return {
       repoScope: repoScopeOverride,
       githubToken,
       expoToken,
       workflowAdminKey,
       androidKeystoreExportAdminKey,
-      supabaseRaw,
-      supabaseUrl,
+      supabaseRaw: normalizedSupabaseRaw,
+      supabaseUrl: normalizedSupabaseUrl,
       supabaseAnonKey,
       easProjectId,
       sideState: {
@@ -284,13 +291,20 @@ export function useConnectionsSaveActions(params: Params) {
     ): Promise<void> => {
       const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
-      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, plan.supabaseUrl);
+      const supabaseUrlMirror = /^https?:\/\//i.test(normalizedSupabaseRaw)
+        ? normalizedSupabaseRaw
+        : plan.supabaseUrl;
+      await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, supabaseUrlMirror);
       await persistOptionalSecret({
         value: plan.supabaseAnonKey,
         save: saveSupabaseAnonKey,
         remove: deleteSupabaseAnonKey,
       });
       if (plan.supabaseUrl !== previousSupabaseUrl) {
+        resetSupabaseClient();
+        return;
+      }
+      if (supabaseUrlMirror !== previousSupabaseUrl) {
         resetSupabaseClient();
       }
     },

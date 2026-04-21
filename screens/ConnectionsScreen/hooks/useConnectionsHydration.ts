@@ -10,7 +10,7 @@ import {
 } from "../../../infra/github/githubService";
 import { getSupabaseAnonKey } from "../../../lib/supabaseAnonKeyStorage";
 import { runCleanupTask } from "../../../lib/safeCleanup";
-import { normalizeStoredSupabaseRaw } from "../utils/validation";
+import { deriveSupabaseUrl, normalizeStoredSupabaseRaw } from "../utils/validation";
 import {
   loadHydrationSnapshot,
   resolveHydrationLightsState,
@@ -47,6 +47,31 @@ type Params = {
   removeConnLights: (keys: string[]) => Promise<void>;
 };
 
+export function resolveHydratedSupabaseState(snapshot: Pick<HydrationSnapshot, "supabaseRaw" | "supabaseUrl">): {
+  normalizedRaw: string;
+  resolvedUrl: string;
+  persistenceEntries: Array<[string, string]>;
+} {
+  const normalizedRaw = normalizeStoredSupabaseRaw(snapshot.supabaseRaw, snapshot.supabaseUrl);
+  const mirror = String(snapshot.supabaseUrl || "").trim();
+  const derivedUrl = deriveSupabaseUrl(normalizedRaw).url;
+  const resolvedUrl = derivedUrl || mirror;
+  const persistenceEntries: Array<[string, string]> = [];
+
+  if (snapshot.supabaseRaw !== normalizedRaw) {
+    persistenceEntries.push([STORAGE_KEYS.SUPABASE_RAW, normalizedRaw]);
+  }
+  if (derivedUrl && derivedUrl !== mirror) {
+    persistenceEntries.push([STORAGE_KEYS.SUPABASE_URL, derivedUrl]);
+  }
+
+  return {
+    normalizedRaw,
+    resolvedUrl,
+    persistenceEntries,
+  };
+}
+
 export function useConnectionsHydration(params: Params) {
   const {
     selectedRepo,
@@ -76,13 +101,16 @@ export function useConnectionsHydration(params: Params) {
   const didAutoTestEas = useRef(false);
 
   const applyHydrationSnapshotState = useCallback(
-    (snapshot: HydrationSnapshot, normalizedSupabaseRaw: string) => {
+    (snapshot: HydrationSnapshot, hydratedSupabaseState: {
+      normalizedRaw: string;
+      resolvedUrl: string;
+    }) => {
       setGithubToken(snapshot.githubToken);
       setExpoToken(snapshot.expoToken);
       setWorkflowAdminKey(snapshot.workflowAdminKey);
       setAndroidKeystoreExportAdminKey(snapshot.androidKeystoreExportAdminKey);
-      setSupabaseRaw(normalizedSupabaseRaw);
-      setSupabaseUrl(snapshot.supabaseUrl);
+      setSupabaseRaw(hydratedSupabaseState.normalizedRaw);
+      setSupabaseUrl(hydratedSupabaseState.resolvedUrl);
       setSupabaseAnonKey(snapshot.supabaseAnonKey);
       setEasProjectId(snapshot.easProjectId);
 
@@ -136,19 +164,16 @@ export function useConnectionsHydration(params: Params) {
         getSupabaseAnonKey,
       }, selectedRepo);
 
-      const normalizedStoredSupabaseRaw = normalizeStoredSupabaseRaw(
-        snapshot.supabaseRaw,
-        snapshot.supabaseUrl,
-      );
-      if (snapshot.supabaseRaw !== normalizedStoredSupabaseRaw) {
+      const hydratedSupabaseState = resolveHydratedSupabaseState(snapshot);
+      if (hydratedSupabaseState.persistenceEntries.length > 0) {
         void runCleanupTask(
-          () => persistConnLights([[STORAGE_KEYS.SUPABASE_RAW, normalizedStoredSupabaseRaw]]),
-          `[ConnectionsScreen] normalize persisted supabase raw failed for key=${STORAGE_KEYS.SUPABASE_RAW}`,
+          () => persistConnLights(hydratedSupabaseState.persistenceEntries),
+          `[ConnectionsScreen] normalize persisted supabase state failed for keys=${STORAGE_KEYS.SUPABASE_RAW},${STORAGE_KEYS.SUPABASE_URL}`,
         );
       }
 
       if (!mounted) return;
-      applyHydrationSnapshotState(snapshot, normalizedStoredSupabaseRaw);
+      applyHydrationSnapshotState(snapshot, hydratedSupabaseState);
     })();
 
     return () => {

@@ -2,7 +2,9 @@
 // Centralized AsyncStorage keys to avoid drift across screens/hooks/libs.
 
 export const STORAGE_KEYS = {
+  // Canonical persisted Supabase target source (project ref or normalized URL).
   SUPABASE_RAW: "supabase_raw",
+  // Legacy/compatibility mirror derived from SUPABASE_RAW (not independent SoT).
   SUPABASE_URL: "supabase_url",
   SUPABASE_KEY: "supabase_key",
 

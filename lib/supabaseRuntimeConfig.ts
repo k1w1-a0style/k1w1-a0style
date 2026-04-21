@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
 import { readSupabaseAnonKeyDetailed } from "./supabaseAnonKeyStorage";
+import { deriveSupabaseUrl, normalizeStoredSupabaseRaw } from "../screens/ConnectionsScreen/utils/validation";
 
 type RuntimeProcess = {
   env?: Record<string, string | undefined>;
@@ -39,8 +40,17 @@ export type SupabaseRuntimeConfigDetailed = {
 
 async function readStoredSupabaseUrl(): Promise<{ value: string | null; unreadable: boolean }> {
   try {
+    const [storedRaw, storedUrlMirror] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
+      AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+    ]);
+    const normalizedRaw = normalizeStoredSupabaseRaw(storedRaw ?? "", storedUrlMirror ?? "");
+    const derivedFromRaw = normalizeSupabaseUrl(deriveSupabaseUrl(normalizedRaw).url);
+    if (derivedFromRaw) {
+      return { value: derivedFromRaw, unreadable: false };
+    }
     return {
-      value: await AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_URL),
+      value: storedUrlMirror,
       unreadable: false,
     };
   } catch {
