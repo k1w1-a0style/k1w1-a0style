@@ -88,6 +88,37 @@ describe("auth rate limit subject helpers", () => {
     expect(getRequestRateLimitSubject(reqB)).toBeNull();
   });
 
+  it("uses verified actor fallback when trusted ip is unavailable", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "user-agent": "any-client",
+      },
+    });
+
+    expect(getRequestClientIp(req)).toBe("unknown");
+    expect(getRequestRateLimitSubject(req, "user-123")).toBe("actor:user-123");
+  });
+
+  it("keeps actor fallback stable even when client-controlled headers vary", () => {
+    const reqA = new Request("https://example.test/a", {
+      headers: {
+        authorization: "Bearer fake-a",
+        "user-agent": "ua-a",
+        "x-forwarded-for": "198.51.100.8, 10.0.0.1",
+      },
+    });
+    const reqB = new Request("https://example.test/b", {
+      headers: {
+        authorization: "Bearer fake-b",
+        "user-agent": "ua-b",
+        "x-forwarded-for": "203.0.113.10, 10.0.0.1",
+      },
+    });
+
+    expect(getRequestRateLimitSubject(reqA, "verified-actor")).toBe("actor:verified-actor");
+    expect(getRequestRateLimitSubject(reqB, "verified-actor")).toBe("actor:verified-actor");
+  });
+
   it("fails closed instead of using a global shared bucket when subject is missing", async () => {
     const req = new Request("https://example.test", {
       headers: {

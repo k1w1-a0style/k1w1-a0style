@@ -3,6 +3,7 @@ import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRole,
+  resolveVerifiedJwtActor,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
@@ -131,15 +132,19 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
     }
 
+    const verifiedActor = await resolveVerifiedJwtActor(req, "__missing_verified_actor__");
+    const actorSubject = verifiedActor.source === "fallback" ? null : verifiedActor.actor;
+    const rateLimitSubject = getRequestRateLimitSubject(req, actorSubject);
+
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-dispatch",
-      subject: getRequestRateLimitSubject(req),
+      subject: rateLimitSubject,
       max: 20,
       windowMs: 60_000,
     });
     if (durableRl) return durableRl;
 
-    const rl = rateLimit(req, "github-workflow-dispatch");
+    const rl = rateLimit(req, "github-workflow-dispatch", 10, 10_000, rateLimitSubject);
     if (rl) return rl;
 
     const [owner, repo] = githubRepo.split("/");
