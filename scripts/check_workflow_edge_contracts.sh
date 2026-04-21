@@ -161,6 +161,7 @@ forbid_fixed "$RUNS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_B
 forbid_fixed "$LOGS_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 forbid_fixed "$DISPATCH_EDGE" 'isScopedCiBearerRequest(req, "K1W1_EDGE_WORKFLOW_CI_BEARER")'
 require_fixed "$KEYSTORE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
+require_fixed "$KEYSTORE_EDGE" 'requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export")'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"'
 require_fixed "$KEYSTORE_GENERATE_EDGE" 'requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate")'
 forbid_fixed "$KEYSTORE_GENERATE_EDGE" 'safeString(body?.branch) || "main"'

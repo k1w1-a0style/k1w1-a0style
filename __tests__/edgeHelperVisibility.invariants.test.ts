@@ -41,7 +41,7 @@ describe("Edge helper visibility invariants", () => {
         "handleCors",
         "jsonResponse",
         "rateLimit",
-        "requirePrivilegedOperatorJwtRoleWithVerifiedActor",
+        "requireServiceRoleJwtWithVerifiedActor",
         "requireScopedEdgeAuth",
       ],
       reexports: [
@@ -53,7 +53,7 @@ describe("Edge helper visibility invariants", () => {
         'getServiceRoleKey',
         'getSigningMasterKey',
         'getSupabaseUrl',
-        'requirePrivilegedOperatorJwtRoleWithVerifiedActor',
+        'requireServiceRoleJwtWithVerifiedActor',
       ],
     },
     {

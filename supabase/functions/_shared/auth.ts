@@ -17,6 +17,7 @@ export {
   requireAiOperatorJwtRole,
   requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireAiOperatorJwtRoleWithVerifiedActor,
+  requireServiceRoleJwtWithVerifiedActor,
   WORKFLOW_OPERATOR_ALLOWED_ROLES,
   PRIVILEGED_OPERATOR_ALLOWED_ROLES,
   AI_OPERATOR_ALLOWED_ROLES,

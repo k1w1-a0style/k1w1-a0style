@@ -12,7 +12,7 @@ import {
   isAllowedGithubRepo,
   requireDurableRateLimit,
   repoOk,
-  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
+  requireServiceRoleJwtWithVerifiedActor,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-export");
+  const jwtActorGuard = await requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export");
   if (jwtActorGuard.guard) return jwtActorGuard.guard;
   const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 

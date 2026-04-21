@@ -53,7 +53,7 @@ describe("patch415 edge auth guard invariants", () => {
     const src = read("supabase/functions/android-keystore-export/index.ts");
     expect(src).toContain("requireScopedEdgeAuth(req, {");
         expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-    expect(src).toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, \"android-keystore-export\")");
+    expect(src).toContain("requireServiceRoleJwtWithVerifiedActor(req, \"android-keystore-export\")");
     expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
   });
 

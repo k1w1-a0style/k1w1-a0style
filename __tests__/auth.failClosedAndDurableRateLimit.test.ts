@@ -4,6 +4,7 @@ import {
   rateLimit,
   requireDurableRateLimit,
   requireJwtRole,
+  requireServiceRoleJwtWithVerifiedActor,
   resolveVerifiedJwtActor,
 } from "../supabase/functions/_shared/auth";
 
@@ -135,6 +136,50 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it("service-role-with-actor guard rejects build_admin on service_role-only routes", async () => {
+    const token = jwtWithPayload({ role: "build_admin", sub: "build-admin-sub" });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "build-admin-id", role: "authenticated" }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export"),
+    );
+
+    expect(result.guard?.status).toBe(403);
+    expect(result.actor).toBeNull();
+  });
+
+  it("service-role-with-actor guard returns verified actor for service_role", async () => {
+    const token = jwtWithPayload({ role: "service_role", sub: "service-sub" });
+    const req = new Request("http://localhost/edge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "service-role-id", role: "authenticated" }), { status: 200 }),
+    );
+
+    const result = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export"),
+    );
+
+    expect(result.guard).toBeNull();
+    expect(result.actor).toBe("service-role-id");
   });
 
   it("keeps utf-8 role decoding intact (would fail on legacy atob+JSON.parse decoder)", async () => {

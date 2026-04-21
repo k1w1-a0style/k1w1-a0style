@@ -17,7 +17,7 @@ export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
 export {
   getRequestClientIp,
   getRequestRateLimitSubject,
-  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
+  requireServiceRoleJwtWithVerifiedActor,
   rateLimit,
   requireDurableRateLimit,
   requireAdminKey,

@@ -288,3 +288,10 @@ export async function requireAiOperatorJwtRoleWithVerifiedActor(
 ): Promise<JwtRoleGuardWithActorResult> {
   return requireJwtRoleWithVerifiedActor(req, scope, [...AI_OPERATOR_ALLOWED_ROLES]);
 }
+
+export async function requireServiceRoleJwtWithVerifiedActor(
+  req: Request,
+  scope: string,
+): Promise<JwtRoleGuardWithActorResult> {
+  return requireJwtRoleWithVerifiedActor(req, scope, ["service_role"]);
+}
