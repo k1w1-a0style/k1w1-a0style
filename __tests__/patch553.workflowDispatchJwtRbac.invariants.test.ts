@@ -17,7 +17,8 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(route).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(route).not.toContain("ciBearerSecretEnv:");
     expect(route).not.toContain("isScopedCiBearerRequest(");
-    expect(route).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")');
+    expect(route).toContain('const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-dispatch")');
+    expect(route).toContain("if (jwtActorGuard.guard) return jwtActorGuard.guard;");
   });
 
   it("hardens workflow runs/logs routes to the same JWT + scoped-admin contract", () => {

@@ -108,10 +108,5 @@ runs:
           fi
         fi
 
-        if [ -z "$REF" ]; then
-          echo "❌ Ref not allowed: $REF"
-          exit 1
-        fi
-
         echo "checkout_ref=$REF" >> "$GITHUB_OUTPUT"
         echo "CHECKOUT_REF=$REF"

@@ -14,7 +14,7 @@ describe("patch549 keystore export JWT/RBAC hardening invariants", () => {
   it("keeps deny-by-default JWT role checks in shared auth and the route entrypoint", () => {
     const sharedAuth = read("supabase/functions/_shared/auth.ts");
     const jwt = read("supabase/functions/_shared/auth/jwt.ts");
-    expect(sharedAuth).toContain('export type { JwtPayload, JwtRoleGuardConfig, VerifiedJwtActorResult } from "./auth/jwt.ts";');
+    expect(sharedAuth).toContain("WorkflowOperatorJwtGuardWithActorResult");
     expect(sharedAuth).toContain('requireJwtRole');
     expect(jwt).toContain("export type JwtRoleGuardConfig = {");
     expect(jwt).toContain("export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Promise<Response | null> {");

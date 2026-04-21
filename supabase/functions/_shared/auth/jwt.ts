@@ -64,6 +64,11 @@ export type VerifiedJwtActorResult = {
   source: "verified_user_id" | "verified_payload_sub" | "fallback";
 };
 
+export type WorkflowOperatorJwtGuardWithActorResult = {
+  guard: Response | null;
+  actor: string | null;
+};
+
 function readNonEmptyRole(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -76,6 +81,14 @@ function getRoleFromVerifiedContext(ctx: VerifiedJwtContext): string {
   const userAppRole = readNonEmptyRole(ctx.user?.app_metadata?.role);
   if (userAppRole) return userAppRole;
   return readNonEmptyRole(ctx.user?.role);
+}
+
+function getActorFromVerifiedContext(ctx: VerifiedJwtContext): string | null {
+  const userId = typeof ctx.user?.id === "string" ? ctx.user.id.trim() : "";
+  if (userId) return userId;
+  const verifiedSub = typeof ctx.payload?.sub === "string" ? ctx.payload.sub.trim() : "";
+  if (verifiedSub) return verifiedSub;
+  return null;
 }
 
 const DEFAULT_EDGE_FETCH_TIMEOUT_MS = 8_000;
@@ -196,6 +209,49 @@ export async function requireJwtRole(req: Request, cfg: JwtRoleGuardConfig): Pro
 
 export async function requireWorkflowOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {
   return requireJwtRole(req, { scope, allowedRoles: [...WORKFLOW_OPERATOR_ALLOWED_ROLES] });
+}
+
+export async function requireWorkflowOperatorJwtRoleWithVerifiedActor(
+  req: Request,
+  scope: string,
+): Promise<WorkflowOperatorJwtGuardWithActorResult> {
+  const token = getBearerToken(req);
+  if (!token) {
+    return {
+      guard: errorResponse("Unauthorized: missing bearer token.", req, 401, {
+        scope,
+        required: "Authorization: Bearer <jwt>",
+      }),
+      actor: null,
+    };
+  }
+
+  const verified = await verifyJwtViaSupabaseAuth(req);
+  if (verified.ok === false) {
+    if (verified.reason === "server_misconfigured") {
+      return {
+        guard: errorResponse("JWT verification is unavailable due to server auth misconfiguration.", req, 500, { scope }),
+        actor: null,
+      };
+    }
+    return {
+      guard: errorResponse("Unauthorized: missing or unverifiable JWT.", req, 401, { scope }),
+      actor: null,
+    };
+  }
+
+  const role = getRoleFromVerifiedContext(verified.context);
+  if (!role || !WORKFLOW_OPERATOR_ALLOWED_ROLES.includes(role as typeof WORKFLOW_OPERATOR_ALLOWED_ROLES[number])) {
+    return {
+      guard: errorResponse("Forbidden: verified JWT role is not allowed for this route.", req, 403, {
+        scope,
+        allowedRoles: [...WORKFLOW_OPERATOR_ALLOWED_ROLES],
+      }),
+      actor: null,
+    };
+  }
+
+  return { guard: null, actor: getActorFromVerifiedContext(verified.context) };
 }
 
 export async function requirePrivilegedOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {

@@ -1,4 +1,4 @@
-import { getRequestClientIp, getRequestRateLimitSubject } from "../supabase/functions/_shared/auth";
+import { getRequestClientIp, getRequestRateLimitSubject, rateLimit } from "../supabase/functions/_shared/auth";
 
 function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T {
   const prev: Record<string, string | undefined> = {};
@@ -18,15 +18,27 @@ function withEnv<T>(patch: Record<string, string | undefined>, run: () => T): T 
 }
 
 describe("auth rate limit subject helpers", () => {
-  it("uses canonical client ip even when a JWT is present", () => {
+  it("uses canonical client ip only in trusted Cloudflare proxy context", () => {
     const req = new Request("https://example.test", {
       headers: {
         Authorization: "Bearer xxx." + btoa(JSON.stringify({ sub: "user-123" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "") + ".sig",
+        "cf-ray": "abc123",
         "cf-connecting-ip": "203.0.113.9",
       },
     });
 
-    expect(getRequestRateLimitSubject(req)).toBe("ip:203.0.113.9");
+    const subject = withEnv({ K1W1_TRUST_CF_CONNECTING_IP: "1" }, () => getRequestRateLimitSubject(req));
+    expect(subject).toBe("ip:203.0.113.9");
+  });
+
+  it("ignores untrusted cf-connecting-ip and degrades to a non-manipulable untrusted subject", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "cf-connecting-ip": "203.0.113.9",
+      },
+    });
+    expect(getRequestClientIp(req)).toBe("unknown");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
   });
 
   it("does not trust x-forwarded-for without an explicit trusted proxy boundary", () => {
@@ -37,7 +49,7 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
   });
 
   it("does not trust a client-provided trusted-proxy marker", () => {
@@ -49,7 +61,77 @@ describe("auth rate limit subject helpers", () => {
     });
 
     expect(getRequestClientIp(req)).toBe("unknown");
-    expect(getRequestRateLimitSubject(req)).toBe("ip:unknown");
+    expect(getRequestRateLimitSubject(req)).toBeNull();
+  });
+
+  it("does not allow header-rotation to create fresh untrusted subjects", () => {
+    const reqA = new Request("https://example.test/a", {
+      headers: {
+        authorization: "Bearer token-a",
+        "user-agent": "ua-a",
+        "x-forwarded-for": "198.51.100.8, 10.0.0.1",
+        "cf-connecting-ip": "203.0.113.5",
+      },
+    });
+    const reqB = new Request("https://example.test/b", {
+      headers: {
+        authorization: "Bearer token-b",
+        "user-agent": "ua-b",
+        "x-forwarded-for": "203.0.113.10, 10.0.0.1",
+        "cf-connecting-ip": "203.0.113.10",
+      },
+    });
+
+    expect(getRequestClientIp(reqA)).toBe("unknown");
+    expect(getRequestClientIp(reqB)).toBe("unknown");
+    expect(getRequestRateLimitSubject(reqA)).toBeNull();
+    expect(getRequestRateLimitSubject(reqB)).toBeNull();
+  });
+
+  it("uses verified actor fallback when trusted ip is unavailable", () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "user-agent": "any-client",
+      },
+    });
+
+    expect(getRequestClientIp(req)).toBe("unknown");
+    expect(getRequestRateLimitSubject(req, "user-123")).toBe("actor:user-123");
+  });
+
+  it("keeps actor fallback stable even when client-controlled headers vary", () => {
+    const reqA = new Request("https://example.test/a", {
+      headers: {
+        authorization: "Bearer fake-a",
+        "user-agent": "ua-a",
+        "x-forwarded-for": "198.51.100.8, 10.0.0.1",
+      },
+    });
+    const reqB = new Request("https://example.test/b", {
+      headers: {
+        authorization: "Bearer fake-b",
+        "user-agent": "ua-b",
+        "x-forwarded-for": "203.0.113.10, 10.0.0.1",
+      },
+    });
+
+    expect(getRequestRateLimitSubject(reqA, "verified-actor")).toBe("actor:verified-actor");
+    expect(getRequestRateLimitSubject(reqB, "verified-actor")).toBe("actor:verified-actor");
+  });
+
+  it("fails closed instead of using a global shared bucket when subject is missing", async () => {
+    const req = new Request("https://example.test", {
+      headers: {
+        "user-agent": "any-client",
+      },
+    });
+
+    const rlRes = rateLimit(req, "github-workflow-dispatch");
+    expect(rlRes?.status).toBe(400);
+    const payload = await rlRes?.json();
+    expect(payload).toEqual(expect.objectContaining({
+      error: "untrusted_client_ip",
+    }));
   });
 
   it("trusts x-forwarded-for only when trusted proxy hops are configured server-side", () => {

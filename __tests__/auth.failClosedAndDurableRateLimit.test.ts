@@ -1,5 +1,7 @@
 import {
+  getRequestRateLimitSubject,
   getJwtPayload,
+  rateLimit,
   requireDurableRateLimit,
   requireJwtRole,
   resolveVerifiedJwtActor,
@@ -207,6 +209,43 @@ describe("shared auth fail-closed JWT role guard + durable rate-limit", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  it("fails closed when no trusted rate-limit subject is available", async () => {
+    const req = new Request("http://localhost/edge");
+    const result = await requireDurableRateLimit(req, {
+      scope: "github-workflow-dispatch",
+      subject: null,
+      max: 20,
+      windowMs: 60_000,
+    });
+
+    expect(result?.status).toBe(400);
+    await expect(result?.text()).resolves.toContain("untrusted_client_ip");
+  });
+
+  it("uses the same actor subject contract for durable and local rl paths", async () => {
+    const req = new Request("http://localhost/edge");
+    const subject = getRequestRateLimitSubject(req, "verified-user-42");
+    expect(subject).toBe("actor:verified-user-42");
+
+    const durable = await withEnv(
+      {
+        SUPABASE_URL: "https://example.supabase.co",
+        SUPABASE_SERVICE_ROLE_KEY: "srv-key",
+      },
+      () => requireDurableRateLimit(req, {
+        scope: "github-workflow-dispatch",
+        subject,
+        max: 20,
+        windowMs: 60_000,
+      }),
+    );
+
+    // fetch is not mocked here; guard we care about is that subject is accepted and doesn't 400.
+    expect(durable?.status).not.toBe(400);
+    const local = rateLimit(req, "github-workflow-dispatch", 10, 10_000, subject);
+    expect(local).toBeNull();
   });
 
   it("fails closed when durable rate limiting is required but durable secrets are missing", async () => {

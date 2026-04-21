@@ -45,9 +45,18 @@ function getClientIpFromForwardedFor(forwardedFor: string, trustedProxyHops: num
   return normalizeClientIpCandidate(candidate);
 }
 
+function isTrustedCloudflareProxyContext(req: Request): boolean {
+  const trustCfHeader = (getRuntimeEnv("K1W1_TRUST_CF_CONNECTING_IP") ?? "").trim() === "1";
+  if (!trustCfHeader) return false;
+  const cfRay = (req.headers.get("cf-ray") ?? "").trim();
+  return cfRay.length > 0;
+}
+
 export function getRequestClientIp(req: Request): string {
-  const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
-  if (cf) return cf;
+  if (isTrustedCloudflareProxyContext(req)) {
+    const cf = normalizeClientIpCandidate(req.headers.get("cf-connecting-ip"));
+    if (cf) return cf;
+  }
 
   const trustedProxyHops = getTrustedProxyHops();
   if (trustedProxyHops) {
@@ -59,8 +68,21 @@ export function getRequestClientIp(req: Request): string {
   return "unknown";
 }
 
-export function getRequestRateLimitSubject(req: Request): string {
-  return `ip:${getRequestClientIp(req)}`;
+function normalizeVerifiedActor(actor: string | null | undefined): string | null {
+  if (typeof actor !== "string") return null;
+  const trimmed = actor.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 200) return null;
+  if (!/^[A-Za-z0-9._:@/-]+$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function getRequestRateLimitSubject(req: Request, verifiedActor?: string | null): string | null {
+  const clientIp = getRequestClientIp(req);
+  if (clientIp !== "unknown") return `ip:${clientIp}`;
+  const safeActor = normalizeVerifiedActor(verifiedActor);
+  if (safeActor) return `actor:${safeActor}`;
+  return null;
 }
 
 const rl = new Map<string, { t: number; c: number; windowMs: number }>();
@@ -71,9 +93,21 @@ export function __resetLocalRateLimitForTests(): void {
   rlLastPruneAt = 0;
 }
 
-export function rateLimit(req: Request, key: string, max = 10, windowMs = 10_000): Response | null {
-  const ip = getRequestClientIp(req);
-  const k = `${key}:${ip}`;
+export function rateLimit(
+  req: Request,
+  key: string,
+  max = 10,
+  windowMs = 10_000,
+  subjectOverride?: string | null,
+): Response | null {
+  const subject = subjectOverride ?? getRequestRateLimitSubject(req);
+  if (!subject) {
+    return errorResponse("untrusted_client_ip", req, 400, {
+      reason: "missing_trusted_client_ip",
+      mode: "local_best_effort",
+    });
+  }
+  const k = `${key}:${subject}`;
   const now = Date.now();
   if (now - rlLastPruneAt > Math.max(windowMs, 10_000) || rl.size > 5_000) {
     rlLastPruneAt = now;
@@ -104,7 +138,7 @@ export function rateLimit(req: Request, key: string, max = 10, windowMs = 10_000
 
 export type DurableRateLimitConfig = {
   scope: string;
-  subject: string;
+  subject: string | null;
   max: number;
   windowMs: number;
   enforceDurable?: boolean;
@@ -148,6 +182,14 @@ async function fetchWithEdgeTimeout(input: RequestInfo | URL, init: RequestInit,
 }
 
 export async function requireDurableRateLimit(req: Request, cfg: DurableRateLimitConfig): Promise<Response | null> {
+  if (!cfg.subject) {
+    return errorResponse("untrusted_client_ip", req, 400, {
+      scope: cfg.scope,
+      reason: "missing_trusted_client_ip",
+      mode: "durable",
+    });
+  }
+
   const localFallbackRisk = { fallback_mode: "local_in_memory_best_effort", cluster_safe: false } as const;
   const supabaseUrl = getSupabaseUrlSecret();
   const serviceKey = getServiceRoleSecret();

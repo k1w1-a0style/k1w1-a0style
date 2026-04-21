@@ -12,6 +12,7 @@ function makeRequest(jobId = 42): Request {
       "content-type": "application/json",
       "x-k1w1-admin-key": "admin-secret",
       authorization: `Bearer ${makeJwt({ role: "service_role" })}`,
+      "x-forwarded-for": "198.51.100.8, 10.0.0.1",
     },
     body: JSON.stringify({ jobId }),
   });
@@ -34,6 +35,7 @@ describe("check-eas-build route behavior", () => {
     process.env.K1W1_SUPABASE_SERVICE_ROLE_KEY = "service-role";
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role";
+    process.env.K1W1_TRUSTED_PROXY_HOPS = "1";
     global.fetch = jest.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/auth/v1/user")) {

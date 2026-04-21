@@ -12,13 +12,19 @@ export {
   requireVerifiedJwt,
   requireJwtRole,
   requireWorkflowOperatorJwtRole,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requirePrivilegedOperatorJwtRole,
   requireAiOperatorJwtRole,
   WORKFLOW_OPERATOR_ALLOWED_ROLES,
   PRIVILEGED_OPERATOR_ALLOWED_ROLES,
   AI_OPERATOR_ALLOWED_ROLES,
 } from "./auth/jwt.ts";
-export type { JwtPayload, JwtRoleGuardConfig, VerifiedJwtActorResult } from "./auth/jwt.ts";
+export type {
+  JwtPayload,
+  JwtRoleGuardConfig,
+  VerifiedJwtActorResult,
+  WorkflowOperatorJwtGuardWithActorResult,
+} from "./auth/jwt.ts";
 
 export {
   getAdminKeyHeader,

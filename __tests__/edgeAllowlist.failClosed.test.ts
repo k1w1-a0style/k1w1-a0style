@@ -53,5 +53,7 @@ describe("edge allowlist fail-closed invariants", () => {
     expect(dispatch).toContain("isAllowedGitRef");
     expect(shared).toContain('const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();');
     expect(shared).toContain("if (!regexStr) return false;");
+    expect(shared).not.toContain("new RegExp(regexStr)");
+    expect(shared).toContain("const wrapped = regexStr.match(/^\\^\\((.+)\\)\\$$/);");
   });
 });

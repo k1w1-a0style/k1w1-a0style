@@ -36,7 +36,12 @@ describe("patch415 edge auth guard invariants", () => {
             expect(src).not.toContain("allowJwtAuthHeaderWithAdmin");
       expect(src).not.toContain("ciBearerSecretEnv:");
       expect(src).not.toContain("isScopedCiBearerRequest(");
-      expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
+      if (rel.includes("github-workflow-dispatch/index.ts")) {
+        expect(src).toContain("requireWorkflowOperatorJwtRoleWithVerifiedActor(req,");
+        expect(src).not.toContain("resolveVerifiedJwtActor");
+      } else {
+        expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
+      }
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
     }
