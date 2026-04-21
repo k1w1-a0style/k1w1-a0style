@@ -152,6 +152,17 @@ function isAbortLikeError(error: unknown): boolean {
   return isImportExportAborted(error);
 }
 
+export function getSecureBackupImportSuccessMessage(input: {
+  scopeText: string;
+  exportDate: string;
+  needsCryptoUpgrade: boolean;
+}): string {
+  const upgradeNote = input.needsCryptoUpgrade
+    ? "\n\nHinweis: Dieses Backup nutzte einen älteren Crypto-/KDF-Stand. Inhalte wurden importiert, aber für einen aktuellen gesicherten Backup-Stand ist jetzt ein neuer Export erforderlich."
+    : "";
+  return `Gesichertes Backup wurde importiert. Wiederhergestellt: ${input.scopeText}.\n\nBackup-Datum: ${input.exportDate}${upgradeNote}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`;
+}
+
 export function useAppInfoSecureBackupFlow(params: {
   config: AIConfig;
   applyImportedConfig: (next: AIConfig) => void;
@@ -387,7 +398,11 @@ export function useAppInfoSecureBackupFlow(params: {
     const scopeText = getSecureBackupImportScopeText(imported);
     Alert.alert(
       "✅ Import erfolgreich",
-      `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
+      getSecureBackupImportSuccessMessage({
+        scopeText,
+        exportDate,
+        needsCryptoUpgrade: result.needsCryptoUpgrade,
+      }),
     );
   }, [applySecretBackupPayloadCore, applyImportedConfig, assertImportedConfigAllowed, collectSecretBackupPayload, config]);
 
