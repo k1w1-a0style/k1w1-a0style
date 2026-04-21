@@ -30,12 +30,12 @@ describe("patch510 keystore shared secret helper invariants", () => {
 
   it("re-exports the shared secret helpers for keystore generate/export/status paths", () => {
     expect(read(generateHelpers)).toContain("requireScopedEdgeAuth");
-    expect(read(generateHelpers)).toContain("requirePrivilegedOperatorJwtRole");
+    expect(read(generateHelpers)).toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor");
     expect(read(generateHelpers)).toContain("requireDurableRateLimit,");
     expect(read(exportHelpers)).toContain("getSigningMasterKey");
     expect(read(exportHelpers)).toContain("getSupabaseUrl");
     expect(read(statusHelpers)).toContain("requireScopedEdgeAuth");
-    expect(read(statusHelpers)).toContain("requirePrivilegedOperatorJwtRole");
+    expect(read(statusHelpers)).toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor");
   });
 
   it("removes parallel direct Deno.env secret reads from keystore generate/export/status indexes", () => {
@@ -56,12 +56,11 @@ describe("patch510 keystore shared secret helper invariants", () => {
   it("keeps keystore auth contracts on scoped admin secret + privileged JWT roles", () => {
     expect(read(exportIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(exportIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-        expect(read(exportIndex)).toContain("requireJwtRole(req, {");
-    expect(read(exportIndex)).toContain('allowedRoles: ["service_role"]');
+        expect(read(exportIndex)).toContain("requireServiceRoleJwtWithVerifiedActor(req, \"android-keystore-export\")");
     expect(read(statusIndex)).toContain("requireScopedEdgeAuth(req, {");
     expect(read(generateIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(statusIndex)).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-status")');
-    expect(read(generateIndex)).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
+    expect(read(statusIndex)).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-status")');
+    expect(read(generateIndex)).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate")');
     expect(read(statusIndex)).not.toContain("requireAdminKey(req)");
     expect(read(generateIndex)).not.toContain("requireAdminKey(req)");
   });

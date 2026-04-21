@@ -15,6 +15,9 @@ export {
   requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requirePrivilegedOperatorJwtRole,
   requireAiOperatorJwtRole,
+  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
+  requireAiOperatorJwtRoleWithVerifiedActor,
+  requireServiceRoleJwtWithVerifiedActor,
   WORKFLOW_OPERATOR_ALLOWED_ROLES,
   PRIVILEGED_OPERATOR_ALLOWED_ROLES,
   AI_OPERATOR_ALLOWED_ROLES,
@@ -23,6 +26,7 @@ export type {
   JwtPayload,
   JwtRoleGuardConfig,
   VerifiedJwtActorResult,
+  JwtRoleGuardWithActorResult,
   WorkflowOperatorJwtGuardWithActorResult,
 } from "./auth/jwt.ts";
 

@@ -21,7 +21,7 @@ export {
   getSupabaseUrl,
   rateLimit,
   requireDurableRateLimit,
-  requirePrivilegedOperatorJwtRole,
+  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
 } from "../_shared/auth.ts";
 

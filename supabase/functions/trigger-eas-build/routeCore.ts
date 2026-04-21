@@ -3,7 +3,7 @@ import {
   getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
-  requireWorkflowOperatorJwtRole,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   rateLimit,
   requireDurableRateLimit,
@@ -62,18 +62,19 @@ export async function handleTriggerEasBuildRequest(
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "trigger-eas-build");
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "trigger-eas-build");
+    if (jwtActorGuard.guard) return jwtActorGuard.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "trigger-eas-build",
-      subject: getRequestRateLimitSubject(req),
+      subject: rateLimitSubject,
       max: 10,
       windowMs: 60_000,
     });
     if (durableRl) return durableRl;
 
-    const rl = rateLimit(req, "trigger-eas-build");
+    const rl = rateLimit(req, "trigger-eas-build", 10, 10_000, rateLimitSubject);
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);

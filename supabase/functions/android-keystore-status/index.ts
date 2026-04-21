@@ -14,7 +14,7 @@ import {
   rateLimit,
   requireDurableRateLimit,
   repoOk,
-  requirePrivilegedOperatorJwtRole,
+  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
@@ -32,19 +32,20 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-status");
-  if (jwtRoleGuard) return jwtRoleGuard;
+  const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-status");
+  if (jwtActorGuard.guard) return jwtActorGuard.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-status",
-    subject: getRequestRateLimitSubject(req),
+    subject: rateLimitSubject,
     max: 60,
     windowMs: 60_000,
     enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
-  const rl = rateLimit(req, "android-keystore-status", 60, 60_000);
+  const rl = rateLimit(req, "android-keystore-status", 60, 60_000, rateLimitSubject);
   if (rl) return rl;
 
   try {

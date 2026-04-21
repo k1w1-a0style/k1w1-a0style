@@ -69,6 +69,11 @@ export type WorkflowOperatorJwtGuardWithActorResult = {
   actor: string | null;
 };
 
+export type JwtRoleGuardWithActorResult = {
+  guard: Response | null;
+  actor: string | null;
+};
+
 function readNonEmptyRole(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -215,6 +220,14 @@ export async function requireWorkflowOperatorJwtRoleWithVerifiedActor(
   req: Request,
   scope: string,
 ): Promise<WorkflowOperatorJwtGuardWithActorResult> {
+  return requireJwtRoleWithVerifiedActor(req, scope, [...WORKFLOW_OPERATOR_ALLOWED_ROLES]);
+}
+
+async function requireJwtRoleWithVerifiedActor(
+  req: Request,
+  scope: string,
+  allowedRoles: string[],
+): Promise<JwtRoleGuardWithActorResult> {
   const token = getBearerToken(req);
   if (!token) {
     return {
@@ -241,11 +254,11 @@ export async function requireWorkflowOperatorJwtRoleWithVerifiedActor(
   }
 
   const role = getRoleFromVerifiedContext(verified.context);
-  if (!role || !WORKFLOW_OPERATOR_ALLOWED_ROLES.includes(role as typeof WORKFLOW_OPERATOR_ALLOWED_ROLES[number])) {
+  if (!role || !allowedRoles.includes(role)) {
     return {
       guard: errorResponse("Forbidden: verified JWT role is not allowed for this route.", req, 403, {
         scope,
-        allowedRoles: [...WORKFLOW_OPERATOR_ALLOWED_ROLES],
+        allowedRoles,
       }),
       actor: null,
     };
@@ -260,4 +273,25 @@ export async function requirePrivilegedOperatorJwtRole(req: Request, scope: stri
 
 export async function requireAiOperatorJwtRole(req: Request, scope: string): Promise<Response | null> {
   return requireJwtRole(req, { scope, allowedRoles: [...AI_OPERATOR_ALLOWED_ROLES] });
+}
+
+export async function requirePrivilegedOperatorJwtRoleWithVerifiedActor(
+  req: Request,
+  scope: string,
+): Promise<JwtRoleGuardWithActorResult> {
+  return requireJwtRoleWithVerifiedActor(req, scope, [...PRIVILEGED_OPERATOR_ALLOWED_ROLES]);
+}
+
+export async function requireAiOperatorJwtRoleWithVerifiedActor(
+  req: Request,
+  scope: string,
+): Promise<JwtRoleGuardWithActorResult> {
+  return requireJwtRoleWithVerifiedActor(req, scope, [...AI_OPERATOR_ALLOWED_ROLES]);
+}
+
+export async function requireServiceRoleJwtWithVerifiedActor(
+  req: Request,
+  scope: string,
+): Promise<JwtRoleGuardWithActorResult> {
+  return requireJwtRoleWithVerifiedActor(req, scope, ["service_role"]);
 }

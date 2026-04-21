@@ -11,6 +11,13 @@ describe("edge admin auth timing-safe compare", () => {
     expect(src).not.toContain("got === expected");
   });
 
+  it("uses shared timing-safe helper in scoped auth admin-key path", () => {
+    const scopedPath = path.join(process.cwd(), "supabase/functions/_shared/auth/scoped.ts");
+    const src = readFileSync(scopedPath, "utf8");
+    expect(src).toContain("timingSafeSecretEqual");
+    expect(src).not.toContain("adminHeader === adminSecret");
+  });
+
   it("fails closed for empty and mismatched inputs and accepts exact match", () => {
     expect(timingSafeSecretEqual("abc", "abc")).toBe(true);
     expect(timingSafeSecretEqual("abc", "abcd")).toBe(false);

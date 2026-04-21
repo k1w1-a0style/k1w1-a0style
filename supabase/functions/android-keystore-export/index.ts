@@ -2,7 +2,6 @@ import {
   createClient,
   decryptKeystorePayload,
   errorResponse,
-  resolveVerifiedJwtActor,
   getServiceRoleKey,
   getSigningMasterKey,
   getSupabaseUrl,
@@ -13,7 +12,7 @@ import {
   isAllowedGithubRepo,
   requireDurableRateLimit,
   repoOk,
-  requireJwtRole,
+  requireServiceRoleJwtWithVerifiedActor,
   requireScopedEdgeAuth,
   resolveMode,
   safeString,
@@ -32,22 +31,20 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtRoleGuard = await requireJwtRole(req, {
-    scope: "android-keystore-export",
-    allowedRoles: ["service_role"],
-  });
-  if (jwtRoleGuard) return jwtRoleGuard;
+  const jwtActorGuard = await requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export");
+  if (jwtActorGuard.guard) return jwtActorGuard.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-export",
-    subject: getRequestRateLimitSubject(req),
+    subject: rateLimitSubject,
     max: 30,
     windowMs: 60_000,
     enforceDurable: true,
   });
   if (durableRl) return durableRl;
 
-  const rl = rateLimit(req, "android-keystore-export", 30, 60_000);
+  const rl = rateLimit(req, "android-keystore-export", 30, 60_000, rateLimitSubject);
   if (rl) return rl;
 
   try {
@@ -153,8 +150,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const actorContext = await resolveVerifiedJwtActor(req, "service_role");
-      const actor = actorContext.actor;
+      const actor = jwtActorGuard.actor ?? "service_role";
       const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
       const { error: auditError } = await supabase.from("signing_audit_log").insert({

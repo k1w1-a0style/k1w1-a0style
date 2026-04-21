@@ -2,7 +2,7 @@ import { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
 import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
-  requireWorkflowOperatorJwtRole,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
@@ -64,18 +64,19 @@ Deno.serve(async (req) => {
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-runs");
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-runs");
+    if (jwtActorGuard.guard) return jwtActorGuard.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-runs",
-      subject: getRequestRateLimitSubject(req),
+      subject: rateLimitSubject,
       max: 60,
       windowMs: 60_000,
     });
     if (durableRl) return durableRl;
 
-    const rl = rateLimit(req, "github-workflow-runs");
+    const rl = rateLimit(req, "github-workflow-runs", 10, 10_000, rateLimitSubject);
     if (rl) return rl;
 
     const parsedBody = await parseJsonBody(req, 20_000);

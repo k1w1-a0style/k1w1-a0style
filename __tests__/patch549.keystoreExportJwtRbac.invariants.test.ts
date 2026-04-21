@@ -21,9 +21,9 @@ describe("patch549 keystore export JWT/RBAC hardening invariants", () => {
     expect(jwt).toContain("Forbidden: verified JWT role is not allowed for this route.");
 
     const route = read("supabase/functions/android-keystore-export/index.ts");
-    expect(route).toContain("const jwtRoleGuard = await requireJwtRole(req, {");
-    expect(route).toContain('allowedRoles: ["service_role"]');
-    expect(route).toContain('const actorContext = await resolveVerifiedJwtActor(req, "service_role");');
+    expect(route).toContain('const jwtActorGuard = await requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export")');
+    expect(route).toContain("const actor = jwtActorGuard.actor ?? \"service_role\";");
+    expect(route).not.toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor");
     expect(route).not.toContain("getJwtPayload(req)");
     expect(route).not.toContain("allowJwtAuthHeaderWithAdmin");
   });

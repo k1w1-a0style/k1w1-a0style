@@ -1,7 +1,7 @@
 // supabase/functions/k1w1-handler/index.ts
 // REFACTORED: helpers → helpers.ts
 
-import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, getRequestRateLimitSubject, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAiOperatorJwtRole, requireDurableRateLimit } from "./helpers.ts";
+import { callAnthropic, callGemini, callGroq, callHuggingFace, callOpenAI, classifyK1w1HandlerError, corsHeadersForRequest, getRequestRateLimitSubject, handleCors, parseJsonBody, parseRequestBody, rateLimit, requireAiOperatorJwtRoleWithVerifiedActor, requireDurableRateLimit } from "./helpers.ts";
 
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsResponse = handleCors(req);
@@ -9,12 +9,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const responseCorsHeaders = corsHeadersForRequest(req);
 
-  const jwtRoleGuard = await requireAiOperatorJwtRole(req, "k1w1-handler");
-  if (jwtRoleGuard) return jwtRoleGuard;
+  const jwtActorGuard = await requireAiOperatorJwtRoleWithVerifiedActor(req, "k1w1-handler");
+  if (jwtActorGuard.guard) return jwtActorGuard.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "k1w1-handler",
-    subject: getRequestRateLimitSubject(req),
+    subject: rateLimitSubject,
     max: 20,
     windowMs: 60_000,
     // AI route: fail closed when the durable counter store is unavailable.
@@ -24,7 +25,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   // Defense-in-depth: local limiter still smooths bursts per warm instance,
   // while durable limiter above is the source of truth across instances.
-  const rl = rateLimit(req, "k1w1-handler", 20, 60_000);
+  const rl = rateLimit(req, "k1w1-handler", 20, 60_000, rateLimitSubject);
   if (rl) return rl;
 
   if (req.method !== "POST") {

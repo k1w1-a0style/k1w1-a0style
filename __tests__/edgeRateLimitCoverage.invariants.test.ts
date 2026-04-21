@@ -18,7 +18,8 @@ describe("edge durable rate-limit coverage for sensitive routes", () => {
     const src = read("supabase/functions/android-keystore-status/index.ts");
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "android-keystore-status"');
-    expect(src).toContain('rateLimit(req, "android-keystore-status", 60, 60_000)');
+    expect(src).toContain("getRequestRateLimitSubject(req, jwtActorGuard.actor)");
+    expect(src).toContain('rateLimit(req, "android-keystore-status", 60, 60_000, rateLimitSubject)');
   });
 
 
