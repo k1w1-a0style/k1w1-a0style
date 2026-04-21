@@ -138,7 +138,7 @@ require_fixed "$RUNS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow
 require_fixed "$LOGS_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
 require_fixed "$LOGS_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-logs")'
 require_fixed "$DISPATCH_EDGE" 'adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"'
-require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch")'
+require_fixed "$DISPATCH_EDGE" 'requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-dispatch")'
 require_fixed "$DISPATCH_EDGE" 'isAllowedGitRef,'
 require_fixed "$DISPATCH_EDGE" 'if (!isAllowedGitRef(ref)) {'
 forbid_fixed "$DISPATCH_EDGE" 'Deno.env.get("K1W1_ALLOWED_REF_REGEX")'

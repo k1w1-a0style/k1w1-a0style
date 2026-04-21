@@ -2,8 +2,7 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
-  requireWorkflowOperatorJwtRole,
-  resolveVerifiedJwtActor,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   rateLimit,
 } from "../_shared/auth.ts";
@@ -96,8 +95,8 @@ Deno.serve(async (req) => {
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-dispatch");
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-dispatch");
+    if (jwtActorGuard.guard) return jwtActorGuard.guard;
 
     const parsed = await parseJsonBody(req, 200_000);
     if (isParsedJsonBodyError(parsed)) return errorResponse(parsed.error, req, 400);
@@ -132,8 +131,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
     }
 
-    const verifiedActor = await resolveVerifiedJwtActor(req, "__missing_verified_actor__");
-    const actorSubject = verifiedActor.source === "fallback" ? null : verifiedActor.actor;
+    const actorSubject = jwtActorGuard.actor;
     const rateLimitSubject = getRequestRateLimitSubject(req, actorSubject);
 
     const durableRl = await requireDurableRateLimit(req, {

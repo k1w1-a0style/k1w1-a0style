@@ -22,7 +22,9 @@ describe("Patch 800 prompt-4 rate-limit hardening invariants", () => {
 
   it("keeps dispatch rate-limit subjecting aligned to verified actor fallback", () => {
     const dispatch = read("supabase/functions/github-workflow-dispatch/index.ts");
-    expect(dispatch).toContain("resolveVerifiedJwtActor");
+    expect(dispatch).toContain("requireWorkflowOperatorJwtRoleWithVerifiedActor");
+    expect(dispatch).not.toContain("resolveVerifiedJwtActor");
+    expect(dispatch).toContain("const actorSubject = jwtActorGuard.actor;");
     expect(dispatch).toContain("const rateLimitSubject = getRequestRateLimitSubject(req, actorSubject);");
     expect(dispatch).toContain("subject: rateLimitSubject");
     expect(dispatch).toContain('rateLimit(req, "github-workflow-dispatch", 10, 10_000, rateLimitSubject)');
