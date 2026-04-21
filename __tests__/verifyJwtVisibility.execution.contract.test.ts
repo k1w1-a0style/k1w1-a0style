@@ -69,6 +69,13 @@ function runVerifyJwtGuard(dir: string): { status: number; output: string } {
 }
 
 describe("check_verify_jwt_visibility execution contract", () => {
+  it("passes against the real repository config+docs contract", () => {
+    const result = runVerifyJwtGuard(ROOT);
+
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("verify_jwt visibility check passed.");
+  });
+
   it("passes with matching verify_jwt config and required visibility markers", () => {
     const dir = setupFixture();
     const result = runVerifyJwtGuard(dir);
