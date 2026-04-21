@@ -61,13 +61,18 @@ require_verify "preview_page" "false"
 require_verify "trigger-eas-build" "true"
 require_verify "check-eas-build" "true"
 
-grep -Fq 'save_preview` nutzt jetzt **verifiziertes Supabase-Login-JWT**' "$DOC" || {
-  echo "[FAIL] missing save_preview verify_jwt visibility note in $DOC" >&2
+grep -Eq 'save_preview`.*verify_jwt=true' "$DOC" || {
+  echo "[FAIL] missing save_preview verify_jwt=true visibility marker in $DOC" >&2
   exit 1
 }
 
-grep -Fq 'k1w1-handler` | KI-Provider-Proxy' "$DOC" || {
-  echo "[FAIL] missing k1w1-handler visibility line in $DOC" >&2
+grep -Eq 'preview_page.*verify_jwt=false' "$DOC" || {
+  echo "[FAIL] missing preview_page verify_jwt=false visibility marker in $DOC" >&2
+  exit 1
+}
+
+grep -Eq 'k1w1-handler`.*verify_jwt=true' "$DOC" || {
+  echo "[FAIL] missing k1w1-handler verify_jwt=true visibility line in $DOC" >&2
   exit 1
 }
 

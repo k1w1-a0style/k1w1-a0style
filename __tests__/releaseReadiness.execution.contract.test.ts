@@ -131,6 +131,7 @@ describe("release readiness execution contract", () => {
     const result = runReleaseScript(dir);
 
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain("stub:check_verify_jwt_visibility.sh");
     expect(result.stdout).toContain("stub:check_edge_live_contracts.sh");
     expect(result.stdout).toContain("[verify:release] OK_FULL");
     expect(result.stdout).not.toContain("OK_WITH_SKIPS");
