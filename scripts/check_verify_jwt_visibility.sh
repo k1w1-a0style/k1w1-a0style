@@ -55,25 +55,47 @@ require_verify() {
   }
 }
 
+require_doc_table_row_verify() {
+  local fn="$1"
+  local expected="$2"
+
+  awk -v fn="$fn" -v expected="$expected" '
+    BEGIN {
+      row_found = 0
+      row_ok = 0
+    }
+    /^\|/ {
+      line = $0
+      first = line
+      sub(/^\|[[:space:]]*/, "", first)
+      sub(/[[:space:]]*\|.*/, "", first)
+
+      if (first ~ "`" fn "`") {
+        row_found = 1
+        if (line ~ "verify_jwt=" expected) {
+          row_ok = 1
+        }
+      }
+    }
+    END {
+      if (!row_found || !row_ok) {
+        exit 1
+      }
+    }
+  ' "$DOC" || {
+    echo "[FAIL] missing docs table verify_jwt=${expected} marker for ${fn} in $DOC" >&2
+    exit 1
+  }
+}
+
 require_verify "save_preview" "true"
 require_verify "k1w1-handler" "true"
 require_verify "preview_page" "false"
 require_verify "trigger-eas-build" "true"
 require_verify "check-eas-build" "true"
 
-grep -Eq 'save_preview`.*verify_jwt=true' "$DOC" || {
-  echo "[FAIL] missing save_preview verify_jwt=true visibility marker in $DOC" >&2
-  exit 1
-}
-
-grep -Eq 'preview_page.*verify_jwt=false' "$DOC" || {
-  echo "[FAIL] missing preview_page verify_jwt=false visibility marker in $DOC" >&2
-  exit 1
-}
-
-grep -Eq 'k1w1-handler`.*verify_jwt=true' "$DOC" || {
-  echo "[FAIL] missing k1w1-handler verify_jwt=true visibility line in $DOC" >&2
-  exit 1
-}
+require_doc_table_row_verify "save_preview" "true"
+require_doc_table_row_verify "preview_page" "false"
+require_doc_table_row_verify "k1w1-handler" "true"
 
 echo "verify_jwt visibility check passed."
