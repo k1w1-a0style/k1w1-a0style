@@ -39,8 +39,10 @@ describe("patch415 edge auth guard invariants", () => {
       if (rel.includes("github-workflow-dispatch/index.ts")) {
         expect(src).toContain("requireWorkflowOperatorJwtRoleWithVerifiedActor(req,");
         expect(src).not.toContain("resolveVerifiedJwtActor");
-      } else {
+      } else if (rel.includes("github-run-artifact-json/index.ts")) {
         expect(src).toContain("requireWorkflowOperatorJwtRole(req,");
+      } else {
+        expect(src).toContain("requireWorkflowOperatorJwtRoleWithVerifiedActor(req,");
       }
       expect(src).not.toContain("const auth = requireAdminKey(req);");
       expect(src).not.toContain("const authError = requireAdminKey(req);");
@@ -51,8 +53,7 @@ describe("patch415 edge auth guard invariants", () => {
     const src = read("supabase/functions/android-keystore-export/index.ts");
     expect(src).toContain("requireScopedEdgeAuth(req, {");
         expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-    expect(src).toContain("requireJwtRole(req, {");
-    expect(src).toContain('allowedRoles: ["service_role"]');
+    expect(src).toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, \"android-keystore-export\")");
     expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
   });
 
@@ -60,7 +61,7 @@ describe("patch415 edge auth guard invariants", () => {
     const src = read("supabase/functions/android-keystore-generate/index.ts");
     const helpers = read("supabase/functions/android-keystore-generate/helpers.ts");
     expect(helpers).toContain("requireScopedEdgeAuth");
-    expect(helpers).toContain("requirePrivilegedOperatorJwtRole");
+    expect(helpers).toContain("requirePrivilegedOperatorJwtRoleWithVerifiedActor");
     expect(src).toContain("const serviceKey = getServiceRoleKey(req);");
     expect(src).toContain("const supabaseUrl = getSupabaseUrl();");
     expect(src).toContain("const masterKey = getSigningMasterKey();");
@@ -69,7 +70,7 @@ describe("patch415 edge auth guard invariants", () => {
     expect(src).not.toContain('Deno.env.get("SIGNING_MASTER_KEY")');
     expect(src).toContain("requireScopedEdgeAuth(req, {");
     expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-        expect(src).toContain('const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
+        expect(src).toContain('const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate")');
   });
 
   it("keeps keystore wizard routes on scoped secret + privileged JWT roles", () => {
@@ -83,8 +84,8 @@ describe("patch415 edge auth guard invariants", () => {
       expect(src).not.toContain("requireAdminKey(req)");
       expect(src).not.toContain("requireAdminKeyOrServiceRoleBearer");
     }
-    expect(generateSrc).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-generate")');
-    expect(statusSrc).toContain('requirePrivilegedOperatorJwtRole(req, "android-keystore-status")');
+    expect(generateSrc).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate")');
+    expect(statusSrc).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-status")');
     expect(read("supabase/functions/android-keystore-generate/index.ts")).toContain("requireDurableRateLimit(req, {");
   });
 
@@ -109,8 +110,8 @@ describe("patch415 edge auth guard invariants", () => {
     const cfg = read("supabase/config.toml");
     expect(src).not.toContain("requireScopedEdgeAuth(req, {");
     expect(src).not.toContain('x-k1w1-admin-key');
-    expect(src).toContain('const jwtRoleGuard = await requireAiOperatorJwtRole(req, "k1w1-handler")');
-    expect(helpers).toContain("requireAiOperatorJwtRole");
+    expect(src).toContain('const jwtActorGuard = await requireAiOperatorJwtRoleWithVerifiedActor(req, "k1w1-handler")');
+    expect(helpers).toContain("requireAiOperatorJwtRoleWithVerifiedActor");
     expect(cfg).toContain("[functions.k1w1-handler]");
     expect(cfg).toContain("verify_jwt = true");
   });

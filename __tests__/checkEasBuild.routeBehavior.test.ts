@@ -236,4 +236,40 @@ describe("check-eas-build route behavior", () => {
       upstream_error: null,
     });
   });
+
+  it("uses verified JWT actor as durable rate-limit subject when trusted IP is unavailable", async () => {
+    const durableSubjects: string[] = [];
+    global.fetch = jest.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "verified-user-42", role: "authenticated" }), { status: 200 });
+      }
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) {
+        const parsed = typeof init?.body === "string" ? JSON.parse(init.body) as { p_subject?: string } : {};
+        durableSubjects.push(parsed.p_subject ?? "");
+        return new Response(JSON.stringify({ allowed: true, current_count: 1 }), { status: 200 });
+      }
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const req = new Request("http://localhost/check", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-k1w1-admin-key": "admin-secret",
+        authorization: `Bearer ${makeJwt({ role: "service_role", sub: "verified-subject" })}`,
+      },
+      body: JSON.stringify({ jobId: 42 }),
+    });
+
+    const response = await handleCheckEasBuildRequest(req, {
+      ...depsFor({ id: 42, status: "queued", github_repo: null, github_run_id: null }),
+      fetchRunState: async () => {
+        throw new Error("must not be called");
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(durableSubjects).toContain("actor:verified-user-42");
+  });
 });

@@ -2,7 +2,13 @@
 // Facade for focused helper modules.
 
 export { corsHeadersForRequest, handleCors } from "../_shared/cors.ts";
-export { getRequestClientIp, getRequestRateLimitSubject, requireAiOperatorJwtRole, requireDurableRateLimit, rateLimit } from "../_shared/auth.ts";
+export {
+  getRequestClientIp,
+  getRequestRateLimitSubject,
+  requireAiOperatorJwtRoleWithVerifiedActor,
+  requireDurableRateLimit,
+  rateLimit,
+} from "../_shared/auth.ts";
 export { parseJsonBody } from "../_shared/validation.ts";
 
 export type { Role, ChatMessage, HandlerRequestBody } from "./helpers/types.ts";

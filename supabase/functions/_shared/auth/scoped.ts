@@ -2,6 +2,7 @@ import { errorResponse } from "../cors.ts";
 import { getAdminKeyHeader } from "./admin.ts";
 import { getBearerToken } from "./jwt.ts";
 import { getStrictEnvSecret } from "./runtime.ts";
+import { timingSafeSecretEqual } from "./timingSafe.ts";
 
 export type ScopedEdgeAuthConfig = {
   scope: string;
@@ -40,7 +41,7 @@ export function requireScopedEdgeAuth(req: Request, cfg: ScopedEdgeAuthConfig): 
     if (!allowAdmin || !adminSecret) {
       return errorResponse("Unauthorized: admin key auth is not accepted on this route.", req, 401, { scope });
     }
-    if (adminHeader === adminSecret) return null;
+    if (timingSafeSecretEqual(adminHeader, adminSecret)) return null;
     return errorResponse("Unauthorized: invalid admin key.", req, 401, { scope, required: "x-k1w1-admin-key" });
   }
 

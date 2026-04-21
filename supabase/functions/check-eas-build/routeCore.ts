@@ -4,7 +4,7 @@ import {
   getRequestRateLimitSubject,
   getServiceRoleKey,
   getSupabaseUrl,
-  requireWorkflowOperatorJwtRole,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   rateLimit,
   requireDurableRateLimit,
@@ -84,18 +84,19 @@ export async function handleCheckEasBuildRequest(req: Request, deps: CheckBuildR
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     });
     if (auth) return auth;
-    const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "check-eas-build");
-    if (jwtRoleGuard) return jwtRoleGuard;
+    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "check-eas-build");
+    if (jwtActorGuard.guard) return jwtActorGuard.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "check-eas-build",
-      subject: getRequestRateLimitSubject(req),
+      subject: rateLimitSubject,
       max: 30,
       windowMs: 60_000,
     });
     if (durableRl) return durableRl;
 
-    const rl = rateLimit(req, "check-eas-build");
+    const rl = rateLimit(req, "check-eas-build", 10, 10_000, rateLimitSubject);
     if (rl) return rl;
 
     const parsed = await parseJsonBody(req, 200_000);

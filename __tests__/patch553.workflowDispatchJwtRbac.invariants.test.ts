@@ -32,14 +32,14 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(runs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(runs).not.toContain("ciBearerSecretEnv:");
     expect(runs).not.toContain("isScopedCiBearerRequest(");
-    expect(runs).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-runs")');
+    expect(runs).toContain('const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-runs")');
 
     const logs = read("supabase/functions/github-workflow-logs/index.ts");
         expect(logs).not.toContain("allowJwtAuthHeaderWithAdmin");
     expect(logs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(logs).not.toContain("ciBearerSecretEnv:");
     expect(logs).not.toContain("isScopedCiBearerRequest(");
-    expect(logs).toContain('const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-workflow-logs")');
+    expect(logs).toContain('const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-logs")');
   });
   it("keeps workflow read routes on the same repo allowlist helper as write routes", () => {
     const dispatch = read("supabase/functions/github-workflow-dispatch/index.ts");

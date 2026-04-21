@@ -9,7 +9,8 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "k1w1-handler"');
     expect(src).toContain("enforceDurable: true");
-    expect(src).toContain('rateLimit(req, "k1w1-handler", 20, 60_000)');
+    expect(src).toContain("getRequestRateLimitSubject(req, jwtActorGuard.actor)");
+    expect(src).toContain('rateLimit(req, "k1w1-handler", 20, 60_000, rateLimitSubject)');
   });
 
   it("wires durable + local rate limits for preview_page", () => {
@@ -26,6 +27,7 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "android-keystore-export"');
     expect(src).toContain("enforceDurable: true");
-    expect(src).toContain('rateLimit(req, "android-keystore-export", 30, 60_000)');
+    expect(src).toContain("getRequestRateLimitSubject(req, jwtActorGuard.actor)");
+    expect(src).toContain('rateLimit(req, "android-keystore-export", 30, 60_000, rateLimitSubject)');
   });
 });

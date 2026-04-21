@@ -9,7 +9,7 @@ export {
   getRequestRateLimitSubject,
   rateLimit,
   requireDurableRateLimit,
-  requirePrivilegedOperatorJwtRole,
+  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   getServiceRoleKey,
   getSupabaseUrl,

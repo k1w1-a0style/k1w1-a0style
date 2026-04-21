@@ -6,7 +6,7 @@ import {
   isAllowedGithubRepo,
   encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRole, requireScopedEdgeAuth,
+  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRoleWithVerifiedActor, requireScopedEdgeAuth,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -30,18 +30,19 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtRoleGuard = await requirePrivilegedOperatorJwtRole(req, "android-keystore-generate");
-  if (jwtRoleGuard) return jwtRoleGuard;
+  const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate");
+  if (jwtActorGuard.guard) return jwtActorGuard.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",
-    subject: getRequestRateLimitSubject(req),
+    subject: rateLimitSubject,
     max: 30,
     windowMs: 60_000,
     enforceDurable: true,
   });
   if (durableRl) return durableRl;
-  const rl = rateLimit(req, "android-keystore-generate", 30, 60_000);
+  const rl = rateLimit(req, "android-keystore-generate", 30, 60_000, rateLimitSubject);
   if (rl) return rl;
   try {
     const supabaseUrl = getSupabaseUrl();
