@@ -55,20 +55,54 @@ require_verify() {
   }
 }
 
+require_doc_table_row_verify() {
+  local fn="$1"
+  local expected="$2"
+
+  awk -v fn="$fn" -v expected="$expected" '
+    BEGIN {
+      row_found = 0
+      row_ok = 0
+    }
+    /^\|/ {
+      line = $0
+      split(line, cells, "|")
+      function_cell = cells[2]
+      contract_cell = cells[4]
+
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", function_cell)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", contract_cell)
+
+      if (function_cell ~ "`" fn "`") {
+        row_found = 1
+
+        pattern = "`" fn "`[^|]*verify_jwt=" expected
+        if (contract_cell ~ pattern) {
+          row_ok = 1
+          next
+        }
+
+      }
+    }
+    END {
+      if (!row_found || !row_ok) {
+        exit 1
+      }
+    }
+  ' "$DOC" || {
+    echo "[FAIL] missing docs table verify_jwt=${expected} marker for ${fn} in $DOC" >&2
+    exit 1
+  }
+}
+
 require_verify "save_preview" "true"
 require_verify "k1w1-handler" "true"
 require_verify "preview_page" "false"
 require_verify "trigger-eas-build" "true"
 require_verify "check-eas-build" "true"
 
-grep -Fq 'save_preview` nutzt jetzt **verifiziertes Supabase-Login-JWT**' "$DOC" || {
-  echo "[FAIL] missing save_preview verify_jwt visibility note in $DOC" >&2
-  exit 1
-}
-
-grep -Fq 'k1w1-handler` | KI-Provider-Proxy' "$DOC" || {
-  echo "[FAIL] missing k1w1-handler visibility line in $DOC" >&2
-  exit 1
-}
+require_doc_table_row_verify "save_preview" "true"
+require_doc_table_row_verify "preview_page" "false"
+require_doc_table_row_verify "k1w1-handler" "true"
 
 echo "verify_jwt visibility check passed."
