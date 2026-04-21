@@ -66,13 +66,23 @@ require_doc_table_row_verify() {
     }
     /^\|/ {
       line = $0
-      first = line
-      sub(/^\|[[:space:]]*/, "", first)
-      sub(/[[:space:]]*\|.*/, "", first)
+      split(line, cells, "|")
+      function_cell = cells[2]
+      contract_cell = cells[4]
 
-      if (first ~ "`" fn "`") {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", function_cell)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", contract_cell)
+
+      if (function_cell ~ "`" fn "`") {
         row_found = 1
-        if (line ~ "verify_jwt=" expected) {
+
+        pattern = "`" fn "`[^|]*verify_jwt=" expected
+        if (contract_cell ~ pattern) {
+          row_ok = 1
+          next
+        }
+
+        if (contract_cell !~ "`" fn "`" && contract_cell ~ "verify_jwt=" expected) {
           row_ok = 1
         }
       }

@@ -112,6 +112,21 @@ describe("check_verify_jwt_visibility execution contract", () => {
     expect(result.output).toContain("[FAIL] missing docs table verify_jwt=false marker for preview_page");
   });
 
+
+  it("fails when expected marker exists in-row but is bound to a different function token", () => {
+    const misleadingRow = "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`) und Legacy-Notiz (`verify_jwt=false`) nur fuer save_preview, `preview_page` nutzt gesicherten Zugang ohne explizites Flag |";
+    const dir = setupFixture({
+      doc: BASE_DOC.replace(
+        "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`) |",
+        misleadingRow,
+      ),
+    });
+    const result = runVerifyJwtGuard(dir);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=false marker for preview_page");
+  });
+
   it("passes with harmless wording changes in the row as long as function-bound markers remain", () => {
     const dir = setupFixture({
       doc: BASE_DOC.replace("Preview", "Browser Preview").replace("Auth per JWT", "Operator-Auth via JWT"),
