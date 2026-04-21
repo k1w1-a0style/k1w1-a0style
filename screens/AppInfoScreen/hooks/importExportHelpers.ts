@@ -180,21 +180,10 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
     const encrypted = validateEncryptedScopedBackupJson(JSON.parse(fileContent));
     const data = await decryptScopedBackup({ passphrase, backup: encrypted });
     const needsCryptoUpgrade = secureBackupNeedsCryptoUpgrade(encrypted);
-    const normalizedData = needsCryptoUpgrade
-      ? await decryptScopedBackup({
-        passphrase,
-        backup: await encryptScopedBackup({
-          scope: encrypted.scope,
-          passphrase,
-          appVersion: TEMPLATE_INFO.version,
-          payload: data,
-        }),
-      })
-      : data;
 
     return {
       success: true,
-      data: normalizedData,
+      data,
       exportDate: encrypted.exportDate,
       scope: encrypted.scope,
       encrypted,
