@@ -18,6 +18,7 @@ describe("EAS manual-trigger + strict-lockfile drift checks", () => {
     expect(src).toContain('SHARED_TPL="shared/workflows/easBuildReleaseWorkflowTemplates.ts"');
     expect(src).toContain('DIAG_TPL="lib/diagnostics/workflowTemplates.ts"');
     expect(src).toContain("release workflow missing strict lockfile policy step");
+    expect(src).toContain("release workflow missing non-development strict_lockfile=false guard");
     expect(src).toContain("shared template missing strict lockfile policy step");
     expect(src).toContain("WORKFLOW_EAS_BUILD_TEMPLATE");
     expect(src).toContain("WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE");

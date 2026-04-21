@@ -18,6 +18,7 @@ grep -Fq 'Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}' "$WF"
 
 grep -Fq 'Determine strict lockfile policy' "$RELEASE_WF" || { echo "release workflow missing strict lockfile policy step" >&2; exit 1; }
 grep -Fq 'Strict lockfile policy enabled for profile' "$RELEASE_WF" || { echo "release workflow missing strict lockfile error" >&2; exit 1; }
+grep -Fq 'strict_lockfile=false is only allowed for development profile in release workflow' "$RELEASE_WF" || { echo "release workflow missing non-development strict_lockfile=false guard" >&2; exit 1; }
 grep -Fq 'Development profile allows fallback to npm install' "$RELEASE_WF" || { echo "release workflow missing development fallback note" >&2; exit 1; }
 grep -Fq 'strict_lockfile:' "$RELEASE_WF" || { echo "release workflow missing strict_lockfile input" >&2; exit 1; }
 grep -Fq 'Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}' "$RELEASE_WF" || { echo "release workflow summary missing strict lockfile line" >&2; exit 1; }

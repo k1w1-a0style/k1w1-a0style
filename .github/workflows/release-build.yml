@@ -153,8 +153,15 @@ jobs:
           PROFILE="${{ inputs.profile }}"
           OVERRIDE="${{ inputs.strict_lockfile }}"
           case "$OVERRIDE" in
-            true|false)
-              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            true)
+              echo "strict=true" >> "$GITHUB_OUTPUT"
+              ;;
+            false)
+              if [ "$PROFILE" != "development" ]; then
+                echo "::error::strict_lockfile=false is only allowed for development profile in release workflow. Preview/production remain fail-closed."
+                exit 1
+              fi
+              echo "strict=false" >> "$GITHUB_OUTPUT"
               ;;
             ""|auto)
               case "$PROFILE" in
