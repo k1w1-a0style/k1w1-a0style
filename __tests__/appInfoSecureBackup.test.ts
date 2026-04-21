@@ -251,6 +251,45 @@ describe("app info secure backup contract", () => {
     ).toThrow("Nicht unterstütztes oder unbekanntes Secure-Backup-Crypto-Profil");
   });
 
+  test("malformed iterations fail as invalid backup format instead of unsupported profile", () => {
+    expect(() =>
+      validateEncryptedScopedBackupJson({
+        type: "k1w1-secure-backup",
+        version: 1,
+        scope: "secrets",
+        exportDate: "2026-03-20T12:00:00.000Z",
+        appVersion: "1.0.0",
+        encryption: {
+          algorithm: "AES-GCM",
+          kdf: "PBKDF2-SHA-256",
+          iterations: "250000",
+          saltBase64: "c2FsdA==",
+          ivBase64: "aXY=",
+        },
+        ciphertextBase64: "Y2lwaGVy",
+      }),
+    ).toThrow("Ungültiges Backup-Format");
+  });
+
+  test("missing iterations fail as invalid backup format", () => {
+    expect(() =>
+      validateEncryptedScopedBackupJson({
+        type: "k1w1-secure-backup",
+        version: 1,
+        scope: "secrets",
+        exportDate: "2026-03-20T12:00:00.000Z",
+        appVersion: "1.0.0",
+        encryption: {
+          algorithm: "AES-GCM",
+          kdf: "PBKDF2-SHA-256",
+          saltBase64: "c2FsdA==",
+          ivBase64: "aXY=",
+        },
+        ciphertextBase64: "Y2lwaGVy",
+      }),
+    ).toThrow("Ungültiges Backup-Format");
+  });
+
   test("damaged encrypted backup fails validation/import cleanly", async () => {
     const encrypted = await encryptScopedBackup({
       scope: "secrets",

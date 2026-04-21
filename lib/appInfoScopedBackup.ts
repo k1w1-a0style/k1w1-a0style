@@ -323,7 +323,10 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
   if (!encryption) {
     throw new Error("Ungültiges Backup-Format");
   }
-  const iterations = readFiniteNumber(encryption.iterations) ?? 0;
+  const iterations = readFiniteNumber(encryption.iterations);
+  if (typeof iterations !== "number") {
+    throw new Error("Ungültiges Backup-Format");
+  }
   if (
     encryption.algorithm !== "AES-GCM" ||
     encryption.kdf !== "PBKDF2-SHA-256" ||
