@@ -11,6 +11,7 @@ export const SECURE_BACKUP_MIN_PASSPHRASE_LENGTH = 10;
 const AES_KEY_LENGTH = 256;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
+const UNSUPPORTED_CRYPTO_PROFILE_ERROR = "Nicht unterstütztes oder unbekanntes Secure-Backup-Crypto-Profil.";
 
 export type SecureBackupScope = "secrets" | "config-secrets";
 
@@ -81,6 +82,37 @@ export type EncryptedScopedBackupV1 = {
   ciphertextBase64: string;
 };
 
+type SecureBackupCryptoProfileSupport = "current-write" | "legacy-read-only";
+
+type SecureBackupCryptoProfile = {
+  support: SecureBackupCryptoProfileSupport;
+  algorithm: "AES-GCM";
+  kdf: "PBKDF2-SHA-256";
+  iterations: number;
+};
+
+type SecureBackupCryptoPolicy = {
+  version: typeof SECURE_BACKUP_VERSION;
+  currentWrite: SecureBackupCryptoProfile;
+  legacyRead: ReadonlyArray<SecureBackupCryptoProfile>;
+};
+
+export const SECURE_BACKUP_CRYPTO_POLICY: SecureBackupCryptoPolicy = {
+  version: SECURE_BACKUP_VERSION,
+  currentWrite: {
+    support: "current-write",
+    algorithm: "AES-GCM",
+    kdf: "PBKDF2-SHA-256",
+    iterations: SECURE_BACKUP_PBKDF2_ITERATIONS,
+  },
+  legacyRead: SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS.map((iterations) => ({
+    support: "legacy-read-only",
+    algorithm: "AES-GCM",
+    kdf: "PBKDF2-SHA-256",
+    iterations,
+  })),
+};
+
 function bytesToBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes as unknown as ArrayBufferLike).toString("base64");
 }
@@ -135,17 +167,34 @@ async function deriveAesKey(passphrase: string, salt: Uint8Array, iterations: nu
   );
 }
 
-function isSupportedBackupIterationCount(iterations: number): boolean {
-  return (
-    iterations === SECURE_BACKUP_PBKDF2_ITERATIONS
-    || SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS.includes(
-      iterations as (typeof SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS)[number],
-    )
+function resolveCryptoProfileForEncryptedBackup(backup: EncryptedScopedBackupV1): SecureBackupCryptoProfile {
+  if (backup.version !== SECURE_BACKUP_CRYPTO_POLICY.version) {
+    throw new Error("Ungültiges Backup-Format");
+  }
+
+  if (
+    backup.encryption.algorithm !== SECURE_BACKUP_CRYPTO_POLICY.currentWrite.algorithm
+    || backup.encryption.kdf !== SECURE_BACKUP_CRYPTO_POLICY.currentWrite.kdf
+  ) {
+    throw new Error("Ungültiges Backup-Format");
+  }
+
+  if (backup.encryption.iterations === SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations) {
+    return SECURE_BACKUP_CRYPTO_POLICY.currentWrite;
+  }
+
+  const legacyProfile = SECURE_BACKUP_CRYPTO_POLICY.legacyRead.find(
+    (profile) => profile.iterations === backup.encryption.iterations,
   );
+  if (legacyProfile) {
+    return legacyProfile;
+  }
+
+  throw new Error(UNSUPPORTED_CRYPTO_PROFILE_ERROR);
 }
 
 export function secureBackupNeedsCryptoUpgrade(backup: EncryptedScopedBackupV1): boolean {
-  return backup.encryption.iterations !== SECURE_BACKUP_PBKDF2_ITERATIONS;
+  return resolveCryptoProfileForEncryptedBackup(backup).support !== "current-write";
 }
 
 function ensurePassphrase(passphrase: string) {
@@ -222,7 +271,7 @@ export async function encryptScopedBackup(input: {
   const salt = await getRandomBytes(SALT_BYTES);
   const iv = await getRandomBytes(IV_BYTES);
   const subtle = requireSubtleCrypto();
-  const key = await deriveAesKey(input.passphrase.trim(), salt, SECURE_BACKUP_PBKDF2_ITERATIONS);
+  const key = await deriveAesKey(input.passphrase.trim(), salt, SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations);
   const plaintext = new TextEncoder().encode(JSON.stringify(input.payload));
   const encrypted = await subtle.encrypt(
     { name: "AES-GCM", iv: toBufferSource(iv) },
@@ -237,9 +286,9 @@ export async function encryptScopedBackup(input: {
     exportDate: input.payload.exportDate,
     appVersion: input.appVersion,
     encryption: {
-      algorithm: "AES-GCM",
-      kdf: "PBKDF2-SHA-256",
-      iterations: SECURE_BACKUP_PBKDF2_ITERATIONS,
+      algorithm: SECURE_BACKUP_CRYPTO_POLICY.currentWrite.algorithm,
+      kdf: SECURE_BACKUP_CRYPTO_POLICY.currentWrite.kdf,
+      iterations: SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations,
       saltBase64: bytesToBase64(salt),
       ivBase64: bytesToBase64(iv),
     },
@@ -278,7 +327,6 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
   if (
     encryption.algorithm !== "AES-GCM" ||
     encryption.kdf !== "PBKDF2-SHA-256" ||
-    !isSupportedBackupIterationCount(iterations) ||
     typeof encryption.saltBase64 !== "string" ||
     typeof encryption.ivBase64 !== "string" ||
     typeof parsed.ciphertextBase64 !== "string"
@@ -286,7 +334,16 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
     throw new Error("Ungültiges Backup-Format");
   }
 
-  return parsed as EncryptedScopedBackupV1;
+  const normalizedBackup = {
+    ...(parsed as EncryptedScopedBackupV1),
+    encryption: {
+      ...((parsed as EncryptedScopedBackupV1).encryption),
+      iterations,
+    },
+  };
+  resolveCryptoProfileForEncryptedBackup(normalizedBackup);
+
+  return normalizedBackup;
 }
 
 function sanitizeSecretPayload(raw: unknown): SecretBackupPayloadV1 {
