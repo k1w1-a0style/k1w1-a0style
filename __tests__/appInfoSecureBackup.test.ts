@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Buffer } from "buffer";
 import {
+  SECURE_BACKUP_CRYPTO_POLICY,
   createConfigAndSecretsBackupPayload,
   createSecretBackupPayload,
   decryptScopedBackup,
@@ -137,6 +138,29 @@ function makeSecretPayload() {
 }
 
 describe("app info secure backup contract", () => {
+  test("secure backup crypto policy maps current write and legacy read-only profiles explicitly", () => {
+    expect(SECURE_BACKUP_CRYPTO_POLICY.version).toBe(1);
+    expect(SECURE_BACKUP_CRYPTO_POLICY.currentWrite.support).toBe("current-write");
+    expect(SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations).toBe(250000);
+    expect(SECURE_BACKUP_CRYPTO_POLICY.legacyRead.map((profile) => profile.iterations)).toEqual([100000, 150000]);
+    expect(SECURE_BACKUP_CRYPTO_POLICY.legacyRead.every((profile) => profile.support === "legacy-read-only")).toBe(true);
+  });
+
+  test("new exports always use current write crypto profile only", async () => {
+    const payload = makeSecretPayload();
+    const encrypted = await encryptScopedBackup({
+      scope: "secrets",
+      passphrase: "correct-horse",
+      appVersion: "1.0.0",
+      payload,
+    });
+
+    expect(encrypted.encryption.iterations).toBe(SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations);
+    expect(encrypted.encryption.kdf).toBe(SECURE_BACKUP_CRYPTO_POLICY.currentWrite.kdf);
+    expect(encrypted.encryption.algorithm).toBe(SECURE_BACKUP_CRYPTO_POLICY.currentWrite.algorithm);
+    expect(secureBackupNeedsCryptoUpgrade(encrypted)).toBe(false);
+  });
+
   test("new secret backups no longer emit deprecated edgeAdminKey snapshots", () => {
     const payload = makeSecretPayload();
     expect(Object.prototype.hasOwnProperty.call(payload.tokens, "edgeAdminKey")).toBe(false);
@@ -207,7 +231,7 @@ describe("app info secure backup contract", () => {
     expect(secureBackupNeedsCryptoUpgrade(validated)).toBe(true);
   });
 
-  test("unsupported PBKDF2 iteration counts fail early in backup validation", () => {
+  test("unsupported PBKDF2 iteration counts fail early as unsupported crypto profile", () => {
     expect(() =>
       validateEncryptedScopedBackupJson({
         type: "k1w1-secure-backup",
@@ -219,6 +243,45 @@ describe("app info secure backup contract", () => {
           algorithm: "AES-GCM",
           kdf: "PBKDF2-SHA-256",
           iterations: 120000,
+          saltBase64: "c2FsdA==",
+          ivBase64: "aXY=",
+        },
+        ciphertextBase64: "Y2lwaGVy",
+      }),
+    ).toThrow("Nicht unterstütztes oder unbekanntes Secure-Backup-Crypto-Profil");
+  });
+
+  test("malformed iterations fail as invalid backup format instead of unsupported profile", () => {
+    expect(() =>
+      validateEncryptedScopedBackupJson({
+        type: "k1w1-secure-backup",
+        version: 1,
+        scope: "secrets",
+        exportDate: "2026-03-20T12:00:00.000Z",
+        appVersion: "1.0.0",
+        encryption: {
+          algorithm: "AES-GCM",
+          kdf: "PBKDF2-SHA-256",
+          iterations: "250000",
+          saltBase64: "c2FsdA==",
+          ivBase64: "aXY=",
+        },
+        ciphertextBase64: "Y2lwaGVy",
+      }),
+    ).toThrow("Ungültiges Backup-Format");
+  });
+
+  test("missing iterations fail as invalid backup format", () => {
+    expect(() =>
+      validateEncryptedScopedBackupJson({
+        type: "k1w1-secure-backup",
+        version: 1,
+        scope: "secrets",
+        exportDate: "2026-03-20T12:00:00.000Z",
+        appVersion: "1.0.0",
+        encryption: {
+          algorithm: "AES-GCM",
+          kdf: "PBKDF2-SHA-256",
           saltBase64: "c2FsdA==",
           ivBase64: "aXY=",
         },
