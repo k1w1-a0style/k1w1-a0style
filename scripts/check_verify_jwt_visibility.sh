@@ -82,9 +82,6 @@ require_doc_table_row_verify() {
           next
         }
 
-        if (contract_cell !~ "`" fn "`" && contract_cell ~ "verify_jwt=" expected) {
-          row_ok = 1
-        }
       }
     }
     END {

@@ -32,7 +32,7 @@ const BASE_DOC = [
   "| Function | Zweck | Vertrag |",
   "|---|---|---|",
   "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`) |",
-  "| `k1w1-handler` | KI-Proxy | Auth per JWT (`verify_jwt=true`) |",
+  "| `k1w1-handler` | KI-Proxy | `k1w1-handler` Auth per JWT (`verify_jwt=true`) |",
   "",
 ].join("\n");
 
@@ -90,6 +90,17 @@ describe("check_verify_jwt_visibility execution contract", () => {
   it("fails when required doc visibility marker is missing from the matching function row", () => {
     const dir = setupFixture({
       doc: BASE_DOC.replace("Auth per JWT (`verify_jwt=true`)", "Auth per JWT (Marker fehlt)"),
+    });
+    const result = runVerifyJwtGuard(dir);
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=true marker for k1w1-handler");
+  });
+
+
+  it("fails when function token is only in Function-cell but not explicitly bound in Contract-cell", () => {
+    const dir = setupFixture({
+      doc: BASE_DOC.replace("`k1w1-handler` Auth per JWT (`verify_jwt=true`)", "Auth per JWT (`verify_jwt=true`)"),
     });
     const result = runVerifyJwtGuard(dir);
 
