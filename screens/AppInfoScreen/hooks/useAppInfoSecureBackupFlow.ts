@@ -385,9 +385,12 @@ export function useAppInfoSecureBackupFlow(params: {
 
     const exportDate = safeFormatBackupDate(result.exportDate);
     const scopeText = getSecureBackupImportScopeText(imported);
+    const migrationNote = result.needsCryptoUpgrade
+      ? "\n\nLegacy-Backup wurde nach dem Import automatisch auf den aktuellen Crypto-/KDF-Standard normalisiert."
+      : "";
     Alert.alert(
       "✅ Import erfolgreich",
-      `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
+      `Gesichertes Backup wurde importiert. Wiederhergestellt: ${scopeText}.\n\nBackup-Datum: ${exportDate}${migrationNote}\n\nProjektdateien, Chats und ZIP-Inhalte wurden nicht berührt.`,
     );
   }, [applySecretBackupPayloadCore, applyImportedConfig, assertImportedConfigAllowed, collectSecretBackupPayload, config]);
 
