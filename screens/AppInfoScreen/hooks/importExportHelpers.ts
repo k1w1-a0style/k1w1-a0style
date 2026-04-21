@@ -6,6 +6,7 @@ import { createApiBackupExportPayload, validateApiBackupJson } from "../../../li
 import {
   decryptScopedBackup,
   encryptScopedBackup,
+  secureBackupNeedsCryptoUpgrade,
   validateEncryptedScopedBackupJson,
   type EncryptedScopedBackupV1,
   type SecureBackupPayloadV1,
@@ -178,13 +179,26 @@ export const importEncryptedScopedBackup = async (passphrase: string) => {
 
     const encrypted = validateEncryptedScopedBackupJson(JSON.parse(fileContent));
     const data = await decryptScopedBackup({ passphrase, backup: encrypted });
+    const needsCryptoUpgrade = secureBackupNeedsCryptoUpgrade(encrypted);
+    const normalizedData = needsCryptoUpgrade
+      ? await decryptScopedBackup({
+        passphrase,
+        backup: await encryptScopedBackup({
+          scope: encrypted.scope,
+          passphrase,
+          appVersion: TEMPLATE_INFO.version,
+          payload: data,
+        }),
+      })
+      : data;
 
     return {
       success: true,
-      data,
+      data: normalizedData,
       exportDate: encrypted.exportDate,
       scope: encrypted.scope,
       encrypted,
+      needsCryptoUpgrade,
     };
   } catch (error: unknown) {
     if (isImportExportAborted(error)) {
@@ -204,4 +218,5 @@ export type ImportedEncryptedScopedBackup = {
   exportDate: string;
   scope: SecureBackupScope;
   encrypted: EncryptedScopedBackupV1;
+  needsCryptoUpgrade: boolean;
 };

@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { Buffer } from "buffer";
 import {
   createConfigAndSecretsBackupPayload,
   createSecretBackupPayload,
   decryptScopedBackup,
   encryptScopedBackup,
+  secureBackupNeedsCryptoUpgrade,
   secureBackupContainsProjectContent,
   validateSecureBackupPayload,
   validateEncryptedScopedBackupJson,
@@ -59,6 +61,50 @@ beforeEach(() => {
   };
   secureStore.__resetMockStorage?.();
 });
+
+async function createEncryptedBackupWithIterations(input: {
+  payload: ReturnType<typeof makeSecretPayload>;
+  iterations: number;
+  passphrase: string;
+}) {
+  const subtle = global.crypto.subtle;
+  const salt = global.crypto.getRandomValues(new Uint8Array(16));
+  const iv = global.crypto.getRandomValues(new Uint8Array(12));
+  const baseKey = await subtle.importKey("raw", new TextEncoder().encode(input.passphrase), "PBKDF2", false, ["deriveKey"]);
+  const key = await subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      hash: "SHA-256",
+      salt,
+      iterations: input.iterations,
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt"],
+  );
+  const encrypted = await subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(JSON.stringify(input.payload)),
+  );
+
+  return {
+    type: "k1w1-secure-backup" as const,
+    version: 1 as const,
+    scope: "secrets" as const,
+    exportDate: input.payload.exportDate,
+    appVersion: "1.0.0",
+    encryption: {
+      algorithm: "AES-GCM" as const,
+      kdf: "PBKDF2-SHA-256" as const,
+      iterations: input.iterations,
+      saltBase64: Buffer.from(salt).toString("base64"),
+      ivBase64: Buffer.from(iv).toString("base64"),
+    },
+    ciphertextBase64: Buffer.from(new Uint8Array(encrypted)).toString("base64"),
+  };
+}
 
 function makeSecretPayload() {
   return createSecretBackupPayload({
@@ -145,6 +191,40 @@ describe("app info secure backup contract", () => {
     await expect(
       decryptScopedBackup({ passphrase: "wrong-passphrase", backup: encrypted }),
     ).rejects.toThrow("Backup konnte nicht entschlüsselt werden");
+  });
+
+  test("legacy-supported PBKDF2 iteration backups can still be decrypted", async () => {
+    const payload = makeSecretPayload();
+    const legacyEncrypted = await createEncryptedBackupWithIterations({
+      payload,
+      iterations: 150000,
+      passphrase: "correct-passphrase",
+    });
+
+    const validated = validateEncryptedScopedBackupJson(legacyEncrypted);
+    const restored = await decryptScopedBackup({ passphrase: "correct-passphrase", backup: validated });
+    expect(restored.kind).toBe("secret-snapshot");
+    expect(secureBackupNeedsCryptoUpgrade(validated)).toBe(true);
+  });
+
+  test("unsupported PBKDF2 iteration counts fail early in backup validation", () => {
+    expect(() =>
+      validateEncryptedScopedBackupJson({
+        type: "k1w1-secure-backup",
+        version: 1,
+        scope: "secrets",
+        exportDate: "2026-03-20T12:00:00.000Z",
+        appVersion: "1.0.0",
+        encryption: {
+          algorithm: "AES-GCM",
+          kdf: "PBKDF2-SHA-256",
+          iterations: 120000,
+          saltBase64: "c2FsdA==",
+          ivBase64: "aXY=",
+        },
+        ciphertextBase64: "Y2lwaGVy",
+      }),
+    ).toThrow("Ungültiges Backup-Format");
   });
 
   test("damaged encrypted backup fails validation/import cleanly", async () => {

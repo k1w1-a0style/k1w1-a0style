@@ -6,6 +6,7 @@ import { asRecord, isRecord, readFiniteNumber, readOptionalString, readString, r
 
 export const SECURE_BACKUP_VERSION = 1 as const;
 export const SECURE_BACKUP_PBKDF2_ITERATIONS = 250000;
+export const SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS = [100000, 150000] as const;
 export const SECURE_BACKUP_MIN_PASSPHRASE_LENGTH = 10;
 const AES_KEY_LENGTH = 256;
 const SALT_BYTES = 16;
@@ -115,7 +116,7 @@ function requireSubtleCrypto(): SubtleCrypto {
   return subtle;
 }
 
-async function deriveAesKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveAesKey(passphrase: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
   const subtle = requireSubtleCrypto();
   const passphraseBytes = new TextEncoder().encode(passphrase);
   const baseKey = await subtle.importKey("raw", passphraseBytes, "PBKDF2", false, ["deriveKey"]);
@@ -125,13 +126,26 @@ async function deriveAesKey(passphrase: string, salt: Uint8Array): Promise<Crypt
       name: "PBKDF2",
       hash: "SHA-256",
       salt: toBufferSource(salt),
-      iterations: SECURE_BACKUP_PBKDF2_ITERATIONS,
+      iterations,
     },
     baseKey,
     { name: "AES-GCM", length: AES_KEY_LENGTH },
     false,
     ["encrypt", "decrypt"],
   );
+}
+
+function isSupportedBackupIterationCount(iterations: number): boolean {
+  return (
+    iterations === SECURE_BACKUP_PBKDF2_ITERATIONS
+    || SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS.includes(
+      iterations as (typeof SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS)[number],
+    )
+  );
+}
+
+export function secureBackupNeedsCryptoUpgrade(backup: EncryptedScopedBackupV1): boolean {
+  return backup.encryption.iterations !== SECURE_BACKUP_PBKDF2_ITERATIONS;
 }
 
 function ensurePassphrase(passphrase: string) {
@@ -208,7 +222,7 @@ export async function encryptScopedBackup(input: {
   const salt = await getRandomBytes(SALT_BYTES);
   const iv = await getRandomBytes(IV_BYTES);
   const subtle = requireSubtleCrypto();
-  const key = await deriveAesKey(input.passphrase.trim(), salt);
+  const key = await deriveAesKey(input.passphrase.trim(), salt, SECURE_BACKUP_PBKDF2_ITERATIONS);
   const plaintext = new TextEncoder().encode(JSON.stringify(input.payload));
   const encrypted = await subtle.encrypt(
     { name: "AES-GCM", iv: toBufferSource(iv) },
@@ -260,10 +274,11 @@ export function validateEncryptedScopedBackupJson(parsed: unknown): EncryptedSco
   if (!encryption) {
     throw new Error("Ungültiges Backup-Format");
   }
+  const iterations = readFiniteNumber(encryption.iterations) ?? 0;
   if (
     encryption.algorithm !== "AES-GCM" ||
     encryption.kdf !== "PBKDF2-SHA-256" ||
-    (readFiniteNumber(encryption.iterations) ?? 0) < 100000 ||
+    !isSupportedBackupIterationCount(iterations) ||
     typeof encryption.saltBase64 !== "string" ||
     typeof encryption.ivBase64 !== "string" ||
     typeof parsed.ciphertextBase64 !== "string"
@@ -357,7 +372,7 @@ export async function decryptScopedBackup(input: {
   const salt = base64ToBytes(input.backup.encryption.saltBase64);
   const iv = base64ToBytes(input.backup.encryption.ivBase64);
   const ciphertext = base64ToBytes(input.backup.ciphertextBase64);
-  const key = await deriveAesKey(input.passphrase.trim(), salt);
+  const key = await deriveAesKey(input.passphrase.trim(), salt, input.backup.encryption.iterations);
 
   try {
     const decrypted = await subtle.decrypt(
