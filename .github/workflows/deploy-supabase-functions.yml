@@ -45,7 +45,7 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      WORKFLOW_VERSION: "411"
+      WORKFLOW_VERSION: "412"
 
     steps:
       - name: Checkout
@@ -102,7 +102,7 @@ jobs:
             echo "Deploying all functions..."
             for d in functions/*; do
               name="$(basename "$d")"
-              if [ -d "$d" ] && [ "$name" != "_shared" ]; then
+              if [ -d "$d" ] && [ "$name" != "_shared" ] && [ "$name" != "test" ]; then
                 echo "-> $name"
                 supabase functions deploy "$name"
               fi
@@ -122,6 +122,11 @@ jobs:
 
           if [ "$FUNCTION_NAME" = "_shared" ]; then
             echo "::error::Refusing to deploy reserved helper directory: _shared"
+            exit 1
+          fi
+
+          if [ "$FUNCTION_NAME" = "test" ]; then
+            echo "::error::Refusing to deploy legacy disabled function: test"
             exit 1
           fi
 

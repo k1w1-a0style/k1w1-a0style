@@ -4,10 +4,10 @@ set -euo pipefail
 # Usage:
 #   export SUPABASE_SERVICE_ROLE_KEY="eyJ..."
 #   export SUPABASE_ANON_KEY="eyJ..."   # optional, aber empfohlen
-#   export EDGE_BASE_URL="https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1"  # optional override
+#   export EDGE_BASE_URL="https://<your-project-ref>.supabase.co/functions/v1"
 #   bash scripts/edge-fn-smoke-test.sh
 
-BASE_URL="${EDGE_BASE_URL:-https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1}"
+BASE_URL="${EDGE_BASE_URL:-}"
 SRK="${SUPABASE_SERVICE_ROLE_KEY:-}"
 ANON="${SUPABASE_ANON_KEY:-}"
 
@@ -39,6 +39,18 @@ need_cmd tr
 if [ -z "$SRK" ]; then
   echo "SUPABASE_SERVICE_ROLE_KEY fehlt."
   echo 'Beispiel: export SUPABASE_SERVICE_ROLE_KEY="eyJ..."'
+  exit 1
+fi
+
+if [ -z "$BASE_URL" ]; then
+  echo "EDGE_BASE_URL fehlt."
+  echo 'Beispiel: export EDGE_BASE_URL="https://<your-project-ref>.supabase.co/functions/v1"'
+  exit 1
+fi
+
+if ! [[ "$BASE_URL" =~ ^https://[^[:space:]]+/functions/v1/?$ ]]; then
+  echo "EDGE_BASE_URL ist ungueltig: $BASE_URL"
+  echo 'Erwartet z.B.: https://<your-project-ref>.supabase.co/functions/v1'
   exit 1
 fi
 
