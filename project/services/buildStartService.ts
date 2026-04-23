@@ -48,6 +48,39 @@ type EdgeBuildInvokePayload = {
   job?: { id?: unknown };
 };
 
+type ParsedGitHubRepo = {
+  fullName: string;
+  owner: string;
+  repo: string;
+};
+
+const GITHUB_REPO_SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
+
+function normalizeGitHubRepoFullName(raw: unknown): string {
+  return typeof raw === "string" ? raw.trim() : "";
+}
+
+function parseStrictGitHubRepoFullName(raw: unknown): ParsedGitHubRepo | null {
+  const normalized = normalizeGitHubRepoFullName(raw);
+  if (!normalized) return null;
+  if (/\s/.test(normalized)) return null;
+
+  const parts = normalized.split("/");
+  if (parts.length !== 2) return null;
+
+  const [owner, repo] = parts;
+  if (!owner || !repo) return null;
+  if (!GITHUB_REPO_SEGMENT_PATTERN.test(owner) || !GITHUB_REPO_SEGMENT_PATTERN.test(repo)) return null;
+  if (owner.endsWith(".") || repo.endsWith(".")) return null;
+  if (owner.includes("..") || repo.includes("..")) return null;
+
+  return {
+    fullName: `${owner}/${repo}`,
+    owner,
+    repo,
+  };
+}
+
 function normalizeProfile(profile?: string): StartBuildProfile {
   return profile === "development" || profile === "preview" || profile === "production"
     ? profile
@@ -98,13 +131,15 @@ async function pushProjectFilesOrAbortBuild(opts: {
   storageSetItem?: (key: string, value: string) => Promise<void>;
 }): Promise<string> {
   const { githubRepo, branch, files, storageSetItem } = opts;
+  const normalizedGithubRepo = normalizeGitHubRepoFullName(githubRepo);
+  const parsedRepo = parseStrictGitHubRepoFullName(normalizedGithubRepo);
 
   // Defensive helper guard: this helper can still be reused independently of startBuildJob.
-  if (!githubRepo || !githubRepo.includes("/")) {
+  if (!parsedRepo) {
     throw new Error('Kein GitHub-Repo verbunden. Bitte in "Connections" ein Repo verknuepfen.');
   }
 
-  const [owner, repo] = githubRepo.split("/");
+  const { owner, repo } = parsedRepo;
 
   if (owner && repo && files?.length) {
     try {
@@ -132,7 +167,7 @@ async function pushProjectFilesOrAbortBuild(opts: {
   }
 
   await markRepoSyncSignature({
-    linkedRepo: githubRepo,
+    linkedRepo: parsedRepo.fullName,
     linkedBranch: branch,
     files,
     storageSetItem,
@@ -154,10 +189,17 @@ export async function startBuildJob(params: {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
+  const normalizedGithubRepo = normalizeGitHubRepoFullName(project.linkedRepo);
+  const parsedRepo = parseStrictGitHubRepoFullName(normalizedGithubRepo);
+  if (!parsedRepo) {
+    throw new Error('GitHub-Repo ist ungueltig. Erwartet wird exakt "owner/repo" ohne Leerzeichen oder Zusatzsegmente.');
+  }
+
+  const githubRepo = parsedRepo.fullName;
+
   await assertBuildReadiness(project, deps, { projectFiles: canonicalOpsFiles });
 
   // Repo/branch gating now comes from the centralized readiness contract above.
-  const githubRepo = (project.linkedRepo?.trim() || "").trim();
   const profile = normalizeProfile(buildProfile);
   const buildBranch = (project.linkedBranch ?? "").trim();
 
