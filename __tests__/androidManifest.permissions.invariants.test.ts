@@ -13,4 +13,17 @@ describe("android main manifest permissions invariants", () => {
     expect(manifest).not.toContain("android.permission.RECORD_AUDIO");
     expect(manifest).not.toContain("android.permission.SYSTEM_ALERT_WINDOW");
   });
+
+  it("keeps expo update URL neutral and non project-bound in committed manifest", () => {
+    const manifest = fs.readFileSync(MAIN_MANIFEST_PATH, "utf8");
+    const strings = fs.readFileSync(
+      path.join(ROOT, "android/app/src/main/res/values/strings.xml"),
+      "utf8"
+    );
+
+    expect(manifest).toContain('expo.modules.updates.EXPO_UPDATE_URL" android:value="@string/expo_update_url"');
+    expect(manifest).not.toMatch(/https:\/\/u\.expo\.dev\/[0-9a-f-]{36}/i);
+    expect(strings).toContain('<string name="expo_update_url" translatable="false">https://example.invalid/expo-update-url</string>');
+    expect(strings).not.toMatch(/https:\/\/u\.expo\.dev\/[0-9a-f-]{36}/i);
+  });
 });
