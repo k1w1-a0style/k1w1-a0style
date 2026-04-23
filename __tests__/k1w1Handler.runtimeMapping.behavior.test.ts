@@ -174,6 +174,61 @@ describe('k1w1-handler runtime mapping behavior', () => {
     expect(result.runtimeNote).toBeUndefined();
   });
 
+
+
+  it('retries Groq once with provider-prefix fallback only for model-not-found style 404 responses', async () => {
+    mockFetchWithTimeout
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({
+          error: {
+            code: 'model_not_found',
+            message: 'The model `qwen/qwen3-32b` does not exist',
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'ok-after-fallback' } }],
+        }),
+      });
+
+    const result = await callGroq({
+      provider: 'groq',
+      model: 'qwen3-32b',
+      quality: 'balanced',
+      messages: [{ role: 'user', content: 'Hi' }],
+    });
+
+    expect(mockFetchWithTimeout).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(String(mockFetchWithTimeout.mock.calls[0][1].body));
+    const secondBody = JSON.parse(String(mockFetchWithTimeout.mock.calls[1][1].body));
+    expect(firstBody.model).toBe('qwen/qwen3-32b');
+    expect(secondBody.model).toBe('qwen3-32b');
+    expect(result.content).toBe('ok-after-fallback');
+  });
+
+  it('does not retry Groq fallback for broad 404 texts that merely mention model', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => 'Rate-limit bucket for this model is exhausted; retry later.',
+    });
+
+    await expect(
+      callGroq({
+        provider: 'groq',
+        model: 'qwen3-32b',
+        quality: 'balanced',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toThrow(/groq_http_404 \(model=qwen\/qwen3-32b\)/i);
+
+    expect(mockFetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects unsupported visible IDs explicitly instead of silently falling back', async () => {
     await expect(
       callGemini({

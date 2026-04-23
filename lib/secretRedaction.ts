@@ -56,6 +56,12 @@ export function redactSecrets(input: string): string {
   // Common API key formats (OpenAI/others): sk_*...
   out = replaceAllSafe(out, /\b(sk_(?:test_|live_)?[A-Za-z0-9]{10,})\b/g, REDACTED);
 
+  // Provider-specific API key formats.
+  out = replaceAllSafe(out, /\b(gsk_[A-Za-z0-9_-]{10,})\b/g, REDACTED);
+  out = replaceAllSafe(out, /\b(sk-ant-[A-Za-z0-9_-]{10,})\b/g, REDACTED);
+  out = replaceAllSafe(out, /\b(AIza[0-9A-Za-z_-]{20,})\b/g, REDACTED);
+  out = replaceAllSafe(out, /\b(hf_[A-Za-z0-9]{10,})\b/g, REDACTED);
+
   // apiKey="..." / api_key: ...
   out = replaceAllSafe(
     out,

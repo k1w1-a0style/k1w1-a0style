@@ -61,6 +61,29 @@ describe("Terminal secret redaction", () => {
     expect(out).toContain("status: waiting for next retry");
   });
 
+
+
+  test("redacts provider-specific key formats", () => {
+    const input = [
+      "groq=gsk_abcdefghijklmnopqrstuvwxyz012345",
+      "anthropic=sk-ant-api03-abcdefghijklmnopqrstuvwxyz",
+      "gemini=AIzaSyA1234567890abcdefghijklmnopqrstuv",
+      "hf=hf_abcdefghijklmnopqrstuvwxyz0123456789",
+    ].join("\n");
+
+    const out = redactSecrets(input);
+    expect(out).not.toContain("gsk_abcdefghijklmnopqrstuvwxyz012345");
+    expect(out).not.toContain("sk-ant-api03-abcdefghijklmnopqrstuvwxyz");
+    expect(out).not.toContain("AIzaSyA1234567890abcdefghijklmnopqrstuv");
+    expect(out).not.toContain("hf_abcdefghijklmnopqrstuvwxyz0123456789");
+    expect(out.match(/<redacted>/g)?.length || 0).toBeGreaterThanOrEqual(4);
+  });
+
+  test("keeps harmless status text readable", () => {
+    const input = "status: model retry disabled for now";
+    expect(redactSecrets(input)).toBe(input);
+  });
+
   test("truncateWithMarker adds marker", () => {
     const input = "x".repeat(50);
     const out = truncateWithMarker(input, 20, "<truncated>");

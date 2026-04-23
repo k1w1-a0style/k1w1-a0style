@@ -6,6 +6,23 @@ import { asRecord, readAnthropicTextParts, readGeminiTextParts } from "./textPar
 import { DEFAULT_MODELS, DEFAULT_PROVIDER_TEMPERATURE, PROVIDER_UPSTREAM_TIMEOUT_MS } from "./types.ts";
 import type { HandlerRequestBody } from "./types.ts";
 
+
+function isGroqModelNotFoundError(status: number, bodyText: string): boolean {
+  if (status !== 404) return false;
+
+  const normalized = bodyText.toLowerCase();
+  const knownNeedles = [
+    'model_not_found',
+    'model not found',
+    'the model',
+    'does not exist',
+    'unknown model',
+    'invalid model',
+  ];
+
+  return knownNeedles.some((needle) => normalized.includes(needle));
+}
+
 export async function callGroq(
   body: HandlerRequestBody,
 ): Promise<{ content: string; model: string; runtimeNote?: string }> {
@@ -49,12 +66,12 @@ export async function callGroq(
   };
 
   const primary = await doRequest(model);
-  const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;
+  const fallbackModel = model.includes("/") ? model.slice(model.lastIndexOf("/") + 1) : model;
 
   let json;
   if (primary.ok) {
     json = primary.json;
-  } else if (fallbackModel !== model && (primary.status === 404 || /model/i.test(primary.text))) {
+  } else if (fallbackModel !== model && isGroqModelNotFoundError(primary.status, primary.text)) {
     const fallback = await doRequest(fallbackModel);
     if (!fallback.ok) {
       throw providerHttpError("groq", fallbackModel, fallback.status, fallback.text);
