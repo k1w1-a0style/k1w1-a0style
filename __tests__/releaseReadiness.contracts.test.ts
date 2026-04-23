@@ -14,6 +14,7 @@ describe("release readiness contract", () => {
     expect(script).toContain("bash scripts/check_eas_manual_trigger_controls.sh");
     expect(script).toContain("bash scripts/check_eas_strict_lockfile_policy.sh");
     expect(script).toContain("bash scripts/check_workflow_edge_contracts.sh");
+    expect(script).toContain("bash scripts/check_verify_jwt_visibility.sh");
     expect(script).toContain("bash scripts/check_edge_rate_limit_retention.sh");
     expect(script).toContain("bash scripts/check_legacy_disabled_edges.sh");
     expect(script).toContain("bash scripts/check_edge_helper_visibility.sh");

@@ -31,8 +31,8 @@ const BASE_DOC = [
   "",
   "| Function | Zweck | Vertrag |",
   "|---|---|---|",
-  "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`) |",
-  "| `k1w1-handler` | KI-Proxy | `k1w1-handler` Auth per JWT (`verify_jwt=true`) |",
+  "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`). Marker: `verify_jwt:save_preview=true`, `verify_jwt:preview_page=false`. |",
+  "| `k1w1-handler` | KI-Proxy | `k1w1-handler` Auth per JWT (`verify_jwt=true`). Marker: `verify_jwt:k1w1-handler=true`. |",
   "",
 ].join("\n");
 
@@ -96,53 +96,53 @@ describe("check_verify_jwt_visibility execution contract", () => {
 
   it("fails when required doc visibility marker is missing from the matching function row", () => {
     const dir = setupFixture({
-      doc: BASE_DOC.replace("Auth per JWT (`verify_jwt=true`)", "Auth per JWT (Marker fehlt)"),
+      doc: BASE_DOC.replace("`verify_jwt:k1w1-handler=true`", "`verify_jwt:k1w1-handler=missing`"),
     });
     const result = runVerifyJwtGuard(dir);
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=true marker for k1w1-handler");
+    expect(result.output).toContain("[FAIL] missing docs table marker verify_jwt:k1w1-handler=true for k1w1-handler");
   });
 
 
   it("fails when function token is only in Function-cell but not explicitly bound in Contract-cell", () => {
     const dir = setupFixture({
-      doc: BASE_DOC.replace("`k1w1-handler` Auth per JWT (`verify_jwt=true`)", "Auth per JWT (`verify_jwt=true`)"),
+      doc: BASE_DOC.replace("Marker: `verify_jwt:k1w1-handler=true`.", "Marker fehlt."),
     });
     const result = runVerifyJwtGuard(dir);
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=true marker for k1w1-handler");
+    expect(result.output).toContain("[FAIL] missing docs table marker verify_jwt:k1w1-handler=true for k1w1-handler");
   });
 
   it("fails when marker exists only as decoy outside the relevant function row", () => {
-    const driftedRow = "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad ohne Flag-Hinweis |";
-    const decoyNote = "- Hinweis ausserhalb Tabelle: preview_page verify_jwt=false";
+    const driftedRow = "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad ohne Marker-Hinweis. Marker: `verify_jwt:save_preview=true`. |";
+    const decoyNote = "- Hinweis ausserhalb Tabelle: `verify_jwt:preview_page=false`";
     const dir = setupFixture({
       doc: BASE_DOC.replace(
-        "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`) |",
+        "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`). Marker: `verify_jwt:save_preview=true`, `verify_jwt:preview_page=false`. |",
         driftedRow,
       ).concat(`\n${decoyNote}\n`),
     });
     const result = runVerifyJwtGuard(dir);
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=false marker for preview_page");
+    expect(result.output).toContain("[FAIL] missing docs table marker verify_jwt:preview_page=false for preview_page");
   });
 
 
   it("fails when expected marker exists in-row but is bound to a different function token", () => {
-    const misleadingRow = "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`) und Legacy-Notiz (`verify_jwt=false`) nur fuer save_preview, `preview_page` nutzt gesicherten Zugang ohne explizites Flag |";
+    const misleadingRow = "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`) und `preview_page` nutzt gesicherten Zugang ohne explizites Flag. Marker: `verify_jwt:save_preview=true`, `verify_jwt:save_preview=false`. |";
     const dir = setupFixture({
       doc: BASE_DOC.replace(
-        "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`) |",
+        "| `save_preview` / `preview_page` | Preview | `save_preview` nutzt verifiziertes JWT (`verify_jwt=true`), `preview_page` bleibt Sonderpfad (`verify_jwt=false`). Marker: `verify_jwt:save_preview=true`, `verify_jwt:preview_page=false`. |",
         misleadingRow,
       ),
     });
     const result = runVerifyJwtGuard(dir);
 
     expect(result.status).toBe(1);
-    expect(result.output).toContain("[FAIL] missing docs table verify_jwt=false marker for preview_page");
+    expect(result.output).toContain("[FAIL] missing docs table marker verify_jwt:preview_page=false for preview_page");
   });
 
   it("passes with harmless wording changes in the row as long as function-bound markers remain", () => {

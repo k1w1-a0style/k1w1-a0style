@@ -119,6 +119,8 @@ describe("release readiness execution contract", () => {
     const result = runReleaseScript(dir);
 
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain("[verify:release] verify_jwt visibility");
+    expect(result.stdout).toContain("stub:check_verify_jwt_visibility.sh");
     expect(result.stdout).toContain("skip app typecheck");
     expect(result.stdout).toContain("skip live edge contracts");
     expect(result.stdout).toContain(
@@ -135,5 +137,19 @@ describe("release readiness execution contract", () => {
     expect(result.stdout).toContain("stub:check_edge_live_contracts.sh");
     expect(result.stdout).toContain("[verify:release] OK_FULL");
     expect(result.stdout).not.toContain("OK_WITH_SKIPS");
+  });
+
+  it("fails hard when verify_jwt visibility guard is removed or fails", () => {
+    const dir = setupFixture({
+      withExpoTypecheck: true,
+      withLiveContracts: true,
+      failingScript: "check_verify_jwt_visibility.sh",
+    });
+    const result = runReleaseScript(dir);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("[verify:release] verify_jwt visibility");
+    expect(result.stdout).toContain("stub:check_verify_jwt_visibility.sh");
+    expect(result.stdout).not.toContain("[verify:release] OK_FULL");
   });
 });
