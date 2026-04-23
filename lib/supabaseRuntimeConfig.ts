@@ -38,7 +38,7 @@ export type SupabaseRuntimeConfigDetailed = {
   anonKeyReason: SupabaseRuntimeCredentialReason;
 };
 
-async function readStoredSupabaseUrl(): Promise<{ value: string | null; unreadable: boolean }> {
+async function readStoredSupabaseUrl(): Promise<{ value: string | null; unreadable: boolean; hadInvalid: boolean }> {
   try {
     const [storedRaw, storedUrlMirror] = await Promise.all([
       AsyncStorage.getItem(STORAGE_KEYS.SUPABASE_RAW),
@@ -47,16 +47,21 @@ async function readStoredSupabaseUrl(): Promise<{ value: string | null; unreadab
     const normalizedRaw = normalizeStoredSupabaseRaw(storedRaw ?? "", storedUrlMirror ?? "");
     const derivedFromRaw = normalizeSupabaseUrl(deriveSupabaseUrl(normalizedRaw).url);
     if (derivedFromRaw) {
-      return { value: derivedFromRaw, unreadable: false };
+      return { value: derivedFromRaw, unreadable: false, hadInvalid: false };
     }
+    // Compat-only fallback: SUPABASE_URL is a mirror slot, not an independent source of truth.
+    const normalizedMirror = normalizeSupabaseUrl(storedUrlMirror);
+    const mirrorRaw = readNonEmptyTrimmed(storedUrlMirror);
     return {
-      value: storedUrlMirror,
+      value: normalizedMirror,
       unreadable: false,
+      hadInvalid: Boolean(mirrorRaw) && !normalizedMirror,
     };
   } catch {
     return {
       value: null,
       unreadable: true,
+      hadInvalid: false,
     };
   }
 }
@@ -91,6 +96,8 @@ export async function readSupabaseRuntimeConfigDetailed(): Promise<SupabaseRunti
     ? "ok"
     : storedUrlRead.unreadable
       ? "unreadable"
+      : storedUrlRead.hadInvalid
+        ? "invalid"
       : (storedUrlRaw || runtimeUrlRaw)
         ? "invalid"
         : "missing";

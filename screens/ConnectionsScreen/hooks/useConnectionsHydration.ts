@@ -55,6 +55,7 @@ export function resolveHydratedSupabaseState(snapshot: Pick<HydrationSnapshot, "
   const normalizedRaw = normalizeStoredSupabaseRaw(snapshot.supabaseRaw, snapshot.supabaseUrl);
   const mirror = String(snapshot.supabaseUrl || "").trim();
   const derivedUrl = deriveSupabaseUrl(normalizedRaw).url;
+  // Canonical path: derive URL from normalized SUPABASE_RAW; mirror is compat fallback only.
   const resolvedUrl = derivedUrl || mirror;
   const persistenceEntries: Array<[string, string]> = [];
 

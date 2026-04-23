@@ -63,6 +63,16 @@ describe("supabase runtime config", () => {
     expect(result.anonKeyReason).toBe("ok");
   });
 
+  it("does not treat an invalid SUPABASE_URL mirror as canonical config", async () => {
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, "n/a");
+    await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_URL, "not-a-url");
+
+    const result = await readSupabaseRuntimeConfigDetailed();
+
+    expect(result.url).toBeNull();
+    expect(result.urlReason).toBe("invalid");
+  });
+
   it("marks unreadable config reads as unreadable", async () => {
     jest.spyOn(AsyncStorage, "getItem").mockRejectedValueOnce(new Error("storage io failed"));
     (readSupabaseAnonKeyDetailed as jest.Mock).mockResolvedValueOnce({ value: null, unreadable: true });

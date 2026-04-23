@@ -36,8 +36,10 @@ async function readStoredSupabaseUrlDetailed(): Promise<{
     ]);
     const normalizedRaw = normalizeStoredSupabaseRaw(storedRaw ?? "", storedUrlMirror ?? "");
     const derivedUrl = normalizeSupabaseUrl(deriveSupabaseUrl(normalizedRaw).url);
+    const normalizedMirror = normalizeSupabaseUrl(storedUrlMirror);
     return {
-      value: derivedUrl ?? storedUrlMirror,
+      // SUPABASE_RAW remains canonical; mirror is only legacy/compat fallback.
+      value: derivedUrl ?? normalizedMirror,
       unreadable: false,
     };
   } catch (error: unknown) {

@@ -291,6 +291,7 @@ export function useConnectionsSaveActions(params: Params) {
     ): Promise<void> => {
       const normalizedSupabaseRaw = normalizeStoredSupabaseRaw(plan.supabaseRaw, plan.supabaseUrl);
       await AsyncStorage.setItem(STORAGE_KEYS.SUPABASE_RAW, normalizedSupabaseRaw);
+      // Mirror stays for legacy/compat readers, but is always derived from canonical save inputs.
       const supabaseUrlMirror = /^https?:\/\//i.test(normalizedSupabaseRaw)
         ? normalizedSupabaseRaw
         : plan.supabaseUrl;

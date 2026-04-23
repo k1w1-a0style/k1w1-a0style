@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-23 (Patch 784 + Prompt-6 Contract-Cleanup)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)
@@ -69,6 +69,17 @@ Wichtig:
 - `npm run edge:check:live` prueft aktuell live drei Contract-Kanten: `k1w1-handler` invalid JSON, `preview_page` missing-header fail-closed, und `save_preview` Fragment-Transport (`transport=fragment#secret=...` ohne Query-`?secret=`). Dashboard-Flags bleiben weiterhin separater Operator-Audit.
 - Der operatorische Flag-Audit ist fuer den aktuellen Stand erfolgt: live ist fuer `save_preview` und `k1w1-handler` `verify_jwt=true` bestaetigt.
 - Fuer kuenftige Releases bleibt ein expliziter Flag-Abgleich sinnvoll, weil ein spaeterer Dashboard-Drift durch reine Verhaltenschecks nicht sicher ausgeschlossen wird.
+
+## Auth-/Rate-Limit-Vertrag (fail-closed, operatorisch relevant)
+
+- `SUPABASE_RAW` ist im App-Runtime-/Hydration-/Save-Vertrag die einzige kanonische Quelle; `SUPABASE_URL` bleibt ein Mirror-/Compat-Slot und darf nicht als zweite Wahrheit interpretiert werden.
+- Rate-Limit-Subject bleibt bewusst fail-closed:
+  - Trusted Client-IP nur mit serverseitiger Trust-Grenze (`K1W1_TRUST_CF_CONNECTING_IP=1` + `cf-ray` oder `K1W1_TRUSTED_PROXY_HOPS>0`).
+  - Wenn keine trusted IP vorliegt, aber ein verifizierter Actor vorhanden ist: Fallback auf `actor:<verified-id>`.
+  - Wenn weder trusted IP noch verifizierter Actor vorliegt: `400 untrusted_client_ip` (kein globaler Shared-Bucket).
+- `k1w1-handler` ist bewusst auth-asymmetrisch zu den Workflow-/Keystore-Operatorrouten:
+  - **nur** verifiziertes JWT + RBAC (`service_role|build_admin`), **ohne** `x-k1w1-admin-key`/`requireScopedEdgeAuth`.
+  - Workflow-/Keystore-Routen bleiben auf JWT + Scoped-Admin-Key-Vertrag.
 
 ## Zweck
 

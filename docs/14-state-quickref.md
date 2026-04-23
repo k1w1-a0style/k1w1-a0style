@@ -1,6 +1,6 @@
 # 14 — State Quick Reference (SoT + Persistenz)
 
-Stand: **2026-04-02 (Docs Konsolidierung)**
+Stand: **2026-04-23 (Prompt-6 Contract-Cleanup)**
 
 ## 1) Source of Truth pro Domäne
 
@@ -18,7 +18,7 @@ Stand: **2026-04-02 (Docs Konsolidierung)**
 ## 2) Persistente Keys (Quickref)
 
 ### Aus `lib/storageKeys.ts`
-- Supabase/Legacy: `supabase_raw`, `supabase_url`, `supabase_key`, `supabase_service_role_key` (legacy)
+- Supabase/Legacy: `supabase_raw` (**kanonische SoT**: Ref oder normalisierte URL), `supabase_url` (**nur Mirror/Compat aus `supabase_raw` abgeleitet, keine zweite Wahrheit**), `supabase_key`, `supabase_service_role_key` (legacy)
 - Connection: `conn_github_ok`, `conn_github_user`, `conn_github_scopes`, `conn_expo_ok`, `conn_expo_user`, `conn_supabase_ok`, `conn_supabase_ref`, `conn_eas_ok`
 - Repo-Connection: `conn_repo_ok`, `conn_repo_slug`, `conn_repo_branch`, `recent_branches_by_repo`
 - Diagnostics/Build: `diagnostic_last_ok` (legacy global nur noch historisch), `diagnostic_last_ok::<repo>::<branch>` (kanonisch fuer aktive Selection), `ci_lite_lint_ok`, `ci_lite_typecheck_ok`, `ci_lite_last_run_at`, `k1w1_build_history`, `repo_sync_signature::<repo>::<branch>`
