@@ -17,6 +17,7 @@ type KeystoreEnvelopeV3 = {
   salt: string;
   iter: number;
 };
+type DecryptFormat = "v3" | "v2" | "legacy-cbc";
 
 function bytesToBinaryString(bytes: Uint8Array): string {
   let out = "";
@@ -112,6 +113,37 @@ export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, m
   out.set(new Uint8Array(enc), iv.length);
 
   return encodeBase64(out);
+}
+
+/**
+ * @deprecated Legacy compatibility helper for tests/migration fixtures only.
+ * Never use this for new writes.
+ */
+export async function __unsafeEncryptWithAesGcmLegacyV2ForTests(payload: string, masterKey: string): Promise<string> {
+  const runtimeEnv = getRuntimeEnvVar("DENO_ENV") ?? getRuntimeEnvVar("NODE_ENV") ?? "";
+  if (runtimeEnv && runtimeEnv !== "test") {
+    throw new Error("Legacy AES-GCM v2 test helper may only run in test environment");
+  }
+
+  const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyBytes as unknown as BufferSource,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt"],
+  );
+
+  const data = new TextEncoder().encode(payload);
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data));
+  const envelope: KeystoreEnvelopeV2 = {
+    v: 2,
+    alg: "A256GCM",
+    iv: encodeBase64(iv),
+    ct: encodeBase64(encrypted),
+  };
+  return `${KEYSTORE_ENVELOPE_PREFIX_V2}${btoa(JSON.stringify(envelope))}`;
 }
 
 async function decryptWithAesCbcLegacyCompatOnly(payload: string, masterKey: string): Promise<string> {
@@ -233,7 +265,10 @@ async function decryptKeystorePayloadV2(payload: string, masterKey: string): Pro
   }
 }
 
-export async function decryptKeystorePayload(payload: string, masterKey: string): Promise<string> {
+async function decryptKeystorePayloadWithFormat(
+  payload: string,
+  masterKey: string,
+): Promise<{ plaintext: string; format: DecryptFormat }> {
   if (payload.startsWith(KEYSTORE_ENVELOPE_PREFIX_V3)) {
     const envelope = parseV3Envelope(payload);
     try {
@@ -256,13 +291,13 @@ export async function decryptKeystorePayload(payload: string, masterKey: string)
         key,
         ciphertext as unknown as BufferSource,
       );
-      return new TextDecoder().decode(new Uint8Array(decrypted));
+      return { plaintext: new TextDecoder().decode(new Uint8Array(decrypted)), format: "v3" };
     } catch {
       throw new Error("Encrypted keystore payload failed integrity check");
     }
   }
   if (payload.startsWith(KEYSTORE_ENVELOPE_PREFIX_V2)) {
-    return decryptKeystorePayloadV2(payload, masterKey);
+    return { plaintext: await decryptKeystorePayloadV2(payload, masterKey), format: "v2" };
   }
 
   // Legacy fallback for older AES-CBC records stored before v2 envelope rollout.
@@ -271,5 +306,28 @@ export async function decryptKeystorePayload(payload: string, masterKey: string)
   if (!looksLikeLegacyAesCbcPayload(payload)) {
     throw new Error("Encrypted keystore payload contract mismatch");
   }
-  return decryptWithAesCbcLegacyCompatOnly(payload, masterKey);
+  return { plaintext: await decryptWithAesCbcLegacyCompatOnly(payload, masterKey), format: "legacy-cbc" };
+}
+
+export async function decryptKeystorePayload(payload: string, masterKey: string): Promise<string> {
+  const outcome = await decryptKeystorePayloadWithFormat(payload, masterKey);
+  return outcome.plaintext;
+}
+
+export async function decryptKeystorePayloadWithMigration(
+  payload: string,
+  masterKey: string,
+  persistMigratedV3Payload: (encryptedV3Payload: string) => Promise<void>,
+): Promise<string> {
+  const outcome = await decryptKeystorePayloadWithFormat(payload, masterKey);
+  if (outcome.format === "v3") {
+    return outcome.plaintext;
+  }
+  const migratedV3 = await encryptKeystorePayload(outcome.plaintext, masterKey);
+  try {
+    await persistMigratedV3Payload(migratedV3);
+  } catch {
+    throw new Error("Legacy keystore payload decrypted but v3 migration persistence failed");
+  }
+  return outcome.plaintext;
 }

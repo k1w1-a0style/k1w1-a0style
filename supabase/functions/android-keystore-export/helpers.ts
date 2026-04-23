@@ -7,7 +7,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import {
-  decryptKeystorePayload,
+  decryptKeystorePayloadWithMigration,
 } from "../_shared/androidKeystoreCrypto.ts";
 import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
 import { isAllowedGithubRepo } from "../_shared/github.ts";
@@ -47,5 +47,5 @@ export function repoOk(repo: string): boolean {
   return isSafeGitHubRepoFullName(repo);
 }
 
-export { decryptKeystorePayload };
+export { decryptKeystorePayloadWithMigration };
 export { isAllowedGithubRepo };

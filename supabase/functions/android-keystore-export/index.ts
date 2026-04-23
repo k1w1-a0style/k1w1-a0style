@@ -1,6 +1,6 @@
 import {
   createClient,
-  decryptKeystorePayload,
+  decryptKeystorePayloadWithMigration,
   errorResponse,
   getServiceRoleKey,
   getSigningMasterKey,
@@ -122,7 +122,10 @@ Deno.serve(async (req) => {
     }
 
     const encrypted = await file.text();
-    const decrypted = await decryptKeystorePayload(encrypted, masterKey);
+    let pendingMigratedV3Payload: string | null = null;
+    const decrypted = await decryptKeystorePayloadWithMigration(encrypted, masterKey, async (migratedV3Payload) => {
+      pendingMigratedV3Payload = migratedV3Payload;
+    });
     let parsed: {
       alias: string;
       keystoreBase64: string;
@@ -147,6 +150,15 @@ Deno.serve(async (req) => {
         return secureError("Decrypted keystore payload has unexpected shape", 500);
       }
       parsed = raw as typeof parsed;
+    }
+    if (pendingMigratedV3Payload) {
+      const { error: migrationWriteError } = await supabase.storage.from(bucket).upload(path, pendingMigratedV3Payload, {
+        upsert: true,
+        contentType: "text/plain",
+      });
+      if (migrationWriteError) {
+        throw new Error("Legacy keystore payload decrypted but v3 migration persistence failed");
+      }
     }
 
     try {
