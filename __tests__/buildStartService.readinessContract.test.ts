@@ -88,7 +88,7 @@ describe("startBuildJob readiness contract integration", () => {
 
   it("continues with sync and dispatch after the centralized readiness contract resolves", async () => {
     mockAssertBuildReadiness.mockResolvedValue(undefined);
-    const project = makeProject({ linkedRepo: "owner/repo", linkedBranch: "main" });
+    const project = makeProject({ linkedRepo: " owner/repo ", linkedBranch: "main" });
     const canonicalFiles = getCanonicalProjectFilesForOps(project);
 
     await expect(startBuildJob({ project, buildProfile: "preview" })).resolves.toMatchObject({
@@ -119,8 +119,8 @@ describe("startBuildJob readiness contract integration", () => {
     "owner/",
     "/repo",
     "owner/repo/extra",
-    " owner/repo ",
     "owner /repo",
+    "owner/ repo",
     "owner/repo?",
   ])("rejects invalid linkedRepo early before readiness checks (%s)", async (linkedRepo) => {
     mockAssertBuildReadiness.mockResolvedValue(undefined);

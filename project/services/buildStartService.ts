@@ -56,13 +56,16 @@ type ParsedGitHubRepo = {
 
 const GITHUB_REPO_SEGMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
-function parseStrictGitHubRepoFullName(raw: unknown): ParsedGitHubRepo | null {
-  if (typeof raw !== "string") return null;
-  if (raw !== raw.trim()) return null;
-  if (!raw) return null;
-  if (/\s/.test(raw)) return null;
+function normalizeGitHubRepoFullName(raw: unknown): string {
+  return typeof raw === "string" ? raw.trim() : "";
+}
 
-  const parts = raw.split("/");
+function parseStrictGitHubRepoFullName(raw: unknown): ParsedGitHubRepo | null {
+  const normalized = normalizeGitHubRepoFullName(raw);
+  if (!normalized) return null;
+  if (/\s/.test(normalized)) return null;
+
+  const parts = normalized.split("/");
   if (parts.length !== 2) return null;
 
   const [owner, repo] = parts;
@@ -128,7 +131,8 @@ async function pushProjectFilesOrAbortBuild(opts: {
   storageSetItem?: (key: string, value: string) => Promise<void>;
 }): Promise<string> {
   const { githubRepo, branch, files, storageSetItem } = opts;
-  const parsedRepo = parseStrictGitHubRepoFullName(githubRepo);
+  const normalizedGithubRepo = normalizeGitHubRepoFullName(githubRepo);
+  const parsedRepo = parseStrictGitHubRepoFullName(normalizedGithubRepo);
 
   // Defensive helper guard: this helper can still be reused independently of startBuildJob.
   if (!parsedRepo) {
@@ -163,7 +167,7 @@ async function pushProjectFilesOrAbortBuild(opts: {
   }
 
   await markRepoSyncSignature({
-    linkedRepo: githubRepo,
+    linkedRepo: parsedRepo.fullName,
     linkedBranch: branch,
     files,
     storageSetItem,
@@ -185,7 +189,8 @@ export async function startBuildJob(params: {
     throw new Error("Projekt ist leer. Es gibt keine Dateien zum Bauen.");
   }
 
-  const parsedRepo = parseStrictGitHubRepoFullName(project.linkedRepo);
+  const normalizedGithubRepo = normalizeGitHubRepoFullName(project.linkedRepo);
+  const parsedRepo = parseStrictGitHubRepoFullName(normalizedGithubRepo);
   if (!parsedRepo) {
     throw new Error('GitHub-Repo ist ungueltig. Erwartet wird exakt "owner/repo" ohne Leerzeichen oder Zusatzsegmente.');
   }
