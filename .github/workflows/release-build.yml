@@ -374,8 +374,8 @@ jobs:
             echo "- Ref: ${{ inputs.ref }}"
             echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
-            echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}
-          - Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
+            echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
+            echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""

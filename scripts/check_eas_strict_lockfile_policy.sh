@@ -25,6 +25,8 @@ grep -Fq 'Development profile allows fallback to npm install' "$RELEASE_WF" || {
 grep -Fq 'strict_lockfile:' "$RELEASE_WF" || { echo "release workflow missing strict_lockfile input" >&2; exit 1; }
 grep -Fq 'Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}' "$RELEASE_WF" || { echo "release workflow summary missing strict lockfile line" >&2; exit 1; }
 grep -Fq 'Dependency install mode: ${{ steps.install_deps.outputs.mode }}' "$RELEASE_WF" || { echo "release workflow summary missing dependency install mode line" >&2; exit 1; }
+grep -Fq 'echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"' "$RELEASE_WF" || { echo "release workflow summary strict lockfile bullet must be its own echo line" >&2; exit 1; }
+grep -Fq 'echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"' "$RELEASE_WF" || { echo "release workflow summary dependency install mode bullet must be its own echo line" >&2; exit 1; }
 
 grep -Fq 'Determine strict lockfile policy' "$SHARED_TPL" || { echo "shared template missing strict lockfile policy step" >&2; exit 1; }
 grep -Fq 'Strict lockfile policy enabled for profile' "$SHARED_TPL" || { echo "shared template missing strict lockfile error" >&2; exit 1; }
