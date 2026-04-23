@@ -16,6 +16,19 @@ import {
   readStringDeps,
 } from "./buildPipelineDiagnostics.helpers";
 
+const INVALID_EAS_PROJECT_ID_SENTINELS = new Set([
+  "00000000-0000-4000-8000-000000000000",
+  "<your-project-id>",
+  "<your-eas-project-id>",
+  "__unlinked_eas_project_id__",
+]);
+
+function isLinkedEasProjectId(candidate: string | null | undefined): candidate is string {
+  const normalized = safeTrim(candidate);
+  if (!normalized || !isUuid(normalized)) return false;
+  return !INVALID_EAS_PROJECT_ID_SENTINELS.has(normalized.toLowerCase());
+}
+
 export async function addLocalPrerequisiteChecks(
   checks: DiagnosticCheck[],
   deps: BuildPipelineDiagnosticsDeps,
@@ -309,7 +322,7 @@ export async function detectEasProjectId(params: {
     try {
       const data = await params.deps.readJsonFile?.<{ projectId?: string }>(params.owner, params.repo, "eas-project.json", params.ref);
       const candidate = safeTrim(data?.projectId);
-      if (candidate && isUuid(candidate)) {
+      if (isLinkedEasProjectId(candidate)) {
         projectId = candidate;
         projectIdOk = true;
         projectIdSource = "eas-project.json";
@@ -323,7 +336,7 @@ export async function detectEasProjectId(params: {
     try {
       const appJson = await params.deps.readJsonFile?.<{ expo?: { extra?: { eas?: { projectId?: string } } } }>(params.owner, params.repo, "app.json", params.ref);
       const candidate = safeTrim(appJson?.expo?.extra?.eas?.projectId);
-      if (candidate && isUuid(candidate)) {
+      if (isLinkedEasProjectId(candidate)) {
         projectId = candidate;
         projectIdOk = true;
         projectIdSource = "app.json";
@@ -340,7 +353,7 @@ export async function detectEasProjectId(params: {
       const m1 = text.match(/projectId[^0-9a-fA-F]{0,64}([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
       const m2 = !m1 ? text.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/) : null;
       const candidate = safeTrim(m1?.[1] ?? m2?.[1] ?? null);
-      if (candidate && isUuid(candidate)) {
+      if (isLinkedEasProjectId(candidate)) {
         projectId = candidate;
         projectIdOk = true;
         projectIdSource = "app.config";
@@ -363,7 +376,9 @@ export function addProjectIdCheck(
     title: "EAS projectId vorhanden (non-interactive)",
     status: projectId.projectIdOk ? "pass" : "fail",
     details: projectId.projectIdOk ? `projectId: ${projectId.projectId} (source: ${projectId.projectIdSource})` : undefined,
-    fixHint: projectId.projectIdOk ? undefined : "EAS projectId fehlt → In-App: RepoScreen 'EAS Projekt erstellen/verbinden' ausführen oder Workflow 'eas-link.yml' starten.",
+    fixHint: projectId.projectIdOk
+      ? undefined
+      : "EAS projectId fehlt/ungültig → In-App: RepoScreen 'EAS Projekt erstellen/verbinden' ausführen oder Workflow 'eas-link.yml' starten (Dummy-/Sentinel-IDs sind nicht zulässig).",
     fix: projectId.projectIdOk
       ? undefined
       : {

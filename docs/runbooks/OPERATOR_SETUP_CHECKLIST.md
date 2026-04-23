@@ -62,7 +62,7 @@ EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<e
 
 Sichere Variablenquelle:
 - CI/Runner bevorzugt ueber masked Repo-Secrets `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`.
-- Lokaler URL-Fallback (ohne Secret): Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
+- Lokaler URL-Fallback (ohne Secret): eigenes Projekt-Ref einsetzen, z. B. `https://<your-project-ref>.supabase.co/functions/v1`.
 - JWT lokal nur temporaer/kurzlebig nutzen; fuer stabile technische Checks bevorzugt serverseitigen Secret-Weg (Runner Secret), nie Klartext im Repo.
 - Fuer den interaktiven `k1w1-handler`-Live-Contract gilt: frischer `build_admin`-JWT; `service_role` ist hier kein gleichwertiger User-Ersatz.
 

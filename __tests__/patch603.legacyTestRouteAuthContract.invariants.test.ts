@@ -26,3 +26,13 @@ describe("patch603 legacy test route auth contract", () => {
     expect(check).toContain('require_fixed "$LEGACY_TEST_EDGE" \'legacy_test_route_disabled\'');
   });
 });
+
+
+describe("deploy workflow legacy test exclusion contract", () => {
+  it("keeps the legacy test function out of deploy-all and single deploy paths", () => {
+    const workflow = read(".github/workflows/deploy-supabase-functions.yml");
+
+    expect(workflow).toContain('[ "$name" != "_shared" ] && [ "$name" != "test" ]');
+    expect(workflow).toContain('Refusing to deploy legacy disabled function: test');
+  });
+});

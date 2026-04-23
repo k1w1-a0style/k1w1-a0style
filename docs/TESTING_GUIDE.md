@@ -56,7 +56,7 @@ Pflichtvariablen:
 
 Sichere Bezugswege (Reihenfolge):
 1. **CI/Runner (bevorzugt):** als masked Repo-Secrets `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` injizieren.
-2. **Lokaler URL-Fallback:** Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `EDGE_BASE_URL="https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1"`.
+2. **Lokaler URL-Fallback:** eigenes Projekt-Ref einsetzen, z. B. `EDGE_BASE_URL="https://<your-project-ref>.supabase.co/functions/v1"`.
 3. **JWT-Fallback lokal:** kurzlebiger `build_admin`-JWT (temporär) fuer interaktive Operator-Live-Checks; ein technischer Server-Caller-Weg (z. B. `service_role` im Runner) ist ein separater Maschinenpfad und kein gleichwertiger Ersatz fuer den usergebundenen `k1w1-handler`-Live-Contract.
 
 Wichtig:

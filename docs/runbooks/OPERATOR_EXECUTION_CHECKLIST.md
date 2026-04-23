@@ -56,7 +56,7 @@ npm run edge:check:live
 
 Sichere Variablenquelle:
 - Runner/CI: `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` als masked secrets injizieren.
-- Lokaler URL-Fallback: Projekt-Ref `xfgnzpcljsuqqdjlxgul` => `https://xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1`.
+- Lokaler URL-Fallback: eigenes Projekt-Ref einsetzen, z. B. `https://<your-project-ref>.supabase.co/functions/v1`.
 - JWT lokal nur kurzlebig nutzen; fuer dauerhafte technische Checks bevorzugt serverseitigen Secret-Weg als Runner-Secret.
 - Fuer interaktive `k1w1-handler`-Liveverifikation den frischen usergebundenen `build_admin`-JWT verwenden; `service_role` bleibt ein separater technischer Server-Caller-Pfad und ist hier kein gleichwertiger Ersatz.
 

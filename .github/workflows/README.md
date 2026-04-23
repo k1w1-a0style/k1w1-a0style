@@ -357,7 +357,7 @@ Der Workflow `deploy-supabase-functions.yml` bleibt bewusst **gepinned** und nut
 Manuelle Eingaben bei `workflow_dispatch`:
 
 - `ref`: Branch/Ref zum Deployen
-- `deploy_all`: `true` deployt alle Functions außer `_shared`
+- `deploy_all`: `true` deployt alle Functions außer `_shared` und `test` (legacy disabled)
 - `function_name`: deployed genau **eine** Function, wenn `deploy_all=false`
 
 Guardrails:
