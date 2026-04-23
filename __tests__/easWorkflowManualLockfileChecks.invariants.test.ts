@@ -19,6 +19,11 @@ describe("EAS manual-trigger + strict-lockfile drift checks", () => {
     expect(src).toContain('DIAG_TPL="lib/diagnostics/workflowTemplates.ts"');
     expect(src).toContain("release workflow missing strict lockfile policy step");
     expect(src).toContain("release workflow missing non-development strict_lockfile=false guard");
+    expect(src).toContain("workflow missing non-development strict_lockfile=false guard");
+    expect(src).toContain("workflow summary missing dependency install mode line");
+    expect(src).toContain("release workflow summary missing dependency install mode line");
+    expect(src).toContain("release workflow summary strict lockfile bullet must be its own echo line");
+    expect(src).toContain("release workflow summary dependency install mode bullet must be its own echo line");
     expect(src).toContain("shared template missing strict lockfile policy step");
     expect(src).toContain("WORKFLOW_EAS_BUILD_TEMPLATE");
     expect(src).toContain("WORKFLOW_EAS_BUILD = WORKFLOW_EAS_BUILD_TEMPLATE");

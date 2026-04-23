@@ -184,6 +184,7 @@ jobs:
           esac
 
       - name: Install deps (package-manager-aware)
+        id: install_deps
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
@@ -195,13 +196,16 @@ jobs:
           if [ "${{ steps.lock.outputs.has_lockfile }}" = "true" ]; then
             case "$PM" in
               npm)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 npm ci --no-audit --no-fund
                 ;;
               yarn)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 yarn install --immutable
                 ;;
               pnpm)
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 pnpm install --frozen-lockfile
                 ;;
@@ -215,6 +219,7 @@ jobs:
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
+            echo "mode=fallback-npm-install" >> "$GITHUB_OUTPUT"
             npm install --no-audit --no-fund
           fi
 
@@ -370,6 +375,7 @@ jobs:
             echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
             echo "- Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}"
+            echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode }}"
             echo "- Build URL: ${{ steps.eas.outputs.build_url }}"
             echo "- Build ID: ${{ steps.eas.outputs.build_id }}"
             echo ""
