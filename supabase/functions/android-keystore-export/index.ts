@@ -1,6 +1,6 @@
 import {
   createClient,
-  decryptKeystorePayload,
+  decryptKeystorePayloadWithMigration,
   errorResponse,
   getServiceRoleKey,
   getSigningMasterKey,
@@ -122,7 +122,15 @@ Deno.serve(async (req) => {
     }
 
     const encrypted = await file.text();
-    const decrypted = await decryptKeystorePayload(encrypted, masterKey);
+    const decrypted = await decryptKeystorePayloadWithMigration(encrypted, masterKey, async (migratedV3Payload) => {
+      const { error: migrationWriteError } = await supabase.storage.from(bucket).upload(path, migratedV3Payload, {
+        upsert: true,
+        contentType: "text/plain",
+      });
+      if (migrationWriteError) {
+        throw migrationWriteError;
+      }
+    });
     let parsed: {
       alias: string;
       keystoreBase64: string;

@@ -1,6 +1,8 @@
 import {
+  __unsafeEncryptWithAesGcmLegacyV2ForTests,
   __unsafeEncryptWithAesCbcLegacyForTests,
   decryptKeystorePayload,
+  decryptKeystorePayloadWithMigration,
   encryptKeystorePayload,
   isVersionedKeystoreEnvelope,
 } from "../supabase/functions/_shared/androidKeystoreCrypto";
@@ -44,6 +46,43 @@ describe("android keystore crypto contract", () => {
     const decrypted = await decryptKeystorePayload(legacy, masterKey);
     expect(decrypted).toBe(payload);
   });
+
+  it("migrates a successful legacy v2 read into a persisted v3 payload", async () => {
+    const payload = JSON.stringify({ alias: "upload", migrated: true });
+    const legacyV2 = await __unsafeEncryptWithAesGcmLegacyV2ForTests(payload, masterKey);
+    let persistedV3 = "";
+
+    const decrypted = await decryptKeystorePayloadWithMigration(legacyV2, masterKey, async (nextPayload) => {
+      persistedV3 = nextPayload;
+    });
+
+    expect(decrypted).toBe(payload);
+    expect(persistedV3.startsWith("k1w1-ak:v3:")).toBe(true);
+    await expect(decryptKeystorePayload(persistedV3, masterKey)).resolves.toBe(payload);
+  });
+
+  it("uses best-effort honesty: legacy read fails when v3 migration persistence fails", async () => {
+    const payload = JSON.stringify({ alias: "upload", migrated: "must-fail" });
+    const legacyV2 = await __unsafeEncryptWithAesGcmLegacyV2ForTests(payload, masterKey);
+
+    await expect(
+      decryptKeystorePayloadWithMigration(legacyV2, masterKey, async () => {
+        throw new Error("simulated storage write failure");
+      }),
+    ).rejects.toThrow("Legacy keystore payload decrypted but v3 migration persistence failed");
+  });
+
+  it("does not rewrite already-current v3 payloads during migration-aware decrypt", async () => {
+    const payload = JSON.stringify({ alias: "upload", current: true });
+    const currentV3 = await encryptKeystorePayload(payload, masterKey);
+    const persistSpy = jest.fn<Promise<void>, [string]>(async () => {});
+
+    const decrypted = await decryptKeystorePayloadWithMigration(currentV3, masterKey, persistSpy);
+
+    expect(decrypted).toBe(payload);
+    expect(persistSpy).not.toHaveBeenCalled();
+  });
+
   it("does not route non-versioned non-ciphertext payloads into legacy AES-CBC decrypt", async () => {
     await expect(decryptKeystorePayload("not-a-legacy-ciphertext", masterKey)).rejects.toThrow(
       "Encrypted keystore payload contract mismatch",
