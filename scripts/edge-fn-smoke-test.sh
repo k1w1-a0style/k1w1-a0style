@@ -48,9 +48,9 @@ if [ -z "$BASE_URL" ]; then
   exit 1
 fi
 
-if ! [[ "$BASE_URL" =~ ^https://[^[:space:]]+/functions/v1/?$ ]]; then
+if ! [[ "$BASE_URL" =~ ^https://[a-z0-9-]+\.supabase\.co/functions/v1/?$ ]]; then
   echo "EDGE_BASE_URL ist ungueltig: $BASE_URL"
-  echo 'Erwartet z.B.: https://<your-project-ref>.supabase.co/functions/v1'
+  echo 'Erwartet Supabase-Hostschema: https://<project-ref>.supabase.co/functions/v1'
   exit 1
 fi
 

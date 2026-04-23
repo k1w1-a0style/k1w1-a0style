@@ -2,6 +2,23 @@
 const fs = require("fs");
 const path = require("path");
 
+const EAS_PROJECT_ID_SENTINELS = new Set([
+  "00000000-0000-4000-8000-000000000000",
+  "<your-project-id>",
+  "<your-eas-project-id>",
+  "__unlinked_eas_project_id__",
+]);
+
+const EAS_PROJECT_ID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isValidLinkedEasProjectId(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!normalized) return false;
+  if (EAS_PROJECT_ID_SENTINELS.has(normalized.toLowerCase())) return false;
+  return EAS_PROJECT_ID_REGEX.test(normalized);
+}
+
 /**
  * Deterministically derive EAS projectId for Expo config.
  * Priority:
@@ -29,13 +46,13 @@ function pickProjectId(config) {
     process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
     process.env.EXPO_PUBLIC_PROJECT_ID;
 
-  if (typeof fromEnv === "string" && fromEnv.trim()) return fromEnv.trim();
+  if (isValidLinkedEasProjectId(fromEnv)) return fromEnv.trim();
 
   const fromFile = readEasProjectIdFromFile();
-  if (typeof fromFile === "string" && fromFile.trim()) return fromFile.trim();
+  if (isValidLinkedEasProjectId(fromFile)) return fromFile.trim();
 
   const existing = config?.extra?.eas?.projectId;
-  if (typeof existing === "string" && existing.trim()) return existing.trim();
+  if (isValidLinkedEasProjectId(existing)) return existing.trim();
 
   return undefined;
 }
@@ -45,8 +62,8 @@ module.exports = ({ config }) => {
 
   if (!projectId) {
     throw new Error(
-      "expo.extra.eas.projectId missing. Fix: commit eas-project.json (with projectId) " +
-        "or set EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID in the environment."
+      "expo.extra.eas.projectId missing or invalid. Fix: run EAS linking and commit eas-project.json " +
+        "with a real UUID projectId, or set EAS_PROJECT_ID / EXPO_PUBLIC_EAS_PROJECT_ID to a real linked UUID."
     );
   }
 

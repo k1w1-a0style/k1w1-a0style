@@ -9,7 +9,8 @@ describe("patch801 prod refs and deploy hygiene invariants", () => {
 
     expect(smoke).toContain('BASE_URL="${EDGE_BASE_URL:-}"');
     expect(smoke).toContain('EDGE_BASE_URL fehlt.');
-    expect(smoke).not.toContain("xfgnzpcljsuqqdjlxgul.supabase.co/functions/v1");
+    expect(smoke).toContain("^https://[a-z0-9-]+\\.supabase\\.co/functions/v1/?$");
+    expect(smoke).not.toContain("^https://[^[:space:]]+/functions/v1/?$");
   });
 
   it("keeps live env examples and runbooks neutral (no hardcoded live ref)", () => {
@@ -26,7 +27,7 @@ describe("patch801 prod refs and deploy hygiene invariants", () => {
   it("keeps eas-project.json free from real production project IDs", () => {
     const easProject = read("eas-project.json");
 
-    expect(easProject).toContain('"projectId": "00000000-0000-4000-8000-000000000000"');
+    expect(easProject).toContain('"projectId": "__UNLINKED_EAS_PROJECT_ID__"');
     expect(easProject).not.toContain("5e5a7791-8751-416b-9a1f-831adfffcb6c");
   });
 });
