@@ -171,8 +171,15 @@ jobs:
           PROFILE="${{ inputs.profile }}"
           OVERRIDE="${{ inputs.strict_lockfile }}"
           case "$OVERRIDE" in
-            true|false)
-              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            true)
+              echo "strict=true" >> "$GITHUB_OUTPUT"
+              ;;
+            false)
+              if [ "$PROFILE" != "development" ]; then
+                echo "::error::strict_lockfile=false is only allowed for development profile. Preview/production remain fail-closed."
+                exit 1
+              fi
+              echo "strict=false" >> "$GITHUB_OUTPUT"
               ;;
             ""|auto)
               case "$PROFILE" in
@@ -225,6 +232,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies (policy-aware)
+        id: install_deps
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
@@ -237,15 +245,18 @@ jobs:
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 npm ci --no-audit --no-fund
                 ;;
               yarn)
                 echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 pnpm install --frozen-lockfile
                 ;;
@@ -259,6 +270,7 @@ jobs:
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
+            echo "mode=fallback-npm-install" >> "$GITHUB_OUTPUT"
             npm install --no-audit --no-fund
           fi
 
@@ -487,8 +499,15 @@ jobs:
           PROFILE="${{ inputs.profile }}"
           OVERRIDE="${{ inputs.strict_lockfile }}"
           case "$OVERRIDE" in
-            true|false)
-              echo "strict=$OVERRIDE" >> "$GITHUB_OUTPUT"
+            true)
+              echo "strict=true" >> "$GITHUB_OUTPUT"
+              ;;
+            false)
+              if [ "$PROFILE" != "development" ]; then
+                echo "::error::strict_lockfile=false is only allowed for development profile. Preview/production remain fail-closed."
+                exit 1
+              fi
+              echo "strict=false" >> "$GITHUB_OUTPUT"
               ;;
             ""|auto)
               case "$PROFILE" in
@@ -541,6 +560,7 @@ jobs:
           node-version: 20
 
       - name: Install dependencies (policy-aware)
+        id: install_deps
         shell: bash
         env:
           STRICT_LOCKFILE: ${{ steps.strict_lock.outputs.strict }}
@@ -553,15 +573,18 @@ jobs:
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 npm ci --no-audit --no-fund
                 ;;
               yarn)
                 echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 pnpm install --frozen-lockfile
                 ;;
@@ -575,6 +598,7 @@ jobs:
             exit 1
           else
             echo "::warning::No lockfile found in repo. Development profile allows fallback to npm install (non-reproducible)."
+            echo "mode=fallback-npm-install" >> "$GITHUB_OUTPUT"
             npm install --no-audit --no-fund
           fi
 
@@ -815,6 +839,7 @@ jobs:
           - Lockfile present: ${{ steps.lock.outputs.has_lockfile }}
           - Lockfile path: ${{ steps.lock.outputs.lockfile_path }}
           - Strict lockfile policy: ${{ steps.strict_lock.outputs.strict }}
+          - Dependency install mode: ${{ steps.install_deps.outputs.mode }}
           - EAS CLI: $(eas --version 2>/dev/null || echo "unknown")
           - Build ID: ${{ steps.eas.outputs.build_id }}
           - Build URL: ${{ steps.eas.outputs.build_url }}
