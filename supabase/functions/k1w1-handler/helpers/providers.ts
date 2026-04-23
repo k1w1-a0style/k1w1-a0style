@@ -11,16 +11,18 @@ function isGroqModelNotFoundError(status: number, bodyText: string): boolean {
   if (status !== 404) return false;
 
   const normalized = bodyText.toLowerCase();
-  const knownNeedles = [
+  const strongNotFoundNeedles = [
     'model_not_found',
     'model not found',
-    'the model',
-    'does not exist',
     'unknown model',
     'invalid model',
   ];
 
-  return knownNeedles.some((needle) => normalized.includes(needle));
+  if (strongNotFoundNeedles.some((needle) => normalized.includes(needle))) {
+    return true;
+  }
+
+  return normalized.includes("does not exist") && normalized.includes("model");
 }
 
 export async function callGroq(

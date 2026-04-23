@@ -229,6 +229,25 @@ describe('k1w1-handler runtime mapping behavior', () => {
     expect(mockFetchWithTimeout).toHaveBeenCalledTimes(1);
   });
 
+  it('does not retry Groq fallback for 404 text that only contains "the model" without not-found semantics', async () => {
+    mockFetchWithTimeout.mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      text: async () => 'The model quota window is currently exhausted for this account.',
+    });
+
+    await expect(
+      callGroq({
+        provider: 'groq',
+        model: 'qwen3-32b',
+        quality: 'balanced',
+        messages: [{ role: 'user', content: 'Hi' }],
+      }),
+    ).rejects.toThrow(/groq_http_404 \(model=qwen\/qwen3-32b\)/i);
+
+    expect(mockFetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects unsupported visible IDs explicitly instead of silently falling back', async () => {
     await expect(
       callGemini({
