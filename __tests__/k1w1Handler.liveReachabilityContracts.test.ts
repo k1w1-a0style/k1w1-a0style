@@ -15,7 +15,8 @@ describe("k1w1-handler live reachability error contracts", () => {
     const src = read("supabase/functions/k1w1-handler/helpers/providers.ts");
 
     expect(src).toContain('const resolvedSelection = resolveProviderModelForRuntime("groq", selectedModel);');
-    expect(src).toContain('const fallbackModel = model.startsWith("groq/") ? model.slice("groq/".length) : model;');
+    expect(src).toContain('const fallbackModel = model.includes("/") ? model.slice(model.lastIndexOf("/") + 1) : model;');
+    expect(src).toContain("isGroqModelNotFoundError(primary.status, primary.text)");
     expect(src).toContain("model: resolvedSelection.visibleModel");
   });
 });

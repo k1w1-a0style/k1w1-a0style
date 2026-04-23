@@ -35,6 +35,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  const shouldDebugLogRequests = Deno.env.get("K1W1_HANDLER_DEBUG_LOG") === "true";
+
   let requestProvider: string | undefined;
   let requestModel: string | undefined;
 
@@ -61,16 +63,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
     requestProvider = body.provider;
     requestModel = body.model;
 
-    console.warn(
-      "🧠 k1w1-handler request",
-      JSON.stringify({
-        provider: body.provider,
-        quality: body.quality,
-        mode: body.mode,
-        model: body.model,
-        msgCount: body.messages.length,
-      }),
-    );
+    if (shouldDebugLogRequests) {
+      console.warn(
+        "🧠 k1w1-handler request",
+        JSON.stringify({
+          provider: body.provider,
+          quality: body.quality,
+          mode: body.mode,
+          model: body.model,
+          msgCount: body.messages.length,
+        }),
+      );
+    }
 
     let result;
     const providerLower = body.provider.toLowerCase();
