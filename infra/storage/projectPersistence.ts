@@ -157,10 +157,43 @@ export const exportProjectAsZipFile = async (
   messageCount: number;
 }> => {
   logger.info('🎯 Export-Anfrage für:', project.name);
-  const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
   const projectName = project.name.replace(/[\s\/]+/g, '_') || 'projekt';
   const tempDir = CACHE_DIR + 'projekt-export/';
   const zipPath = FileSystem.cacheDirectory + `${projectName}.zip`;
+  const exportRootPath = tempDir.endsWith('/') ? tempDir : `${tempDir}/`;
+
+  const resolveCanonicalExportWritePath = (rawPath: string): { normalizedPath: string; writePath: string } => {
+    if (typeof rawPath !== 'string' || rawPath.trim().length === 0) {
+      throw new Error('ZIP-Exportpfad ist leer oder ungültig');
+    }
+
+    const trimmedRawPath = rawPath.trim();
+    const normalizedPath = normalizePath(trimmedRawPath);
+    const pathSegments = normalizedPath.split('/');
+
+    const hasInvalidSegments =
+      normalizedPath.length === 0 ||
+      pathSegments.some((segment) => segment.length === 0 || segment === '.' || segment === '..');
+    const hasAbsoluteOrRootedPrefix =
+      trimmedRawPath.startsWith('/') ||
+      trimmedRawPath.startsWith('\\') ||
+      trimmedRawPath.startsWith('file://') ||
+      /^[a-zA-Z]:/.test(trimmedRawPath) ||
+      trimmedRawPath.startsWith('\\\\');
+
+    if (hasInvalidSegments || hasAbsoluteOrRootedPrefix || normalizedPath.includes('\0')) {
+      throw new Error(`Unsicherer ZIP-Exportpfad erkannt: ${rawPath}`);
+    }
+
+    return {
+      normalizedPath,
+      writePath: `${exportRootPath}${normalizedPath}`,
+    };
+  };
+  for (const rawFile of project.files ?? []) {
+    resolveCanonicalExportWritePath(String(rawFile?.path ?? ''));
+  }
+  const projectFiles = materializeProjectFiles(project.files, { name: project.name, slug: project.slug ?? project.name, packageName: project.packageName });
 
   try {
     await FileSystem.deleteAsync(tempDir, { idempotent: true });
@@ -170,29 +203,28 @@ export const exportProjectAsZipFile = async (
     for (const file of projectFiles) {
       const contentString =
         typeof file.content === 'string' ? file.content : JSON.stringify(file.content, null, 2);
-      const normalized = normalizePath(file.path);
+      const { normalizedPath, writePath } = resolveCanonicalExportWritePath(file.path);
 
-      if (shouldStronglyRedactPath(normalized)) {
-        logger.warn('[projectStorage] Sensitive Datei vom ZIP-Export ausgeschlossen', { path: normalized });
+      if (shouldStronglyRedactPath(normalizedPath)) {
+        logger.warn('[projectStorage] Sensitive Datei vom ZIP-Export ausgeschlossen', { path: normalizedPath });
         continue;
       }
 
-      const filePath = `${tempDir}${file.path}`;
-      const dirName = filePath.substring(0, filePath.lastIndexOf('/'));
+      const dirName = writePath.substring(0, writePath.lastIndexOf('/'));
 
-      if (dirName && dirName !== tempDir.slice(0, -1)) {
+      if (dirName && dirName !== exportRootPath.slice(0, -1)) {
         await FileSystem.makeDirectoryAsync(dirName, { intermediates: true });
       }
 
-      const isBinary = isBinaryFilePath(normalized);
+      const isBinary = isBinaryFilePath(normalizedPath);
       const hasBase64 = typeof contentString === "string" && contentString.startsWith("base64:");
 
       if (isBinary && hasBase64) {
-        await FileSystem.writeAsStringAsync(filePath, stripBase64Prefix(contentString), {
+        await FileSystem.writeAsStringAsync(writePath, stripBase64Prefix(contentString), {
           encoding: FileSystem.EncodingType.Base64,
         });
       } else {
-        await FileSystem.writeAsStringAsync(filePath, contentString, {
+        await FileSystem.writeAsStringAsync(writePath, contentString, {
           encoding: FileSystem.EncodingType.UTF8,
         });
       }
