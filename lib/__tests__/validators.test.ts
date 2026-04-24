@@ -76,6 +76,7 @@ describe('Validators', () => {
       it('lehnt Windows/UNC/file-URL-Pfade ab', () => {
         expect(validateFilePath('C:\\temp\\x.ts').valid).toBe(false);
         expect(validateFilePath('\\\\server\\share\\x.ts').valid).toBe(false);
+        expect(validateFilePath('//server/share/x.ts').valid).toBe(false);
         expect(validateFilePath('file:///tmp/x.ts').valid).toBe(false);
       });
 
@@ -206,6 +207,24 @@ describe('Validators', () => {
       const result = validateZipImport(files);
       expect(result.valid).toBe(false);
       expect(result.invalidFiles.some((f) => f.path === 'src/App.tsx')).toBe(true);
+      expect(result.errors).toContain('ZIP enthält ungültige Dateien (strict all-or-nothing)');
+    });
+
+    it('lehnt absolute/Windows/UNC/file:-Pfade im ZIP strict all-or-nothing ab', () => {
+      const files = [
+        { path: '/src/App.tsx', content: 'nope-posix' },
+        { path: 'C:/temp/win.ts', content: 'nope-drive' },
+        { path: '//server/share/unc.ts', content: 'nope-unc' },
+        { path: 'file:///tmp/payload.ts', content: 'nope-file-url' },
+        { path: 'components/Button.tsx', content: 'ok' },
+      ];
+
+      const result = validateZipImport(files);
+      expect(result.valid).toBe(false);
+      expect(result.validFiles).toHaveLength(1);
+      expect(result.validFiles[0].path).toBe('components/Button.tsx');
+      expect(result.invalidFiles).toHaveLength(4);
+      expect(result.invalidFiles.every((f) => f.reason.includes('absoluter/Windows/UNC/file:-Pfad'))).toBe(true);
       expect(result.errors).toContain('ZIP enthält ungültige Dateien (strict all-or-nothing)');
     });
 
