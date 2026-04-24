@@ -50,6 +50,22 @@ describe("patch 403 workflow contract invariants", () => {
     }
   });
 
+
+  it("keeps EAS Link lockfile install fail-closed and mode-visible", () => {
+    const src = read(".github/workflows/eas-link.yml");
+    const shared = read("shared/workflows/easLinkWorkflowTemplate.ts");
+
+    for (const body of [src, shared]) {
+      expect(body).toContain("Install deps (package-manager-aware, fail-closed)");
+      expect(body).toContain("mode=lockfile-${PM}");
+      expect(body).toContain("mode=blocked-missing-lockfile");
+      expect(body).toContain("EAS Link workflow is fail-closed");
+      expect(body).toContain("Dependency install mode:");
+      expect(body).not.toContain("No lockfile found. Falling back to npm install.");
+      expect(body).not.toContain("npm install --no-audit --no-fund");
+    }
+  });
+
   it("keeps triggered build flags for repository_dispatch", () => {
     const src = read(".github/workflows/k1w1-triggered-build.yml");
     expect(src).toContain("github.event.client_payload.autofix");

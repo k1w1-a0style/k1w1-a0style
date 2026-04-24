@@ -135,7 +135,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install deps (package-manager-aware)
+      - name: Install deps (package-manager-aware, fail-closed)
+        id: install_deps
         shell: bash
         run: |
           set -euo pipefail
@@ -145,15 +146,18 @@ jobs:
             case "$PM" in
               npm)
                 echo "Using npm ci (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 npm ci --no-audit --no-fund
                 ;;
               yarn)
                 echo "Using yarn install --immutable (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 yarn install --immutable
                 ;;
               pnpm)
                 echo "Using pnpm install --frozen-lockfile (lockfile: ${LOCKFILE})"
+                echo "mode=lockfile-${PM}" >> "$GITHUB_OUTPUT"
                 corepack enable || true
                 pnpm install --frozen-lockfile
                 ;;
@@ -163,11 +167,9 @@ jobs:
                 ;;
             esac
           else
-            echo "::warning::No lockfile found. Falling back to npm install."
-            npm install --no-audit --no-fund
-            if [ ! -f package-lock.json ]; then
-              npm install --package-lock-only --no-audit --no-fund || true
-            fi
+            echo "mode=blocked-missing-lockfile" >> "$GITHUB_OUTPUT"
+            echo "::error::No lockfile found. EAS Link workflow is fail-closed. Commit package-lock.json, npm-shrinkwrap.json, yarn.lock or pnpm-lock.yaml before running this workflow."
+            exit 1
           fi
 
       - name: Install EAS CLI (pinned)
@@ -271,6 +273,7 @@ jobs:
             echo "- Checked out: $(git rev-parse HEAD)"
             echo "- Package manager: ${{ steps.lock.outputs.package_manager }}"
             echo "- Lockfile: ${{ steps.lock.outputs.lockfile_path || 'none' }}"
+            echo "- Dependency install mode: ${{ steps.install_deps.outputs.mode || 'unknown' }}"
             echo "- EAS CLI: $(eas --version 2>/dev/null || echo unknown)"
             echo "- Has EXPO_TOKEN: $([ -n "${EXPO_TOKEN:-}" ] && echo yes || echo no)"
             echo ""
