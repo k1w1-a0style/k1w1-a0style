@@ -107,7 +107,11 @@ jobs:
             echo "::error::ref input is required"
             exit 1
           fi
-          if ! [[ "$REF_INPUT" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+          if printf '%s' "$REF_INPUT" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+            echo "::error::Invalid ref input: control characters are not allowed"
+            exit 1
+          fi
+          if ! git check-ref-format --branch "$REF_INPUT" >/dev/null 2>&1; then
             echo "::error::Invalid ref input"
             exit 1
           fi
@@ -133,15 +137,19 @@ jobs:
               ;;
           esac
 
-          printf 'ref=%s\n' "$REF_INPUT" >> "$GITHUB_OUTPUT"
-          printf 'deploy_all=%s\n' "$DEPLOY_ALL_INPUT" >> "$GITHUB_OUTPUT"
-          printf 'function_name=%s\n' "$FUNCTION_NAME_INPUT" >> "$GITHUB_OUTPUT"
-          printf 'apply_migrations=%s\n' "$APPLY_MIGRATIONS_INPUT" >> "$GITHUB_OUTPUT"
+          {
+            printf 'ref=%s\n' "$REF_INPUT"
+            printf 'deploy_all=%s\n' "$DEPLOY_ALL_INPUT"
+            printf 'function_name=%s\n' "$FUNCTION_NAME_INPUT"
+            printf 'apply_migrations=%s\n' "$APPLY_MIGRATIONS_INPUT"
+          } >> "$GITHUB_OUTPUT"
 
-          printf 'DISPATCH_REF=%s\n' "$REF_INPUT" >> "$GITHUB_ENV"
-          printf 'DEPLOY_ALL_SAFE=%s\n' "$DEPLOY_ALL_INPUT" >> "$GITHUB_ENV"
-          printf 'FUNCTION_NAME_SAFE=%s\n' "$FUNCTION_NAME_INPUT" >> "$GITHUB_ENV"
-          printf 'APPLY_MIGRATIONS_INPUT_SAFE=%s\n' "$APPLY_MIGRATIONS_INPUT" >> "$GITHUB_ENV"
+          {
+            printf 'DISPATCH_REF=%s\n' "$REF_INPUT"
+            printf 'DEPLOY_ALL_SAFE=%s\n' "$DEPLOY_ALL_INPUT"
+            printf 'FUNCTION_NAME_SAFE=%s\n' "$FUNCTION_NAME_INPUT"
+            printf 'APPLY_MIGRATIONS_INPUT_SAFE=%s\n' "$APPLY_MIGRATIONS_INPUT"
+          } >> "$GITHUB_ENV"
 
       - name: Deploy Edge Functions
         shell: bash

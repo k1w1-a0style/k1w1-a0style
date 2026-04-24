@@ -44,7 +44,10 @@ describe("Patch 411 Supabase deploy workflow invariants", () => {
   it("sanitizes workflow_dispatch inputs once and reuses safe values", () => {
     expect(workflowSrc).toContain("Validate / sanitize dispatch inputs");
     expect(workflowSrc).toContain("id: sanitize_inputs");
-    expect(workflowSrc).toContain("printf 'DEPLOY_ALL_SAFE=%s\\n'");
+    expect(workflowSrc).toContain("git check-ref-format --branch \"$REF_INPUT\"");
+    expect(workflowSrc).toContain("} >> \"$GITHUB_OUTPUT\"");
+    expect(workflowSrc).toContain("} >> \"$GITHUB_ENV\"");
+    expect(workflowSrc).toContain("printf 'DEPLOY_ALL_SAFE=%s\\n' \"$DEPLOY_ALL_INPUT\"");
     expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.deploy_all");
     expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.function_name");
     expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.apply_migrations");
