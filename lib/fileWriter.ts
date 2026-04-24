@@ -36,6 +36,11 @@ export type FileMutationOps = {
   renames?: Array<{ from: string; to: string }>;
 };
 
+type RawNormalizedPath = {
+  raw: string;
+  normalized: string;
+};
+
 export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFile[]): ApplyFilesResult {
   const created: string[] = [];
   const updated: string[] = [];
@@ -137,19 +142,37 @@ export function applyFileOpsToProject(
 ): ApplyFilesResult {
   const skipped: string[] = [];
   const errors: string[] = [];
-  const normalizedDeletes = Array.from(
-    new Set(
-      (ops?.deletePaths ?? [])
-        .map((p) => normalizePath(String(p ?? "")))
-        .filter(Boolean),
-    ),
-  );
+  const normalizedDeletes: RawNormalizedPath[] = [];
+  const seenDeleteKeys = new Set<string>();
+  for (const candidate of ops?.deletePaths ?? []) {
+    const raw = String(candidate ?? "");
+    const normalized = normalizePath(raw);
+    if (!normalized) continue;
+    const dedupeKey = `${raw}::${normalized}`;
+    if (seenDeleteKeys.has(dedupeKey)) continue;
+    seenDeleteKeys.add(dedupeKey);
+    normalizedDeletes.push({ raw, normalized });
+  }
+
   const normalizedRenames = (ops?.renames ?? [])
-    .map((entry) => ({
-      from: normalizePath(String(entry?.from ?? "")),
-      to: normalizePath(String(entry?.to ?? "")),
-    }))
-    .filter((entry): entry is { from: string; to: string } => Boolean(entry.from && entry.to && entry.from !== entry.to));
+    .map((entry) => {
+      const rawFrom = String(entry?.from ?? "");
+      const rawTo = String(entry?.to ?? "");
+      const from = normalizePath(rawFrom);
+      const to = normalizePath(rawTo);
+      return {
+        rawFrom,
+        rawTo,
+        from,
+        to,
+      };
+    })
+    .filter(
+      (
+        entry,
+      ): entry is { rawFrom: string; rawTo: string; from: string; to: string } =>
+        Boolean(entry.from && entry.to && entry.from !== entry.to),
+    );
 
   if (normalizedDeletes.length === 0 && normalizedRenames.length === 0) {
     return applyFilesToProject(existing, incoming);
@@ -163,10 +186,11 @@ export function applyFileOpsToProject(
   }
 
   const canApplyPathOp = (
+    rawPath: string,
     path: string,
     opLabel: "delete" | "rename-source" | "rename-target",
   ): boolean => {
-    if (isBlockedRawPath(path)) {
+    if (isBlockedRawPath(rawPath)) {
       skipped.push(path);
       errors.push(`Ungültiger Pfad für ${opLabel}: ${path}`);
       return false;
@@ -197,12 +221,13 @@ export function applyFileOpsToProject(
   };
 
   const deleted: string[] = [];
-  for (const path of normalizedDeletes) {
+  for (const deleteEntry of normalizedDeletes) {
+    const path = deleteEntry.normalized;
     if (!working.has(path)) {
       skipped.push(path);
       continue;
     }
-    if (!canApplyPathOp(path, "delete")) continue;
+    if (!canApplyPathOp(deleteEntry.raw, path, "delete")) continue;
     working.delete(path);
     deleted.push(path);
   }
@@ -213,8 +238,8 @@ export function applyFileOpsToProject(
       skipped.push(rename.from);
       continue;
     }
-    if (!canApplyPathOp(rename.from, "rename-source")) continue;
-    if (!canApplyPathOp(rename.to, "rename-target")) continue;
+    if (!canApplyPathOp(rename.rawFrom, rename.from, "rename-source")) continue;
+    if (!canApplyPathOp(rename.rawTo, rename.to, "rename-target")) continue;
     if (working.has(rename.to)) {
       skipped.push(`${rename.from} -> ${rename.to}`);
       errors.push(`Rename-Konflikt: Zielpfad existiert bereits (${rename.to}); Quelle bleibt erhalten.`);

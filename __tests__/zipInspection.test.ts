@@ -92,6 +92,23 @@ describe("zipInspection pre-unzip archive validation", () => {
     ]);
   });
 
+  it("rejects absolute/Windows/UNC/file path entries before unzip", () => {
+    const result = inspectZipArchiveBytes(
+      buildCentralDirectoryZip([
+        { name: "/src/App.tsx", compressedSize: 10, uncompressedSize: 20 },
+        { name: "C:/temp/evil.ts", compressedSize: 10, uncompressedSize: 20 },
+        { name: "//server/share/evil.ts", compressedSize: 10, uncompressedSize: 20 },
+        { name: "file:///tmp/evil.ts", compressedSize: 10, uncompressedSize: 20 },
+      ]),
+      { maxEntries: 20, maxFileBytes: 1024 * 1024, maxTotalUncompressedBytes: 5 * 1024 * 1024 },
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain("ZIP-Metadatenprüfung fehlgeschlagen");
+    expect(result.issues).toHaveLength(4);
+    expect(result.issues.every((issue) => issue.reason.includes("absoluter/Windows/UNC/file:-Pfad"))).toBe(true);
+  });
+
 
 
   it("rejects duplicate normalized file paths before unzip", () => {
