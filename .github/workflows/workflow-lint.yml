@@ -129,19 +129,25 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install actionlint (pinned, no remote-script pipe)
+      - name: Install actionlint (pinned + checksum-verified)
         env:
           ACTIONLINT_VERSION: "1.7.7"
           ACTIONLINT_SHA256_LINUX_AMD64: "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
         run: |
           set -euo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          curl --fail --show-error --silent --location \
+            --proto '=https' --tlsv1.2 \
+            --retry 3 --retry-all-errors --connect-timeout 10 \
+            --output "$archive" \
+            "$url"
           printf '%s  %s\n' "$ACTIONLINT_SHA256_LINUX_AMD64" "$archive" | sha256sum --check -
           tar -xzf "$archive" actionlint
           install_dir="${RUNNER_TEMP}/actionlint-bin"
           mkdir -p "$install_dir"
           install -m 0755 actionlint "$install_dir/actionlint"
+          rm -f "$archive"
           echo "$install_dir" >> "$GITHUB_PATH"
 
       - name: actionlint (YAML/Actions dry validation)
