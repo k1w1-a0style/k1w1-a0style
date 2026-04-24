@@ -139,7 +139,10 @@ jobs:
           curl -sSfLO "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
           printf '%s  %s\n' "$ACTIONLINT_SHA256_LINUX_AMD64" "$archive" | sha256sum --check -
           tar -xzf "$archive" actionlint
-          install -m 0755 actionlint /usr/local/bin/actionlint
+          install_dir="${RUNNER_TEMP}/actionlint-bin"
+          mkdir -p "$install_dir"
+          install -m 0755 actionlint "$install_dir/actionlint"
+          echo "$install_dir" >> "$GITHUB_PATH"
 
       - name: actionlint (YAML/Actions dry validation)
         run: actionlint -color

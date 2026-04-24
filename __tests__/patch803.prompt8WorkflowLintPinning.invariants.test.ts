@@ -9,7 +9,8 @@ describe("patch803 prompt-8 workflow lint and action pinning invariants", () => 
     expect(lintWorkflow).not.toMatch(/curl[^\n]*\|\s*(?:bash|sh)\b/i);
     expect(lintWorkflow).not.toMatch(/wget[^\n]*\|\s*(?:bash|sh)\b/i);
     expect(lintWorkflow).toContain("sha256sum --check -");
-    expect(lintWorkflow).toContain("install -m 0755 actionlint /usr/local/bin/actionlint");
+    expect(lintWorkflow).toContain('install_dir="${RUNNER_TEMP}/actionlint-bin"');
+    expect(lintWorkflow).toContain('echo "$install_dir" >> "$GITHUB_PATH"');
   });
 
   it("keeps action pinning guard coverage for workflows and local action YAML files", () => {
