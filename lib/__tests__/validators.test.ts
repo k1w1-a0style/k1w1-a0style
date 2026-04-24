@@ -79,9 +79,15 @@ describe('Validators', () => {
         expect(validateFilePath('file:///tmp/x.ts').valid).toBe(false);
       });
 
+      it('lehnt rooted Single-Backslash-Pfade vor der Normalisierung ab', () => {
+        expect(validateFilePath('\\src\\App.tsx').valid).toBe(false);
+        expect(validateFilePath('  \\src\\App.tsx').valid).toBe(false);
+        expect(validateFilePath('\\components\\Button.tsx').valid).toBe(false);
+      });
+
       it('akzeptiert normale relative Projektpfade weiterhin', () => {
-        const result = validateFilePath('src/App.tsx');
-        expect(result.valid).toBe(true);
+        expect(validateFilePath('src/App.tsx').valid).toBe(true);
+        expect(validateFilePath('components/Button.tsx').valid).toBe(true);
       });
     });
   });
@@ -188,6 +194,18 @@ describe('Validators', () => {
       expect(result.validFiles).toHaveLength(2);
       expect(result.invalidFiles).toHaveLength(1);
       expect(result.invalidFiles[0].path).toBe('../../../etc/passwd');
+      expect(result.errors).toContain('ZIP enthält ungültige Dateien (strict all-or-nothing)');
+    });
+
+    it('lehnt rooted Single-Backslash-Pfade auch im ZIP-Import strict ab', () => {
+      const files = [
+        { path: '\\src\\App.tsx', content: 'nope' },
+        { path: 'components/Button.tsx', content: 'ok' },
+      ];
+
+      const result = validateZipImport(files);
+      expect(result.valid).toBe(false);
+      expect(result.invalidFiles.some((f) => f.path === 'src/App.tsx')).toBe(true);
       expect(result.errors).toContain('ZIP enthält ungültige Dateien (strict all-or-nothing)');
     });
 

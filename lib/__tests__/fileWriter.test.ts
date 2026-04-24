@@ -119,6 +119,16 @@ describe('FileWriter', () => {
         expect(result.created).toHaveLength(0);
       });
 
+      it('sollte rooted Single-Backslash-Pfade ablehnen', () => {
+        const existing: ProjectFile[] = [];
+        const incoming: ProjectFile[] = [{ path: '\\src\\App.tsx', content: 'hacked' }];
+
+        const result = applyFilesToProject(existing, incoming);
+
+        expect(result.skipped).toContain('src/App.tsx');
+        expect(result.created).toHaveLength(0);
+      });
+
       it('sollte Pfade mit Sonderzeichen ablehnen', () => {
         const existing: ProjectFile[] = [];
         const incoming: ProjectFile[] = [

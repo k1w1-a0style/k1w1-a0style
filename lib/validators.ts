@@ -34,7 +34,7 @@ const LEADING_DOTSLASH = /^\.\//;
 const RAW_FILE_URL = /^\s*file\s*:/i;
 const RAW_WINDOWS_DRIVE = /^\s*[a-z]:/i;
 const RAW_WINDOWS_UNC = /^\s*(?:\\\\|\/\/)/;
-const RAW_ABSOLUTE = /^\s*[\/]/;
+const RAW_ABSOLUTE = /^\s*[\\/]/;
 
 export const isBlockedRawPath = (raw: string): boolean => {
   const input = String(raw ?? "");
