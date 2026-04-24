@@ -69,6 +69,7 @@ jobs:
         with:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect package manager + lockfile
         id: lock
@@ -202,6 +203,8 @@ jobs:
       - name: Guarded writeback (commit + push)
         id: writeback
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ci-logs
@@ -230,6 +233,7 @@ jobs:
             exit 0
           fi
 
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback." | tee -a ci-logs/autofix.log
             exit 0
@@ -368,6 +372,7 @@ jobs:
       - name: Trigger CI Lite (chain-run)
         if: success()
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
@@ -394,6 +399,7 @@ jobs:
             exit 0
           fi
 
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch; skipping CI Lite chain-run."
             exit 0

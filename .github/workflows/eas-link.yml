@@ -44,7 +44,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -217,6 +217,8 @@ jobs:
 
       - name: Commit changes (if any)
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -242,6 +244,8 @@ jobs:
             echo "::warning::Writeback disabled for ref '$TARGET_REF' (policy regex)."
             exit 0
           fi
+
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$TARGET_REF" >/dev/null 2>&1; then
             echo "::warning::Ref '$TARGET_REF' is not a remote branch. Skipping writeback."
             exit 0

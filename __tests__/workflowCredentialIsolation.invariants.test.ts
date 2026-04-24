@@ -1,0 +1,74 @@
+import fs from "fs";
+import path from "path";
+
+const read = (file: string): string =>
+  fs.readFileSync(path.join(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
+const extractStep = (workflow: string, stepName: string): string => {
+  const marker = `- name: ${stepName}`;
+  const start = workflow.indexOf(marker);
+  if (start === -1) return "";
+  const nextStart = workflow.indexOf("\n      - name: ", start + marker.length);
+  return nextStart === -1 ? workflow.slice(start) : workflow.slice(start, nextStart);
+};
+
+describe("workflow credential isolation", () => {
+  it("sets persist-credentials: false in all scoped workflows", () => {
+    const files = [
+      ".github/workflows/eas-build.yml",
+      ".github/workflows/eas-link.yml",
+      ".github/workflows/k1w1-ci-lite-autofix.yml",
+      ".github/workflows/edge-live-contracts.yml",
+      ".github/workflows/edge-fn-smoke-test.yml",
+    ];
+
+    for (const file of files) {
+      const src = read(file);
+      expect(src).toContain("persist-credentials: false");
+      expect(src).not.toContain("persist-credentials: true");
+    }
+  });
+
+  it("keeps writeback credentials explicit and late for push steps", () => {
+
+    const easBuild = read(".github/workflows/eas-build.yml");
+    expect(easBuild).toContain("- name: Auto-fix repo (lockfile + dev client) [optional writeback]");
+    expect(easBuild).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(easBuild).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(easBuild.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      easBuild.indexOf('git ls-remote --exit-code --heads origin "$BR"'),
+    );
+
+    const easLink = read(".github/workflows/eas-link.yml");
+    expect(easLink).toContain("- name: Commit changes (if any)");
+    expect(easLink).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(easLink).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(easLink.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      easLink.indexOf('git ls-remote --exit-code --heads origin "$TARGET_REF"'),
+    );
+
+    const ciLiteAutofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
+    expect(ciLiteAutofix).toContain("- name: Guarded writeback (commit + push)");
+    expect(ciLiteAutofix).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(ciLiteAutofix).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(ciLiteAutofix.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      ciLiteAutofix.indexOf('git ls-remote --exit-code --heads origin "$BR"'),
+    );
+
+    const ciLiteChainRun = extractStep(ciLiteAutofix, "Trigger CI Lite (chain-run)");
+    expect(ciLiteChainRun).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(ciLiteChainRun).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(
+      ciLiteChainRun.indexOf(
+        'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+      ),
+    ).toBeLessThan(ciLiteChainRun.indexOf('git ls-remote --exit-code --heads origin "$BR"'));
+  });
+});
