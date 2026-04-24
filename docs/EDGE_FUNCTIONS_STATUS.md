@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-18 (Patch 786, StagedScreenRegressionFollowup)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
 ## Aktiv und workflow-relevant
 
