@@ -17,7 +17,7 @@ describe("Patch 800 prompt-4 rate-limit hardening invariants", () => {
   it("removes the redundant late empty-ref check from determine-ref action", () => {
     const action = read(".github/actions/determine-ref/action.yml");
     expect(action).not.toContain('echo "❌ Ref not allowed: $REF"');
-    expect(action).toContain('echo "checkout_ref=$REF" >> "$GITHUB_OUTPUT"');
+    expect(action).toContain("printf 'checkout_ref=%s\\n' \"$REF\" >> \"$GITHUB_OUTPUT\"");
   });
 
   it("keeps dispatch rate-limit subjecting aligned to verified actor fallback", () => {
