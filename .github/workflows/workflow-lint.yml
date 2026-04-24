@@ -55,14 +55,17 @@ jobs:
           RAW_GITHUB_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
+          REF_SOURCE="github_system"
           if [ "$RAW_EVENT_NAME" = "repository_dispatch" ]; then
             REF="$RAW_PAYLOAD_REF"
+            REF_SOURCE="manual"
             if [ -z "$REF" ]; then
               echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch."
               exit 1
             fi
           elif [ "$RAW_EVENT_NAME" = "workflow_dispatch" ]; then
             REF="$RAW_INPUT_REF"
+            REF_SOURCE="manual"
             if [ -z "$REF" ]; then
               echo "::error::Missing required ref. Pass inputs.ref for workflow_dispatch."
               exit 1
@@ -79,25 +82,32 @@ jobs:
             echo "::error::Invalid ref (control/space characters are not allowed)."
             exit 1
           fi
-          if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
-            echo "::error::Invalid ref (forbidden prefix)."
-            exit 1
-          fi
-          if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
-            echo "::error::Invalid ref (forbidden git sequence)."
-            exit 1
-          fi
-          if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
-            echo "::error::Invalid ref (forbidden slash placement)."
-            exit 1
-          fi
-          if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
-            echo "::error::Invalid ref (forbidden metacharacters)."
-            exit 1
-          fi
-          if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
-            echo "::error::Invalid ref (safe policy mismatch)."
-            exit 1
+          if [ "$REF_SOURCE" = "manual" ]; then
+            if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
+              echo "::error::Invalid ref (forbidden prefix)."
+              exit 1
+            fi
+            if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
+              echo "::error::Invalid ref (forbidden git sequence)."
+              exit 1
+            fi
+            if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
+              echo "::error::Invalid ref (forbidden slash placement)."
+              exit 1
+            fi
+            if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
+              echo "::error::Invalid ref (forbidden metacharacters)."
+              exit 1
+            fi
+            if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+              echo "::error::Invalid ref (safe policy mismatch)."
+              exit 1
+            fi
+          else
+            if [[ ! "$REF" =~ ^refs/(heads/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}|tags/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}|pull/[1-9][0-9]*/merge)$ ]]; then
+              echo "::error::Invalid GitHub system ref (allowed: refs/heads/*, refs/tags/*, refs/pull/*/merge)."
+              exit 1
+            fi
           fi
           printf 'ref=%s\n' "$REF" >> "$GITHUB_OUTPUT"
 

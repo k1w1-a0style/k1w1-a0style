@@ -75,8 +75,17 @@ describe("patch802 prompt-4 workflow expression/shell hardening invariants", () 
     for (const file of [".github/workflows/ci-build.yml", ".github/workflows/workflow-lint.yml"]) {
       const src = read(file);
       expect(src).toContain("tr -d '\\r\\n'");
-      expect(src).toContain("Invalid ref (safe policy mismatch).");
       expect(src).toContain("printf 'ref=%s\\n' \"$REF\" >> \"$GITHUB_OUTPUT\"");
     }
+
+    const lint = read(".github/workflows/workflow-lint.yml");
+    expect(lint).toContain("REF_SOURCE=\"github_system\"");
+    expect(lint).toContain("REF_SOURCE=\"manual\"");
+    expect(lint).toContain("Invalid GitHub system ref");
+    expect(lint).toContain("^refs/(heads/");
+
+    const ciBuild = read(".github/workflows/ci-build.yml");
+    expect(ciBuild).toContain("Invalid ref (safe policy mismatch).");
+    expect(ciBuild).not.toContain("RAW_GITHUB_REF");
   });
 });

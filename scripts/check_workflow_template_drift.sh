@@ -117,6 +117,10 @@ grep -q "printf 'ref=%s\\\\n' \"\\\$REF\" >> \"\\\$GITHUB_OUTPUT\"" .github/work
 grep -q 'Invalid ref (safe policy mismatch).' .github/workflows/ci-build.yml || fail "CI-build resolve step missing fail-closed ref validation"
 grep -q "printf 'ref=%s\\\\n' \"\\\$REF\" >> \"\\\$GITHUB_OUTPUT\"" .github/workflows/workflow-lint.yml || fail "Workflow-lint must write only validated ref to GITHUB_OUTPUT"
 grep -q 'Invalid ref (safe policy mismatch).' .github/workflows/workflow-lint.yml || fail "Workflow-lint resolve step missing fail-closed ref validation"
+grep -q 'REF_SOURCE="github_system"' .github/workflows/workflow-lint.yml || fail "Workflow-lint must distinguish GitHub system refs from manual refs"
+grep -q 'REF_SOURCE="manual"' .github/workflows/workflow-lint.yml || fail "Workflow-lint must preserve strict manual ref validation path"
+grep -q 'Invalid GitHub system ref' .github/workflows/workflow-lint.yml || fail "Workflow-lint missing fail-closed GitHub system ref contract"
+grep -q 'refs/(heads/' .github/workflows/workflow-lint.yml || fail "Workflow-lint missing explicit allowlist for GitHub system refs"
 
 grep -q 'package_manager' .github/workflows/k1w1-ci-lite.yml || fail "Live CI Lite missing package_manager metadata"
 grep -q 'package_manager' .github/workflows/k1w1-ci-lite-autofix.yml || fail "Live CI Lite Autofix missing package_manager metadata"
