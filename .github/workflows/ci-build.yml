@@ -38,6 +38,35 @@ jobs:
             echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
             exit 1
           fi
+          REF="$(printf '%s' "$REF" | tr -d '\r\n')"
+          if [ "${#REF}" -gt 200 ]; then
+            echo "::error::Invalid ref (too long)."
+            exit 1
+          fi
+          if [[ "$REF" =~ [[:cntrl:]] ]] || [[ "$REF" =~ [[:space:]] ]]; then
+            echo "::error::Invalid ref (control/space characters are not allowed)."
+            exit 1
+          fi
+          if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
+            echo "::error::Invalid ref (forbidden prefix)."
+            exit 1
+          fi
+          if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
+            echo "::error::Invalid ref (forbidden git sequence)."
+            exit 1
+          fi
+          if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
+            echo "::error::Invalid ref (forbidden slash placement)."
+            exit 1
+          fi
+          if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
+            echo "::error::Invalid ref (forbidden metacharacters)."
+            exit 1
+          fi
+          if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+            echo "::error::Invalid ref (safe policy mismatch)."
+            exit 1
+          fi
           printf 'ref=%s\n' "$REF" >> "$GITHUB_OUTPUT"
 
   ci:
