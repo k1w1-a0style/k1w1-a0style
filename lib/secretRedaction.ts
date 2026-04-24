@@ -9,6 +9,26 @@
 
 const REDACTED = '<redacted>';
 const REDACTED_JWT = '<redacted-jwt>';
+const MAX_REDACTION_DEPTH = 6;
+
+const SENSITIVE_KEY_PARTS = [
+  'token',
+  'secret',
+  'apikey',
+  'api_key',
+  'authorization',
+  'password',
+  'passwd',
+  'session',
+  'cookie',
+  'clientsecret',
+  'client_secret',
+  'servicerole',
+  'service_role',
+  'privatekey',
+  'private_key',
+  'bearer',
+];
 
 function replaceAllSafe(
   input: string,
@@ -55,6 +75,7 @@ export function redactSecrets(input: string): string {
 
   // Common API key formats (OpenAI/others): sk_*...
   out = replaceAllSafe(out, /\b(sk_(?:test_|live_)?[A-Za-z0-9]{10,})\b/g, REDACTED);
+  out = replaceAllSafe(out, /\b(sk-(?:proj|live|test)-[A-Za-z0-9_-]{10,})\b/g, REDACTED);
 
   // Provider-specific API key formats.
   out = replaceAllSafe(out, /\b(gsk_[A-Za-z0-9_-]{10,})\b/g, REDACTED);
@@ -136,6 +157,57 @@ export function redactSecrets(input: string): string {
   );
 
   return out;
+}
+
+function isSensitiveObjectKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!normalized) return false;
+  return SENSITIVE_KEY_PARTS.some((part) => normalized.includes(part.replace(/[^a-z0-9]/g, '')));
+}
+
+function redactUnknownInternal(value: unknown, seen: WeakSet<object>, depth: number): unknown {
+  if (typeof value === "string") return redactSecrets(value);
+  if (value === null || value === undefined) return value;
+  if (typeof value !== "object") return value;
+  if (depth >= MAX_REDACTION_DEPTH) return value;
+
+  if (value instanceof Date || value instanceof RegExp) return value;
+
+  if (value instanceof Error) {
+    const redactedError = new Error(redactSecrets(value.message));
+    redactedError.name = value.name;
+    if (typeof value.stack === "string") {
+      redactedError.stack = redactSecrets(value.stack);
+    }
+    const redactedRecord = redactedError as Error & Record<string, unknown>;
+    const original = value as unknown as Record<string, unknown>;
+    for (const [key, nestedValue] of Object.entries(original)) {
+      redactedRecord[key] = isSensitiveObjectKey(key)
+        ? REDACTED
+        : redactUnknownInternal(nestedValue, seen, depth + 1);
+    }
+    return redactedError;
+  }
+
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactUnknownInternal(entry, seen, depth + 1));
+  }
+
+  const original = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, nestedValue] of Object.entries(original)) {
+    out[key] = isSensitiveObjectKey(key)
+      ? REDACTED
+      : redactUnknownInternal(nestedValue, seen, depth + 1);
+  }
+  return out;
+}
+
+export function redactUnknownForLogging(value: unknown): unknown {
+  return redactUnknownInternal(value, new WeakSet<object>(), 0);
 }
 
 /**

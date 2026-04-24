@@ -3,13 +3,15 @@
  * - In dev: forwards to console.
  * - In prod: debug/info/log are silenced (see polyfills.ts guard).
  */
+import { redactUnknownForLogging } from "./secretRedaction";
 
 type LogFn = (...args: unknown[]) => void;
 
 const safe = (fn: LogFn): LogFn => {
   return (...args: unknown[]) => {
     try {
-      fn(...args);
+      const sanitizedArgs = args.map((arg) => redactUnknownForLogging(arg));
+      fn(...sanitizedArgs);
     } catch {
       // ignore
     }
