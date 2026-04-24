@@ -50,19 +50,37 @@ jobs:
           allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
+        env:
+          RAW_TARGET_REF: ${{ steps.target_ref.outputs.checkout_ref }}
+          RAW_TRIGGER_MODE: ${{ github.event_name }}
+          RAW_JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}
+          RAW_SOURCE_WORKFLOW: ${{ github.event.client_payload.source_workflow || '' }}
+          RAW_SOURCE_RUN_ID: ${{ github.event.client_payload.source_run_id || '' }}
+          RAW_SOURCE_SHA: ${{ github.event.client_payload.source_sha || '' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          RAW_JOB_ID="${{ github.event.client_payload.job_id || inputs.job_id || '' }}"
-          RAW_SOURCE_WORKFLOW="${{ github.event.client_payload.source_workflow || '' }}"
-          RAW_SOURCE_RUN_ID="${{ github.event.client_payload.source_run_id || '' }}"
-          RAW_SOURCE_SHA="${{ github.event.client_payload.source_sha || '' }}"
-
           JOB_ID=""
+          TARGET_REF=""
+          TRIGGER_MODE=""
           SOURCE_WORKFLOW=""
           SOURCE_RUN_ID=""
           SOURCE_SHA=""
+
+          if [[ "$RAW_TARGET_REF" =~ ^[A-Za-z0-9._/-]{1,120}$ ]] && [[ "$RAW_TARGET_REF" != -* ]]; then
+            TARGET_REF="$RAW_TARGET_REF"
+          else
+            echo "::error::Invalid TARGET_REF from determine-ref output"
+            exit 1
+          fi
+
+          if [[ "$RAW_TRIGGER_MODE" == "repository_dispatch" || "$RAW_TRIGGER_MODE" == "workflow_dispatch" ]]; then
+            TRIGGER_MODE="$RAW_TRIGGER_MODE"
+          else
+            echo "::error::Invalid trigger mode"
+            exit 1
+          fi
 
           if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
             JOB_ID="${RAW_JOB_ID,,}"
@@ -81,9 +99,9 @@ jobs:
           fi
 
           {
-            printf 'TARGET_REF=%s\n' "${{ steps.target_ref.outputs.checkout_ref }}"
+            printf 'TARGET_REF=%s\n' "$TARGET_REF"
             printf 'JOB_ID=%s\n' "$JOB_ID"
-            printf 'TRIGGER_MODE=%s\n' "${{ github.event_name }}"
+            printf 'TRIGGER_MODE=%s\n' "$TRIGGER_MODE"
             printf 'SOURCE_WORKFLOW=%s\n' "$SOURCE_WORKFLOW"
             printf 'SOURCE_RUN_ID=%s\n' "$SOURCE_RUN_ID"
             printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"

@@ -288,12 +288,14 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(edgeTemplates).toContain("missing_workflow");
     expect(edgeTemplates).not.toContain("managedWorkflowTemplates");
     expect(autofix).toContain("- name: Determine target branch");
-    expect(autofix).toContain("printf 'TARGET_BRANCH=%s\\n' \"${{ steps.target_ref.outputs.checkout_ref }}\"");
+    expect(autofix).toContain("RAW_TARGET_BRANCH: ${{ steps.target_ref.outputs.checkout_ref }}");
+    expect(autofix).toContain("printf 'TARGET_BRANCH=%s\\n' \"$TARGET_BRANCH\"");
     expect(autofix).not.toContain("inputs.ref || github.ref_name");
 
     for (const src of [sharedAutofix]) {
       expect(src).toContain("- name: Determine target branch");
-      expect(src).toContain("printf 'TARGET_BRANCH=%s\\n' \"\\${{ steps.target_ref.outputs.checkout_ref }}\"");
+      expect(src).toContain("RAW_TARGET_BRANCH: \\${{ steps.target_ref.outputs.checkout_ref }}");
+      expect(src).toContain("printf 'TARGET_BRANCH=%s\\n' \"$TARGET_BRANCH\"");
       expect(src).not.toContain("inputs.ref || github.ref_name");
     }
   });
