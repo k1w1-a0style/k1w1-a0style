@@ -55,4 +55,37 @@ describe("patch802 prompt-4 workflow expression/shell hardening invariants", () 
     expect(action).toContain("Ref violates safe character policy");
     expect(action).toContain("printf 'checkout_ref=%s\\n' \"$REF\" >> \"$GITHUB_OUTPUT\"");
   });
+
+  it("keeps resolve steps fail-closed before writing env-derived values to GITHUB_OUTPUT", () => {
+    const triggered = read(".github/workflows/k1w1-triggered-build.yml");
+    expect(triggered).toContain("PROFILE_RAW");
+    expect(triggered).toContain("JOB_ID_RAW");
+    expect(triggered).toContain("AUTOFIX_RAW");
+    expect(triggered).toContain("STRICT_LOCKFILE_RAW");
+    expect(triggered).toContain("Invalid profile");
+    expect(triggered).toContain("Invalid job_id");
+    expect(triggered).toContain("Invalid autofix");
+    expect(triggered).toContain("Invalid strict_lockfile");
+    expect(triggered).toContain("printf 'profile=%s\\n' \"$PROFILE\"");
+    expect(triggered).not.toContain("PROFILE=\"$RAW_PROFILE\"");
+    expect(triggered).not.toContain("JOB_ID=\"$RAW_JOB_ID\"");
+    expect(triggered).not.toContain("AUTOFIX=\"$RAW_AUTOFIX\"");
+    expect(triggered).not.toContain("STRICT_LOCKFILE=\"$RAW_STRICT_LOCKFILE\"");
+
+    for (const file of [".github/workflows/ci-build.yml", ".github/workflows/workflow-lint.yml"]) {
+      const src = read(file);
+      expect(src).toContain("tr -d '\\r\\n'");
+      expect(src).toContain("printf 'ref=%s\\n' \"$REF\" >> \"$GITHUB_OUTPUT\"");
+    }
+
+    const lint = read(".github/workflows/workflow-lint.yml");
+    expect(lint).toContain("REF_SOURCE=\"github_system\"");
+    expect(lint).toContain("REF_SOURCE=\"manual\"");
+    expect(lint).toContain("Invalid GitHub system ref");
+    expect(lint).toContain("^refs/(heads/");
+
+    const ciBuild = read(".github/workflows/ci-build.yml");
+    expect(ciBuild).toContain("Invalid ref (safe policy mismatch).");
+    expect(ciBuild).not.toContain("RAW_GITHUB_REF");
+  });
 });

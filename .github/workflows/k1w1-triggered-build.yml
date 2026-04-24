@@ -62,16 +62,78 @@ jobs:
         run: |
           set -euo pipefail
 
-          REF="$RAW_REF"
-          PROFILE="$RAW_PROFILE"
-          JOB_ID="$RAW_JOB_ID"
-          AUTOFIX="$RAW_AUTOFIX"
-          STRICT_LOCKFILE="$RAW_STRICT_LOCKFILE"
+          REF="$(printf '%s' "$RAW_REF" | tr -d '\r\n')"
+          PROFILE_RAW="$(printf '%s' "$RAW_PROFILE" | tr -d '\r\n')"
+          JOB_ID_RAW="$(printf '%s' "$RAW_JOB_ID" | tr -d '\r\n')"
+          AUTOFIX_RAW="$(printf '%s' "$RAW_AUTOFIX" | tr -d '\r\n')"
+          STRICT_LOCKFILE_RAW="$(printf '%s' "$RAW_STRICT_LOCKFILE" | tr -d '\r\n')"
 
           if [ -z "$REF" ]; then
             echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
             exit 1
           fi
+          if [ "${#REF}" -gt 200 ]; then
+            echo "::error::Invalid ref (too long)."
+            exit 1
+          fi
+          if [[ "$REF" =~ [[:cntrl:]] ]] || [[ "$REF" =~ [[:space:]] ]]; then
+            echo "::error::Invalid ref (control/space characters are not allowed)."
+            exit 1
+          fi
+          if [[ "$REF" == refs/* ]] || [[ "$REF" == -* ]]; then
+            echo "::error::Invalid ref (forbidden prefix)."
+            exit 1
+          fi
+          if [[ "$REF" == *..* ]] || [[ "$REF" == *@\{* ]] || [[ "$REF" == *.lock ]]; then
+            echo "::error::Invalid ref (forbidden git sequence)."
+            exit 1
+          fi
+          if [[ "$REF" == */ ]] || [[ "$REF" == *//* ]]; then
+            echo "::error::Invalid ref (forbidden slash placement)."
+            exit 1
+          fi
+          if [[ "$REF" =~ [:\\~\^\?\*\[] ]]; then
+            echo "::error::Invalid ref (forbidden metacharacters)."
+            exit 1
+          fi
+          if [[ ! "$REF" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]]; then
+            echo "::error::Invalid ref (safe policy mismatch)."
+            exit 1
+          fi
+
+          PROFILE="$(printf '%s' "$PROFILE_RAW" | tr '[:upper:]' '[:lower:]')"
+          case "$PROFILE" in
+            development|preview|production) ;;
+            *)
+              echo "::error::Invalid profile '$PROFILE_RAW' (allowed: development|preview|production)."
+              exit 1
+              ;;
+          esac
+
+          JOB_ID="$JOB_ID_RAW"
+          if [ -n "$JOB_ID" ] && [[ ! "$JOB_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$ ]]; then
+            echo "::error::Invalid job_id '$JOB_ID_RAW' (allowed: empty or [A-Za-z0-9][A-Za-z0-9._:-]{0,127})."
+            exit 1
+          fi
+
+          AUTOFIX_LOWER="$(printf '%s' "$AUTOFIX_RAW" | tr '[:upper:]' '[:lower:]')"
+          case "$AUTOFIX_LOWER" in
+            true|1|yes|y|on) AUTOFIX="true" ;;
+            false|0|no|n|off|"") AUTOFIX="false" ;;
+            *)
+              echo "::error::Invalid autofix '$AUTOFIX_RAW' (allowed bool values only)."
+              exit 1
+              ;;
+          esac
+
+          STRICT_LOCKFILE="$(printf '%s' "$STRICT_LOCKFILE_RAW" | tr '[:upper:]' '[:lower:]')"
+          case "$STRICT_LOCKFILE" in
+            auto|true|false) ;;
+            *)
+              echo "::error::Invalid strict_lockfile '$STRICT_LOCKFILE_RAW' (allowed: auto|true|false)."
+              exit 1
+              ;;
+          esac
 
           {
             printf 'ref=%s\n' "$REF"

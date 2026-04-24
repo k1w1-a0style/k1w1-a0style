@@ -156,4 +156,153 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toContain("untrusted_client_ip");
   });
+
+  it("accepts an allowlisted alias and dispatches the mapped workflow file", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+    const dispatchHits: string[] = [];
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "verified-user-id", role: "authenticated" }), { status: 200 });
+      }
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) {
+        return new Response(JSON.stringify([{ allowed: true, current_count: 1 }]), { status: 200 });
+      }
+      if (url.includes("/actions/workflows?")) {
+        return new Response(JSON.stringify({ workflows: [{ id: 77, path: ".github/workflows/k1w1-ci-lite.yml" }] }), { status: 200 });
+      }
+      if (url.includes("/actions/workflows/77/dispatches")) {
+        dispatchHits.push(url);
+        return new Response(null, { status: 204 });
+      }
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const handler = loadDispatchHandler();
+    const response = await withEnv(
+      {
+        ENVIRONMENT: "development",
+        K1W1_EDGE_WORKFLOW_ADMIN_KEY: "admin-secret",
+        K1W1_SUPABASE_URL: "https://example.supabase.co",
+        K1W1_SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        GITHUB_TOKEN: "gh-token",
+        K1W1_ALLOWED_GITHUB_REPOS: "owner/repo",
+        K1W1_ALLOWED_REF_REGEX: "^(main)$",
+        K1W1_TRUSTED_PROXY_HOPS: "1",
+      },
+      () => handler(new Request("http://localhost/github-workflow-dispatch", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-k1w1-admin-key": "admin-secret",
+          authorization: `Bearer ${authToken}`,
+          "x-forwarded-for": "198.51.100.20, 10.0.0.1",
+        },
+        body: JSON.stringify({
+          githubRepo: "owner/repo",
+          workflow: "ci",
+          ref: "main",
+        }),
+      })),
+    );
+
+    expect(response.status).toBe(200);
+    expect(dispatchHits).toHaveLength(1);
+  });
+
+  it("rejects unknown workflow identifiers that are not allowlisted aliases/files", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "verified-user-id", role: "authenticated" }), { status: 200 });
+      }
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) {
+        return new Response(JSON.stringify([{ allowed: true, current_count: 1 }]), { status: 200 });
+      }
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const handler = loadDispatchHandler();
+    const response = await withEnv(
+      {
+        ENVIRONMENT: "development",
+        K1W1_EDGE_WORKFLOW_ADMIN_KEY: "admin-secret",
+        K1W1_SUPABASE_URL: "https://example.supabase.co",
+        K1W1_SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        GITHUB_TOKEN: "gh-token",
+        K1W1_ALLOWED_GITHUB_REPOS: "owner/repo",
+        K1W1_ALLOWED_REF_REGEX: "^(main)$",
+        K1W1_TRUSTED_PROXY_HOPS: "1",
+      },
+      () => handler(new Request("http://localhost/github-workflow-dispatch", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-k1w1-admin-key": "admin-secret",
+          authorization: `Bearer ${authToken}`,
+          "x-forwarded-for": "198.51.100.20, 10.0.0.1",
+        },
+        body: JSON.stringify({
+          githubRepo: "owner/repo",
+          workflow: "totally-unknown-workflow.yml",
+          ref: "main",
+        }),
+      })),
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.text()).resolves.toContain("missing_workflow");
+  });
+
+  it("rejects numeric workflow identifiers to close ID-based allowlist bypass", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) {
+        return new Response(JSON.stringify({ id: "verified-user-id", role: "authenticated" }), { status: 200 });
+      }
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) {
+        return new Response(JSON.stringify([{ allowed: true, current_count: 1 }]), { status: 200 });
+      }
+      if (url.includes("/actions/workflows/123456789/dispatches")) {
+        throw new Error("numeric workflow dispatch URL should never be called");
+      }
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const handler = loadDispatchHandler();
+    const response = await withEnv(
+      {
+        ENVIRONMENT: "development",
+        K1W1_EDGE_WORKFLOW_ADMIN_KEY: "admin-secret",
+        K1W1_SUPABASE_URL: "https://example.supabase.co",
+        K1W1_SUPABASE_SERVICE_ROLE_KEY: "service-role",
+        GITHUB_TOKEN: "gh-token",
+        K1W1_ALLOWED_GITHUB_REPOS: "owner/repo",
+        K1W1_ALLOWED_REF_REGEX: "^(main)$",
+        K1W1_TRUSTED_PROXY_HOPS: "1",
+      },
+      () => handler(new Request("http://localhost/github-workflow-dispatch", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-k1w1-admin-key": "admin-secret",
+          authorization: `Bearer ${authToken}`,
+          "x-forwarded-for": "198.51.100.20, 10.0.0.1",
+        },
+        body: JSON.stringify({
+          githubRepo: "owner/repo",
+          workflow: "123456789",
+          ref: "main",
+        }),
+      })),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toContain("disallowed_workflow_identifier");
+  });
 });

@@ -78,7 +78,7 @@ const ALLOWED_WORKFLOW_FILES = new Set<string>([
  * Expected input:
  * {
  *   githubRepo: "owner/repo",
- *   workflow: "file.yml" (or workflow_id),
+ *   workflow: allowlisted file.yml or alias,
  *   ref: "branch",
  *   inputs?: object
  * }
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
 
     const body = { ref, inputs: inputs ?? {} };
 
-    // `workflow` can be id, filename, or a short alias.
+    // `workflow` can be an allowlisted filename or a short alias.
     const raw = (workflow ?? "").trim();
     const normalized = ALLOWED_WORKFLOW_ALIASES[raw] ?? raw;
 
@@ -161,17 +161,16 @@ Deno.serve(async (req) => {
       });
     };
 
-    // 1) If numeric -> dispatch directly.
+    // 1) Numeric workflow IDs are not accepted; dispatch stays file/alias allowlist-only.
     if (/^[0-9]+$/.test(normalized)) {
-      const r = await dispatchByIdOrName(normalized);
-      if (r.ok) return jsonResponse({ ok: true, workflow: normalized }, req, 200);
-      const txt = await r.text();
-      const details = sanitizeGitHubFailure(r, txt);
       return errorResponse(
-        "GitHub workflow dispatch failed",
+        "GitHub workflow dispatch failed (disallowed_workflow_identifier)",
         req,
-        Math.max(400, Math.min(599, r.status || 502)),
-        details,
+        400,
+        {
+          code: "disallowed_workflow_identifier",
+          hint: "Numeric workflow IDs are not accepted; use an allowlisted workflow alias/file.",
+        },
       );
     }
 

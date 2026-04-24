@@ -144,6 +144,8 @@ require_fixed "$DISPATCH_EDGE" 'isAllowedGitRef,'
 require_fixed "$DISPATCH_EDGE" 'if (!isAllowedGitRef(ref)) {'
 forbid_fixed "$DISPATCH_EDGE" 'Deno.env.get("K1W1_ALLOWED_REF_REGEX")'
 require_fixed "$DISPATCH_EDGE" 'code: "missing_workflow"'
+require_fixed "$DISPATCH_EDGE" 'code: "disallowed_workflow_identifier"'
+require_fixed "$DISPATCH_EDGE" 'Numeric workflow IDs are not accepted'
 require_fixed "$DISPATCH_EDGE" "Dispatch is mutation-free"
 forbid_fixed "$DISPATCH_EDGE" "ensureWorkflowFileExists("
 forbid_fixed "$DISPATCH_EDGE" "bootstrapped:"
