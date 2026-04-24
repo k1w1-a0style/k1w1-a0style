@@ -129,6 +129,22 @@ describe('FileWriter', () => {
         expect(result.created).toHaveLength(0);
       });
 
+      it('blockt raw rooted / und \\ Pfade auch dann, wenn sie zu erlaubten Projektpfaden normalisieren würden', () => {
+        const existing: ProjectFile[] = [];
+        const incoming: ProjectFile[] = [
+          { path: '/src/App.tsx', content: 'raw-posix-rooted' },
+          { path: '\\src\\App.tsx', content: 'raw-backslash-rooted' },
+        ];
+
+        const result = applyFilesToProject(existing, incoming);
+
+        expect(result.created).toHaveLength(0);
+        expect(result.updated).toHaveLength(0);
+        expect(findProjectFile(result.files, 'src/App.tsx')).toBeUndefined();
+        expect(result.skipped).toEqual(expect.arrayContaining(['src/App.tsx']));
+        expect((result.errors ?? []).join(' ')).toMatch(/Ungültiger Pfad/);
+      });
+
       it('sollte Windows-Drive/UNC/file:-Pfade ablehnen', () => {
         const existing: ProjectFile[] = [];
         const incoming: ProjectFile[] = [
@@ -357,6 +373,40 @@ describe('FileWriter', () => {
 
       expect(findProjectFile(result.files, 'src/safe.ts')).toBeDefined();
       expect(result.deleted).toEqual([]);
+      expect(result.renamed).toEqual([]);
+      expect((result.errors ?? []).join(' ')).toMatch(/Ungültiger Pfad/);
+    });
+
+    it('blocks delete raw rooted paths that would otherwise normalize to existing src/App.tsx', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/App.tsx', content: 'keep-me' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        deletePaths: ['/src/App.tsx', '\\src\\App.tsx'],
+      });
+
+      expect(findProjectFile(result.files, 'src/App.tsx')?.content).toBe('keep-me');
+      expect(result.deleted).toEqual([]);
+      expect((result.errors ?? []).join(' ')).toMatch(/Ungültiger Pfad/);
+    });
+
+    it('blocks rename when raw rooted target would normalize to allowed components/Button.tsx', () => {
+      const existing: ProjectFile[] = [
+        { path: 'src/source-a.ts', content: 'source-a' },
+        { path: 'src/source-b.ts', content: 'source-b' },
+      ];
+
+      const result = applyFileOpsToProject(existing, [], {
+        renames: [
+          { from: 'src/source-a.ts', to: '/components/Button.tsx' },
+          { from: 'src/source-b.ts', to: '\\components\\Button.tsx' },
+        ],
+      });
+
+      expect(findProjectFile(result.files, 'src/source-a.ts')?.content).toBe('source-a');
+      expect(findProjectFile(result.files, 'src/source-b.ts')?.content).toBe('source-b');
+      expect(findProjectFile(result.files, 'components/Button.tsx')).toBeUndefined();
       expect(result.renamed).toEqual([]);
       expect((result.errors ?? []).join(' ')).toMatch(/Ungültiger Pfad/);
     });
