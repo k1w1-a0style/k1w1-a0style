@@ -4,6 +4,15 @@ import { buildCsp, html, isValidPreviewSecretFormat } from "../supabase/function
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
+const wildcardLiterals = [
+  "originWhitelist={['*']}",
+  'originWhitelist={["*"]}',
+  "return ['*']",
+  'return ["*"]',
+  "const originWhitelist = ['*']",
+  'const originWhitelist = ["*"]',
+];
+
 describe("preview/webview defense-in-depth invariants", () => {
   it("save_preview emits fragment links with hashed preview secret only", () => {
     const src = read("supabase/functions/save_preview/index.ts");
@@ -36,7 +45,10 @@ describe("preview/webview defense-in-depth invariants", () => {
     const csp = buildCsp(nonce);
 
     expect(csp).toContain(`script-src 'self' 'nonce-${nonce}'`);
-    const scriptDirective = csp.split(';').map((part) => part.trim()).find((part) => part.startsWith('script-src'));
+    const scriptDirective = csp
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("script-src"));
     expect(scriptDirective).toBeDefined();
     expect(scriptDirective).not.toContain("'unsafe-inline'");
 
@@ -44,16 +56,32 @@ describe("preview/webview defense-in-depth invariants", () => {
     expect(res.headers.get("Content-Security-Policy")).toContain(`'nonce-${nonce}'`);
   });
 
-  it("webview navigation and mixed-content contracts remain restrictive", () => {
+  it("webview navigation/originWhitelist contracts reject wildcard literals in hooks and rendered WebViews", () => {
     const navSrc = read("utils/previewNavigation.ts");
     const webViewHookSrc = read("screens/shared/preview/useWebViewNavigation.ts");
     const previewScreenSrc = read("screens/PreviewScreen/components/DeviceFrame.tsx");
     const fullscreenSrc = read("screens/PreviewFullscreenScreen/PreviewFullscreenScreen.tsx");
+    const previewScreenHookSrc = read("screens/PreviewScreen/hooks/usePreviewScreen.ts");
+    const fullscreenHookSrc = read("screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts");
 
     expect(navSrc).toContain('return { action: "external_confirm", url: requestUrl };');
     expect(navSrc).toContain('return { action: "block", reason: "unsupported_scheme" };');
-    expect(webViewHookSrc).not.toContain("originWhitelist={['*']}");
-    expect(webViewHookSrc).not.toContain('return ["*"]');
+
+    for (const forbidden of wildcardLiterals) {
+      expect(webViewHookSrc).not.toContain(forbidden);
+      expect(previewScreenSrc).not.toContain(forbidden);
+      expect(fullscreenSrc).not.toContain(forbidden);
+      expect(previewScreenHookSrc).not.toContain(forbidden);
+      expect(fullscreenHookSrc).not.toContain(forbidden);
+    }
+
+    expect(previewScreenSrc).toContain("originWhitelist={originWhitelist}");
+    expect(fullscreenSrc).toContain("originWhitelist={originWhitelist}");
+    expect(previewScreenHookSrc).toContain("const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation");
+    expect(fullscreenHookSrc).toContain("const { baseOrigin, originWhitelist, handleShouldStartLoad } = useWebViewNavigation");
+    expect(webViewHookSrc).toContain("if (mode === 'html') return ['data:*', 'about:*', 'blob:*'];");
+    expect(webViewHookSrc).toContain("if (mode === 'url' && baseOrigin)");
+
     expect(previewScreenSrc).toContain("mixedContentMode={getPreviewMixedContentMode()}");
     expect(fullscreenSrc).toContain("mixedContentMode={getPreviewMixedContentMode()}");
   });
