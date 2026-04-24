@@ -1,6 +1,6 @@
 # Edge Functions Status
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-18 (Patch 786, StagedScreenRegressionFollowup)**
 
 ## Aktiv und workflow-relevant
 
