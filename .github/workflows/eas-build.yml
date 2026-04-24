@@ -104,6 +104,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: "🧹 Preflight: clean incomplete native dirs"
         shell: bash
@@ -423,6 +424,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Prepare build diagnostics dir
         shell: bash
