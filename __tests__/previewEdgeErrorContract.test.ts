@@ -109,7 +109,7 @@ describe("preview edge error contract", () => {
     );
 
     expect(savePreviewSource).toContain("/functions/v1/preview_page?transport=fragment");
-    expect(savePreviewSource).toContain("#secret=${encodeURIComponent(secret)}");
+    expect(savePreviewSource).toContain("#secret=${encodeURIComponent(storedSecret)}");
     expect(savePreviewSource).toContain("hashPreviewSecret(secret)");
     expect(previewRequestSource).toContain('const headerSecret = req.headers.get("x-k1w1-preview-secret") ?? ""');
     expect(previewStoreSource).toContain("findFirstByPreviewSecretCandidates<PreviewRecord[]>");
@@ -120,6 +120,7 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
     expect(previewPageSource).toContain('if (req.method !== "GET" && req.method !== "HEAD")');
     expect(previewPageSource).toContain("isValidPreviewSecretFormat(secret)");
+    expect(previewPageSource).toContain("const safeToggleSecret = headerSecret ? await hashPreviewSecret(secret) : undefined;");
     expect(previewPageSource).toContain("Missing preview secret header.");
     expect(previewPageSource).toContain('code: "preview_payload_invalid"');
     expect(previewPageSource).not.toContain("preview_invalid_payload");

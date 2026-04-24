@@ -1,7 +1,7 @@
 // lib/fileWriter.ts
 // REFACTORED: helpers → fileWriterHelpers.ts
 
-import { validateFileContent, validateFilePath, normalizePath } from './validators';
+import { isBlockedRawPath, validateFileContent, validateFilePath, normalizePath } from './validators';
 
 import type { ProjectFile } from '../shared/types/project';
 
@@ -58,7 +58,7 @@ export function applyFilesToProject(existing: ProjectFile[], incoming: ProjectFi
     const p = normalizePath(rawPath);
 
     // Validate path
-    const pathRes = validateFilePath(p);
+    const pathRes = validateFilePath(rawPath);
     if (!pathRes.valid || !pathRes.normalized) {
       skipped.push(p || rawPath || '(leer)');
       errors.push(`Ungültiger Pfad: ${rawPath}`);
@@ -166,6 +166,12 @@ export function applyFileOpsToProject(
     path: string,
     opLabel: "delete" | "rename-source" | "rename-target",
   ): boolean => {
+    if (isBlockedRawPath(path)) {
+      skipped.push(path);
+      errors.push(`Ungültiger Pfad für ${opLabel}: ${path}`);
+      return false;
+    }
+
     const validation = validateFilePath(path);
     if (!validation.valid || !validation.normalized) {
       skipped.push(path);

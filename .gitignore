@@ -21,6 +21,9 @@ credentials.json
 *.pem
 *.key
 .credentials
+.signing_secrets.local
+.signing_secrets.local.*
+*.signing_secrets.local
 
 # Local patch/export artifacts
 *.zip

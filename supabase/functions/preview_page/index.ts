@@ -7,6 +7,7 @@ import {
   classifyPreviewPageUnexpectedError,
   getRequestClientIp,
   getRequestRateLimitSubject,
+  hashPreviewSecret,
   html,
   htmlPreviewError,
   isValidPreviewSecretFormat,
@@ -116,17 +117,19 @@ Deno.serve(async (req) => {
         ? (record.meta as PreviewMeta).template
         : undefined;
 
+    const safeToggleSecret = headerSecret ? await hashPreviewSecret(secret) : undefined;
+
     const logsToggleUrl = withToggleUrl({
       baseUrl: url,
       showRawLogs: !showRawLogs,
       showRuntimeErrors,
-      secretHash: headerSecret ? secret : undefined,
+      secretHash: safeToggleSecret,
     });
     const runtimeErrorsToggleUrl = withToggleUrl({
       baseUrl: url,
       showRawLogs,
       showRuntimeErrors: !showRuntimeErrors,
-      secretHash: headerSecret ? secret : undefined,
+      secretHash: safeToggleSecret,
     });
 
     const page = renderPage({

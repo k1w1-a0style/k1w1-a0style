@@ -157,6 +157,7 @@ export async function hashPreviewSecret(secret: string): Promise<string> {
 export async function buildPreviewSecretCandidates(secret: string): Promise<string[]> {
   const raw = secret.trim();
   if (!raw) return [];
+  if (raw.startsWith(PREVIEW_SECRET_HASH_PREFIX)) return [raw];
   const hashed = await hashPreviewSecret(raw);
   return [hashed];
 }

@@ -12,6 +12,11 @@ describe("preview secret candidate runtime contract", () => {
     expect(candidates[0]).toMatch(/^psh_v1_/);
   });
 
+
+  it("accepts already-hashed preview tokens as direct candidates", async () => {
+    const candidates = await buildPreviewSecretCandidates("psh_v1_already_hashed_token");
+    expect(candidates).toEqual(["psh_v1_already_hashed_token"]);
+  });
   it("findFirstByPreviewSecretCandidates resolves via hash-first lookup for new rows", async () => {
     const calls: string[] = [];
     const result = await findFirstByPreviewSecretCandidates("new-secret", async (candidate) => {

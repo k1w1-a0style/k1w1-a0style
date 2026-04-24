@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
 
     const previewUrl =
       `${previewSupabaseUrl}/functions/v1/preview_page?transport=fragment` +
-      `#secret=${encodeURIComponent(secret)}`;
+      `#secret=${encodeURIComponent(storedSecret)}`;
 
     return json(
       {

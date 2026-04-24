@@ -66,6 +66,23 @@ describe('Validators', () => {
         const result = validateFilePath('./components/Button.tsx');
         expect(result.valid).toBe(false);
       });
+
+      it('lehnt absolute POSIX-Pfade vor der Normalisierung ab', () => {
+        const result = validateFilePath('/src/App.tsx');
+        expect(result.valid).toBe(false);
+        expect(result.errors.some(e => e.includes('absoluter/Windows/UNC/file:-Pfad'))).toBe(true);
+      });
+
+      it('lehnt Windows/UNC/file-URL-Pfade ab', () => {
+        expect(validateFilePath('C:\\temp\\x.ts').valid).toBe(false);
+        expect(validateFilePath('\\\\server\\share\\x.ts').valid).toBe(false);
+        expect(validateFilePath('file:///tmp/x.ts').valid).toBe(false);
+      });
+
+      it('akzeptiert normale relative Projektpfade weiterhin', () => {
+        const result = validateFilePath('src/App.tsx');
+        expect(result.valid).toBe(true);
+      });
     });
   });
 
