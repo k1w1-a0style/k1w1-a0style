@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+  <!-- Fail-closed: exclude all app data from Android Auto Backup. -->
+  <exclude domain="root" path="." />
+  <!-- Explicitly document SecureStore exclusion for contract clarity. -->
+  <exclude domain="sharedpref" path="SecureStore" />
+</full-backup-content>
