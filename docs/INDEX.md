@@ -1,6 +1,6 @@
 # Dokumentations-Index
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
 Dieser Index ist der **kanonische Einstieg** in die aktive Doku. Historische Detailnotizen bleiben im Patchlog-Archiv und werden hier nicht doppelt erklaert.
 

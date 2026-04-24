@@ -1,7 +1,9 @@
 # PROJECT_CHECKLOG
 
-Stand: **2026-04-24 (Patch 785, AuditTriageXmldomRestClosure)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
+
+- 2026-04-24: Patch 786: Gradle-Wrapper-SHA/Android-Task-Verifikation (Prompt 4A) abgeschlossen — `distributionSha256Sum` fuer `gradle-8.14.3-bin.zip` wurde gegen die offizielle Gradle-Checksum-Quelle (`.sha256`) sowie gegen einen frischen lokalen ZIP-Hash verifiziert (alle drei Werte identisch: `bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531`). Android-Wrapper-Minimalcheck: `cd android && ./gradlew --version` laeuft gruen (Java 21), `cd android && ./gradlew help -q` laeuft nicht an JitPack/Dependencies fest, sondern reproduzierbar an Runner-Toolchain-Umgebung (`languageVersion=17` nicht lokal aufloesbar; foojay Auto-Provisionierung durch Proxy 403 blockiert). Keine Android-Buildlogik-Aenderung noetig.
 
 - 2026-04-18: Patch 784: Staged-Flow-Regression-Nachzug abgeschlossen — gesamter Jest-Lauf (`npm run test:silent`) gruen (449/449 Suites), `edge:check` (Edge-Lint + Edge-Typecheck) gruen, `docs:lint` + `docs:check:contracts` gruen und `verify:release` mit erwartbarem `OK_WITH_SKIPS` (Live-Edge-Checks lokal ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` bewusst geskippt). Doku-Drift ueber Kern-MDs aktiv gegengeprueft; keine inhaltlichen Widersprueche festgestellt.
 - 2026-04-16: Patch 783: Finaler Integrations-/Drift-Pass über Bloecke 1–8 ohne neue Scope-Erweiterung abgeschlossen — initialer Voll-Gate (`test:silent`, `typecheck`, `lint:ci`, `docs:lint`, `docs:check:contracts`) war bereits voll gruen; anschliessender Quercheck der Kernvertraege (Security/Redaction, Diagnostics/Readiness/Fingerprint, Build/History/Polling, Preview/Privacy/Persistenz, Editor/Fix-Runner-Atomik, Connections/Wizard/Signing-Freshness, Foundation/Repo-Truthfulness, Export-Hygiene) zeigte keine reproduzierbare Integrationsdrift. Ergebnis: kein Produktcode-Fix noetig, nur Dokumentations-/Checklog-Nachzug fuer den verifizierten Endzustand.

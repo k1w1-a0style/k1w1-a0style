@@ -1,6 +1,6 @@
 # Testing Guide
 
-Stand: **2026-04-23 (Patch 784 + Prompt-6 Contract-Cleanup)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## NPM-Umgebungs-Hinweis (Proxy-Keys)

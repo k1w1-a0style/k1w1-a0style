@@ -1,6 +1,6 @@
 # REVIEW_DEEP_SCAN
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
 ## Status-SoT / Governance

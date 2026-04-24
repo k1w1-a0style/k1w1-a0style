@@ -2,9 +2,9 @@
 
 ## Aktueller Repo-Stand
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
-Zuletzt abgeschlossen: **Patch 784**
+Zuletzt abgeschlossen: **Patch 786**
 
 Der aktuelle Stand bestaetigt:
 - finaler Integrations-/Drift-Pass ueber die bereits umgesetzten Bloecke 1–8 wurde ohne Scope-Creep abgeschlossen; es wurden keine neuen Produktcode-Aenderungen benoetigt
