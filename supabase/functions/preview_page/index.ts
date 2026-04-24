@@ -10,6 +10,7 @@ import {
   hashPreviewSecret,
   html,
   htmlPreviewError,
+  isHashedPreviewSecret,
   isValidPreviewSecretFormat,
   previewPageErrorResponse,
   randomNonce,
@@ -117,7 +118,11 @@ Deno.serve(async (req) => {
         ? (record.meta as PreviewMeta).template
         : undefined;
 
-    const safeToggleSecret = headerSecret ? await hashPreviewSecret(secret) : undefined;
+    const safeToggleSecret = !headerSecret
+      ? undefined
+      : isHashedPreviewSecret(secret)
+        ? secret.trim()
+        : await hashPreviewSecret(secret);
 
     const logsToggleUrl = withToggleUrl({
       baseUrl: url,

@@ -142,6 +142,10 @@ export function randomNonce(len = 16): string {
 
 const PREVIEW_SECRET_HASH_PREFIX = "psh_v1_";
 
+export function isHashedPreviewSecret(secret: string): boolean {
+  return secret.trim().startsWith(PREVIEW_SECRET_HASH_PREFIX);
+}
+
 function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -157,7 +161,7 @@ export async function hashPreviewSecret(secret: string): Promise<string> {
 export async function buildPreviewSecretCandidates(secret: string): Promise<string[]> {
   const raw = secret.trim();
   if (!raw) return [];
-  if (raw.startsWith(PREVIEW_SECRET_HASH_PREFIX)) return [raw];
+  if (isHashedPreviewSecret(raw)) return [raw];
   const hashed = await hashPreviewSecret(raw);
   return [hashed];
 }
