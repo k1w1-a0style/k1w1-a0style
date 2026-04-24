@@ -108,6 +108,34 @@ describe("Terminal secret redaction", () => {
     expect(out.safeLabel).toBe("diagnostic-ok");
   });
 
+  test("fails closed when nested object depth exceeds redaction limit", () => {
+    const payload = {
+      lvl0: {
+        lvl1: {
+          lvl2: {
+            lvl3: {
+              lvl4: {
+                lvl5: {
+                  authorization: "Bearer deeply-nested-secret-token",
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const out = redactUnknownForLogging(payload) as Record<string, unknown>;
+    const lvl0 = out.lvl0 as Record<string, unknown>;
+    const lvl1 = lvl0.lvl1 as Record<string, unknown>;
+    const lvl2 = lvl1.lvl2 as Record<string, unknown>;
+    const lvl3 = lvl2.lvl3 as Record<string, unknown>;
+    const lvl4 = lvl3.lvl4 as Record<string, unknown>;
+
+    expect(lvl4.lvl5).toBe("<redacted-depth-limit>");
+    expect(JSON.stringify(out)).not.toContain("deeply-nested-secret-token");
+  });
+
   test("keeps harmless status text readable", () => {
     const input = "status: model retry disabled for now";
     expect(redactSecrets(input)).toBe(input);

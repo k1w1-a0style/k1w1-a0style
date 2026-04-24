@@ -9,6 +9,7 @@
 
 const REDACTED = '<redacted>';
 const REDACTED_JWT = '<redacted-jwt>';
+const REDACTED_DEPTH_LIMIT = '<redacted-depth-limit>';
 const MAX_REDACTION_DEPTH = 6;
 
 const SENSITIVE_KEY_PARTS = [
@@ -169,7 +170,7 @@ function redactUnknownInternal(value: unknown, seen: WeakSet<object>, depth: num
   if (typeof value === "string") return redactSecrets(value);
   if (value === null || value === undefined) return value;
   if (typeof value !== "object") return value;
-  if (depth >= MAX_REDACTION_DEPTH) return value;
+  if (depth >= MAX_REDACTION_DEPTH) return REDACTED_DEPTH_LIMIT;
 
   if (value instanceof Date || value instanceof RegExp) return value;
 
