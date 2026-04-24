@@ -68,8 +68,18 @@ jobs:
             echo "::error::Missing ref. This workflow must target the selected app branch explicitly."
             exit 1
           fi
-          if ! printf '%s' "${TARGET_REF}" | grep -qE '^[A-Za-z0-9._/-]+$'; then
-            echo "::error::Invalid ref. Allowed chars: [A-Za-z0-9._/-]."
+          if printf '%s' "${TARGET_REF}" | grep -qE '[[:cntrl:][:space:]]'; then
+            echo "::error::Invalid ref. Control chars/whitespace are not allowed."
+            exit 1
+          fi
+          if printf '%s' "${TARGET_REF}" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+            : # allow explicit SHA input
+          elif git check-ref-format --branch "${TARGET_REF}" >/dev/null 2>&1; then
+            : # valid branch-style ref name
+          elif git check-ref-format "refs/tags/${TARGET_REF}" >/dev/null 2>&1; then
+            : # valid tag-style ref name
+          else
+            echo "::error::Invalid ref. Must be a valid branch/tag name or SHA."
             exit 1
           fi
 
@@ -85,9 +95,11 @@ jobs:
             exit 1
           fi
 
-          printf 'target_ref=%s\n' "${TARGET_REF}" >> "$GITHUB_OUTPUT"
-          printf 'eas_project_id=%s\n' "${EAS_PROJECT_ID_SANITIZED}" >> "$GITHUB_OUTPUT"
-          printf 'expo_owner=%s\n' "${EXPO_OWNER_SANITIZED}" >> "$GITHUB_OUTPUT"
+          {
+            printf 'target_ref=%s\n' "${TARGET_REF}"
+            printf 'eas_project_id=%s\n' "${EAS_PROJECT_ID_SANITIZED}"
+            printf 'expo_owner=%s\n' "${EXPO_OWNER_SANITIZED}"
+          } >> "$GITHUB_OUTPUT"
 
           echo "✅ EXPO_TOKEN present (len=${#EXPO_TOKEN})"
           echo "Ref: ${TARGET_REF}"

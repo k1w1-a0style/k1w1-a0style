@@ -68,8 +68,14 @@ describe("patch 403 workflow contract invariants", () => {
       expect(body).toContain("LOCKFILE_PATH");
       expect(body).toContain("TARGET_REF: ${{ steps.validate_inputs.outputs.target_ref }}");
       expect(body).toContain("INSTALL_MODE: ${{ steps.install_deps.outputs.mode }}");
+      expect(body).toContain("git check-ref-format --branch");
+      expect(body).toContain('git check-ref-format "refs/tags/${TARGET_REF}"');
+      expect(body).toContain("Invalid ref. Must be a valid branch/tag name or SHA.");
+      expect(body).toContain("target_ref=%s");
+      expect(body).toContain("} >> \"$GITHUB_OUTPUT\"");
       expect(body).toContain("Invalid eas_project_id input. Expected UUID format.");
       expect(body).toContain("Invalid expo_owner input. Allowed chars: [A-Za-z0-9._-].");
+      expect(body).not.toContain("Allowed chars: [A-Za-z0-9._/-].");
       expect(body).not.toContain('if [ -z "${{ inputs.ref }}" ]; then');
       expect(body).not.toContain('TARGET_REF="${{ inputs.ref }}"');
       expect(body).not.toContain('echo "- Ref: ${{ inputs.ref }}"');
