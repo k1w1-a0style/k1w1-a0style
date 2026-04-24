@@ -301,6 +301,7 @@ jobs:
           HAS_LOCKFILE: ${{ steps.lock.outputs.has_lockfile }}
           LOCKFILE_PATH: ${{ steps.lock.outputs.lockfile_path }}
           ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -348,6 +349,7 @@ jobs:
             exit 0
           fi
 
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback."
             exit 0

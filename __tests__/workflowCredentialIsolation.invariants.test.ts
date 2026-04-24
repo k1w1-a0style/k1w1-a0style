@@ -22,11 +22,25 @@ describe("workflow credential isolation", () => {
   });
 
   it("keeps writeback credentials explicit and late for push steps", () => {
+
+    const easBuild = read(".github/workflows/eas-build.yml");
+    expect(easBuild).toContain("- name: Auto-fix repo (lockfile + dev client) [optional writeback]");
+    expect(easBuild).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(easBuild).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(easBuild.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      easBuild.indexOf('git ls-remote --exit-code --heads origin "$BR"'),
+    );
+
     const easLink = read(".github/workflows/eas-link.yml");
     expect(easLink).toContain("- name: Commit changes (if any)");
     expect(easLink).toContain("GITHUB_TOKEN: ${{ github.token }}");
     expect(easLink).toContain(
       'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(easLink.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      easLink.indexOf('git ls-remote --exit-code --heads origin "$TARGET_REF"'),
     );
 
     const ciLiteAutofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
@@ -34,6 +48,9 @@ describe("workflow credential isolation", () => {
     expect(ciLiteAutofix).toContain("GITHUB_TOKEN: ${{ github.token }}");
     expect(ciLiteAutofix).toContain(
       'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(ciLiteAutofix.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
+      ciLiteAutofix.indexOf('git ls-remote --exit-code --heads origin "$BR"'),
     );
   });
 });
