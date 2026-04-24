@@ -1,6 +1,6 @@
 # PROJECT_CHECKLOG
 
-Stand: **2026-04-18 (Patch 784, StagedScreenRegressionFollowup)**
+Stand: **2026-04-24 (Patch 785, AuditTriageXmldomRestClosure)**
 
 
 - 2026-04-18: Patch 784: Staged-Flow-Regression-Nachzug abgeschlossen — gesamter Jest-Lauf (`npm run test:silent`) gruen (449/449 Suites), `edge:check` (Edge-Lint + Edge-Typecheck) gruen, `docs:lint` + `docs:check:contracts` gruen und `verify:release` mit erwartbarem `OK_WITH_SKIPS` (Live-Edge-Checks lokal ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` bewusst geskippt). Doku-Drift ueber Kern-MDs aktiv gegengeprueft; keine inhaltlichen Widersprueche festgestellt.
