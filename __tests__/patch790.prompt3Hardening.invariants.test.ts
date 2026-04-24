@@ -23,7 +23,17 @@ describe("patch790 prompt-3 hardening invariants", () => {
       expect(src).toContain("allowed_refs_csv: work,codex,dev,develop");
       expect(src).toContain("printf 'JOB_ID=%s\\n'");
       expect(src).not.toContain("echo \"JOB_ID=${{ ");
+      expect(src).not.toContain('RAW_JOB_ID="${{');
     }
+
+    expect(ciLite).toContain("RAW_JOB_ID: ${{ github.event.client_payload.job_id || inputs.job_id || '' }}");
+    expect(ciLite).toContain("RAW_TARGET_REF: ${{ steps.target_ref.outputs.checkout_ref }}");
+    expect(ciLite).toContain("RAW_TRIGGER_MODE: ${{ github.event_name }}");
+    expect(ciLite).toContain("Invalid TARGET_REF from determine-ref output");
+    expect(ciLite).toContain("Invalid trigger mode");
+    expect(autofix).toContain("RAW_JOB_ID: ${{ inputs.job_id || '' }}");
+    expect(autofix).toContain("RAW_TARGET_BRANCH: ${{ steps.target_ref.outputs.checkout_ref }}");
+    expect(autofix).toContain("Invalid TARGET_BRANCH from determine-ref output");
   });
 
   it("keeps workflow dispatch path fail-closed to an allowlisted workflow set", () => {

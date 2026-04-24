@@ -44,17 +44,29 @@ jobs:
           allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
+        env:
+          RAW_TARGET_BRANCH: ${{ steps.target_ref.outputs.checkout_ref }}
+          RAW_JOB_ID: ${{ inputs.job_id || '' }}
         shell: bash
         run: |
           set -euo pipefail
-          RAW_JOB_ID="${{ inputs.job_id || '' }}"
+
+          TARGET_BRANCH=""
           JOB_ID=""
+
+          if [[ "$RAW_TARGET_BRANCH" =~ ^[A-Za-z0-9._/-]{1,120}$ ]] && [[ "$RAW_TARGET_BRANCH" != -* ]]; then
+            TARGET_BRANCH="$RAW_TARGET_BRANCH"
+          else
+            echo "::error::Invalid TARGET_BRANCH from determine-ref output"
+            exit 1
+          fi
+
           if [[ "$RAW_JOB_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
             JOB_ID="${RAW_JOB_ID,,}"
           fi
 
           {
-            printf 'TARGET_BRANCH=%s\n' "${{ steps.target_ref.outputs.checkout_ref }}"
+            printf 'TARGET_BRANCH=%s\n' "$TARGET_BRANCH"
             printf 'JOB_ID=%s\n' "$JOB_ID"
           } >> "$GITHUB_ENV"
 
