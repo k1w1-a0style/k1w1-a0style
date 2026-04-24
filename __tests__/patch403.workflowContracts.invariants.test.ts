@@ -61,6 +61,18 @@ describe("patch 403 workflow contract invariants", () => {
       expect(body).toContain("mode=blocked-missing-lockfile");
       expect(body).toContain("EAS Link workflow is fail-closed");
       expect(body).toContain("Dependency install mode:");
+      expect(body).toContain("id: validate_inputs");
+      expect(body).toContain("TARGET_REF_INPUT");
+      expect(body).toContain("LOCK_HAS_LOCKFILE");
+      expect(body).toContain("LOCK_PACKAGE_MANAGER");
+      expect(body).toContain("LOCKFILE_PATH");
+      expect(body).toContain("TARGET_REF: ${{ steps.validate_inputs.outputs.target_ref }}");
+      expect(body).toContain("INSTALL_MODE: ${{ steps.install_deps.outputs.mode }}");
+      expect(body).toContain("Invalid eas_project_id input. Expected UUID format.");
+      expect(body).toContain("Invalid expo_owner input. Allowed chars: [A-Za-z0-9._-].");
+      expect(body).not.toContain('if [ -z "${{ inputs.ref }}" ]; then');
+      expect(body).not.toContain('TARGET_REF="${{ inputs.ref }}"');
+      expect(body).not.toContain('echo "- Ref: ${{ inputs.ref }}"');
       expect(body).not.toContain("No lockfile found. Falling back to npm install.");
       expect(body).not.toContain("npm install --no-audit --no-fund");
     }
