@@ -3,6 +3,13 @@ import path from "path";
 
 const read = (file: string): string =>
   fs.readFileSync(path.join(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
+const extractStep = (workflow: string, stepName: string): string => {
+  const marker = `- name: ${stepName}`;
+  const start = workflow.indexOf(marker);
+  if (start === -1) return "";
+  const nextStart = workflow.indexOf("\n      - name: ", start + marker.length);
+  return nextStart === -1 ? workflow.slice(start) : workflow.slice(start, nextStart);
+};
 
 describe("workflow credential isolation", () => {
   it("sets persist-credentials: false in all scoped workflows", () => {
@@ -52,5 +59,16 @@ describe("workflow credential isolation", () => {
     expect(ciLiteAutofix.indexOf('git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"')).toBeLessThan(
       ciLiteAutofix.indexOf('git ls-remote --exit-code --heads origin "$BR"'),
     );
+
+    const ciLiteChainRun = extractStep(ciLiteAutofix, "Trigger CI Lite (chain-run)");
+    expect(ciLiteChainRun).toContain("GITHUB_TOKEN: ${{ github.token }}");
+    expect(ciLiteChainRun).toContain(
+      'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+    );
+    expect(
+      ciLiteChainRun.indexOf(
+        'git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"',
+      ),
+    ).toBeLessThan(ciLiteChainRun.indexOf('git ls-remote --exit-code --heads origin "$BR"'));
   });
 });

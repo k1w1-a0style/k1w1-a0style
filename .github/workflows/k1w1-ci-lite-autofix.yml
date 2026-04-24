@@ -372,6 +372,7 @@ jobs:
       - name: Trigger CI Lite (chain-run)
         if: success()
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
@@ -398,6 +399,7 @@ jobs:
             exit 0
           fi
 
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch; skipping CI Lite chain-run."
             exit 0
