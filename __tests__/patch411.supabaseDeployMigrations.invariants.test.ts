@@ -37,8 +37,21 @@ describe("Patch 411 Supabase deploy workflow invariants", () => {
 
   it("validates function_name with a safe regex", () => {
     expect(workflowSrc).toContain(
-      "^[A-Za-z0-9_-]+$",
+      "^[A-Za-z0-9_][A-Za-z0-9_-]*$",
     );
+  });
+
+  it("sanitizes workflow_dispatch inputs once and reuses safe values", () => {
+    expect(workflowSrc).toContain("Validate / sanitize dispatch inputs");
+    expect(workflowSrc).toContain("id: sanitize_inputs");
+    expect(workflowSrc).toContain("printf 'DEPLOY_ALL_SAFE=%s\\n'");
+    expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.deploy_all");
+    expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.function_name");
+    expect(workflowSrc).toContain("steps.sanitize_inputs.outputs.apply_migrations");
+  });
+
+  it("does not use raw github.event.inputs values in workflow shell paths", () => {
+    expect(workflowSrc).not.toContain("github.event.inputs.");
   });
 
   it("runs supabase db push only behind explicit migration policy", () => {

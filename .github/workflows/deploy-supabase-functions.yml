@@ -4,7 +4,7 @@ name: Deploy Supabase (Edge Functions)
 
 run-name: >-
   Supabase deploy • ${{ inputs.ref }} •
-  ${{ (github.event.inputs.deploy_all || 'true') == 'true' && 'all' || (github.event.inputs.function_name || 'single') }}
+  ${{ (inputs.deploy_all || 'true') == 'true' && 'all' || (inputs.function_name || 'single') }}
 
 on:
   workflow_dispatch:
@@ -87,11 +87,67 @@ jobs:
           supabase login --token "${SUPABASE_ACCESS_TOKEN}"
           supabase link --project-ref "${SUPABASE_PROJECT_REF}" --workdir supabase
 
+      - name: Validate / sanitize dispatch inputs
+        id: sanitize_inputs
+        shell: bash
+        env:
+          RAW_REF: ${{ inputs.ref }}
+          RAW_DEPLOY_ALL: ${{ inputs.deploy_all || 'true' }}
+          RAW_FUNCTION_NAME: ${{ inputs.function_name || '' }}
+          RAW_APPLY_MIGRATIONS: ${{ inputs.apply_migrations || 'auto' }}
+        run: |
+          set -euo pipefail
+
+          REF_INPUT="$(printf '%s' "${RAW_REF:-}" | tr -d '\r\n')"
+          DEPLOY_ALL_INPUT="$(printf '%s' "${RAW_DEPLOY_ALL:-true}" | tr -d '\r\n')"
+          FUNCTION_NAME_INPUT="$(printf '%s' "${RAW_FUNCTION_NAME:-}" | tr -d '\r\n')"
+          APPLY_MIGRATIONS_INPUT="$(printf '%s' "${RAW_APPLY_MIGRATIONS:-auto}" | tr -d '\r\n')"
+
+          if [ -z "$REF_INPUT" ]; then
+            echo "::error::ref input is required"
+            exit 1
+          fi
+          if ! [[ "$REF_INPUT" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+            echo "::error::Invalid ref input"
+            exit 1
+          fi
+
+          case "$DEPLOY_ALL_INPUT" in
+            true|false) ;;
+            *)
+              echo "::error::Invalid deploy_all input: $DEPLOY_ALL_INPUT"
+              exit 1
+              ;;
+          esac
+
+          if [ -n "$FUNCTION_NAME_INPUT" ] && ! [[ "$FUNCTION_NAME_INPUT" =~ ^[A-Za-z0-9_][A-Za-z0-9_-]*$ ]]; then
+            echo "::error::Invalid function_name input: $FUNCTION_NAME_INPUT"
+            exit 1
+          fi
+
+          case "$APPLY_MIGRATIONS_INPUT" in
+            auto|true|false) ;;
+            *)
+              echo "::error::Invalid apply_migrations input: $APPLY_MIGRATIONS_INPUT"
+              exit 1
+              ;;
+          esac
+
+          printf 'ref=%s\n' "$REF_INPUT" >> "$GITHUB_OUTPUT"
+          printf 'deploy_all=%s\n' "$DEPLOY_ALL_INPUT" >> "$GITHUB_OUTPUT"
+          printf 'function_name=%s\n' "$FUNCTION_NAME_INPUT" >> "$GITHUB_OUTPUT"
+          printf 'apply_migrations=%s\n' "$APPLY_MIGRATIONS_INPUT" >> "$GITHUB_OUTPUT"
+
+          printf 'DISPATCH_REF=%s\n' "$REF_INPUT" >> "$GITHUB_ENV"
+          printf 'DEPLOY_ALL_SAFE=%s\n' "$DEPLOY_ALL_INPUT" >> "$GITHUB_ENV"
+          printf 'FUNCTION_NAME_SAFE=%s\n' "$FUNCTION_NAME_INPUT" >> "$GITHUB_ENV"
+          printf 'APPLY_MIGRATIONS_INPUT_SAFE=%s\n' "$APPLY_MIGRATIONS_INPUT" >> "$GITHUB_ENV"
+
       - name: Deploy Edge Functions
         shell: bash
         env:
-          DEPLOY_ALL: ${{ github.event.inputs.deploy_all || 'true' }}
-          FUNCTION_NAME_INPUT: ${{ github.event.inputs.function_name || '' }}
+          DEPLOY_ALL: ${{ steps.sanitize_inputs.outputs.deploy_all }}
+          FUNCTION_NAME_INPUT: ${{ steps.sanitize_inputs.outputs.function_name }}
         run: |
           set -euo pipefail
           cd supabase
@@ -115,7 +171,7 @@ jobs:
             exit 0
           fi
 
-          if ! [[ "$FUNCTION_NAME" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          if ! [[ "$FUNCTION_NAME" =~ ^[A-Za-z0-9_][A-Za-z0-9_-]*$ ]]; then
             echo "::error::Invalid function_name: $FUNCTION_NAME"
             exit 1
           fi
@@ -141,7 +197,7 @@ jobs:
       - name: Detect migration changes / policy
         shell: bash
         env:
-          APPLY_MIGRATIONS_INPUT: ${{ github.event.inputs.apply_migrations || 'auto' }}
+          APPLY_MIGRATIONS_INPUT: ${{ steps.sanitize_inputs.outputs.apply_migrations }}
         run: |
           set -euo pipefail
           mkdir -p ci-logs
@@ -215,10 +271,10 @@ jobs:
           mkdir -p ci-logs
           {
             echo "workflow_version=${WORKFLOW_VERSION}"
-            echo "ref=${{ inputs.ref }}"
-            echo "deploy_all=${{ github.event.inputs.deploy_all || 'true' }}"
-            echo "function_name=${{ github.event.inputs.function_name || '' }}"
-            echo "apply_migrations_input=${{ github.event.inputs.apply_migrations || 'auto' }}"
+            echo "ref=${DISPATCH_REF:-unknown}"
+            echo "deploy_all=${DEPLOY_ALL_SAFE:-unknown}"
+            echo "function_name=${FUNCTION_NAME_SAFE:-}"
+            echo "apply_migrations_input=${APPLY_MIGRATIONS_INPUT_SAFE:-unknown}"
             echo "apply_migrations=${APPLY_MIGRATIONS:-false}"
             echo "migration_reason=${MIGRATION_REASON:-unknown}"
             echo "github_run_id=${GITHUB_RUN_ID}"
@@ -234,10 +290,10 @@ jobs:
             echo "## Supabase Deploy"
             echo ""
             echo "- workflow version: \`${WORKFLOW_VERSION}\`"
-            echo "- ref: \`${{ inputs.ref }}\`"
-            echo "- deploy_all: \`${{ github.event.inputs.deploy_all || 'true' }}\`"
-            echo "- function_name: \`${{ github.event.inputs.function_name || '' }}\`"
-            echo "- apply_migrations input: \`${{ github.event.inputs.apply_migrations || 'auto' }}\`"
+            echo "- ref: \`${DISPATCH_REF:-unknown}\`"
+            echo "- deploy_all: \`${DEPLOY_ALL_SAFE:-unknown}\`"
+            echo "- function_name: \`${FUNCTION_NAME_SAFE:-}\`"
+            echo "- apply_migrations input: \`${APPLY_MIGRATIONS_INPUT_SAFE:-unknown}\`"
             echo "- apply_migrations effective: \`${APPLY_MIGRATIONS:-false}\`"
             echo "- migration reason: \`${MIGRATION_REASON:-unknown}\`"
             echo "- run id: \`${GITHUB_RUN_ID}\` / attempt \`${GITHUB_RUN_ATTEMPT}\`"
