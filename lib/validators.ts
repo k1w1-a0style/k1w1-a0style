@@ -31,10 +31,19 @@ const hasAllowedExtension = (normalizedPath: string): boolean => {
 const INVALID_PATH_CHARS = /[\\:*?"<>|]/; // Windows reserved
 const INVALID_PATH_SEGMENT = /(^|\/)\.(\/|$)|(^|\/)\.\.(\/|$)/; // . or ..
 const LEADING_DOTSLASH = /^\.\//;
+const RAW_FILE_URL = /^\s*file\s*:/i;
+const RAW_WINDOWS_DRIVE = /^\s*[a-z]:/i;
+const RAW_WINDOWS_UNC = /^\s*(?:\\\\|\/\/)/;
+const RAW_ABSOLUTE = /^\s*[\\/]/;
+
+export const isBlockedRawPath = (raw: string): boolean => {
+  const input = String(raw ?? "");
+  return RAW_FILE_URL.test(input) || RAW_WINDOWS_DRIVE.test(input) || RAW_WINDOWS_UNC.test(input) || RAW_ABSOLUTE.test(input);
+};
 
 // ✅ FIX (einziger inhaltlicher Change): führendes "./" entfernen (auch mehrfach)
 export const normalizePath = (p: string) =>
-  p
+  String(p ?? '')
     .replace(/\r/g, '')
     .trim()
     .replace(/\\/g, '/')
@@ -52,6 +61,10 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
   const errors: string[] = [];
   if (!path || typeof path !== 'string' || path.trim().length === 0) {
     return { valid: false, errors: ['Pfad ist leer'] };
+  }
+
+  if (isBlockedRawPath(path)) {
+    errors.push('Pfad darf kein absoluter/Windows/UNC/file:-Pfad sein');
   }
 
   const normalized = normalizePath(path);
@@ -196,7 +209,7 @@ export const validateZipImport = (
     const p = normalizePath(String(f?.path ?? ''));
     const c = typeof f?.content === 'string' ? f.content : String(f?.content ?? '');
 
-    const pRes = validateFilePath(p);
+    const pRes = validateFilePath(String(f?.path ?? ""));
     if (!pRes.valid) {
       invalidFiles.push({ path: p || '(leer)', reason: pRes.errors.join('; ') });
       continue;
