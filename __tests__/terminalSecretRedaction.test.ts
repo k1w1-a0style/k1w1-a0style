@@ -1,4 +1,4 @@
-import { redactSecrets, truncateWithMarker } from "../lib/secretRedaction";
+import { redactSecrets, redactUnknownForLogging, truncateWithMarker } from "../lib/secretRedaction";
 
 describe("Terminal secret redaction", () => {
   test("redacts apiKey assignments", () => {
@@ -77,6 +77,63 @@ describe("Terminal secret redaction", () => {
     expect(out).not.toContain("AIzaSyA1234567890abcdefghijklmnopqrstuv");
     expect(out).not.toContain("hf_abcdefghijklmnopqrstuvwxyz0123456789");
     expect(out.match(/<redacted>/g)?.length || 0).toBeGreaterThanOrEqual(4);
+  });
+
+  test("redacts modern sk-proj format and github fine-grained PAT in plain text", () => {
+    const input = [
+      "openai=sk-proj-abcdefghijklmnopqrstuvwxyz1234567890",
+      "github=github_pat_11ABCDEF_abcdefghijklmnopqrstuvwxyz1234567890",
+    ].join("\n");
+    const out = redactSecrets(input);
+    expect(out).not.toContain("sk-proj-abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(out).not.toContain("github_pat_11ABCDEF_abcdefghijklmnopqrstuvwxyz1234567890");
+    expect(out.match(/<redacted>/g)?.length || 0).toBeGreaterThanOrEqual(2);
+  });
+
+  test("redacts sensitive object keys while preserving harmless fields", () => {
+    const payload = {
+      token: "short",
+      sessionId: "session-secret-value",
+      meta: {
+        apiKey: "sk-ant-api03-abcdefghijklmnopqrstuvwxyz",
+        status: "still-running",
+      },
+      safeLabel: "diagnostic-ok",
+    };
+    const out = redactUnknownForLogging(payload) as Record<string, unknown>;
+    expect(out.token).toBe("<redacted>");
+    expect(out.sessionId).toBe("<redacted>");
+    expect((out.meta as Record<string, unknown>).apiKey).toBe("<redacted>");
+    expect((out.meta as Record<string, unknown>).status).toBe("still-running");
+    expect(out.safeLabel).toBe("diagnostic-ok");
+  });
+
+  test("fails closed when nested object depth exceeds redaction limit", () => {
+    const payload = {
+      lvl0: {
+        lvl1: {
+          lvl2: {
+            lvl3: {
+              lvl4: {
+                lvl5: {
+                  authorization: "Bearer deeply-nested-secret-token",
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const out = redactUnknownForLogging(payload) as Record<string, unknown>;
+    const lvl0 = out.lvl0 as Record<string, unknown>;
+    const lvl1 = lvl0.lvl1 as Record<string, unknown>;
+    const lvl2 = lvl1.lvl2 as Record<string, unknown>;
+    const lvl3 = lvl2.lvl3 as Record<string, unknown>;
+    const lvl4 = lvl3.lvl4 as Record<string, unknown>;
+
+    expect(lvl4.lvl5).toBe("<redacted-depth-limit>");
+    expect(JSON.stringify(out)).not.toContain("deeply-nested-secret-token");
   });
 
   test("keeps harmless status text readable", () => {
