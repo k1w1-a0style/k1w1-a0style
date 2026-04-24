@@ -36,7 +36,6 @@ allprojects {
   repositories {
     google()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
   }
   
   // Force all Kotlin dependencies to use version 2.0.21
