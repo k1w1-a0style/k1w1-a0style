@@ -53,14 +53,20 @@ jobs:
       - name: Resolve inputs
         id: resolve
         shell: bash
+        env:
+          RAW_REF: ${{ github.event.client_payload.ref || github.event.inputs.ref || '' }}
+          RAW_PROFILE: ${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}
+          RAW_JOB_ID: ${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}
+          RAW_AUTOFIX: ${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}
+          RAW_STRICT_LOCKFILE: ${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}
         run: |
           set -euo pipefail
 
-          REF="${{ github.event.client_payload.ref || github.event.inputs.ref || '' }}"
-          PROFILE="${{ github.event.client_payload.build_profile || github.event.client_payload.buildProfile || github.event.inputs.profile || 'preview' }}"
-          JOB_ID="${{ github.event.client_payload.job_id || github.event.inputs.job_id || '' }}"
-          AUTOFIX="${{ github.event.client_payload.autofix || (github.event_name == 'workflow_dispatch' && inputs.autofix) || false }}"
-          STRICT_LOCKFILE="${{ github.event.client_payload.strict_lockfile || (github.event_name == 'workflow_dispatch' && inputs.strict_lockfile) || 'auto' }}"
+          REF="$RAW_REF"
+          PROFILE="$RAW_PROFILE"
+          JOB_ID="$RAW_JOB_ID"
+          AUTOFIX="$RAW_AUTOFIX"
+          STRICT_LOCKFILE="$RAW_STRICT_LOCKFILE"
 
           if [ -z "$REF" ]; then
             echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch or inputs.ref for workflow_dispatch."
@@ -68,11 +74,11 @@ jobs:
           fi
 
           {
-            echo "ref=$REF"
-            echo "profile=$PROFILE"
-            echo "job_id=$JOB_ID"
-            echo "autofix=$AUTOFIX"
-            echo "strict_lockfile=$STRICT_LOCKFILE"
+            printf 'ref=%s\n' "$REF"
+            printf 'profile=%s\n' "$PROFILE"
+            printf 'job_id=%s\n' "$JOB_ID"
+            printf 'autofix=%s\n' "$AUTOFIX"
+            printf 'strict_lockfile=%s\n' "$STRICT_LOCKFILE"
           } >> "$GITHUB_OUTPUT"
 
   build:

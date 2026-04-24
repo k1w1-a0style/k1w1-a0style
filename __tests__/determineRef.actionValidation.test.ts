@@ -18,12 +18,12 @@ function buildExecutableScript(): string {
     .join("\n");
 
   return block
-    .replaceAll('${{ inputs.payload_branch }}', '${PAYLOAD_BRANCH:-}')
-    .replaceAll('${{ inputs.payload_ref }}', '${PAYLOAD_REF:-}')
-    .replaceAll('${{ inputs.input_ref }}', '${INPUT_REF:-}')
-    .replaceAll('${{ inputs.github_ref_name }}', '${GITHUB_REF_NAME:-}')
-    .replaceAll('${{ inputs.default_ref }}', '${DEFAULT_REF:-}')
-    .replaceAll('${{ inputs.allowed_refs_csv }}', '${ALLOWED_REFS_CSV:-}');
+    .replaceAll('$INPUT_PAYLOAD_BRANCH', '${PAYLOAD_BRANCH:-}')
+    .replaceAll('$INPUT_PAYLOAD_REF', '${PAYLOAD_REF:-}')
+    .replaceAll('$INPUT_INPUT_REF', '${INPUT_REF:-}')
+    .replaceAll('$INPUT_GITHUB_REF_NAME', '${GITHUB_REF_NAME:-}')
+    .replaceAll('$INPUT_DEFAULT_REF', '${DEFAULT_REF:-}')
+    .replaceAll('$INPUT_ALLOWED_REFS_CSV', '${ALLOWED_REFS_CSV:-}');
 }
 
 function runDetermineRef(inputs: {

@@ -36,14 +36,21 @@ runs:
   steps:
     - id: pick
       shell: bash
+      env:
+        INPUT_PAYLOAD_BRANCH: ${{ inputs.payload_branch }}
+        INPUT_PAYLOAD_REF: ${{ inputs.payload_ref }}
+        INPUT_INPUT_REF: ${{ inputs.input_ref }}
+        INPUT_GITHUB_REF_NAME: ${{ inputs.github_ref_name }}
+        INPUT_DEFAULT_REF: ${{ inputs.default_ref }}
+        INPUT_ALLOWED_REFS_CSV: ${{ inputs.allowed_refs_csv }}
       run: |
         set -euo pipefail
 
-        REF="${{ inputs.payload_branch }}"
-        if [ -z "$REF" ]; then REF="${{ inputs.payload_ref }}"; fi
-        if [ -z "$REF" ]; then REF="${{ inputs.input_ref }}"; fi
-        if [ -z "$REF" ]; then REF="${{ inputs.github_ref_name }}"; fi
-        if [ -z "$REF" ]; then REF="${{ inputs.default_ref }}"; fi
+        REF="$INPUT_PAYLOAD_BRANCH"
+        if [ -z "$REF" ]; then REF="$INPUT_PAYLOAD_REF"; fi
+        if [ -z "$REF" ]; then REF="$INPUT_INPUT_REF"; fi
+        if [ -z "$REF" ]; then REF="$INPUT_GITHUB_REF_NAME"; fi
+        if [ -z "$REF" ]; then REF="$INPUT_DEFAULT_REF"; fi
 
         # Trim CR/LF (copy/paste + payload weirdness)
         REF="$(printf '%s' "$REF" | tr -d '\r\n')"
@@ -88,12 +95,14 @@ runs:
           exit 1
         fi
 
-        ALLOWED_REFS="${{ inputs.allowed_refs_csv }}"
+        ALLOWED_REFS="$INPUT_ALLOWED_REFS_CSV"
         if [ -n "$ALLOWED_REFS" ]; then
           SAFE_MATCHED=0
           IFS=',' read -r -a TOKENS <<< "$ALLOWED_REFS"
           for RAW_TOKEN in "${TOKENS[@]}"; do
-            TOKEN="$(printf '%s' "$RAW_TOKEN" | tr -d '\r\n' | xargs)"
+            TOKEN="$(printf '%s' "$RAW_TOKEN" | tr -d '\r\n')"
+            TOKEN="${TOKEN#"${TOKEN%%[![:space:]]*}"}"
+            TOKEN="${TOKEN%"${TOKEN##*[![:space:]]}"}"
             if [ -z "$TOKEN" ]; then
               continue
             fi
@@ -108,5 +117,5 @@ runs:
           fi
         fi
 
-        echo "checkout_ref=$REF" >> "$GITHUB_OUTPUT"
+        printf 'checkout_ref=%s\n' "$REF" >> "$GITHUB_OUTPUT"
         echo "CHECKOUT_REF=$REF"

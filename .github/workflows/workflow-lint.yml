@@ -48,24 +48,29 @@ jobs:
       - name: Resolve explicit ref
         id: resolve
         shell: bash
+        env:
+          RAW_EVENT_NAME: ${{ github.event_name }}
+          RAW_PAYLOAD_REF: ${{ github.event.client_payload.ref || '' }}
+          RAW_INPUT_REF: ${{ inputs.ref || '' }}
+          RAW_GITHUB_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            REF="${{ github.event.client_payload.ref || '' }}"
+          if [ "$RAW_EVENT_NAME" = "repository_dispatch" ]; then
+            REF="$RAW_PAYLOAD_REF"
             if [ -z "$REF" ]; then
               echo "::error::Missing required ref. Pass client_payload.ref for repository_dispatch."
               exit 1
             fi
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            REF="${{ inputs.ref }}"
+          elif [ "$RAW_EVENT_NAME" = "workflow_dispatch" ]; then
+            REF="$RAW_INPUT_REF"
             if [ -z "$REF" ]; then
               echo "::error::Missing required ref. Pass inputs.ref for workflow_dispatch."
               exit 1
             fi
           else
-            REF="${{ github.ref }}"
+            REF="$RAW_GITHUB_REF"
           fi
-          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          printf 'ref=%s\n' "$REF" >> "$GITHUB_OUTPUT"
 
   lint:
     needs: resolve
