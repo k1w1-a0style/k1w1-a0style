@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fails if any `uses:` reference in .github/workflows/*.yml is NOT pinned to a full 40-char commit SHA.
+ * Fails if any `uses:` reference in GitHub workflow/action YAML is NOT pinned to a full 40-char commit SHA.
  *
  * Allowed:
  *   uses: owner/repo@<40-hex>
@@ -18,14 +18,26 @@
 import fs from "fs";
 import path from "path";
 
-const WORKFLOWS_DIR = path.join(process.cwd(), ".github", "workflows");
+const SCAN_DIRS = [
+  path.join(process.cwd(), ".github", "workflows"),
+  path.join(process.cwd(), ".github", "actions"),
+];
 
-function listWorkflowFiles(dir) {
+function listYamlFilesRecursively(dir) {
   if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
-    .map((f) => path.join(dir, f));
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listYamlFilesRecursively(fullPath));
+      continue;
+    }
+    if (entry.isFile() && (entry.name.endsWith(".yml") || entry.name.endsWith(".yaml"))) {
+      files.push(fullPath);
+    }
+  }
+  return files;
 }
 
 const shaRe = /^[0-9a-f]{40}$/i;
@@ -68,9 +80,9 @@ function checkFile(file) {
   return issues;
 }
 
-const files = listWorkflowFiles(WORKFLOWS_DIR);
+const files = SCAN_DIRS.flatMap(listYamlFilesRecursively);
 if (!files.length) {
-  process.stdout.write("No workflow files found.\n");
+  process.stdout.write("No workflow/action files found.\n");
   process.exit(0);
 }
 
