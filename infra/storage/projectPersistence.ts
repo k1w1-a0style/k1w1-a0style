@@ -123,6 +123,16 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
   }
 };
 
+export const clearProjectFromStorage = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
+    logger.info('🗑️ Projekt aus Storage gelöscht');
+  } catch (error) {
+    logger.error("[projectStorage] Fehler beim Löschen", { err: error });
+    throw new Error('Projekt konnte nicht gelöscht werden');
+  }
+};
+
 export const scrubChatHistoryFromStoredProject = async (): Promise<void> => {
   const rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
   if (!rawStoragePayload) return;
