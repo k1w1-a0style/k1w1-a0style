@@ -26,7 +26,7 @@ function base64ToBytes(value: string): Uint8Array {
 
 function toBufferSource(bytes: Uint8Array): BufferSource {
   const sliced = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  return new Uint8Array(sliced) as unknown as BufferSource;
+  return new Uint8Array(sliced);
 }
 
 function requireSubtleCrypto(): SubtleCrypto {

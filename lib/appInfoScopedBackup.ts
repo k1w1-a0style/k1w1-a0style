@@ -114,12 +114,11 @@ export const SECURE_BACKUP_CRYPTO_POLICY: SecureBackupCryptoPolicy = {
 };
 
 function bytesToBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes as unknown as ArrayBufferLike).toString("base64");
+  return Buffer.from(bytes).toString("base64");
 }
 
 function base64ToBytes(value: string): Uint8Array {
-  const decoded = Buffer.from(value, "base64") as unknown as ArrayBufferLike;
-  return new Uint8Array(decoded);
+  return new Uint8Array(Buffer.from(value, "base64"));
 }
 
 function normalizeBufferSource(bytes: Uint8Array): Uint8Array {
@@ -128,7 +127,7 @@ function normalizeBufferSource(bytes: Uint8Array): Uint8Array {
 }
 
 function toBufferSource(bytes: Uint8Array): BufferSource {
-  return normalizeBufferSource(bytes) as unknown as BufferSource;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 async function getRandomBytes(length: number): Promise<Uint8Array> {
