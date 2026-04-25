@@ -62,10 +62,3 @@ export function createPipelineDepsFromProjectFiles(
     listRepoSecretNames: jest.fn(async () => opts?.secretNames ?? ["EXPO_TOKEN"]),
   };
 }
-
-export function createDeterministicTestDeps() {
-  return {
-    now: () => new Date("2026-01-01T00:00:00.000Z").toISOString(),
-    uuid: () => "00000000-0000-0000-0000-000000000000",
-  };
-}

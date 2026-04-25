@@ -34,16 +34,6 @@ export function makeProjectRef(
 }
 
 
-type JsonMergeEntry = NonNullable<PreflightPatch["jsonMerge"]>[number];
-
 export function makeProjectFile(path: string, content = "{}"): ProjectFile {
   return { path, content };
-}
-
-export function makePreflightJsonMergePatch(
-  path: string,
-  patch: unknown,
-  createIfMissing = false,
-): JsonMergeEntry {
-  return { path, patch, createIfMissing };
 }
