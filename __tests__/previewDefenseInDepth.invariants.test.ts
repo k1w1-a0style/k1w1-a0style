@@ -1,11 +1,32 @@
 import fs from "fs";
 import path from "path";
-import { renderHook } from "@testing-library/react-native";
+import React from "react";
+import { Animated } from "react-native";
+import { render, renderHook } from "@testing-library/react-native";
 import { buildCsp, html, isValidPreviewSecretFormat } from "../supabase/functions/preview_page/helpers";
 import { renderFragmentBootstrapPage, renderPage } from "../supabase/functions/preview_page/render";
 import { useWebViewNavigation } from "../screens/shared/preview/useWebViewNavigation";
+import { DeviceFrame } from "../screens/PreviewScreen/components/DeviceFrame";
+import PreviewFullscreenScreen from "../screens/PreviewFullscreenScreen";
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
+const webViewPropsStore: Array<Record<string, unknown>> = [];
+const mockUsePreviewFullscreen = jest.fn();
+
+jest.mock("react-native-webview", () => {
+  const ReactLib = require("react");
+  const { View } = require("react-native");
+  const MockWebView = ReactLib.forwardRef((props: Record<string, unknown>, _ref: unknown) => {
+    webViewPropsStore.push(props);
+    return ReactLib.createElement(View, { testID: "mock-webview" });
+  });
+
+  return { WebView: MockWebView, default: MockWebView };
+});
+
+jest.mock("../screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen", () => ({
+  usePreviewFullscreen: () => mockUsePreviewFullscreen(),
+}));
 
 describe("preview/webview defense-in-depth invariants", () => {
   it("save_preview emits fragment links with hashed preview secret only", () => {
@@ -64,6 +85,99 @@ describe("preview/webview defense-in-depth invariants", () => {
       "blob:*",
     ]);
     expect(urlMode.result.current.originWhitelist).not.toContain("*");
+  });
+
+  it("DeviceFrame WebView callsite forwards restrictive originWhitelist without wildcard allow-all", () => {
+    webViewPropsStore.length = 0;
+    const originWhitelist = ["https://preview.example.com", "https://preview.example.com/*", "data:*", "about:*", "blob:*"];
+
+    render(
+      React.createElement(DeviceFrame, {
+        webViewRef: { current: null },
+        previewSource: { type: "url", uri: "https://preview.example.com/app" },
+        cycleId: 1,
+        phase: "ready",
+        fadeAnim: new Animated.Value(1),
+        flashBorderAnim: new Animated.Value(0),
+        originWhitelist,
+        onShouldStartLoadWithRequest: jest.fn(() => true),
+        onLoadStart: jest.fn(),
+        onLoadEnd: jest.fn(),
+        onError: jest.fn(),
+        onHttpError: jest.fn(),
+        onContentProcessDidTerminate: jest.fn(),
+        onRenderProcessGone: jest.fn(() => true),
+        onCreate: jest.fn(),
+      }),
+    );
+
+    const latestProps = webViewPropsStore[webViewPropsStore.length - 1] as { originWhitelist?: string[] };
+    expect(latestProps.originWhitelist).toEqual(originWhitelist);
+    expect(latestProps.originWhitelist).not.toContain("*");
+  });
+
+  it("PreviewFullscreenScreen WebView callsite forwards restrictive hook whitelist without wildcard allow-all", () => {
+    webViewPropsStore.length = 0;
+    const restrictiveWhitelist = [
+      "https://preview.example.com",
+      "https://preview.example.com/*",
+      "data:*",
+      "about:*",
+      "blob:*",
+    ];
+
+    mockUsePreviewFullscreen.mockReturnValue({
+      title: "Preview",
+      url: "https://preview.example.com/app",
+      html: null,
+      baseUrl: null,
+      mode: "url",
+      hasUrlParseError: false,
+      originWhitelist: restrictiveWhitelist,
+      loading: false,
+      error: null,
+      canGoBack: false,
+      canGoForward: false,
+      webViewRef: { current: null },
+      handleGoBack: jest.fn(),
+      handleWebViewGoBack: jest.fn(),
+      handleWebViewGoForward: jest.fn(),
+      handleReload: jest.fn(),
+      handleShare: jest.fn(),
+      handleOpenExternal: jest.fn(),
+      handleLoadStart: jest.fn(),
+      handleLoadEnd: jest.fn(),
+      handleNavigationStateChange: jest.fn(),
+      handleShouldStartLoad: jest.fn(() => true),
+      handleError: jest.fn(),
+      handleHttpError: jest.fn(),
+      handleContentProcessDidTerminate: jest.fn(),
+      handleRenderProcessGone: jest.fn(() => true),
+      headerSubtitle: "Remote Preview",
+    });
+
+    render(React.createElement(PreviewFullscreenScreen));
+
+    const latestProps = webViewPropsStore[webViewPropsStore.length - 1] as { originWhitelist?: string[] };
+    expect(latestProps.originWhitelist).toEqual(restrictiveWhitelist);
+    expect(latestProps.originWhitelist).not.toContain("*");
+  });
+
+  it("WebView callsites keep direct wildcard-allow-all originWhitelist literals out of source", () => {
+    const deviceFrameSource = read("screens/PreviewScreen/components/DeviceFrame.tsx");
+    const fullscreenSource = read("screens/PreviewFullscreenScreen/PreviewFullscreenScreen.tsx");
+
+    const forbiddenSnippets = [
+      "originWhitelist={['*']}",
+      'originWhitelist={["*"]}',
+      "originWhitelist={[...originWhitelist, '*']}",
+      'originWhitelist={[...originWhitelist, "*"]}',
+    ];
+
+    for (const snippet of forbiddenSnippets) {
+      expect(deviceFrameSource).not.toContain(snippet);
+      expect(fullscreenSource).not.toContain(snippet);
+    }
   });
 
   it("preview HTML render path uses header-based secret handoff and does not leak query-style secret parameters", () => {
