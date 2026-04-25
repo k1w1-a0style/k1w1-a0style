@@ -3,7 +3,13 @@ import path from "path";
 import React from "react";
 import { Animated } from "react-native";
 import { render, renderHook } from "@testing-library/react-native";
-import { buildCsp, html, isValidPreviewSecretFormat } from "../supabase/functions/preview_page/helpers";
+import {
+  buildCsp,
+  html,
+  isPreviewTtlValid,
+  isValidPreviewSecretFormat,
+  resolvePreviewRuntimePolicy,
+} from "../supabase/functions/preview_page/helpers";
 import { renderFragmentBootstrapPage, renderPage } from "../supabase/functions/preview_page/render";
 import { useWebViewNavigation } from "../screens/shared/preview/useWebViewNavigation";
 import { DeviceFrame } from "../screens/PreviewScreen/components/DeviceFrame";
@@ -29,6 +35,12 @@ jest.mock("../screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen", () =>
 }));
 
 describe("preview/webview defense-in-depth invariants", () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   it("save_preview emits fragment links with hashed preview secret only", () => {
     const src = read("supabase/functions/save_preview/index.ts");
 
@@ -66,6 +78,35 @@ describe("preview/webview defense-in-depth invariants", () => {
 
     const res = html("<html></html>", nonce, 200);
     expect(res.headers.get("Content-Security-Policy")).toContain(`'nonce-${nonce}'`);
+    expect(res.headers.get("Cache-Control")).toContain("no-store");
+    expect(res.headers.get("Pragma")).toBe("no-cache");
+    expect(res.headers.get("Surrogate-Control")).toBe("no-store");
+  });
+
+  it("production defaults fail-closed for preview CSP policy", () => {
+    process.env = {
+      ...process.env,
+      NODE_ENV: "production",
+    };
+    delete process.env.PREVIEW_STRICT_CSP;
+    delete process.env.PREVIEW_ALLOW_UNSAFE_EVAL;
+    delete process.env.PREVIEW_ALLOW_ESM_SH_CDN;
+
+    const policy = resolvePreviewRuntimePolicy();
+    expect(policy.strictCsp).toBe(true);
+    expect(policy.allowUnsafeEval).toBe(false);
+    expect(policy.allowEsmShCdn).toBe(false);
+
+    const csp = buildCsp("nonce-prod");
+    expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp).not.toContain("https://esm.sh");
+  });
+
+  it("preview TTL gate denies missing, negative and overly long TTL", () => {
+    expect(isPreviewTtlValid(null, null)).toBe(false);
+    expect(isPreviewTtlValid("2026-04-25T12:00:00.000Z", "2026-04-25T11:59:00.000Z")).toBe(false);
+    expect(isPreviewTtlValid("2026-04-25T12:00:00.000Z", "2026-04-25T14:30:00.000Z")).toBe(false);
+    expect(isPreviewTtlValid("2026-04-25T12:00:00.000Z", "2026-04-25T13:00:00.000Z")).toBe(true);
   });
 
   it("webview navigation/originWhitelist contracts stay scoped at runtime without wildcard allow-all entries", () => {
@@ -190,14 +231,28 @@ describe("preview/webview defense-in-depth invariants", () => {
       files: { "/App.tsx": { contents: "export default function App(){ return null; }" } },
       showRawLogs: false,
       showRuntimeErrors: false,
+      allowEsmShCdn: true,
       logsToggleUrl: "https://example.test/functions/v1/preview_page?logs=1&runtime_errors=0#secret=hash123",
       runtimeErrorsToggleUrl:
         "https://example.test/functions/v1/preview_page?logs=0&runtime_errors=1#secret=hash123",
     });
 
     expect(bootstrapPage).toContain('"x-k1w1-preview-secret": secret');
+    expect(bootstrapPage).toContain('current.searchParams.get("transport") !== "fragment"');
+    expect(bootstrapPage).toContain('page.includes(\'data-k1w1-preview-context="isolated"\')');
     expect(page).toContain("#secret=hash123");
     expect(page).not.toContain("?secret=");
+    expect(page).toContain("ALLOW_ESM_SH_CDN");
+    expect(page).toContain("showError(e);");
     expect(bootstrapPage).not.toContain("document.body.dataset.previewSecret");
+  });
+
+  it("preview_page index keeps verify_jwt=false compensated by hashed secret gate and never logs secret values", () => {
+    const src = read("supabase/functions/preview_page/index.ts");
+
+    expect(src).toContain("if (!isHashedPreviewSecret(secret))");
+    expect(src).toContain("message: \"Preview token must be a hashed secret token.\"");
+    expect(src).not.toContain("secret=${secret}");
+    expect(src).not.toContain("console.warn(secret)");
   });
 });
