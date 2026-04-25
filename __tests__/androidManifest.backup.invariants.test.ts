@@ -13,6 +13,12 @@ const DATA_EXTRACTION_RULES_PATH = path.join(
 );
 
 describe("android backup/data extraction contract invariants", () => {
+  it("disables Android Auto Backup at application level", () => {
+    const manifest = fs.readFileSync(MAIN_MANIFEST_PATH, "utf8");
+
+    expect(manifest).toContain('android:allowBackup="false"');
+  });
+
   it("references existing backup XML resources from main manifest", () => {
     const manifest = fs.readFileSync(MAIN_MANIFEST_PATH, "utf8");
 

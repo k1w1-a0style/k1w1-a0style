@@ -33,9 +33,22 @@ supabase/functions/**/node_modules
 .DS_Store
 Thumbs.db
 
-# Android / iOS native not used (Expo managed)
-android/
+# iOS native not used for current build targets
 ios/
+
+
+# Android local artifacts (native config included, local outputs excluded)
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/app/debug.keystore
+android/app/*.jks
+android/app/*.keystore
+android/.idea/
+android/*.iml
+android/*.hprof
+android/.cxx/
 
 # Editor junk
 .vscode/

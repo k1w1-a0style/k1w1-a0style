@@ -94,17 +94,15 @@ Scope: Lokaler Readiness-Review ohne große Codeänderungen / ohne Secrets.
 
 ---
 
-## 6) Analyse: Android Backup-Konfiguration
+## 6) Analyse: Android/mobile Security-Konfiguration (Backup + EAS)
 
-### Ist-Zustand
-- `AndroidManifest.xml` enthält:
-  - `android:allowBackup="true"`
-  - `android:fullBackupContent="@xml/secure_store_backup_rules"`
-  - `android:dataExtractionRules="@xml/secure_store_data_extraction_rules"`
-- Backup-Regeln schließen App-Daten fail-closed aus (`root` + `sharedpref/SecureStore`) sowohl für Cloud-Backup als auch Device-Transfer.
+### Ergebnis (2026-04-25)
+- `android/app/src/main/AndroidManifest.xml` ist auf `android:allowBackup="false"` gehärtet.
+- `android:fullBackupContent` und `android:dataExtractionRules` bleiben weiter gesetzt; die referenzierten XML-Regeln schließen App-Daten fail-closed aus (`root` + `sharedpref/SecureStore`) für Cloud-Backup und Device-Transfer.
+- `.easignore` ignoriert `android/` **nicht** mehr, damit sicherheitsrelevante native Android-Änderungen (z. B. Manifest/Backup-Regeln) im EAS-Build-Kontext nicht verloren gehen.
 
-### Bewertung
-Kein Widerspruch im aktuellen Vertrag: trotz `allowBackup=true` wird die effektive Datensicherung durch explizite Excludes stark eingeschränkt.
+### Kurzbewertung
+Android-Backup ist nun standardmäßig deaktiviert; zusätzlich bleiben explizite Exclude-Regeln als Defense-in-Depth erhalten. EAS-Upload-Konfiguration ist konsistent mit einem Build-Modus, in dem native Android-Dateien bewusst build-relevant sind.
 
 ---
 
