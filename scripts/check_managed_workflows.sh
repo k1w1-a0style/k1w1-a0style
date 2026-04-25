@@ -59,6 +59,22 @@ check_file_markers ".github/workflows/eas-link.yml"
 check_file_markers ".github/workflows/release-build.yml"
 check_file_markers ".github/workflows/deploy-supabase-functions.yml"
 
+if rg -n --glob '*.yml' '^on:[[:space:]]*$' .github/workflows >/dev/null 2>&1; then
+  :
+fi
+
+if rg -n --glob '*.yml' 'pull_request_target:' .github/workflows >/dev/null 2>&1; then
+  fail "pull_request_target is forbidden for managed workflows unless explicitly re-approved"
+fi
+
+for wf in .github/workflows/*.yml; do
+  if grep -Fq 'contents: write' "$wf"; then
+    if grep -Eq '^[[:space:]]+pull_request:[[:space:]]*$|^[[:space:]]+pull_request_target:[[:space:]]*$' "$wf"; then
+      fail "Workflow with contents: write must not be triggered by pull_request/pull_request_target: $wf"
+    fi
+  fi
+done
+
 LIVE_VERSION="$(sed -n 's/^# workflow-version: //p' .github/workflows/eas-build.yml | head -n1)"
 [ -n "${LIVE_VERSION:-}" ] || fail "Could not determine live workflow version from eas-build.yml"
 for wf in .github/workflows/eas-link.yml .github/workflows/release-build.yml .github/workflows/deploy-supabase-functions.yml; do
@@ -135,6 +151,11 @@ grep -Fq "github.event_name != 'repository_dispatch' && github.ref_name || ''" .
 forbid_fixed .github/workflows/k1w1-ci-lite.yml "github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name"
 forbid_fixed .github/workflows/k1w1-ci-lite.yml "k1w1-ci-lite-\${{ github.event.client_payload.branch || github.event.client_payload.ref || inputs.ref || github.ref_name }}"
 grep -Fq "github.event_name == 'repository_dispatch' && (github.event.client_payload.branch || github.event.client_payload.ref || 'missing-ref') || (inputs.ref || 'missing-ref')" .github/workflows/k1w1-ci-lite.yml || fail "CI Lite metadata must be explicit and must not imply github.ref_name fallback"
+grep -Fq 'permissions:' .github/workflows/k1w1-ci-lite-autofix.yml || fail "CI Lite Autofix workflow missing permissions block"
+grep -Fq 'contents: read' .github/workflows/k1w1-ci-lite-autofix.yml || fail "CI Lite Autofix workflow top-level permissions must remain contents: read"
+grep -Fq 'jobs:' .github/workflows/k1w1-ci-lite-autofix.yml || fail "CI Lite Autofix workflow missing jobs block"
+grep -Fq '    permissions:' .github/workflows/k1w1-ci-lite-autofix.yml || fail "CI Lite Autofix workflow missing job-level permissions"
+grep -Fq '      contents: write' .github/workflows/k1w1-ci-lite-autofix.yml || fail "CI Lite Autofix writeback job must explicitly request contents: write"
 
 
 node <<'NODE'
