@@ -2,6 +2,8 @@
 
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
+Diese Seite beschreibt den aktiven Edge-Vertragsstand. Historische Patch-Erklaerungen bleiben in Checklog/Patchlog und werden hier nur referenziert, nicht voll dupliziert.
+
 ## Aktiv und workflow-relevant
 
 | Function | Zweck | Wichtige Outputs / Vertrag |

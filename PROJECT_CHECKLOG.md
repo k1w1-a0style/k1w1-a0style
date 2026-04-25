@@ -2,6 +2,8 @@
 
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
+> Historie/Chronik: **append-only**. Aeltere Eintraege werden nicht umgeschrieben oder gekuerzt; aktuelle operative SoT liegt in README/INDEX/Review/TODO.
+
 
 - 2026-04-24: Patch 786: Gradle-Wrapper-SHA/Android-Task-Verifikation (Prompt 4A) abgeschlossen — `distributionSha256Sum` fuer `gradle-8.14.3-bin.zip` wurde gegen die offizielle Gradle-Checksum-Quelle (`.sha256`) sowie gegen einen frischen lokalen ZIP-Hash verifiziert (alle drei Werte identisch: `bd71102213493060956ec229d946beee57158dbd89d0e62b91bca0fa2c5f3531`). Android-Wrapper-Minimalcheck: `cd android && ./gradlew --version` laeuft gruen (Java 21), `cd android && ./gradlew help -q` laeuft nicht an JitPack/Dependencies fest, sondern reproduzierbar an Runner-Toolchain-Umgebung (`languageVersion=17` nicht lokal aufloesbar; foojay Auto-Provisionierung durch Proxy 403 blockiert). Keine Android-Buildlogik-Aenderung noetig.
 

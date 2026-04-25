@@ -3,21 +3,9 @@
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
-## NPM-Umgebungs-Hinweis (Proxy-Keys)
+Ziel: klare Trennung zwischen **Pflichtchecks** (lokaler Gate-Basispfad) und **optionalen Zusatzchecks**.
 
-Falls deine Shell/CI alte env-Keys wie `npm_config_http-proxy`/`npm_config_https-proxy` setzt, kann npm warnen:
-
-- `Unknown env config "http-proxy"`
-
-Das ist kein Test-Fail im Repo, aber fuer saubere Runs kannst du die alten env-Keys vor dem Lauf entfernen:
-
-```bash
-env -u npm_config_http-proxy -u npm_config_https-proxy npm run typecheck
-env -u npm_config_http-proxy -u npm_config_https-proxy npm run lint:ci
-env -u npm_config_http-proxy -u npm_config_https-proxy npm run test:silent
-```
-
-## Kanonischer lokaler Ablauf
+## 1) Pflichtchecks (lokaler Standard-Gate)
 
 ```bash
 npm ci
@@ -28,64 +16,56 @@ npm run lint:ci
 npm run test:silent
 ```
 
-Optional:
+## 2) Optionale Zusatzchecks (kontextabhaengig)
 
 ```bash
 npm run test:e2e:smoke
 npm run docs:sync:smoke
-npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
+npm run verify:release
 ```
 
-## Read-only Live-/Staging-Checks
+Hinweis zu `verify:release`:
+- ohne `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` bleibt der ehrliche Status `OK_WITH_SKIPS`
+- `OK_FULL` gilt nur mit gesetzten Live-Variablen
+- App-Typecheck-Anteil in `verify:release` gilt nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist
+
+## 3) Read-only Live-/Staging-Checks
 
 ```bash
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run edge:check:live
 ```
 
-Oder als kompletter Verify-Pfad:
+oder als Vollpfad:
 
 ```bash
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin JWT>" npm run verify:release
 ```
 
-### Variable-/Secret-Bezug fuer Live-Checks (ohne Secret-Leaks)
+### Variable-/Secret-Bezug fuer Live-Checks
 
 Pflichtvariablen:
 - `EDGE_BASE_URL`
 - `EDGE_OPERATOR_JWT`
 
-Sichere Bezugswege (Reihenfolge):
-1. **CI/Runner (bevorzugt):** als masked Repo-Secrets `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` injizieren.
-2. **Lokaler URL-Fallback:** eigenes Projekt-Ref einsetzen, z. B. `EDGE_BASE_URL="https://<your-project-ref>.supabase.co/functions/v1"`.
-3. **JWT-Fallback lokal:** kurzlebiger `build_admin`-JWT (temporär) fuer interaktive Operator-Live-Checks; ein technischer Server-Caller-Weg (z. B. `service_role` im Runner) ist ein separater Maschinenpfad und kein gleichwertiger Ersatz fuer den usergebundenen `k1w1-handler`-Live-Contract.
+Sichere Bezugswege:
+1. CI/Runner masked secrets (bevorzugt)
+2. lokaler URL-Fallback mit eigenem Projekt-Ref
+3. kurzlebiger `build_admin`-JWT fuer interaktive Operatorchecks
 
 Wichtig:
-- Keine JWTs/API-Keys/Passwörter in Dateien, Commits oder Logs schreiben.
-- Der Live-Signoff ist env-/token-gebunden; ohne diese Variablen bleibt `verify:release` ehrlich `OK_WITH_SKIPS`.
+- keine JWTs/API-Keys in Dateien, Commits oder Logs
+- `service_role` ist kein gleichwertiger Ersatz fuer den usergebundenen `k1w1-handler`-Operator-Live-Contract
 
-### Wichtige Grenze der Live-Contract-Checks (verify_jwt)
+## 4) NPM-Umgebungs-Hinweis (Proxy-Keys)
 
-- Zuletzt bestaetigter Volllauf: mit gesetzten `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` liefen `edge:check:live` und `verify:release` auf `OK_FULL`.
-- `npm run edge:check:live` prueft aktuell live drei Contract-Kanten: `k1w1-handler` invalid JSON, `preview_page` missing-header fail-closed, und `save_preview` Fragment-Transport (`transport=fragment#secret=...` ohne Query-`?secret=`). Dashboard-Flags bleiben weiterhin separater Operator-Audit.
-- Der operatorische Flag-Audit ist fuer den aktuellen Stand erfolgt: live ist fuer `save_preview` und `k1w1-handler` `verify_jwt=true` bestaetigt.
-- Fuer kuenftige Releases bleibt ein expliziter Flag-Abgleich sinnvoll, weil ein spaeterer Dashboard-Drift durch reine Verhaltenschecks nicht sicher ausgeschlossen wird.
+Falls deine Umgebung alte `npm_config_http-proxy`/`npm_config_https-proxy` setzt, kann npm warnen (`Unknown env config "http-proxy"`).
+Optional fuer saubere Runs:
 
-## Auth-/Rate-Limit-Vertrag (fail-closed, operatorisch relevant)
-
-- `SUPABASE_RAW` ist im App-Runtime-/Hydration-/Save-Vertrag die einzige kanonische Quelle; `SUPABASE_URL` bleibt ein Mirror-/Compat-Slot und darf nicht als zweite Wahrheit interpretiert werden.
-- Rate-Limit-Subject bleibt bewusst fail-closed:
-  - Trusted Client-IP nur mit serverseitiger Trust-Grenze (`K1W1_TRUST_CF_CONNECTING_IP=1` + `cf-ray` oder `K1W1_TRUSTED_PROXY_HOPS>0`).
-  - Wenn keine trusted IP vorliegt, aber ein verifizierter Actor vorhanden ist: Fallback auf `actor:<verified-id>`.
-  - Wenn weder trusted IP noch verifizierter Actor vorliegt: `400 untrusted_client_ip` (kein globaler Shared-Bucket).
-- `k1w1-handler` ist bewusst auth-asymmetrisch zu den Workflow-/Keystore-Operatorrouten:
-  - **nur** verifiziertes JWT + RBAC (`service_role|build_admin`), **ohne** `x-k1w1-admin-key`/`requireScopedEdgeAuth`.
-  - Workflow-/Keystore-Routen bleiben auf JWT + Scoped-Admin-Key-Vertrag.
-
-## Zweck
-
-- lokale Verifikation reproduzierbar halten
-- Edge-/Docs-/Contract-Checks nicht von Hauptsuite entkoppeln
-- Read-only Live-Checks klar von produktiven Mutationen trennen
+```bash
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run typecheck
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run lint:ci
+env -u npm_config_http-proxy -u npm_config_https-proxy npm run test:silent
+```
 
 ## Verweise
 
