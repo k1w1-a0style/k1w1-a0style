@@ -85,7 +85,6 @@
   },
   "devDependencies": {
     "@babel/core": "^7.28.4",
-    "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.14",
     "@types/libsodium-wrappers-sumo": "^0.7.8",
