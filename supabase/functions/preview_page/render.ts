@@ -210,10 +210,9 @@ export function renderPage(params: {
 
       setTimeout(() => hideOverlay(), 2500);
     } catch (e) {
-      if (SHOW_RUNTIME_ERRORS) {
-        showError(e);
-      } else {
-        appendLog("[runtime-error suppressed] " + String(String(e?.message || e)));
+      showError(e);
+      if (!SHOW_RUNTIME_ERRORS) {
+        appendLog("[runtime-error surfaced] startup/render guard failure");
       }
     }
   }

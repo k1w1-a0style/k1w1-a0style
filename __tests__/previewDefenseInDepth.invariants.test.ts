@@ -243,6 +243,7 @@ describe("preview/webview defense-in-depth invariants", () => {
     expect(page).toContain("#secret=hash123");
     expect(page).not.toContain("?secret=");
     expect(page).toContain("ALLOW_ESM_SH_CDN");
+    expect(page).toContain("showError(e);");
     expect(bootstrapPage).not.toContain("document.body.dataset.previewSecret");
   });
 
