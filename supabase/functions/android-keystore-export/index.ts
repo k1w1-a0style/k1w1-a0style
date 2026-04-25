@@ -152,7 +152,9 @@ Deno.serve(async (req) => {
       parsed = raw as typeof parsed;
     }
     if (pendingMigratedV3Payload) {
-      const { error: migrationWriteError } = await supabase.storage.from(bucket).upload(path, pendingMigratedV3Payload, {
+      const { error: migrationWriteError } = await supabase.storage
+        .from(bucket)
+        .upload(path, new Blob([pendingMigratedV3Payload], { type: "text/plain" }), {
         upsert: true,
         contentType: "text/plain",
       });
