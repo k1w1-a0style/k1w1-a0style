@@ -3,6 +3,7 @@
 
 import { StyleSheet } from "react-native";
 import { theme } from "../../theme";
+import { CI_LITE_STYLE_TOKENS } from "./styleTokens";
 
 const HAIRLINE = StyleSheet.hairlineWidth;
 
@@ -16,7 +17,7 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.palette.background,
     borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}22`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder22,
   },
   iconBtnPressed: {
     backgroundColor: theme.palette.userBubble.background,
@@ -36,7 +37,7 @@ export const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}66`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder66,
     ...theme.glow.primary,
   },
 
@@ -53,7 +54,7 @@ export const styles = StyleSheet.create({
     maxWidth: 520,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: `${theme.palette.primary}2a`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder2a,
     backgroundColor: theme.palette.card,
     padding: 14,
     ...theme.glow.primarySubtle,
@@ -80,7 +81,7 @@ export const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     borderWidth: 1,
-    borderColor: `${theme.palette.primary}22`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder22,
     backgroundColor: theme.palette.background,
     alignItems: "center",
     justifyContent: "center",
@@ -141,9 +142,9 @@ export const styles = StyleSheet.create({
     height: 8,
     borderRadius: 999,
     overflow: "hidden",
-    backgroundColor: `${theme.palette.primary}1a`,
+    backgroundColor: CI_LITE_STYLE_TOKENS.primaryBackground1a,
     borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}22`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder22,
   },
   progressFill: {
     height: 8,
@@ -158,7 +159,7 @@ export const styles = StyleSheet.create({
     bottom: 0,
     width: 60,
     borderRadius: 999,
-    backgroundColor: `${theme.palette.primary}55`,
+    backgroundColor: CI_LITE_STYLE_TOKENS.primaryShimmer55,
     opacity: 0.35,
   },
 
@@ -232,7 +233,7 @@ export const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: `${theme.palette.error}44`,
+    borderColor: CI_LITE_STYLE_TOKENS.errorBorder44,
     backgroundColor: "rgba(255,68,68,0.08)",
   },
   messageTextWrap: {
@@ -256,8 +257,8 @@ export const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: `${theme.palette.warning}44`,
-    backgroundColor: `${theme.palette.warning}12`,
+    borderColor: CI_LITE_STYLE_TOKENS.warningBorder44,
+    backgroundColor: CI_LITE_STYLE_TOKENS.warningBackground12,
   },
   warningTitle: {
     color: theme.palette.warning,
@@ -374,7 +375,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: `${theme.palette.primary}22`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder22,
     backgroundColor: theme.palette.background,
     minWidth: 92,
   },

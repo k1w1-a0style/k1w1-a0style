@@ -1,21 +1,7 @@
 // styles/enhancedBuildScreenStyles.ts
 import { StyleSheet } from "react-native";
 import { theme } from "../theme";
-
-function withOpacity(color: string, opacity: number): string {
-  if (!color.startsWith("#")) return color;
-  let hex = color.slice(1);
-  if (hex.length === 3)
-    hex = hex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  if (hex.length !== 6) return color;
-  const alpha = Math.round(Math.max(0, Math.min(1, opacity)) * 255)
-    .toString(16)
-    .padStart(2, "0");
-  return `#${hex}${alpha}`;
-}
+import { ENHANCED_BUILD_STYLE_TOKENS } from "./enhancedBuildScreenStyleTokens";
 
 export const styles = StyleSheet.create({
   root: {
@@ -204,15 +190,15 @@ export const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   warningBox: {
-    backgroundColor: withOpacity("#FFAA00", 0.1),
+    backgroundColor: ENHANCED_BUILD_STYLE_TOKENS.warningBoxBackground,
     borderWidth: 1,
-    borderColor: withOpacity("#FFAA00", 0.3),
+    borderColor: ENHANCED_BUILD_STYLE_TOKENS.warningBoxBorder,
     borderRadius: 10,
     padding: 12,
     marginBottom: 14,
   },
   warningText: {
-    color: "#FFAA00",
+    color: ENHANCED_BUILD_STYLE_TOKENS.warningAccent,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 8,
@@ -223,9 +209,9 @@ export const styles = StyleSheet.create({
     marginTop: 14,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: withOpacity(theme.palette.error, 0.1),
+    backgroundColor: ENHANCED_BUILD_STYLE_TOKENS.errorBoxBackground,
     borderWidth: 1,
-    borderColor: withOpacity(theme.palette.error, 0.3),
+    borderColor: ENHANCED_BUILD_STYLE_TOKENS.errorBoxBorder,
   },
   errorText: {
     color: theme.palette.error,
@@ -319,7 +305,7 @@ export const styles = StyleSheet.create({
   },
   profileBtnActive: {
     borderColor: theme.palette.primary,
-    backgroundColor: withOpacity(theme.palette.primary, 0.1),
+    backgroundColor: ENHANCED_BUILD_STYLE_TOKENS.profileActiveBackground,
     ...theme.glow.primarySubtle,
   },
   profileBtnText: {
@@ -378,12 +364,12 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: withOpacity(theme.palette.text.secondary, 0.35),
-    backgroundColor: withOpacity(theme.palette.card, 0.6),
+    borderColor: ENHANCED_BUILD_STYLE_TOKENS.filterPillBorder,
+    backgroundColor: ENHANCED_BUILD_STYLE_TOKENS.filterPillBackground,
   },
   filterPillActive: {
-    borderColor: withOpacity(theme.palette.primary, 0.9),
-    backgroundColor: withOpacity(theme.palette.primary, 0.12),
+    borderColor: ENHANCED_BUILD_STYLE_TOKENS.filterPillActiveBorder,
+    backgroundColor: ENHANCED_BUILD_STYLE_TOKENS.filterPillActiveBackground,
   },
   filterPillText: {
     fontSize: 12,
