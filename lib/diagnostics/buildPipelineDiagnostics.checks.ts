@@ -15,6 +15,9 @@ import {
   getRepoSecretCheckTitle,
   readStringDeps,
 } from "./buildPipelineDiagnostics.helpers";
+import { resolveRepoFilePresence } from "./buildPipelineDiagnostics.repoFiles";
+
+export { resolveRepoFilePresence };
 
 const INVALID_EAS_PROJECT_ID_SENTINELS = new Set([
   "00000000-0000-4000-8000-000000000000",
@@ -80,45 +83,6 @@ export async function addLocalPrerequisiteChecks(
       ? undefined
       : "Keystore-Routen nutzen den separaten lokalen Keystore-Scoped-Key. Ohne ihn bleibt Keystore-Readiness unbestaetigt.",
   });
-}
-
-export async function resolveRepoFilePresence(params: {
-  owner: string;
-  repo: string;
-  ref: string;
-  deps: BuildPipelineDiagnosticsDeps;
-}) {
-  const d = params.deps;
-  const [
-    hasAppConfigJs,
-    hasAppConfigTs,
-    hasAppJson,
-    hasEasJson,
-    hasEasProjectJson,
-    hasPackageJson,
-    hasLinkWorkflow,
-    hasTriggeredBuildWorkflow,
-  ] = await Promise.all([
-    d.fileExists?.(params.owner, params.repo, "app.config.js", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, "app.config.ts", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, "app.json", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, "eas.json", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, "eas-project.json", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, "package.json", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, ".github/workflows/eas-link.yml", params.ref) ?? Promise.resolve(false),
-    d.fileExists?.(params.owner, params.repo, ".github/workflows/k1w1-triggered-build.yml", params.ref) ?? Promise.resolve(false),
-  ]);
-
-  return {
-    hasAppConfigJs,
-    hasAppConfigTs,
-    hasAppJson,
-    hasEasJson,
-    hasEasProjectJson,
-    hasPackageJson,
-    hasLinkWorkflow,
-    hasTriggeredBuildWorkflow,
-  };
 }
 
 export async function addRepoConfigChecks(params: {

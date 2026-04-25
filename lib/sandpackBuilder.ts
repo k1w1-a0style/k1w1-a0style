@@ -12,6 +12,7 @@ import {
   buildUnsafeEvalMissingCdnOptInHtml,
   SANDPACK_HTML_CSP_DIRECTIVES,
 } from "./sandpackBuilder.templates";
+import { collectCssFiles, joinCspDirectives } from "./sandpackBuilder.formatters";
 export type { SandpackOptions } from "./sandpackHelpers";
 
 function isUnsafeLocalEvalAllowed(opts: SandpackOptions): boolean {
@@ -35,16 +36,13 @@ export function buildSandpackHtml(opts: SandpackOptions): string {
   }
 
   const safeTitle = sanitizeTitle(title);
-  const csp = SANDPACK_HTML_CSP_DIRECTIVES.join("; ");
+  const csp = joinCspDirectives(SANDPACK_HTML_CSP_DIRECTIVES);
 
   // App Code extrahieren und für JS escapen
   const appCode = escapeForJs(findAppCode(files));
 
   // CSS aus Dateien sammeln
-  const cssFiles = Object.entries(files)
-    .filter(([path]) => path.endsWith(".css"))
-    .map(([, content]) => content)
-    .join("\n");
+  const cssFiles = collectCssFiles(files);
 
   const escapedCss = escapeForJs(cssFiles);
 
