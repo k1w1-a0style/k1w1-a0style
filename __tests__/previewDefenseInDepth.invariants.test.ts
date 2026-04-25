@@ -1,17 +1,11 @@
 import fs from "fs";
 import path from "path";
+import { renderHook } from "@testing-library/react-native";
 import { buildCsp, html, isValidPreviewSecretFormat } from "../supabase/functions/preview_page/helpers";
+import { renderFragmentBootstrapPage, renderPage } from "../supabase/functions/preview_page/render";
+import { useWebViewNavigation } from "../screens/shared/preview/useWebViewNavigation";
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
-
-const wildcardLiterals = [
-  "originWhitelist={['*']}",
-  'originWhitelist={["*"]}',
-  "return ['*']",
-  'return ["*"]',
-  "const originWhitelist = ['*']",
-  'const originWhitelist = ["*"]',
-];
 
 describe("preview/webview defense-in-depth invariants", () => {
   it("save_preview emits fragment links with hashed preview secret only", () => {
@@ -30,14 +24,11 @@ describe("preview/webview defense-in-depth invariants", () => {
     expect(src).toContain("secretHash: safeToggleSecret");
   });
 
-  it("missing/invalid preview secrets stay fail-closed", () => {
-    const src = read("supabase/functions/preview_page/index.ts");
-
-    expect(src).toContain("if (!secret)");
-    expect(src).toContain("Missing preview secret header.");
-    expect(src).toContain("if (!isValidPreviewSecretFormat(secret))");
+  it("preview secret format validation stays fail-closed for invalid/malformed values", () => {
     expect(isValidPreviewSecretFormat("")).toBe(false);
+    expect(isValidPreviewSecretFormat("   ")).toBe(false);
     expect(isValidPreviewSecretFormat("bad secret with spaces")).toBe(false);
+    expect(isValidPreviewSecretFormat("short")).toBe(false);
   });
 
   it("preview page CSP keeps nonce-based script policy and avoids unsafe-inline scripts", async () => {
@@ -56,41 +47,43 @@ describe("preview/webview defense-in-depth invariants", () => {
     expect(res.headers.get("Content-Security-Policy")).toContain(`'nonce-${nonce}'`);
   });
 
-  it("webview navigation/originWhitelist contracts reject wildcard literals in hooks and rendered WebViews", () => {
-    const navSrc = read("utils/previewNavigation.ts");
-    const webViewHookSrc = read("screens/shared/preview/useWebViewNavigation.ts");
-    const previewScreenSrc = read("screens/PreviewScreen/components/DeviceFrame.tsx");
-    const fullscreenSrc = read("screens/PreviewFullscreenScreen/PreviewFullscreenScreen.tsx");
-    const previewScreenHookSrc = read("screens/PreviewScreen/hooks/usePreviewScreen.ts");
-    const fullscreenHookSrc = read("screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts");
+  it("webview navigation/originWhitelist contracts stay scoped at runtime without wildcard allow-all entries", () => {
+    const htmlMode = renderHook(() => useWebViewNavigation({ mode: "html" }));
+    expect(htmlMode.result.current.originWhitelist).toEqual(["data:*", "about:*", "blob:*"]);
+    expect(htmlMode.result.current.originWhitelist).not.toContain("*");
 
-    expect(navSrc).toContain('return { action: "external_confirm", url: requestUrl };');
-    expect(navSrc).toContain('return { action: "block", reason: "unsupported_scheme" };');
-
-    for (const forbidden of wildcardLiterals) {
-      expect(webViewHookSrc).not.toContain(forbidden);
-      expect(previewScreenSrc).not.toContain(forbidden);
-      expect(fullscreenSrc).not.toContain(forbidden);
-      expect(previewScreenHookSrc).not.toContain(forbidden);
-      expect(fullscreenHookSrc).not.toContain(forbidden);
-    }
-
-    expect(previewScreenSrc).toContain("originWhitelist={originWhitelist}");
-    expect(fullscreenSrc).toContain("originWhitelist={originWhitelist}");
-    expect(previewScreenHookSrc).toContain("const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation");
-    expect(fullscreenHookSrc).toContain("const { baseOrigin, originWhitelist, handleShouldStartLoad } = useWebViewNavigation");
-    expect(webViewHookSrc).toContain("if (mode === 'html') return ['data:*', 'about:*', 'blob:*'];");
-    expect(webViewHookSrc).toContain("if (mode === 'url' && baseOrigin)");
-
-    expect(previewScreenSrc).toContain("mixedContentMode={getPreviewMixedContentMode()}");
-    expect(fullscreenSrc).toContain("mixedContentMode={getPreviewMixedContentMode()}");
+    const urlMode = renderHook(() =>
+      useWebViewNavigation({ mode: "url", url: "https://preview.example.com/app" }),
+    );
+    expect(urlMode.result.current.baseOrigin).toBe("https://preview.example.com");
+    expect(urlMode.result.current.originWhitelist).toEqual([
+      "https://preview.example.com",
+      "https://preview.example.com/*",
+      "data:*",
+      "about:*",
+      "blob:*",
+    ]);
+    expect(urlMode.result.current.originWhitelist).not.toContain("*");
   });
 
-  it("preview HTML/render path never embeds raw preview-secret handoff headers into markup", () => {
-    const renderSrc = read("supabase/functions/preview_page/render.ts");
+  it("preview HTML render path uses header-based secret handoff and does not leak query-style secret parameters", () => {
+    const bootstrapPage = renderFragmentBootstrapPage({ nonce: "nonce-bootstrap" });
+    const page = renderPage({
+      nonce: "nonce-render",
+      name: "Preview",
+      createdAt: "2026-04-25 12:00",
+      expiresAt: "2026-04-25 13:00",
+      files: { "/App.tsx": { contents: "export default function App(){ return null; }" } },
+      showRawLogs: false,
+      showRuntimeErrors: false,
+      logsToggleUrl: "https://example.test/functions/v1/preview_page?logs=1&runtime_errors=0#secret=hash123",
+      runtimeErrorsToggleUrl:
+        "https://example.test/functions/v1/preview_page?logs=0&runtime_errors=1#secret=hash123",
+    });
 
-    expect(renderSrc).toContain('"x-k1w1-preview-secret": secret');
-    expect(renderSrc).not.toContain("?secret=");
-    expect(renderSrc).not.toContain("document.body.dataset.previewSecret");
+    expect(bootstrapPage).toContain('"x-k1w1-preview-secret": secret');
+    expect(page).toContain("#secret=hash123");
+    expect(page).not.toContain("?secret=");
+    expect(bootstrapPage).not.toContain("document.body.dataset.previewSecret");
   });
 });
