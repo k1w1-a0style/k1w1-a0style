@@ -43,4 +43,20 @@ describe("usePreviewCreation local eval env gate", () => {
     expect(isExplicitUnsafeLocalPreviewEvalEnabled()).toBe(true);
     expect(isExplicitUnsafeLocalPreviewCdnEnabled()).toBe(true);
   });
+
+  it("blocks unsafe local eval and CDN in production runtime even with opt-in env flags", () => {
+    process.env.EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL = "true";
+    process.env.EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_CDN = "true";
+    process.env.NODE_ENV = "production";
+    runtimeGlobal.__DEV__ = false;
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const {
+      isExplicitUnsafeLocalPreviewEvalEnabled,
+      isExplicitUnsafeLocalPreviewCdnEnabled,
+    } = require("../hooks/usePreviewCreation");
+
+    expect(isExplicitUnsafeLocalPreviewEvalEnabled()).toBe(false);
+    expect(isExplicitUnsafeLocalPreviewCdnEnabled()).toBe(false);
+  });
 });

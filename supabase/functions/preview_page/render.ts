@@ -20,6 +20,7 @@ export function renderPage(params: {
   showRuntimeErrors: boolean;
   logsToggleUrl: string;
   runtimeErrorsToggleUrl: string;
+  allowEsmShCdn: boolean;
 }) {
   const {
     name,
@@ -33,6 +34,7 @@ export function renderPage(params: {
     showRuntimeErrors,
     logsToggleUrl,
     runtimeErrorsToggleUrl,
+    allowEsmShCdn,
   } = params;
 
   const sandpackSetup = {
@@ -71,7 +73,7 @@ export function renderPage(params: {
   .error-message { color: #ff6b6b; font-size: 14px; max-width: 520px; text-align: center; line-height: 1.5; font-family: ui-monospace, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; word-break: break-word; padding: 0 16px; }
 </style>
 </head>
-<body>
+<body data-k1w1-preview-context="isolated">
   <div class="header">
     <div class="header-left">
       <div class="header-title">${escapeHtml(name)}</div>
@@ -143,7 +145,7 @@ export function renderPage(params: {
     overlay.append(title, body);
   }
 
-  import { SandpackClient } from "https://esm.sh/@codesandbox/sandpack-client@2.19.0";
+  const ALLOW_ESM_SH_CDN = ${allowEsmShCdn ? "true" : "false"};
 
   function hideOverlay() {
     overlay?.classList.add("hidden");
@@ -174,6 +176,11 @@ export function renderPage(params: {
         else if (v && typeof v === "object" && "contents" in v) normalizedFiles[path] = v.contents;
         else normalizedFiles[path] = String(v ?? "");
       }
+
+      if (!ALLOW_ESM_SH_CDN) {
+        throw new Error("CDN runtime disabled in this environment.");
+      }
+      const { SandpackClient } = await import("https://esm.sh/@codesandbox/sandpack-client@2.19.0");
 
       appendLog("[start] files=" + String(Object.keys(normalizedFiles).length) + " template=" + String(template));
 
@@ -254,6 +261,10 @@ export function renderFragmentBootstrapPage(params: { nonce: string }): string {
 
     if (!secret) {
       writeError("Preview token missing.");
+    } else if (current.searchParams.get("transport") !== "fragment") {
+      writeError("Preview transport must be fragment-isolated.");
+    } else if (current.origin !== window.location.origin) {
+      writeError("Preview origin mismatch.");
     } else {
       current.hash = "";
       try {
@@ -264,12 +275,23 @@ export function renderFragmentBootstrapPage(params: { nonce: string }): string {
 
       fetch(current.toString(), {
         method: "GET",
+        credentials: "omit",
+        redirect: "error",
         headers: {
           "x-k1w1-preview-secret": secret,
         },
       })
-        .then((res) => res.text())
+        .then(async (res) => {
+          const ctype = (res.headers.get("content-type") || "").toLowerCase();
+          if (!res.ok || !ctype.includes("text/html")) {
+            throw new Error("Preview bootstrap received invalid response.");
+          }
+          return await res.text();
+        })
         .then((page) => {
+          if (!page.includes('data-k1w1-preview-context="isolated"')) {
+            throw new Error("Preview bootstrap rejected unisolated HTML.");
+          }
           document.open();
           document.write(page);
           document.close();

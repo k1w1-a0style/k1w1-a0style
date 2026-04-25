@@ -120,7 +120,10 @@ describe("preview edge error contract", () => {
     expect(previewPageSource).toContain("renderFragmentBootstrapPage");
     expect(previewPageSource).toContain('if (req.method !== "GET" && req.method !== "HEAD")');
     expect(previewPageSource).toContain("isValidPreviewSecretFormat(secret)");
+    expect(previewPageSource).toContain("if (!isHashedPreviewSecret(secret))");
     expect(previewPageSource).toContain("isHashedPreviewSecret(secret)");
+    expect(previewPageSource).toContain("if (isExpired(record.expires_at))");
+    expect(previewPageSource).toContain("if (!isPreviewTtlValid(record.created_at, record.expires_at))");
     expect(previewPageSource).toContain("Missing preview secret header.");
     expect(previewPageSource).toContain('code: "preview_payload_invalid"');
     expect(previewPageSource).not.toContain("preview_invalid_payload");

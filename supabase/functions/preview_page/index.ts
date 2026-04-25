@@ -11,10 +11,12 @@ import {
   html,
   htmlPreviewError,
   isHashedPreviewSecret,
+  isPreviewTtlValid,
   isValidPreviewSecretFormat,
   previewPageErrorResponse,
   randomNonce,
   rateLimit,
+  resolvePreviewRuntimePolicy,
   requireDurableRateLimit,
   sanitizeErrorText,
 } from "./helpers.ts";
@@ -73,6 +75,14 @@ Deno.serve(async (req) => {
         message: "Preview token has an invalid format.",
       });
     }
+    if (!isHashedPreviewSecret(secret)) {
+      return htmlPreviewError({
+        code: "preview_payload_invalid",
+        nonce,
+        title: "Invalid preview token",
+        message: "Preview token must be a hashed secret token.",
+      });
+    }
 
     const recordResult = await fetchPreviewRecord(secret);
     if (!recordResult.ok) {
@@ -100,6 +110,14 @@ Deno.serve(async (req) => {
         nonce,
         title: "Expired",
         message: "Preview expired. Please create a new one.",
+      });
+    }
+    if (!isPreviewTtlValid(record.created_at, record.expires_at)) {
+      return htmlPreviewError({
+        code: "preview_payload_invalid",
+        nonce,
+        title: "Invalid preview TTL",
+        message: "Preview token TTL is invalid.",
       });
     }
 
@@ -149,12 +167,14 @@ Deno.serve(async (req) => {
       showRuntimeErrors,
       logsToggleUrl,
       runtimeErrorsToggleUrl,
+      allowEsmShCdn: resolvePreviewRuntimePolicy().allowEsmShCdn,
     });
 
     const ms = Date.now() - started;
     const fileCount = countPreviewFiles(record);
+    const safeName = sanitizeErrorText(record.name ?? "?");
     console.warn(
-      `[preview_page] ip=${ip} name=${record.name ?? "?"} files=${fileCount} bytes=${fileBytes} logs=${showRawLogs ? "on" : "off"} runtimeErrors=${showRuntimeErrors ? "on" : "off"} ms=${ms}`,
+      `[preview_page] ip=${ip} name=${safeName} files=${fileCount} bytes=${fileBytes} logs=${showRawLogs ? "on" : "off"} runtimeErrors=${showRuntimeErrors ? "on" : "off"} ms=${ms}`,
     );
 
     return renderPreviewResponse({ page, nonce });

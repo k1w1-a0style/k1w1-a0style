@@ -82,13 +82,10 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
     expect(read(previewHelpers)).toContain("return getPreviewSupabaseUrl() ?? \"\";");
     expect(read(previewHelpers)).toContain("const key = getPreviewServiceRoleKey() ?? \"\";");
     expect(read(previewHelpers)).not.toContain('getRuntimeEnv("TEST_STRICT_CSP")');
-    expect(read(previewHelpers)).not.toContain('getRuntimeEnv("PREVIEW_STRICT_CSP")');
-    expect(read(previewHelpers)).toContain(
-      '(getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "true";',
-    );
-    expect(read(previewHelpers)).toContain(
-      '(getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() !== "false";',
-    );
+    expect(read(previewHelpers)).toContain("resolvePreviewRuntimePolicy");
+    expect(read(previewHelpers)).toContain('isTruthyEnv(getRuntimeEnv("PREVIEW_STRICT_CSP"))');
+    expect(read(previewHelpers)).toContain('isTruthyEnv(getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL"))');
+    expect(read(previewHelpers)).toContain('isTruthyEnv(getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN"))');
 
     expect(read(savePreviewIndex)).toContain("const previewSupabaseUrl = getPreviewSupabaseUrl() ?? \"\";");
     expect(read(savePreviewIndex)).toContain(

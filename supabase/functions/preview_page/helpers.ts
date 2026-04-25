@@ -49,6 +49,7 @@ export const TABLE = "previews";
 // Limits
 export const MAX_FILES_BYTES = 1_500_000; // 1.5MB (aligned with save_preview)
 export const MAX_RESPONSE_BYTES = 5_000_000; // 5MB safety for generated HTML
+export const MAX_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // 2h hard cap
 
 // Rate limiting (best-effort, in-memory; resets on cold start)
 export function json(data: unknown, status = 200, headers?: HeadersInit) {
@@ -195,16 +196,46 @@ export function isValidPreviewSecretFormat(secret: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(trimmed);
 }
 
+function isTruthyEnv(value: string | undefined): boolean {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function isProductionPreviewRuntime(): boolean {
+  if (isTruthyEnv(getRuntimeEnv("K1W1_PREVIEW_PRODUCTION"))) return true;
+  if ((getRuntimeEnv("NODE_ENV") ?? "").trim().toLowerCase() === "production") return true;
+  return (getRuntimeEnv("DENO_DEPLOYMENT_ID") ?? "").trim().length > 0;
+}
+
+export function resolvePreviewRuntimePolicy(): {
+  isProduction: boolean;
+  strictCsp: boolean;
+  allowUnsafeEval: boolean;
+  allowEsmShCdn: boolean;
+} {
+  const isProduction = isProductionPreviewRuntime();
+
+  // Security-first defaults:
+  // - production defaults to strict CSP, no unsafe-eval and no esm.sh CDN runtime.
+  // - dev/test keeps previous convenience defaults unless explicitly disabled.
+  const strictCsp = isTruthyEnv(getRuntimeEnv("PREVIEW_STRICT_CSP")) || isProduction;
+  const allowUnsafeEval = !strictCsp && isTruthyEnv(getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL"));
+  const allowEsmShCdn = isProduction
+    ? isTruthyEnv(getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN"))
+    : (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").trim().toLowerCase() !== "false";
+
+  return {
+    isProduction,
+    strictCsp,
+    allowUnsafeEval,
+    allowEsmShCdn,
+  };
+}
+
 export function buildCsp(nonce: string): string {
-  // Preview-Default ist jetzt enger:
-  // - `unsafe-eval` ist standardmäßig AUS und muss explizit eingeschaltet werden
-  //   (`PREVIEW_ALLOW_UNSAFE_EVAL=true`) für den Sandpack-Tradeoff.
-  // - esm.sh bleibt Standardquelle für Modul-Imports; kann aber bewusst deaktiviert werden
-  //   (`PREVIEW_ALLOW_ESM_SH_CDN=false`) falls ein alternativer Loader genutzt wird.
-  const allowUnsafeEval =
-    (getRuntimeEnv("PREVIEW_ALLOW_UNSAFE_EVAL") ?? "").toLowerCase() === "true";
-  const allowEsmShCdn =
-    (getRuntimeEnv("PREVIEW_ALLOW_ESM_SH_CDN") ?? "").toLowerCase() !== "false";
+  const policy = resolvePreviewRuntimePolicy();
+  const allowUnsafeEval = policy.allowUnsafeEval;
+  const allowEsmShCdn = policy.allowEsmShCdn;
   const evalPart = allowUnsafeEval ? " 'unsafe-eval'" : "";
   const esmShPart = allowEsmShCdn ? " https://esm.sh" : "";
 
@@ -228,6 +259,9 @@ export function html(body: string, nonce: string, status = 200, headers?: Header
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store, no-cache, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
+      "Surrogate-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
 
       // Supabase can inject a very strict CSP (default-src 'none'; sandbox),
@@ -237,6 +271,19 @@ export function html(body: string, nonce: string, status = 200, headers?: Header
       ...(headers ?? {}),
     },
   });
+}
+
+export function isPreviewTtlValid(
+  createdAtIso: string | null | undefined,
+  expiresAtIso: string | null | undefined,
+): boolean {
+  if (!createdAtIso || !expiresAtIso) return false;
+  const createdAt = Date.parse(createdAtIso);
+  const expiresAt = Date.parse(expiresAtIso);
+  if (!Number.isFinite(createdAt) || !Number.isFinite(expiresAt)) return false;
+  const ttlMs = expiresAt - createdAt;
+  if (ttlMs <= 0) return false;
+  return ttlMs <= MAX_PREVIEW_TTL_MS;
 }
 
 export function htmlPreviewError(params: {
