@@ -1,5 +1,5 @@
 // hooks/gitHubReposTypes.ts
-// Extracted from useGitHubRepos.ts: public types and the small `encodePathSegments` helper.
+// Extracted from useGitHubRepos.ts: public type surface.
 
 import type {
   GitHubBranch,
@@ -30,9 +30,3 @@ export interface UseGitHubReposCallbacks {
   onPullNoFiles?: () => void;
   onNoToken?: () => void;
 }
-
-export const encodePathSegments = (path: string) =>
-  path
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
