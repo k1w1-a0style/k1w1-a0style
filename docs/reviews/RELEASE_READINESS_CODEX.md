@@ -3,6 +3,17 @@
 Stand: **2026-04-25**  
 Scope: Lokaler Readiness-Review ohne große Codeänderungen / ohne Secrets.
 
+## 0) CI/CD-Härtungsnachtrag (GitHub Actions Writeback-Flows, 2026-04-25)
+
+- `k1w1-ci-lite-autofix.yml` wurde auf **Least-Privilege** nachgezogen:
+  - Workflow-Root jetzt `permissions: contents: read`
+  - Writeback-Recht (`contents: write`) nur noch explizit am `autofix`-Job.
+- `scripts/check_managed_workflows.sh` erzwingt zusätzlich:
+  - `pull_request_target` ist im managed Workflow-Scope verboten.
+  - Kein Workflow mit `contents: write` darf über `pull_request` / `pull_request_target` triggern.
+  - CI-Lite-Autofix muss Root-`contents: read` + Job-`contents: write` strikt einhalten.
+- Ergebnis: gleiche Funktionalität, aber reduzierte Token-Rechte im Default-Kontext und stärkere Contract-Absicherung gegen versehentliche PR/Fork-Writeback-Exposition.
+
 ---
 
 ## 1) Ampelstatus

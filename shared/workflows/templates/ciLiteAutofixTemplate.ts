@@ -20,7 +20,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: k1w1-ci-lite-autofix-\${{ inputs.ref }}
@@ -31,6 +31,8 @@ jobs:
     name: ESLint --fix + verify
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
 
     env:
       ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
