@@ -121,11 +121,6 @@ function base64ToBytes(value: string): Uint8Array {
   return new Uint8Array(Buffer.from(value, "base64"));
 }
 
-function normalizeBufferSource(bytes: Uint8Array): Uint8Array {
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  return new Uint8Array(buffer);
-}
-
 function toBufferSource(bytes: Uint8Array): BufferSource {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
