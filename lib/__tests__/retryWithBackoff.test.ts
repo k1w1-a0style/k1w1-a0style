@@ -1,4 +1,3 @@
-// lib/__tests__/retryWithBackoff.test.ts
 import { fetchWithBackoff, retryWithBackoff } from '../retryWithBackoff';
 
 // Mock console.log to avoid test output noise

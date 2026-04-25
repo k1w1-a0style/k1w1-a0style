@@ -1,4 +1,3 @@
-// lib/__tests__/tokenEstimator.test.ts
 import { estimateTokens, estimateTokensForArray, exceedsTokenLimit } from '../tokenEstimator';
 
 // Mock the config

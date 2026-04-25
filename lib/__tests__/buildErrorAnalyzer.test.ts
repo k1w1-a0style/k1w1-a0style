@@ -1,4 +1,3 @@
-// lib/__tests__/buildErrorAnalyzer.test.ts
 import {
   BuildErrorAnalyzer,
   ErrorAnalysis,
