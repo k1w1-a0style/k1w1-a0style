@@ -33,8 +33,7 @@ supabase/functions/**/node_modules
 .DS_Store
 Thumbs.db
 
-# Android / iOS native not used (Expo managed)
-android/
+# iOS native not used for current build targets
 ios/
 
 # Editor junk
