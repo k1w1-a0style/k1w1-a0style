@@ -1,8 +1,6 @@
-// lib/__tests__/buildErrorAnalyzer.test.ts
 import {
   BuildErrorAnalyzer,
   ErrorAnalysis,
-  BuildError,
 } from "../buildErrorAnalyzer";
 import { LogEntry } from "../../hooks/useGitHubActionsLogs";
 

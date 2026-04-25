@@ -1,4 +1,3 @@
-// __tests__/bridgeValidation.test.ts
 // Tests for the strict WebView ↔ RN bridge message validation in WebCodeEditor.
 import {
   isInboundMsg,

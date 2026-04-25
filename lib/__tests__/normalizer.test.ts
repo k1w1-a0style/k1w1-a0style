@@ -1,4 +1,3 @@
-// lib/__tests__/normalizer.test.ts
 import { normalizeAiResponse, normalizeAiResponseDetailed } from '../normalizer';
 
 describe('normalizer', () => {

@@ -2,12 +2,10 @@ import fs from "fs";
 import path from "path";
 
 describe("Bereich 6 / C4 cleanup invariants", () => {
-  const flowFile = path.join(process.cwd(), "hooks/useChatAIFlow.ts");
   const lifecycleHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowLifecycleHelpers.ts");
   const transientHelpersFile = path.join(process.cwd(), "hooks/chatAIFlowTransientStateHelpers.ts");
   const transientHookFile = path.join(process.cwd(), "hooks/chatAIFlow/useChatAITransientState.ts");
   const screenFile = path.join(process.cwd(), "screens/ChatScreen/hooks/useChatScreen.ts");
-  const flowSource = fs.readFileSync(flowFile, "utf8");
   const lifecycleHelpersSource = fs.readFileSync(lifecycleHelpersFile, "utf8");
   const transientHelpersSource = fs.readFileSync(transientHelpersFile, "utf8");
   const transientHookSource = fs.readFileSync(transientHookFile, "utf8");

@@ -1,4 +1,3 @@
-// __tests__/navigation.smoke.test.tsx
 import React from 'react';
 import { Text, View } from 'react-native';
 import { render } from '@testing-library/react-native';

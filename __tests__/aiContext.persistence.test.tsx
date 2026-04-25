@@ -4,7 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { renderHook, act, waitFor } from "@testing-library/react-native";
 
 import { AIProvider, useAI } from "../contexts/AIContext";
-import { AI_KEYS_SECURE_KEY, CONFIG_STORAGE_KEY } from "../contexts/AIContext/helpers";
+import { CONFIG_STORAGE_KEY } from "../contexts/AIContext/helpers";
 
 describe("AIContext redacted config persistence", () => {
   beforeEach(() => {
@@ -19,7 +19,6 @@ describe("AIContext redacted config persistence", () => {
     secureStore.__resetMockStorage?.();
     jest.clearAllMocks();
   });
-
 
   afterEach(() => {
     jest.runOnlyPendingTimers();

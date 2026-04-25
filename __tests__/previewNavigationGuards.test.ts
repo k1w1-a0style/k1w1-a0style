@@ -1,4 +1,3 @@
-// __tests__/previewNavigationGuards.test.ts
 import { decidePreviewNavigation, getOrigin } from "../utils/previewNavigation";
 
 describe("previewNavigation guards", () => {

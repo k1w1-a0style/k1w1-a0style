@@ -1,4 +1,3 @@
-// lib/__tests__/RateLimiter.test.ts
 import { 
   RateLimiter, 
   TokenBucketRateLimiter, 

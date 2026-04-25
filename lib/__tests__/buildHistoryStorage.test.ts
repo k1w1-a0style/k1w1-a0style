@@ -1,4 +1,3 @@
-// lib/__tests__/buildHistoryStorage.test.ts
 // Tests für Build-Historie Storage
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
