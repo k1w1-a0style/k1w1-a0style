@@ -72,7 +72,7 @@ export default function PreviewFullscreenScreen() {
     );
   }
 
-  // ─── Guard 2: URL nicht parseable (war vorher dead code!) ─────────────────
+  // ─── Guard 2: URL nicht parseable ─────────────────────────────────────────
   if (hasUrlParseError) {
     return (
       <SafeAreaView style={styles.screen}>

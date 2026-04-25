@@ -110,4 +110,42 @@ describe("PreviewFullscreenScreen flow", () => {
     expect(handleOpenExternal).toHaveBeenCalledTimes(1);
     expect(handleShare).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the invalid-url guard when URL parsing failed and keeps the back action reachable", () => {
+    const handleGoBack = jest.fn();
+    mockUsePreviewFullscreen.mockReturnValue({
+      title: "Preview",
+      url: "https://::invalid",
+      html: null,
+      baseUrl: null,
+      mode: "url",
+      hasUrlParseError: true,
+      originWhitelist: ["*"],
+      loading: false,
+      error: null,
+      canGoBack: false,
+      canGoForward: false,
+      webViewRef: { current: null },
+      handleGoBack,
+      handleWebViewGoBack: jest.fn(),
+      handleWebViewGoForward: jest.fn(),
+      handleReload: jest.fn(),
+      handleShare: jest.fn(),
+      handleOpenExternal: jest.fn(),
+      handleLoadStart: jest.fn(),
+      handleLoadEnd: jest.fn(),
+      handleNavigationStateChange: jest.fn(),
+      handleShouldStartLoad: jest.fn(() => true),
+      handleError: jest.fn(),
+      handleHttpError: jest.fn(),
+      handleContentProcessDidTerminate: jest.fn(),
+      handleRenderProcessGone: jest.fn(),
+      headerSubtitle: "",
+    });
+
+    const screen = render(<PreviewFullscreenScreen />);
+    expect(screen.getByText("Ungültige Preview-URL")).toBeTruthy();
+    fireEvent.press(screen.getAllByText("Zurück")[0]);
+    expect(handleGoBack).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,11 +1,4 @@
 // screens/PreviewFullscreenScreen/hooks/usePreviewFullscreen.ts
-//
-// Extrahiert aus PreviewFullscreenScreen.tsx (Patch 200).
-//
-// CRITICAL BUG FIX:
-//   Vorher: if(!mode) { return (...); if(mode==="url"&&!baseOrigin) { ... } }
-//   → Der zweite Guard war dead code (nach return, kein schließendes })
-//   Nachher: hasUrlParseError-Flag → Komponente rendert beide Guards korrekt als separate ifs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Linking, Share } from 'react-native';
@@ -64,9 +57,7 @@ export function usePreviewFullscreen() {
     return null;
   }, [html, url, remoteUrlStatus]);
 
-  // ─── BUG FIX: URL-Parse-Error als separates Flag ──────────────────────────
-  // War vorher dead code innerhalb des if(!mode)-Blocks nach einem return.
-  // Jetzt: hasUrlParseError wird an Komponente weitergegeben → korrekte Guards.
+  // ─── URL-Parse-Error als separates Flag ───────────────────────────────────
   const hasUrlParseError = useMemo<boolean>(() => {
     if (mode !== 'url' || !url) return false;
     try {
