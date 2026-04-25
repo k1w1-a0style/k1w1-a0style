@@ -3,91 +3,26 @@
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 <!-- Legacy marker for docs contract tooling: Stand: **2026-04-02 (Docs Konsolidierung)** -->
 
-## Status-SoT / Governance
+## Rolle dieser Datei
 
-- **Primaere aktuelle Entscheidungsquelle** fuer den *jetzigen* Stand ist diese Review-Datei (`docs/reviews/Review.md`).
-- `PROJECT_CHECKLOG.md` bleibt **append-only Historie** (Chronik), nicht die operative Freigabequelle.
-- `docs/patches/PATCHLOG_ROOT.md` bleibt **Patch-Historie** (abgeleitet), ebenfalls nicht die operative Freigabequelle.
+- Diese Datei ist die **aktuelle Review-SoT** fuer den gegenwaertigen Gesamtstatus.
+- `PROJECT_CHECKLOG.md` und `docs/patches/PATCHLOG_ROOT.md` bleiben bewusst **append-only Historie**.
+- Historische Detailerzaehlungen werden hier nicht vollstaendig repliziert.
 
 ## Aktueller Gesamtstatus
 
-> Letzter lokaler Gate-Run im aktuellen Durchlauf endet erwartungsgemaess bei `OK_WITH_SKIPS`, solange `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` nicht gesetzt sind; ein echtes `OK_FULL` bleibt weiterhin an gueltige Live-Env + Operator-JWT gebunden.
+- Dokumentierter Repo-Stand: Patch 786.
+- Lokaler Verify-Status ohne Live-Variablen: erwartungsgemaess `OK_WITH_SKIPS`.
+- `OK_FULL` gilt nur mit gesetzten `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` (oder als explizit historisch belegter Voll-Live-Lauf).
+- Kein aktuell bekannter technischer High-Priority-Restpunkt im Repo-Scope; offene Themen sind in `docs/TODO.md` getrennt gelistet.
 
-Recoverability-Status fuer den aktuellen Kern-Fixblock: Die zuvor offenen Restore-Luecken sind jetzt inkl. Snapshot-Treue-Kante geschlossen (Patch 780 + Patch 781). Insbesondere fuehrt der Connections-Rollback nach Snapshot-Restore keine nachgelagerten Save-Plan-Clears mehr aus; dadurch bleibt der restaurierte Zustand auch bei leeren Primaerwerten und vorhandenen Side-States exakt erhalten. Diese Aussage gilt fuer den repo-verifizierten Code-/Teststand, nicht als pauschale Entwarnung fuer externe Live-Themen ohne Live-Env-Nachweis.
+## Aktiv gueltige Leitlinien
 
-Der aktuelle Repo-Stand wurde nach Codefix-, Cleanup-, Deadcode-, Doku- und Security-Runden erneut kritisch geprueft.
+- fail-closed Auth-/RBAC-Vertraege fuer privilegierte Edge-Routen bleiben verpflichtend.
+- aktive Einstiegsdoku bleibt klein (`README`, `INDEX`, `FRESH_CHECKOUT`, `TESTING_GUIDE`).
+- Checklog/Patchlog bleiben Historie und werden nicht als alleinige operative Freigabequelle gelesen.
 
-### Ergebnis
-
-- `useChatScreen.ts` ist im Residual-Block weiter entmischt: Prefill-/Route-Param-Cleanup liegt nun in `chatScreenPrefill.ts`; Fehler beim Param-Reset werden sichtbar geloggt statt stumm geschluckt.
-- `useChatScreen.ts` schliesst den verbliebenen Silent-Catch-Rest im Scrollpfad: `scrollToEnd`-Fehler werden nun im Primary-/Retry-Pfad via `logger.warn(...)` sichtbar, ohne UI-/Send-/Flow-Semantik zu aendern.
-- `useCiLiteWorkflow.ts` delegiert die Logline-Ableitung jetzt an `resolveCiLiteLogLines(...)`, sodass Pending-/Hydrated-/Run-Log-Wiring aus dem Haupt-Hook weiter reduziert ist.
-- `useEnhancedBuildScreen.ts` lagert den Log-Derivation-Block (`analyses`, `logsErrorSafe`, `logLines`) in `useEnhancedBuildLogState.ts` aus; Haupt-Hook bleibt Screen-Orchestrator.
-- `infra/github/workflows.ts` meldet JSON-Parse-Fehler im Dispatch-Errorpfad nun mit `logger.warn(...)`; fail-closed Workflow-Fehlerverhalten bleibt unveraendert.
-- Residual-/Rest-Hotspots aus A1/A2/A3 wurden erneut im engen Scope geprueft; verbleibende groessere Dateien sind aktuell fachlich sinnvolle Orchestratoren, bei denen weiterer Split keinen klaren Sicherheits-/Review-Gewinn mehr brachte.
-- WeakFallback-Hygiene im produktnahen Repo-Bootstrap nachgezogen: `AsyncStorage.getItem(...).catch(() => "")` wurde durch expliziten `null`-Sentinel + Warn-Logging ersetzt (gleiches User-Verhalten, bessere Beobachtbarkeit bei Storage-Fehlern).
-- `check_edge_live_contracts.sh` deckt den Preview-Transport-Contract jetzt strikter ab: zusaetzlicher `save_preview`-Live-Check verlangt Fragment-/Header-Transport (`transport=fragment#secret=`) und blockiert Query-`?secret=`-Rueckfall explizit fail-closed.
-- Bekannter Live-Drift wird jetzt klarer eingegrenzt: falls `preview_page` live weiter `Missing ?secret=...` liefert, meldet der Check explizit Legacy-Deploy-Drift statt unscharfem Generic-Fail.
-- `check_release_readiness.sh` ist gegen fehlendes globales `tsc` robust gemacht (repo-lokaler Aufruf + `npx`-Fallback), ohne Checks zu entfernen/aufzuweichen.
-- Residual-Hotspot-Finalscan fuer alle 5 Rest-Hotspots abgeschlossen: `useCiLiteWorkflow.ts`, `useEnhancedBuildScreen.ts`, `useCredentialsWizardScreen.ts` und `infra/github/workflows.ts` verbleiben bewusst als schlanke Orchestrator-Fassaden ohne weiteren risikoreichen Nulzen-Split.
-- Live-Variable-SoT ist jetzt explizit: `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT` bevorzugt als masked Runner-Secrets; lokaler URL-Fallback ueber Projekt-Ref `xfgnzpcljsuqqdjlxgul`; JWTs/API-Keys bleiben strikt ausserhalb Repo-Dateien.
-- Live-Truthfulness klargezogen: Der erfolgreiche `k1w1-handler`-Live-Contract wurde mit einem frischen `build_admin`-JWT gefahren; `service_role` wird fuer diesen usergebundenen Operator-Livepfad nicht als gleichwertiger Ersatz behauptet.
-- `HookHotspotRestabschluss` ist jetzt finalisiert: `useGitHubRepos` (Pull-Orchestrierung), `useCredentialsWizardScreen` (Action-/Status-Meta), `useChatScreen` (Animations-Side-Effects) und `useEnhancedBuildScreen` (Derived Readiness/Filter/Checklist/Logs) sind weiter entmischt, bei stabiler Public-Hook-Shape.
-- `LocalRemoteDiffSectionRefactor` ist abgeschlossen: der bisherige Monolith wurde entlang Container/Model/pure Diff-/Fingerprint-Helper/List-/Modal-UI/Types aufgeteilt; die oeffentliche Section-Importform bleibt kompatibel ueber einen schlanken Re-Export.
-- `RefactorSoTDrift` ist im selben Durchlauf geschlossen: README/TODO/Review/INDEX/TESTING_GUIDE/FRESH_CHECKOUT sowie CHECKLOG/PATCHLOG spiegeln jetzt denselben echten Refactor-Stand statt eines Analyse-only-Headers.
-- `HookHotspotDecompositionWave` ist im engen Scope nachgezogen: `useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen` und `useEnhancedBuildScreen` wurden ohne API-Break entlang Request-/UI-State-/Attachment-/Action-Orchestrierung weiter entmischt.
-- `WorkflowContractFragility` wurde im engen Scope nachgezogen: `check_workflow_edge_contracts.sh` prueft Operator-/RBAC-Vertraege weiterhin fail-closed, ist aber weniger fragil gegen Copy-/Satzdrift (semantische Markerbuendel statt exakter Vollsatz-Strings).
-- `ProductConsoleLogHygiene` ist fuer den produktnahen Runtime-Scope erneut geprueft; kein offensichtlicher direkter `console.log`-Rest ausser der zentralen Logger-Fassade.
-- Release-/Trust-Drift im CI-Lite-Operatorpfad ehrlich reproduziert und behoben: `check_workflow_edge_contracts.sh` war lokal rot wegen fehlendem Pflicht-Marker in `useCiLiteWorkflow.ts` (`JWT role=build_admin (oder service_role fuer Server-Caller)`), nach Marker-Nachzug wieder gruen.
-- Workflow-Writeback im manuellen `eas-link`-Pfad gehaertet: Top-Level-Permissions auf read-default reduziert, Write nur job-scoped; Commit-Push erfolgt nur noch fuer explizite, sichere Remote-Branches (kein SHA/detached/unsafe Ref, kein stilles `|| true` beim Push).
-- Repo-Muss-Punkte aus dem aktuellen Audit wurden im Code nachgezogen (fail-closed Allowlists, konsistenter Artifact-SHA, lokaler Preview-Eval-Guard).
-- Preview-Secret-Transport ist repo-seitig final gehaertet: neue Links nutzen Fragment-Handoff (`save_preview` -> `preview_page?transport=fragment#secret=...`) und `preview_page` akzeptiert Secrets nur noch ueber Header-Handoff (`x-k1w1-preview-secret`).
-- Legacy-Query-Secret wurde bewusst vollstaendig entfernt: kein `?secret=`-Pfad, keine Bridge, kein funktionierender Altbestand als Kompatibilitaetsziel; Preview laeuft ausschliesslich ueber Fragment-Handoff + Header-Secret.
-- Preview-QR-Exfiltration wurde fail-safe geschlossen: kein externer QR-Dienst mehr im produktiven Preview-Pfad, damit keine Secret-URL an Drittanbieter.
-- Persistenz-/Recovery-Muss-Punkte aus PR-572-Follow-up wurden repo-seitig nachgezogen (NoRekeyOnRead, NoDelayedOverwrite-Guard, Corrupt-Plaintext-Recoverypfad); verbleibende externe Themen bleiben getrennt in `docs/TODO.md` dokumentiert.
-- AppInfo Secret-Import Status-Reset wurde als dedizierter Helper entkoppelt; der fruehere test-only Export aus `useAppInfoScreen` entfiel ohne Verhaltensaenderung.
-- `diagnostics_reports` wurde in diesem Lauf bewusst nicht blind umgebaut; die Policy-Unschaerfe ist als explizite Entscheidungsvorlage dokumentiert (`docs/reviews/diagnostics_reports_policy_decision_2026-04-03.md`).
-- Low-risk `search_path`-Re-Assertions fuer Trigger-/Cleanup-Helfer wurden als idempotente Follow-up-Migration ergaenzt (`20260403060926_search_path_followup.sql`).
-- Voll-Gate-/Release-Checks sind im aktuellen Stand fuer diesen Durchlauf dokumentiert.
-- Verbleibende offene Themen sind bewusst getrennt als Betriebs-/Produktentscheidungen dokumentiert; es wird kein „vollstaendig risikofrei“-Zustand behauptet.
-- Workflow-Hygiene klein und fail-safe nachgezogen: `k1w1-ci-lite-autofix` nutzt kein unnoetiges `actions: write` mehr; Writeback-/Dispatch-Pfad bleibt ueber `contents: write` unveraendert funktionsfaehig.
-- Secret-Hotfixes im AppInfo-Block nachgezogen: API-Config-Export redaktiert API-Keys fail-closed, Import-/Export-Flows raeumen temporaere Cache-Dateien idempotent auf, und Secure-Backup reduziert unnoetige Secret-Duplikation (`ciSecrets` nicht mehr als Export-Mirror aller Tokens).
-- Marker-Compatibility fuer Contract-Checks (Legacy-Textmarker): **Keine offenen Repo-Muss-Punkte** bezieht sich hier ausschliesslich auf den abgegrenzten Repo-Code-Durchlauf; externe Live-/Produktentscheidungen bleiben weiterhin offen und separat dokumentiert.
-- Der externe Live-Check fuer `k1w1-handler` ist jetzt auth-seitig bestaetigt: mit gueltigem Bearer-JWT laeuft die Route bis `400 invalid_request_payload`, ohne Token liefert sie `401 Unauthorized`; damit ist fail-closed fuer den JWT-/Rollenpfad live nachgewiesen.
-- `save_preview` bleibt laut Live-Befund JWT-aligned und repo-konsistent; hier ist kein neuer kritischer Auth-Restpunkt offen.
-- Der operatorische `verify_jwt`-Flag-Audit ist fuer `save_preview` und `k1w1-handler` explizit bestaetigt (`true`), damit ist der zuvor offene Flag-Unsicherheitsblock fuer diesen Stand geschlossen.
-- Der temporaere Supabase-Test-User (`h91874350@gmail.com` / `BlauBeerToni84`) wurde extern bereinigt; daraus bleibt kein privilegierter Live-Restpunkt offen.
-- Kritisch offen: kein pauschaler Entwarnungs-Satz mehr; offene Punkte muessen explizit pro Block/Check benannt und durch reale Gate-Runs belegt sein.
-- `diagnostics_reports` bleibt bewusst als offene Produktentscheidung gefuehrt (kein Blindumbau in diesem Lauf).
-
-## Was heute aktiv gilt
-
-- ZIP-Import gehaertet
-- Build-/Diagnostics-Gates fail-closed und repo/branch-scoped
-- Projektpersistenz verschluesselt
-- Edge-Routen byte-genauere Body-/Payload-Limits, durable Rate Limits mit lokalem Fallback
-- Preview-sensitive Routen (`save_preview`, `preview_page`) verlangen nun durable Rate-Limits fail-closed; lokale In-Memory-Degradation bleibt nur fuer weniger sensible Routen aktiv.
-- Preview-Expiry-Cleanup bleibt trotz Secret-Hashing funktionsfaehig: Lookup und Delete teilen denselben hash-only Secret-Candidate-Pfad ohne Raw-Compat.
-- Kritische stille Catch-Pfade im Preview-/Build-/Upload-/Repo-Meta-Scope wurden auf sichtbare Warnpfade umgestellt; Fail-safe-Fallback-Verhalten bleibt erhalten.
-- Follow-up-SilentCatch in PreviewFullscreen + Diagnostic-Upload-Device-ID-Fallback ist ebenfalls sichtbar gemacht (warn statt stumm).
-- Der verbliebene stumme `useDiagnosticUpload`-Cooldown-Load-Catch ist ebenfalls entfernt (sichtbares warn-logging).
-- Disabled-Legacy-Edge-Vertrag ist neben Script-Run jetzt auch execution-nah per Fixture-Test abgesichert.
-- Preview-Secret-Format-Guard ist als shared Runtime-Helper extrahiert und testseitig ausfuehrbar abgesichert.
-- `PROJECT_CHECKLOG.md` ist explizit als append-only Historie relativiert und wird nicht als alleinige aktuelle Release-Wahrheit gelesen.
-- Legacy-/Compat-Oberflaeche deutlich reduziert
-- Legacy-Functions `trigger-lint`, `check-lint`, `trigger-native-sync`, `check-native-sync`, `native-sync-report`, `native-sync-report-ingest`, `create_codesandbox` repo-seitig entfernt
-- verbleibende disabled Legacy-Edges bleiben bewusst als 410-Stubs + `verify_jwt=true` bestehen (kleinste Restoberflaeche, keine unkontrollierte Reaktivierung).
-- Doku-/Review-/TODO-Landschaft auf eine kleine kanonische Menge reduziert
-
-## Was bewusst **kein offener Repo-Fehler** ist
-
-- externes `build_admin`-Provisioning
-- produktive Secret-Rotation / Dashboard-Setup
-- Live-Verifikation gegen echte Zielumgebungen
-
-## Kanonische Verifikation
-
-Im Repo vorhanden und im aktuellen Stand erfolgreich gelaufen:
+## Kanonische Verifikation (relevant)
 
 - `npm run typecheck`
 - `npm run lint:ci`
@@ -96,17 +31,16 @@ Im Repo vorhanden und im aktuellen Stand erfolgreich gelaufen:
 - `npm run docs:lint`
 - `npm run docs:check:contracts`
 - `bash scripts/check_workflow_edge_contracts.sh`
-- `bash scripts/check_edge_helper_visibility.sh`
-- `bash scripts/check_edge_rate_limit_retention.sh`
-- `bash scripts/check_release_readiness.sh`
-- **Aktueller lokaler Lauf dieses Stands (ohne gesetzte `EDGE_BASE_URL`/`EDGE_OPERATOR_JWT`)**: `OK_WITH_SKIPS`.
-- **`OK_FULL` gilt nur mit gesetzten Live-Variablen** (bzw. als explizit historischer Voll-Gate-Lauf mit real ausgefuehrten Live-Contract-Smokes).
 - `bash scripts/check_patch_docs_sync.sh`
 - `bash scripts/check_legacy_disabled_edges.sh`
 
 ## Spaetere sinnvolle Folgearbeit
 
-Nur bei echtem Bedarf oder in echter Paket-/Staging-Umgebung:
+1. read-only Live-Edge-Checks gegen Staging/Prod mit echten Operator-Variablen
+2. groessere Refactors nur als explizite Features (kein impliziter Cleanup-Scope)
 
-1. read-only Live-Edge-Checks gegen Staging
-2. spaetere Produktarbeit wie Wizard, Streaming oder groessere Refactors als **bewusste Features**, nicht als Cleanup-Pflicht
+
+## Was heute aktiv gilt
+
+- Preview-Secret-Vertrag: aktiv **hash-only** (kein Legacy-Raw-Fallback in der aktiven SoT).
+- Keine offenen Repo-Muss-Punkte im aktuellen Repo-Scope; externe Themen bleiben separat/offen dokumentiert.

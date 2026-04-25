@@ -2,7 +2,7 @@
 
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
 
-Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
+Dieser Pfad ist bewusst **nur** fuer einen frischen lokalen Green-Run (ohne Historienballast).
 
 ## Voraussetzungen
 
@@ -10,7 +10,7 @@ Dies ist der zentrale Verifikationspfad fuer einen frischen Checkout.
 - npm `>=10.0.0`
 - frischer Checkout ohne lokale Altartefakte
 
-## Green-Path Befehle
+## Pflichtpfad (gruen im frischen Checkout)
 
 ```bash
 npm ci
@@ -20,11 +20,11 @@ npm run lint:ci
 npm run test:silent
 ```
 
-Optional:
+## Optionale Zusatzchecks
 
 ```bash
 npm run test:e2e:smoke
-npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
+npm run verify:release
 ```
 
 ## Erwartete Signale
@@ -32,7 +32,8 @@ npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfi
 - alle Commands enden mit Exit-Code `0`
 - keine TS-/ESLint-Fehler
 - keine rote Jest-Suite
-- `verify:release` ist nur dann `OK_FULL`, wenn zusaetzlich Live-Edge-Env gesetzt ist (`EDGE_BASE_URL` + `EDGE_OPERATOR_JWT`); ohne Live-Env ist der erwartete ehrliche Status `OK_WITH_SKIPS`
+- `verify:release` ist nur dann `OK_FULL`, wenn `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` gesetzt sind
+- ohne Live-Env ist der erwartete ehrliche Status `OK_WITH_SKIPS`
 
 ## Bekannter externer Warn-Noise
 
@@ -41,3 +42,8 @@ npm warn Unknown env config "http-proxy"
 ```
 
 Das ist externer Umgebungs-Noise und kein Repo-Code-Defekt.
+
+## Verweise
+
+- [Testing Guide](./TESTING_GUIDE.md)
+- [Dokumentations-Index](./INDEX.md)

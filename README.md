@@ -3,48 +3,12 @@
 ## Aktueller Repo-Stand
 
 Stand: **2026-04-24 (Patch 786, GradleWrapperShaAndroidTaskVerification)**
-
 Zuletzt abgeschlossen: **Patch 786**
 
-Der aktuelle Stand bestaetigt:
-- finaler Integrations-/Drift-Pass ueber die bereits umgesetzten Bloecke 1–8 wurde ohne Scope-Creep abgeschlossen; es wurden keine neuen Produktcode-Aenderungen benoetigt
-- der komplette Pflicht-Gate inklusive Docs-/Workflow-Sync-Checks wurde erneut voll gruen verifiziert
-- `typecheck:edge` ist wieder gruen; die offenen Typfehler in `check-eas-build`/`trigger-eas-build` wurden entlang der realen Supabase-Query-Contracts behoben
-- `verify:release` laeuft im lokalen Setup wieder bis zum erwarteten `OK_WITH_SKIPS` durch (ohne Live-Env kein harter Abbruch mehr im Live-Readiness-Skript)
-- lokaler Preview-Eval ist jetzt doppelt fail-closed: neben `allowUnsafeLocalEval` braucht der Builder auch ein explizites CDN-Opt-in; ohne beide Flags wird nur ein gesperrter Hinweis-HTML-Pfad erzeugt
-- der App-Lokalpfad setzt dieses Eval/CDN-Opt-in nur noch bei explizitem Env-Flag `EXPO_PUBLIC_ENABLE_UNSAFE_LOCAL_PREVIEW_EVAL=true` **und** Dev/Test-Runtime (normaler Betrieb bleibt gesperrt)
-- `useAppInfoScreen` materialisiert abgeleitete `projectFiles` nicht mehr am gesamten `projectData`-Objekt, sondern nur an den echten Materialisierungs-Inputs (`files`, `name`, `slug`, `packageName`)
-- `android/app/debug.keystore` ist aus dem Repo entfernt; `android/.gitignore` blockiert erneutes Einchecken lokaler Debug-Signing-Artefakte
-- `tweetsodium` wurde fuer GitHub-Secret-Encryption durch `libsodium-wrappers-sumo` ersetzt (sealed-box Contract unveraendert, aktiver Maintainer-Stack)
-- `signing_android` nutzt jetzt eine explizite deny-Policy nur fuer `anon, authenticated` statt grobem PUBLIC-Vertrag
-- security-definer RPC-Haertung ist fuer `enforce_edge_rate_limit(...)` und `insert_diagnostic_upload(...)` via `search_path = public, pg_temp` reasserted
-- App-Startup bleibt ruhig (kein prominenter Boot-Warnhinweis bei fehlender Edge-URL), waehrend in Verbindungen ein kleiner, nicht-blockierender Supabase-Hinweis angezeigt wird
-- der robuste Timeout-Hinweis gegen unendlichen Initial-Spinner bleibt erhalten
-- Preview-Secret-SoT ist auf den realen hash-only Vertrag synchronisiert (kein aktiver Raw-Fallback-Story-Drift in den Kern-Dokumenten)
-- `check_docs_contracts.js` haertet den Preview-Secret-Vertrag semantisch (aktive Sektionen: `hash-only` Pflicht, Legacy-Raw-Fallback verboten)
-- der verbliebene Preview-QR-UI-Rest ist entfernt; es gibt keinen irrefuehrenden QR-Action-Pfad mehr
-- der bisherige type-only Zyklus zwischen `infra/github/workflows.ts` und `infra/github/workflowResponseParsers.ts` ist ueber `workflowTypes.ts` sauber entkoppelt
-- die verbleibenden Residual-Hotspots (Chat, CI-Lite, EnhancedBuild, CredentialsWizard, GitHub Workflows) sind final geprueft; nur der direkte Scope wurde minimal gehaertet
-- Chat/CI-Lite/EnhancedBuild/Workflow-Residuals wurden im direkten Scope weiter entmischt, ohne API-/Contract-Aenderung der Fassaden
-- residuale A1/A2/A3-Hotspots wurden erneut im engen Scope geprueft; verbleibende Hauptdateien sind als schlanke Orchestratoren ohne erzwungenen Grossumbau belassen
-- `useChatScreen` meldet `scrollToEnd`-Fehler im Retry-/Primary-Pfad jetzt sichtbar ueber `logger.warn(...)` statt stiller Catchs (keine Verhaltensaenderung am Flow)
-- ein produktnaher Weak-Fallback (`AsyncStorage.getItem(...).catch(() => "")`) wurde in `GitHubReposScreen` auf expliziten Sentinel + Warn-Observability umgestellt
-- Release-/Live-Truthfulness ist explizit: mit gesetzten `EDGE_BASE_URL` + frischem `EDGE_OPERATOR_JWT` (build_admin) ist `verify:release` fuer den Live-Teil `OK_FULL`; ohne Live-Env bleibt der ehrliche Status `OK_WITH_SKIPS`
-- fuer den `k1w1-handler`-Live-Operatorfluss wird `EDGE_OPERATOR_JWT` als frischer `build_admin`-JWT benoetigt; `service_role` ist dabei nicht als gleichwertiger interaktiver User-Ersatz zu lesen
-- die verbleibenden Hook-Hotspots wurden in einem sicheren Wave weiter entmischt (`useGitHubRepos`, `useCredentialsWizardScreen`, `useChatScreen`, `useEnhancedBuildScreen`) bei stabiler Public-API
-- die fuehrende SoT-Doku wurde auf den neuen Hotspot-Abschluss synchronisiert (kein Analyse-only-/Refactor-Drift)
-- der Workflow-Contract-Check wurde gegen Text-/Formulierungsdrift robuster gemacht, ohne Auth-/RBAC-Inhalt aufzuweichen
-- produktive Runtime-Pfade sind erneut auf offensichtliche `console.log`-Reste geprueft (kein ungewollter Treffer ausser der zentralen Logger-Fassade)
-- verbleibende Restpunkte sind transparent in `docs/TODO.md` gepflegt (inkl. externer Live-Themen)
-- aktive Legacy-/Compat-Flaechen wurden stark reduziert
-- die kanonischen Repo-Checks sind vorhanden und dokumentiert
-
-Historische Details leben bewusst **nicht** mehr im README, sondern in:
-- `docs/INDEX.md`
-- `docs/reviews/Review.md`
-- `docs/TODO.md`
-- `PROJECT_CHECKLOG.md`
-- `docs/patches/PATCHLOG_ROOT.md`
+Kurzstatus:
+- Repo-Checks und Docs-/Contract-Gates sind auf dem dokumentierten Stand gruen gelaufen.
+- `verify:release` ist lokal ohne Live-Env erwartungsgemaess `OK_WITH_SKIPS`; `OK_FULL` gilt nur mit gesetzten Live-Variablen.
+- Detailhistorie bleibt bewusst in Checklog/Patchlog (append-only), nicht im README.
 
 ## Schnellstart
 
@@ -58,38 +22,28 @@ npm run test:silent
 ## Verifikation / Release
 
 ```bash
-npm run verify:release (inkl. App-Typecheck nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist)
+npm run verify:release
 ```
 
-Hinweis: `OK_WITH_SKIPS` bedeutet bewusst **kein** voller Release-Nachweis (nur partial/local evidence).
-
-Optional mit read-only Live-Edge-Checks:
+Optional mit read-only Live-Checks:
 
 ```bash
 EDGE_BASE_URL="https://<project>.supabase.co/functions/v1" EDGE_OPERATOR_JWT="<extern provisionierter build_admin jwt>" npm run verify:release
 ```
 
-## Kanonische Doku
+## Doku-Navigation (aktive Einstiegspfade)
 
 - [Dokumentations-Index](docs/INDEX.md)
-- [Overview / SoT](docs/00-overview.md)
-- [Build Readiness](docs/06-build-readiness.md)
-- [Testing Guide](docs/TESTING_GUIDE.md)
-- [Fresh Checkout Green Path](docs/FRESH_CHECKOUT_GREEN_PATH.md)
-- [Kanonische Review](docs/reviews/Review.md)
-- [Kompakte TODO-/Restpunkt-SoT](docs/TODO.md)
-- [App-Runbook](docs/runbooks/APP_RUNBOOK.md)
-- [Patch Workflow](docs/WORKFLOW_PATCHING.md)
+- **Navigator:** [docs/INDEX.md](docs/INDEX.md)
+- **Frischer Checkout (Green Path):** [docs/FRESH_CHECKOUT_GREEN_PATH.md](docs/FRESH_CHECKOUT_GREEN_PATH.md)
+- **Tests & Verify-Gates:** [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md)
+- **Aktuelle Review-SoT:** [docs/reviews/Review.md](docs/reviews/Review.md)
+- **Offene Punkte:** [docs/TODO.md](docs/TODO.md)
+- **Edge-Vertragsstand:** [docs/EDGE_FUNCTIONS_STATUS.md](docs/EDGE_FUNCTIONS_STATUS.md)
 
-## Operative Leitplanken
+## Historie (append-only)
 
-- keine stillen Repo-/Branch-Fallbacks in produktiven Deploy-/Build-Pfaden
-- Build-/Workflow-/Artifact-Routen bleiben fail-closed und explizit auth-/scope-gebunden
-- `docs/patches/*` bleibt append-only Historie, nicht aktive Produktdoku
+- [PROJECT_CHECKLOG.md](PROJECT_CHECKLOG.md) — laufende Chronik, nicht operative Single-Source.
+- [docs/patches/PATCHLOG_ROOT.md](docs/patches/PATCHLOG_ROOT.md) — Patch-Historie, append-only.
 
-## Hinweis zur Historie
-
-Patch-Details, Langhistorie und alte Scan-Funde werden bewusst nicht mehr hier dupliziert. Dafuer gelten:
-- `PROJECT_CHECKLOG.md`
-- `docs/patches/PATCHLOG_ROOT.md`
-- `docs/reviews/Review.md`
+Hinweis: App-Typecheck-Anteil in `npm run verify:release` nur, wenn `node_modules/expo/tsconfig.base.json` vorhanden ist.
