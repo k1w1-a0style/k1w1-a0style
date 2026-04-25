@@ -142,9 +142,9 @@ export const styles = StyleSheet.create({
     height: 8,
     borderRadius: 999,
     overflow: "hidden",
-    backgroundColor: `${theme.palette.primary}1a`,
+    backgroundColor: CI_LITE_STYLE_TOKENS.primaryBackground1a,
     borderWidth: HAIRLINE,
-    borderColor: `${theme.palette.primary}22`,
+    borderColor: CI_LITE_STYLE_TOKENS.primaryBorder22,
   },
   progressFill: {
     height: 8,
@@ -159,7 +159,7 @@ export const styles = StyleSheet.create({
     bottom: 0,
     width: 60,
     borderRadius: 999,
-    backgroundColor: `${theme.palette.primary}55`,
+    backgroundColor: CI_LITE_STYLE_TOKENS.primaryShimmer55,
     opacity: 0.35,
   },
 
