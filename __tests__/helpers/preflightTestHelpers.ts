@@ -33,7 +33,6 @@ export function makeProjectRef(
   };
 }
 
-
 export function makeProjectFile(path: string, content = "{}"): ProjectFile {
   return { path, content };
 }

@@ -20,7 +20,6 @@ describe("AIContext redacted config persistence", () => {
     jest.clearAllMocks();
   });
 
-
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
