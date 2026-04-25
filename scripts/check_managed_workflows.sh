@@ -59,10 +59,6 @@ check_file_markers ".github/workflows/eas-link.yml"
 check_file_markers ".github/workflows/release-build.yml"
 check_file_markers ".github/workflows/deploy-supabase-functions.yml"
 
-if rg -n --glob '*.yml' '^on:[[:space:]]*$' .github/workflows >/dev/null 2>&1; then
-  :
-fi
-
 if rg -n --glob '*.yml' 'pull_request_target:' .github/workflows >/dev/null 2>&1; then
   fail "pull_request_target is forbidden for managed workflows unless explicitly re-approved"
 fi
