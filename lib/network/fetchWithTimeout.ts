@@ -23,10 +23,6 @@ export function isAbortError(error: unknown): boolean {
   return false;
 }
 
-export function isTimeoutError(error: unknown): error is TimeoutError {
-  return error instanceof TimeoutError || (error instanceof Error && error.name === "TimeoutError");
-}
-
 export function throwIfAborted(signal?: AbortSignal | null): void {
   if (!signal?.aborted) return;
   throw signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError");
