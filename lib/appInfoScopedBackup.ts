@@ -1,8 +1,7 @@
-import { Buffer } from "buffer";
-
 import type { AIConfig } from "../contexts/AIContext/models";
 import { BACKUP_AI_CONFIG_FALLBACK, sanitizeAiConfigFromBackup } from "./appInfoBackup";
 import { asRecord, isRecord, readFiniteNumber, readString } from "./validation/recordReaders";
+import { base64ToBytes, bytesToBase64, toBufferSource } from "./appInfoScopedBackup.cryptoHelpers";
 import {
   buildCiSecretsSnapshot,
   buildSecretConnectionsSnapshot,
@@ -119,18 +118,6 @@ export const SECURE_BACKUP_CRYPTO_POLICY: SecureBackupCryptoPolicy = {
     iterations,
   })),
 };
-
-function bytesToBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
-}
-
-function base64ToBytes(value: string): Uint8Array {
-  return new Uint8Array(Buffer.from(value, "base64"));
-}
-
-function toBufferSource(bytes: Uint8Array): BufferSource {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-}
 
 async function getRandomBytes(length: number): Promise<Uint8Array> {
   if (globalThis.crypto?.getRandomValues) {

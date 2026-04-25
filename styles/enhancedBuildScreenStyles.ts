@@ -3,6 +3,17 @@ import { StyleSheet } from "react-native";
 import { theme } from "../theme";
 import { withOpacity } from "./colorHelpers";
 
+const WARNING_ACCENT = "#FFAA00";
+const WARNING_BOX_BACKGROUND = withOpacity(WARNING_ACCENT, 0.1);
+const WARNING_BOX_BORDER = withOpacity(WARNING_ACCENT, 0.3);
+const ERROR_BOX_BACKGROUND = withOpacity(theme.palette.error, 0.1);
+const ERROR_BOX_BORDER = withOpacity(theme.palette.error, 0.3);
+const PROFILE_ACTIVE_BACKGROUND = withOpacity(theme.palette.primary, 0.1);
+const FILTER_PILL_BORDER = withOpacity(theme.palette.text.secondary, 0.35);
+const FILTER_PILL_BACKGROUND = withOpacity(theme.palette.card, 0.6);
+const FILTER_PILL_ACTIVE_BORDER = withOpacity(theme.palette.primary, 0.9);
+const FILTER_PILL_ACTIVE_BACKGROUND = withOpacity(theme.palette.primary, 0.12);
+
 export const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -190,15 +201,15 @@ export const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   warningBox: {
-    backgroundColor: withOpacity("#FFAA00", 0.1),
+    backgroundColor: WARNING_BOX_BACKGROUND,
     borderWidth: 1,
-    borderColor: withOpacity("#FFAA00", 0.3),
+    borderColor: WARNING_BOX_BORDER,
     borderRadius: 10,
     padding: 12,
     marginBottom: 14,
   },
   warningText: {
-    color: "#FFAA00",
+    color: WARNING_ACCENT,
     fontSize: 12,
     fontWeight: "700",
     marginTop: 8,
@@ -209,9 +220,9 @@ export const styles = StyleSheet.create({
     marginTop: 14,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: withOpacity(theme.palette.error, 0.1),
+    backgroundColor: ERROR_BOX_BACKGROUND,
     borderWidth: 1,
-    borderColor: withOpacity(theme.palette.error, 0.3),
+    borderColor: ERROR_BOX_BORDER,
   },
   errorText: {
     color: theme.palette.error,
@@ -305,7 +316,7 @@ export const styles = StyleSheet.create({
   },
   profileBtnActive: {
     borderColor: theme.palette.primary,
-    backgroundColor: withOpacity(theme.palette.primary, 0.1),
+    backgroundColor: PROFILE_ACTIVE_BACKGROUND,
     ...theme.glow.primarySubtle,
   },
   profileBtnText: {
@@ -364,12 +375,12 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: withOpacity(theme.palette.text.secondary, 0.35),
-    backgroundColor: withOpacity(theme.palette.card, 0.6),
+    borderColor: FILTER_PILL_BORDER,
+    backgroundColor: FILTER_PILL_BACKGROUND,
   },
   filterPillActive: {
-    borderColor: withOpacity(theme.palette.primary, 0.9),
-    backgroundColor: withOpacity(theme.palette.primary, 0.12),
+    borderColor: FILTER_PILL_ACTIVE_BORDER,
+    backgroundColor: FILTER_PILL_ACTIVE_BACKGROUND,
   },
   filterPillText: {
     fontSize: 12,
