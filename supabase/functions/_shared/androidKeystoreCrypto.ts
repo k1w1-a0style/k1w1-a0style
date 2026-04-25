@@ -39,6 +39,11 @@ function decodeBase64(input: string): Uint8Array {
   return binaryStringToBytes(atob(input));
 }
 
+function toBufferSource(bytes: Uint8Array): BufferSource {
+  const sliced = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return new Uint8Array(sliced);
+}
+
 function looksLikeLegacyAesCbcPayload(payload: string): boolean {
   const normalized = payload.trim();
   if (normalized.length < 24 || normalized.length % 4 !== 0) return false;
@@ -58,13 +63,13 @@ async function deriveLegacyCompatAesKeyBytesSha256(masterKey: string): Promise<U
 async function deriveAesKeyBytesPbkdf2(masterKey: string, salt: Uint8Array, iterations: number): Promise<Uint8Array> {
   const baseKey = await crypto.subtle.importKey(
     "raw",
-    new TextEncoder().encode(masterKey) as unknown as BufferSource,
+    toBufferSource(new TextEncoder().encode(masterKey)),
     "PBKDF2",
     false,
     ["deriveBits"],
   );
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: salt as unknown as BufferSource, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: toBufferSource(salt), iterations },
     baseKey,
     256,
   );
@@ -100,7 +105,7 @@ export async function __unsafeEncryptWithAesCbcLegacyForTests(payload: string, m
   const iv = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    toBufferSource(keyBytes),
     { name: "AES-CBC" },
     false,
     ["encrypt"],
@@ -129,7 +134,7 @@ export async function __unsafeEncryptWithAesGcmLegacyV2ForTests(payload: string,
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    toBufferSource(keyBytes),
     { name: "AES-GCM" },
     false,
     ["encrypt"],
@@ -158,7 +163,7 @@ async function decryptWithAesCbcLegacyCompatOnly(payload: string, masterKey: str
   const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    toBufferSource(keyBytes),
     { name: "AES-CBC" },
     false,
     ["decrypt"],
@@ -174,7 +179,7 @@ export async function encryptKeystorePayload(payload: string, masterKey: string)
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as unknown as BufferSource,
+    toBufferSource(keyBytes),
     { name: "AES-GCM" },
     false,
     ["encrypt"],
@@ -248,16 +253,16 @@ async function decryptKeystorePayloadV2(payload: string, masterKey: string): Pro
     const keyBytes = await deriveLegacyCompatAesKeyBytesSha256(masterKey);
     const key = await crypto.subtle.importKey(
       "raw",
-      keyBytes as unknown as BufferSource,
+      toBufferSource(keyBytes),
       { name: "AES-GCM" },
       false,
       ["decrypt"],
     );
 
     const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv as unknown as BufferSource },
+      { name: "AES-GCM", iv: toBufferSource(iv) },
       key,
-      ciphertext as unknown as BufferSource,
+      toBufferSource(ciphertext),
     );
     return new TextDecoder().decode(new Uint8Array(decrypted));
   } catch {
@@ -281,15 +286,15 @@ async function decryptKeystorePayloadWithFormat(
       const keyBytes = await deriveAesKeyBytesPbkdf2(masterKey, salt, envelope.iter);
       const key = await crypto.subtle.importKey(
         "raw",
-        keyBytes as unknown as BufferSource,
+        toBufferSource(keyBytes),
         { name: "AES-GCM" },
         false,
         ["decrypt"],
       );
       const decrypted = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: iv as unknown as BufferSource },
+        { name: "AES-GCM", iv: toBufferSource(iv) },
         key,
-        ciphertext as unknown as BufferSource,
+        toBufferSource(ciphertext),
       );
       return { plaintext: new TextDecoder().decode(new Uint8Array(decrypted)), format: "v3" };
     } catch {

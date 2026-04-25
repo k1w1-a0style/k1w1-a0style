@@ -62,14 +62,14 @@ const createBlobFromProjectContent = async (
   return blobSha;
 };
 
-const createGitHubJsonRequest = async <T>(params: {
+const createGitHubJsonRequest = async (params: {
   url: string;
   headers: Record<string, string>;
   method?: "GET" | "POST" | "PATCH";
   body?: Record<string, unknown>;
   errorMessage: (status: number, message?: string) => string;
   onStatusError?: (status: number) => Error | null;
-}): Promise<T> => {
+}): Promise<GitHubJson> => {
   await githubLimiter.checkLimit();
   const response = await fetchGitHub(params.url, {
     method: params.method,
@@ -82,7 +82,7 @@ const createGitHubJsonRequest = async <T>(params: {
     if (statusError) throw statusError;
     throw new Error(params.errorMessage(response.status, payload.message));
   }
-  return payload as unknown as T;
+  return payload;
 };
 
 const createRepoApiContext = async (
@@ -112,7 +112,7 @@ const readBaseCommitContext = async (params: {
   token: string;
   headers: Record<string, string>;
 }) => {
-  const branchJson = await createGitHubJsonRequest<GitHubBranchPayload>({
+  const branchJson = await createGitHubJsonRequest({
     url: githubApiUrl(`/repos/${params.owner}/${params.repo}/branches/${encodeURIComponent(params.targetBranch)}`),
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${params.token}` },
     errorMessage: (status, message) => message || `Branch-Abruf fehlgeschlagen (${status})`,
@@ -126,7 +126,7 @@ const readBaseCommitContext = async (params: {
   const baseCommitSha = String(branchJson.commit?.sha || "").trim();
   if (!baseCommitSha) throw new Error("Konnte Basis-Commit für Push nicht ermitteln.");
 
-  const commitJson = await createGitHubJsonRequest<GitHubCommitPayload>({
+  const commitJson = await createGitHubJsonRequest({
     url: githubApiUrl(`/repos/${params.owner}/${params.repo}/git/commits/${encodeURIComponent(baseCommitSha)}`),
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${params.token}` },
     errorMessage: (status, message) => message || `Commit-Abruf fehlgeschlagen (${status})`,
@@ -147,7 +147,7 @@ const commitTreeAndUpdateRef = async (params: {
   message: string;
   treeEntries: Array<Record<string, unknown>>;
 }) => {
-  const createTreeJson = await createGitHubJsonRequest<GitHubCommitPayload>({
+  const createTreeJson = await createGitHubJsonRequest({
     url: githubApiUrl(`/repos/${params.owner}/${params.repo}/git/trees`),
     method: "POST",
     headers: params.headers,
@@ -157,7 +157,7 @@ const commitTreeAndUpdateRef = async (params: {
   const newTreeSha = String(createTreeJson.sha || "").trim();
   if (!newTreeSha) throw new Error("Tree-Erstellung lieferte keine SHA.");
 
-  const createCommitJson = await createGitHubJsonRequest<GitHubCommitPayload>({
+  const createCommitJson = await createGitHubJsonRequest({
     url: githubApiUrl(`/repos/${params.owner}/${params.repo}/git/commits`),
     method: "POST",
     headers: params.headers,
@@ -167,7 +167,7 @@ const commitTreeAndUpdateRef = async (params: {
   const newCommitSha = String(createCommitJson.sha || "").trim();
   if (!newCommitSha) throw new Error("Commit-Erstellung lieferte keine SHA.");
 
-  await createGitHubJsonRequest<GitHubMessagePayload>({
+  await createGitHubJsonRequest({
     url: githubApiUrl(`/repos/${params.owner}/${params.repo}/git/refs/heads/${encodeGitHubPath(params.targetBranch)}`),
     method: "PATCH",
     headers: params.headers,
