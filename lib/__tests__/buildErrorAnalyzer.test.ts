@@ -2,7 +2,6 @@
 import {
   BuildErrorAnalyzer,
   ErrorAnalysis,
-  BuildError,
 } from "../buildErrorAnalyzer";
 import { LogEntry } from "../../hooks/useGitHubActionsLogs";
 

@@ -145,7 +145,6 @@ describe("build readiness gate - ci lite freshness", () => {
       includePipelineChecks: true,
       focusedModes: ["preview"],
     });
-    const stale = FIXED_NOW - 7 * 60 * 60 * 1000;
     mockGetItem.mockImplementation(async (key: string) =>
       key === readinessKey || key.startsWith("diagnostic_readiness_record::")
         ? JSON.stringify(readinessRecord)
