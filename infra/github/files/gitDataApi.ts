@@ -3,6 +3,7 @@ import { githubApiUrl } from "../../../shared/constants/github";
 import { logger } from "../../../lib/logger";
 import { githubLimiter } from "../rateLimit";
 import { MANAGED_WORKFLOWS, encodeGitHubPath, normalizeRepoPath } from "../utils";
+import { normalizeFilesForRepoPush, normalizePatchDeletes, normalizePatchUpserts } from "./filePathCollections";
 import { encodeGitHubFileContent } from "../crypto";
 import { getGitHubToken } from "../tokenStore";
 import { fetchGitHub } from "../utils";
@@ -199,32 +200,7 @@ export const pushFilesToRepoAdvanced = async (
     message?: string;
   },
 ) => {
-  const normalizedFiles = [...files]
-    .map((f) => {
-      const originalPath = String(f.path || "").trim();
-      const path = normalizeRepoPath(originalPath);
-      if (originalPath && !path) {
-        throw new Error(`Ungültiger Repo-Pfad: ${originalPath}`);
-      }
-      return {
-        path,
-        originalPath,
-        content: String(f.content ?? ""),
-      };
-    })
-    .filter((f) => !!f.path)
-    .filter((f) => {
-      if (f.path.startsWith(".github/workflows/") && !MANAGED_WORKFLOWS.has(f.path)) {
-        logger.debug(`[pushFilesToRepoAdvanced] Skip unmanaged workflow file: ${f.path}`);
-        return false;
-      }
-      return true;
-    })
-    .map((f) => ({
-      path: f.path,
-      content: String(f.content ?? ""),
-    }))
-    .sort((a, b) => a.path.localeCompare(b.path));
+  const normalizedFiles = normalizeFilesForRepoPush(files);
 
   ensureGitTreeEntryLimit(normalizedFiles.length, "pushFilesToRepoAdvanced");
 
@@ -261,22 +237,8 @@ export const applyRepoFilePatchAtomic = async (
     message?: string;
   },
 ) => {
-  const upserts = [...(patch.upsert ?? [])]
-    .map((f) => {
-      const originalPath = String(f.path || "").trim();
-      const path = normalizeRepoPath(originalPath);
-      if (originalPath && !path) throw new Error(`Ungültiger Repo-Pfad: ${originalPath}`);
-      return { path, content: String(f.content ?? "") };
-    })
-    .filter((f) => !!f.path)
-    .filter((f) => !f.path.startsWith(".github/workflows/") || MANAGED_WORKFLOWS.has(f.path))
-    .sort((a, b) => a.path.localeCompare(b.path));
-
-  const deletes = [...(patch.delete ?? [])]
-    .map((p) => normalizeRepoPath(String(p || "").trim()))
-    .filter((p): p is string => !!p)
-    .filter((p) => !p.startsWith(".github/workflows/") || MANAGED_WORKFLOWS.has(p))
-    .sort((a, b) => a.localeCompare(b));
+  const upserts = normalizePatchUpserts(patch.upsert ?? []);
+  const deletes = normalizePatchDeletes(patch.delete ?? []);
 
   ensureGitTreeEntryLimit(upserts.length + deletes.length, "applyRepoFilePatchAtomic");
 
