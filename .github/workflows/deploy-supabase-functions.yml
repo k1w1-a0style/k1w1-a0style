@@ -77,8 +77,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm i -g supabase@2.72.7
-          supabase --version
+          mkdir -p "$RUNNER_TEMP/supabase-bin"
+          cat > "$RUNNER_TEMP/supabase-bin/supabase" <<'SH'
+          #!/usr/bin/env bash
+          exec npx -y supabase@2.72.7 "$@"
+          SH
+          chmod +x "$RUNNER_TEMP/supabase-bin/supabase"
+          echo "$RUNNER_TEMP/supabase-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/supabase-bin/supabase" --version
 
       - name: Login + Link project
         shell: bash
