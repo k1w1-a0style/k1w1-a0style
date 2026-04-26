@@ -1,3 +1,5 @@
+import { Buffer } from "buffer";
+
 import { githubApiUrl } from "../../../shared/constants/github";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { readJsonRecordSafe, readStringField } from "../../../infra/github/githubResponseHelpers";
@@ -67,17 +69,43 @@ export type SupabaseConnectionCheckResult =
   | { kind: "ok"; ref: string }
   | { kind: "rls_protected" };
 
+const decodeSupabaseJwtRef = (jwt: string): string => {
+  const payload = String(jwt || "").trim().split(".")[1] || "";
+  if (!payload) return "";
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  try {
+    const parsed = JSON.parse(Buffer.from(padded, "base64").toString("utf8")) as Record<string, unknown>;
+    return typeof parsed.ref === "string" ? parsed.ref.trim() : "";
+  } catch {
+    return "";
+  }
+};
+
 export const runSupabaseConnectionCheck = async (
   url: string,
   anon: string,
 ): Promise<SupabaseConnectionCheckResult> => {
+  const expectedRef = deriveSupabaseRefFromUrl(url);
+  const tokenRef = decodeSupabaseJwtRef(anon);
+  const refMatches = Boolean(expectedRef && tokenRef && expectedRef === tokenRef);
+
+  if (expectedRef && tokenRef && expectedRef !== tokenRef) {
+    throw new Error("Supabase Anon Key passt nicht zur Supabase URL.");
+  }
+
   const resp = await fetchWithTimeout(`${url}/rest/v1/`, {
     timeoutMs: 12_000,
     timeoutMessage: "Supabase-REST-Ping hat das Zeitlimit erreicht. Bitte URL/Netzwerk prüfen.",
     method: "GET",
     headers: { apikey: anon, Authorization: `Bearer ${anon}` },
   });
-  if (!resp.ok) throw new Error(`REST Ping failed (${resp.status})`);
+  if (!resp.ok) {
+    if ((resp.status === 401 || resp.status === 403) && refMatches) {
+      return { kind: "rls_protected" };
+    }
+    throw new Error(`REST Ping failed (${resp.status})`);
+  }
 
   const tableRes = await fetchWithTimeout(`${url}/rest/v1/build_jobs?select=id&limit=1`, {
     timeoutMs: 12_000,
@@ -93,7 +121,7 @@ export const runSupabaseConnectionCheck = async (
     throw new Error(`build_jobs Check fehlgeschlagen (${tableRes.status}).`);
   }
 
-  return { kind: "ok", ref: deriveSupabaseRefFromUrl(url) };
+  return { kind: "ok", ref: expectedRef };
 };
 
 export const runEasProjectCheck = async (
