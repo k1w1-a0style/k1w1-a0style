@@ -1,5 +1,5 @@
 import { Buffer } from "buffer";
-import sodium from "libsodium-wrappers-sumo";
+import sodium from "libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js";
 
 // ✅ FIX: Buffer Polyfill Check (lazy + zuverlässig)
 export const ensureBuffer = () => {
