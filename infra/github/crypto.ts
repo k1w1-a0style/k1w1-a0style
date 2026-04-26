@@ -1,5 +1,24 @@
 import { Buffer } from "buffer";
-import sodium from "libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js";
+
+type SodiumRuntime = {
+  ready: Promise<void>;
+  crypto_box_seal?: (message: Uint8Array, publicKey: Uint8Array) => Uint8Array;
+};
+
+type SodiumModule = SodiumRuntime & { default?: SodiumRuntime };
+
+let sodiumPromise: Promise<SodiumRuntime> | null = null;
+
+const loadSodium = async (): Promise<SodiumRuntime> => {
+  if (!sodiumPromise) {
+    sodiumPromise = (async () => {
+      const modulePath: string = "libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js";
+      const mod = (await import(modulePath)) as SodiumModule;
+      return mod.default ?? mod;
+    })();
+  }
+  return sodiumPromise;
+};
 
 // ✅ FIX: Buffer Polyfill Check (lazy + zuverlässig)
 export const ensureBuffer = () => {
@@ -24,6 +43,7 @@ export const encodeGitHubFileContent = (content: string): string => {
 
 export const encryptSecret = async (publicKey: string, value: string): Promise<string> => {
   ensureBuffer();
+  const sodium = await loadSodium();
   await sodium.ready;
   if (!sodium.crypto_box_seal) {
     throw new Error("libsodium crypto_box_seal ist nicht verfügbar.");
