@@ -9,10 +9,19 @@ type SodiumModule = SodiumRuntime & { default?: SodiumRuntime };
 
 let sodiumPromise: Promise<SodiumRuntime> | null = null;
 
+const isReactNativeRuntime = (): boolean =>
+  typeof navigator !== "undefined" && navigator.product === "ReactNative";
+
 const loadSodium = async (): Promise<SodiumRuntime> => {
+  if (isReactNativeRuntime()) {
+    throw new Error(
+      "Diese Aktion ist in der Android-Dev-Build nicht verfuegbar, weil die benoetigte Kryptobibliothek unter React Native nicht stabil geladen werden kann. Bitte die Werte einmal per Terminal setzen.",
+    );
+  }
+
   if (!sodiumPromise) {
     sodiumPromise = (async () => {
-      const modulePath: string = "libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js";
+      const modulePath: string = "libsodium-wrappers-sumo";
       const mod = (await import(modulePath)) as SodiumModule;
       return mod.default ?? mod;
     })();
