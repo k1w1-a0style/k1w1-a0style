@@ -91,6 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           supabase login --token "${SUPABASE_ACCESS_TOKEN}"
+          supabase link --project-ref "${SUPABASE_PROJECT_REF}"
           supabase link --project-ref "${SUPABASE_PROJECT_REF}" --workdir supabase
 
       - name: Validate / sanitize dispatch inputs
@@ -174,7 +175,7 @@ jobs:
               name="$(basename "$d")"
               if [ -d "$d" ] && [ "$name" != "_shared" ] && [ "$name" != "test" ]; then
                 echo "-> $name"
-                supabase functions deploy "$name"
+                supabase functions deploy "$name" --project-ref "${SUPABASE_PROJECT_REF}"
               fi
             done
             exit 0
@@ -206,7 +207,7 @@ jobs:
           fi
 
           echo "Deploying single function: $FUNCTION_NAME"
-          supabase functions deploy "$FUNCTION_NAME"
+          supabase functions deploy "$FUNCTION_NAME" --project-ref "${SUPABASE_PROJECT_REF}"
 
       - name: Detect migration changes / policy
         shell: bash
