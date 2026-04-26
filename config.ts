@@ -157,8 +157,10 @@ export const CONFIG = {
 
       "README.md",
       "SYSTEM_README.md",
+      "TEMPLATE_CHECKLIST_REPORT.md",
 
       "package.json",
+      "package-lock.json",
       "tsconfig.json",
 
       "babel.config.js",
@@ -236,6 +238,7 @@ export const CONFIG = {
       "app.json",
       "app.config.js",
       "package.json",
+      "package-lock.json",
       "tsconfig.json",
       "babel.config.js",
       "metro.config.js",
@@ -246,6 +249,7 @@ export const CONFIG = {
       "config.ts",
       "README.md",
       "SYSTEM_README.md",
+      "TEMPLATE_CHECKLIST_REPORT.md",
       "index.js",
       "App.tsx",
       "App.js",
@@ -267,8 +271,12 @@ export const CONFIG = {
       ".svg",
       ".png",
       ".jpg",
+      ".jpeg",
+      ".webp",
       ".yml",
+      ".yaml",
       ".gitignore",
+      ".easignore",
       ".npmrc",
     ] as string[],
 
