@@ -37,7 +37,8 @@
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "docs:check:contracts": "node scripts/check_docs_contracts.js",
     "verify:release": "bash scripts/check_release_readiness.sh",
-    "test:e2e:smoke": "jest --runInBand --testPathPattern=__tests__/e2e\\.smoke\\."
+    "test:e2e:smoke": "jest --runInBand --testPathPattern=__tests__/e2e\\.smoke\\.",
+    "release:ready": "bash scripts/release_ready.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
