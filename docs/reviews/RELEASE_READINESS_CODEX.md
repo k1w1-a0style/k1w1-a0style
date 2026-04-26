@@ -16,6 +16,17 @@ Scope: Lokaler Readiness-Review ohne große Codeänderungen / ohne Secrets.
 
 ---
 
+## 0.1) Zentraler Sammel-Check (`npm run release:ready`)
+
+- Neuer zentraler Einstieg: `npm run release:ready` (ruft `scripts/release_ready.sh` auf).
+- Ampel-Semantik:
+  - `🟢 GRÜN`: alle Pflichtchecks bestanden.
+  - `🟡 GELB`: Pflichtchecks bestanden, aber optionale Live-Checks wurden mangels ENV geskippt.
+  - `🔴 ROT`: mindestens ein Pflichtcheck fehlgeschlagen (Exit-Code 1).
+- Live-Checks laufen nur, wenn `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` gesetzt sind; fehlen sie, wird sauber `SKIP` statt `FAIL` gemeldet (ohne Secret-Werte zu loggen).
+
+---
+
 ## 1) Ampelstatus
 
 **Gesamtstatus: GELB**
