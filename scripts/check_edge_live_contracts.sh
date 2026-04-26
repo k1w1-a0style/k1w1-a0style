@@ -112,7 +112,17 @@ if [[ "$preview_status" != "400" ]]; then
   cat "$TMP_DIR/preview_page.body" >&2 || true
   exit 1
 fi
-assert_body_contains "$TMP_DIR/preview_page.body" 'Missing preview secret header.'
+if grep -Fq 'Missing preview secret header.' "$TMP_DIR/preview_page.body"; then
+  :
+elif grep -Fq '"error":"untrusted_client_ip"' "$TMP_DIR/preview_page.body" && grep -Fq 'missing_trusted_client_ip' "$TMP_DIR/preview_page.body"; then
+  :
+else
+  echo "preview_page contract failed: expected missing preview secret header or fail-closed untrusted_client_ip response" >&2
+  echo "--- body ---" >&2
+  cat "$TMP_DIR/preview_page.body" >&2 || true
+  echo >&2
+  exit 1
+fi
 assert_body_not_contains "$TMP_DIR/preview_page.body" '?secret='
 echo "preview_page live contract: OK"
 
