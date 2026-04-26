@@ -10,7 +10,8 @@ Dieser Index ist der **aktive Einstieg**. Er priorisiert Navigation statt Vollte
 2. [FRESH_CHECKOUT_GREEN_PATH.md](FRESH_CHECKOUT_GREEN_PATH.md) — reproduzierbarer Green Path
 3. [TESTING_GUIDE.md](TESTING_GUIDE.md) — Pflichtchecks vs. optionale Zusatzchecks
 4. [reviews/Review.md](reviews/Review.md) — aktuelle fachliche Review-SoT
-5. [TODO.md](TODO.md) — offene Punkte / bewusst offene Entscheidungen
+5. [reviews/RELEASE_READINESS_CODEX.md](reviews/RELEASE_READINESS_CODEX.md) — aktueller Release-Readiness-Befund
+6. [TODO.md](TODO.md) — offene Punkte / bewusst offene Entscheidungen
 
 ## 2) Betrieb & Verträge
 

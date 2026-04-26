@@ -1,153 +1,44 @@
 # RELEASE READINESS BEFUND (Codex)
 
-Stand: **2026-04-25**  
-Scope: Lokaler Readiness-Review ohne große Codeänderungen / ohne Secrets.
+Stand: **2026-04-26**  
+Scope: Finale Qualitaetsrunde (kleine gezielte Doku-/SoT-Syncs, keine grossen Refactors, keine Secrets).
 
-## 0) CI/CD-Härtungsnachtrag (GitHub Actions Writeback-Flows, 2026-04-25)
+## 1) Zentrale Wahrheit (aktueller Gate)
 
-- `k1w1-ci-lite-autofix.yml` wurde auf **Least-Privilege** nachgezogen:
-  - Workflow-Root jetzt `permissions: contents: read`
-  - Writeback-Recht (`contents: write`) nur noch explizit am `autofix`-Job.
-- `scripts/check_managed_workflows.sh` erzwingt zusätzlich:
-  - `pull_request_target` ist im managed Workflow-Scope verboten.
-  - Kein Workflow mit `contents: write` darf über `pull_request` / `pull_request_target` triggern.
-  - CI-Lite-Autofix muss Root-`contents: read` + Job-`contents: write` strikt einhalten.
-- Ergebnis: gleiche Funktionalität, aber reduzierte Token-Rechte im Default-Kontext und stärkere Contract-Absicherung gegen versehentliche PR/Fork-Writeback-Exposition.
-
----
-
-## 0.1) Zentraler Sammel-Check (`npm run release:ready`)
-
-- Neuer zentraler Einstieg: `npm run release:ready` (ruft `scripts/release_ready.sh` auf).
+- Zentraler Sammelcheck bleibt: `npm run release:ready`.
 - Ampel-Semantik:
-  - `🟢 GRÜN`: alle Pflichtchecks bestanden.
-  - `🟡 GELB`: Pflichtchecks bestanden, aber optionale Live-Checks wurden mangels ENV geskippt.
-  - `🔴 ROT`: mindestens ein Pflichtcheck fehlgeschlagen (Exit-Code 1).
-- Live-Checks laufen nur, wenn `EDGE_BASE_URL` und `EDGE_OPERATOR_JWT` gesetzt sind; fehlen sie, wird sauber `SKIP` statt `FAIL` gemeldet (ohne Secret-Werte zu loggen).
+  - `🟢 GRUEN`: alle Pflichtchecks bestanden.
+  - `🟡 GELB`: Pflichtchecks bestanden, optionale Live-Checks wurden mangels ENV geskippt.
+  - `🔴 ROT`: mindestens ein Pflichtcheck fehlgeschlagen.
+- Live-Checks laufen nur mit gesetzter ENV (`EDGE_BASE_URL`, `EDGE_OPERATOR_JWT`), ohne Secret-Value-Logging.
 
----
+## 2) Erledigt / gehaertet (bleibt als geschlossen dokumentiert)
 
-## 1) Ampelstatus
+- Preview-Haertung: abgeschlossen; produktionsseitig kein implizit aktiver esm.sh-Default.
+- Android-Backup-Haertung: abgeschlossen (`android:allowBackup="false"` + Backup/Data-Extraction-Regeln).
+- CI/CD-Writeback-Haertung: abgeschlossen (Least-Privilege; Root `contents: read`, Writeback nur job-spezifisch).
+- Release-Gate-Zentralisierung: abgeschlossen (`release:ready` als zentraler Einstieg).
 
-**Gesamtstatus: GELB**
+## 3) Einziger bewusst offener Punkt
 
-**Warum GELB (nicht ROT/GRÜN):**
-1. Alle lokalen Qualitätschecks sind grün.
-2. `verify:release` liefert lokal korrekt **`OK_WITH_SKIPS`** (nicht `OK_FULL`), weil Live-ENV für Edge-Contract-Checks nicht gesetzt ist.
-3. Damit ist der Stand lokal belastbar, aber nicht als vollständiger Live-Release-Sign-off abgeschlossen.
+- Vollstaendiger Live-Sign-off ist weiterhin env-/operator-gebunden und bleibt ausserhalb lokaler Default-Laeufe offen:
+  - benoetigt `EDGE_BASE_URL`
+  - benoetigt `EDGE_OPERATOR_JWT`
+  - Ziel fuer Vollbeleg: `release:ready` mit Live-ENV ohne SKIP.
 
----
+## 4) Drift-Check (dieser Durchlauf)
 
-## 2) Check-Ergebnisse (ausgeführt)
+Aktive Doku-/SoT-Aussagen wurden gegen offensichtliche Widersprueche geprueft:
 
-| Check | Ergebnis | Kurzbefund |
-|---|---|---|
-| `npm ci` | ✅ | erfolgreich (mit bekannter npm-Umgebungswarnung) |
-| `npm run typecheck` | ✅ | grün |
-| `npm run typecheck:edge` | ✅ | grün |
-| `npm run lint:ci` | ✅ | grün |
-| `npm run test:silent` | ✅ | grün (478/478 Suites, 2145/2145 Tests) |
-| `npm run verify:release` | ⚠️ | erfolgreich mit `OK_WITH_SKIPS` |
-| `npm run edge:check:live` | ⏭️ | nicht ausgeführt (ENV nicht gesetzt) |
+- Kein aktiver SoT-Widerspruch zu `android:allowBackup="true"` gefunden (aktive Konfiguration steht auf `false`).
+- Kein aktiver SoT-Widerspruch, dass `PREVIEW_ALLOW_ESM_SH_CDN` in Production per Default aktiv waere.
+- Kein aktiver SoT-Widerspruch, dass `contents: write` workflow-global als harter Default gesetzt waere.
+- Kein aktiver SoT-Widerspruch, dass Release-Readiness nur aus Einzelcommands bestünde statt `npm run release:ready`.
 
----
+Historische Append-only Logs wurden nicht umgeschrieben.
 
-## 3) Konkrete Fehler/Risiken mit Datei/Pfad, Ursache, Fix
+## 5) Ergebnis
 
-### Befund A — Live-Release-Evidenz unvollständig (Release-Sign-off-Blocker)
-- **Kategorie:** GELB
-- **Fundstelle (Datei/Pfad):**
-  - `scripts/check_release_readiness.sh` (Live-Contracts werden ohne `EDGE_BASE_URL` + `EDGE_OPERATOR_JWT` geskippt; Ergebnis `OK_WITH_SKIPS`).
-  - `scripts/check_edge_live_env_readiness.sh` (SKIP/FAIL-Logik je ENV-Status).
-- **Symptom:** lokale Readiness ist nur teilweise evidenzbasiert (partial/local evidence).
-- **Vermutete Ursache:** erforderliche Live-ENV im lokalen Lauf absichtlich nicht gesetzt.
-- **Empfohlener Fix:** Live-Run in sicherer CI/Operator-Umgebung mit masked secrets:
-  - `EDGE_BASE_URL`
-  - `EDGE_OPERATOR_JWT`
-  - optional zusätzlich `SUPABASE_SERVICE_ROLE_KEY` für JWT-Preflight
-  - danach `npm run verify:release` erneut; Ziel: `OK_FULL`.
+**Release-Readiness-SoT ist lokal konsistent und mergebar fuer den Doku-Scope.**
 
-### Befund B — npm Proxy-Warnung (Umgebungs-Noise)
-- **Kategorie:** GELB (niedrige Priorität)
-- **Fundstelle (Datei/Pfad):** Laufzeitwarnung aus npm (`Unknown env config "http-proxy"`).
-- **Symptom:** wiederkehrende Warnung bei npm-Kommandos.
-- **Vermutete Ursache:** Legacy-Proxy-Key in Runner-/Shell-Config.
-- **Empfohlener Fix:** npm-Umgebung im Runner bereinigen (kein Repo-Code-Refactor erforderlich).
-
-### Befund C — Harte Codefehler in Tests/TypeScript/Lint
-- **Kategorie:** GRÜN
-- **Fundstelle (Datei/Pfad):** n/a (keine fehlschlagenden Checks in diesem Lauf).
-- **Symptom:** keines.
-- **Vermutete Ursache:** n/a.
-- **Empfohlener Fix:** keiner nötig.
-
----
-
-## 4) Analyse: fehlende/widersprüchliche ENV-Gates
-
-### Ergebnis
-**Kein Widerspruch gefunden**, Gate-Verhalten ist konsistent:
-- `verify:release` führt lokale Repo-Checks vollständig aus und behandelt Live-Checks sauber als ENV-gated.
-- `check_edge_live_env_readiness.sh` ist fail-safe/fail-closed (SKIP bei fehlender ENV, FAIL bei ungültiger Form).
-- `check_edge_live_contracts.sh` erzwingt JWT-basierten Operator-Vertrag; Service-Role-Fallback ist bewusst deaktiviert.
-
----
-
-## 5) Analyse: Preview / Supabase / GitHub / EAS Flows
-
-### Preview
-- Live-Contract-Script prüft:
-  - `preview_page` ohne Secret-Header => 400,
-  - `save_preview` mit JWT + Minimalpayload => 200 (`ok:true`, `#secret=`, kein `?secret=`).
-- Bewertung: fail-closed und konsistent.
-
-### Supabase Deploy Flow
-- Workflow ist manuell (`workflow_dispatch`) und enthält gehärtete Input-Sanitization (`git check-ref-format`, function-name Regex, reserved-path guard, migrations policy).
-- Bewertung: konsistenter, kontrollierter Deploy-Flow; kein Auto-Deploy auf push.
-
-### GitHub/Edge Contract Flow
-- `verify:release` bindet den Contract-Check (`check_workflow_edge_contracts.sh`) ein.
-- Bewertung: kein lokaler Drift sichtbar.
-
-### EAS Flow
-- `eas-build.yml` enthält strict lockfile policy controls (`auto|true|false`) mit fail-closed Verhalten in preview/production.
-- `check_eas_manual_trigger_controls.sh` und `check_eas_production_credentials.sh` liefen im verify-Block grün.
-- Bewertung: Workflow- und Credential-Guards vorhanden.
-
----
-
-## 6) Analyse: Android/mobile Security-Konfiguration (Backup + EAS)
-
-### Ergebnis (2026-04-25)
-- `android/app/src/main/AndroidManifest.xml` ist auf `android:allowBackup="false"` gehärtet.
-- `android:fullBackupContent` und `android:dataExtractionRules` bleiben weiter gesetzt; die referenzierten XML-Regeln schließen App-Daten fail-closed aus (`root` + `sharedpref/SecureStore`) für Cloud-Backup und Device-Transfer.
-- `.easignore` ignoriert `android/` **nicht** mehr, damit sicherheitsrelevante native Android-Änderungen (z. B. Manifest/Backup-Regeln) im EAS-Build-Kontext nicht verloren gehen.
-
-### Kurzbewertung
-Android-Backup ist nun standardmäßig deaktiviert; zusätzlich bleiben explizite Exclude-Regeln als Defense-in-Depth erhalten. EAS-Upload-Konfiguration ist konsistent mit einem Build-Modus, in dem native Android-Dateien bewusst build-relevant sind.
-
----
-
-## 7) Was ist grün/gelb/rot?
-
-### Grün
-- `npm ci`
-- `npm run typecheck`
-- `npm run typecheck:edge`
-- `npm run lint:ci`
-- `npm run test:silent`
-
-### Gelb
-- `npm run verify:release` => `OK_WITH_SKIPS` (partial evidence)
-- npm-Umgebungswarnung `http-proxy`
-
-### Rot
-- Keine roten lokalen Checks.
-
----
-
-## 8) Kurzfazit / nächste Aktion
-
-- **Lokaler Code-/Checkzustand:** stabil grün.
-- **Vollständige Release-Freigabe:** noch offen, bis Live-Edge-Contracts mit gesetzten ENV in einer sicheren Umgebung gelaufen sind.
-- **Nächster enger Block:** „Live-ENV setzen (masked), `verify:release` auf `OK_FULL` schließen, Evidence dokumentieren“.
+Offen bleibt ausschliesslich die externe Live-ENV-Verifikation in einer sicheren Operator-/CI-Umgebung.
