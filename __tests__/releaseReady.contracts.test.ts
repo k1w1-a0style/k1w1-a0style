@@ -29,4 +29,18 @@ describe("release:ready contracts", () => {
     expect(script).toContain('🟡 GELB');
     expect(script).toContain('🟢 GRÜN');
   });
+  it("treats executed optional live-check failures as FAIL/ROT (not SKIP)", () => {
+    const script = read("scripts/release_ready.sh");
+
+    expect(script).not.toContain('status="SKIP"');
+    expect(script).not.toContain('optional check failed/skipped');
+    expect(script).toContain('if [[ $exit_code -ne 0 ]]; then');
+    expect(script).toContain('status="FAIL"');
+    expect(script).toContain('REQUIRED_FAIL=1');
+    expect(script).toContain('run_check "Optionale Live-Checks" optional');
+    expect(script).toContain('CHECK_STATUS+=("SKIP")');
+    expect(script).toContain('EDGE_BASE_URL und/oder EDGE_OPERATOR_JWT');
+    expect(script).toContain('🔴 ROT: Mindestens ein Pflichtcheck ist fehlgeschlagen.');
+  });
+
 });

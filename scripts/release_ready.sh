@@ -31,22 +31,10 @@ run_check() {
   local status="PASS"
   local note="${hint:-ok}"
 
-  if [[ "$mode" == "optional" ]]; then
-    if [[ $exit_code -ne 0 ]]; then
-      status="SKIP"
-      note="optional check failed/skipped (non-blocking): $(trim "$(echo "$output" | tail -n1)")"
-      OPTIONAL_SKIP=1
-    elif echo "$output" | grep -Eq '(^|[^A-Z])SKIP([^A-Z]|$)|skip'; then
-      status="SKIP"
-      note="optional env/check skipped"
-      OPTIONAL_SKIP=1
-    fi
-  else
-    if [[ $exit_code -ne 0 ]]; then
-      status="FAIL"
-      note="$(trim "$(echo "$output" | tail -n1)")"
-      REQUIRED_FAIL=1
-    fi
+  if [[ $exit_code -ne 0 ]]; then
+    status="FAIL"
+    note="$(trim "$(echo "$output" | tail -n1)")"
+    REQUIRED_FAIL=1
   fi
 
   CHECK_NAMES+=("$name")
@@ -161,7 +149,7 @@ if [[ "$REQUIRED_FAIL" -eq 1 ]]; then
 fi
 
 if [[ "$OPTIONAL_SKIP" -eq 1 ]]; then
-  echo "🟡 GELB: Pflichtchecks bestanden, optionale Live-Checks/ENV fehlen oder wurden übersprungen."
+  echo "🟡 GELB: Pflichtchecks bestanden, optionale Live-Checks wurden wegen fehlender ENV nicht gestartet."
   exit 0
 fi
 
