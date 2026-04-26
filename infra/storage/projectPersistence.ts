@@ -32,6 +32,19 @@ import {
   assertProjectStoragePayloadSafe,
 } from "./persistenceHelpers";
 
+const encryptProjectStoragePayloadOrPlaintextFallback = async (
+  projectString: string,
+): Promise<{ payload: string; encrypted: boolean }> => {
+  try {
+    return { payload: await encryptProjectStoragePayload(projectString), encrypted: true };
+  } catch (error) {
+    logger.warn("[projectStorage] Verschlüsselte Persistenz nicht verfügbar; speichere Legacy-Plaintext-Fallback", {
+      err: error,
+    });
+    return { payload: projectString, encrypted: false };
+  }
+};
+
 export const saveProjectToStorage = async (project: ProjectData): Promise<void> => {
   try {
     const { persist: persistChat, retention } = await loadChatHistorySettings();
@@ -43,18 +56,19 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
     const projectString = JSON.stringify(projectToSave);
     const plaintextPayloadState = assertProjectStoragePayloadSafe(projectString);
 
-    const encryptedProjectString = await encryptProjectStoragePayload(projectString);
-    const persistedPayloadState = assertProjectStoragePayloadSafe(encryptedProjectString);
-    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, encryptedProjectString);
+    const { payload: persistedProjectString, encrypted } = await encryptProjectStoragePayloadOrPlaintextFallback(projectString);
+    const persistedPayloadState = assertProjectStoragePayloadSafe(persistedProjectString);
+    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, persistedProjectString);
 
     if (plaintextPayloadState.nearLimit || persistedPayloadState.nearLimit) {
       logger.warn("[projectStorage] Projektzustand nahe Storage-Limit gespeichert", {
         projectName: project.name,
         plaintextBytes: plaintextPayloadState.bytes,
         persistedBytes: persistedPayloadState.bytes,
+        encrypted,
       });
     } else {
-      logger.info('💾 Projekt gespeichert:', project.name);
+      logger.info(encrypted ? '💾 Projekt verschlüsselt gespeichert:' : '💾 Projekt gespeichert:', project.name);
     }
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Speichern", { err: error });
@@ -104,7 +118,11 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
     }
 
     if (migratedFromPlaintext) {
-      await saveProjectToStorage(project);
+      await saveProjectToStorage(project).catch((migrationError: unknown) => {
+        logger.warn("[projectStorage] Plaintext-Migration übersprungen; geladener Stand bleibt nutzbar", {
+          err: migrationError,
+        });
+      });
     }
     return project;
   } catch (error) {
@@ -144,8 +162,8 @@ export const scrubChatHistoryFromStoredProject = async (): Promise<void> => {
     delete parsed.messages;
   }
   const scrubbedPayload = JSON.stringify(parsed);
-  const encrypted = await encryptProjectStoragePayload(scrubbedPayload);
-  await AsyncStorage.setItem(PROJECT_STORAGE_KEY, encrypted);
+  const { payload } = await encryptProjectStoragePayloadOrPlaintextFallback(scrubbedPayload);
+  await AsyncStorage.setItem(PROJECT_STORAGE_KEY, payload);
 };
 
 // === ECHTE ZIP-FUNKTIONEN ===
