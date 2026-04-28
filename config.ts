@@ -171,6 +171,19 @@ export const CONFIG = {
       // EAS upload hygiene
       ".easignore",
 
+      // Common project tooling / template root configs
+      ".env.example",
+      ".env.sample",
+      ".env.template",
+      ".eslintrc.js",
+      ".eslintrc.cjs",
+      ".eslintrc.json",
+      ".prettierrc",
+      ".prettierrc.js",
+      ".prettierrc.cjs",
+      ".prettierrc.json",
+      ".prettierignore",
+
       "eslint.config.js",
       "jest.config.js",
       "jest.setup.js",
@@ -259,6 +272,17 @@ export const CONFIG = {
       ".gitignore",
       ".easignore",
       ".npmrc",
+      ".env.example",
+      ".env.sample",
+      ".env.template",
+      ".eslintrc.js",
+      ".eslintrc.cjs",
+      ".eslintrc.json",
+      ".prettierrc",
+      ".prettierrc.js",
+      ".prettierrc.cjs",
+      ".prettierrc.json",
+      ".prettierignore",
     ] as string[],
 
     ALLOWED_EXT: [
@@ -278,6 +302,11 @@ export const CONFIG = {
       ".gitignore",
       ".easignore",
       ".npmrc",
+      ".env.example",
+      ".env.sample",
+      ".env.template",
+      ".prettierrc",
+      ".prettierignore",
     ] as string[],
 
     MAX_PATH_LENGTH: 255,
