@@ -19,6 +19,7 @@ export const styles = StyleSheet.create({
   guardBadgeRow: {
     marginHorizontal: 12,
     marginTop: 8,
+    marginRight: 58,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -146,9 +147,11 @@ export const styles = StyleSheet.create({
     borderColor: theme.palette.border,
   },
   charCounter: {
-    alignSelf: "flex-end",
-    marginRight: 14,
-    marginBottom: 6,
+    position: "absolute",
+    top: 8,
+    right: 14,
+    minWidth: 38,
+    textAlign: "right",
     fontSize: 11,
     color: theme.palette.text.secondary,
   },
