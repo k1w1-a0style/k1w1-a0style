@@ -1,4 +1,5 @@
 import { computeProjectFilesSignature } from "../../../lib/repoSyncOrchestration";
+import { validateFilePath } from "../../../lib/validators";
 import type { ProjectFile } from "../../../shared/types/project";
 
 export type PullApplyStrategy = "overwrite" | "skipConflicts" | "mirror";
@@ -28,6 +29,31 @@ export function shouldConfirmMirrorDelete(params: {
   return params.strategy === "mirror" && params.semantics.summary.localOnlyCount > 0;
 }
 
+const basenameLower = (path: string): string => {
+  const normalized = String(path || "").replace(/\\/g, "/").trim();
+  const parts = normalized.split("/").filter(Boolean);
+  return String(parts[parts.length - 1] || normalized).toLowerCase();
+};
+
+const buildRemoteNestedBasenames = (remoteFiles: ProjectFile[]): Set<string> => {
+  const names = new Set<string>();
+  for (const file of remoteFiles) {
+    const path = String(file?.path ?? "").trim();
+    if (!path || !path.includes("/")) continue;
+    const base = basenameLower(path);
+    if (base) names.add(base);
+  }
+  return names;
+};
+
+const isInvalidLegacyRootDuplicate = (path: string, remoteNestedBasenames: Set<string>): boolean => {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath || normalizedPath.includes("/")) return false;
+  const base = basenameLower(normalizedPath);
+  if (!base || !remoteNestedBasenames.has(base)) return false;
+  return !validateFilePath(normalizedPath).valid;
+};
+
 export function resolvePullApplySemantics(params: {
   localFiles: ProjectFile[];
   remoteFiles: ProjectFile[];
@@ -36,11 +62,13 @@ export function resolvePullApplySemantics(params: {
   const localFiles = Array.isArray(params.localFiles) ? params.localFiles : [];
   const remoteFiles = Array.isArray(params.remoteFiles) ? params.remoteFiles : [];
   const strategy = params.strategy;
+  const remoteNestedBasenames = buildRemoteNestedBasenames(remoteFiles);
 
   const localMap = new Map<string, ProjectFile>();
   for (const file of localFiles) {
     const path = String(file?.path ?? "").trim();
     if (!path) continue;
+    if (isInvalidLegacyRootDuplicate(path, remoteNestedBasenames)) continue;
     localMap.set(path, { path, content: String(file?.content ?? "") });
   }
 
