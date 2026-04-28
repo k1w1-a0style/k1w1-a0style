@@ -26,7 +26,11 @@ export function useProjectFileCommands({ updateProject }: ProjectFileCommandsInp
     for (const candidate of files) {
       const pathValidation = validateFilePath(candidate.path);
       if (!pathValidation.valid) {
-        throw new Error(`Ungültiger Dateipfad (${candidate.path}): ${pathValidation.errors.join(", ")}`);
+        logger.warn("[ProjectContext] Ungültige Projektdatei beim Bulk-Update übersprungen", {
+          path: candidate.path,
+          errors: pathValidation.errors,
+        });
+        continue;
       }
       const normalizedPath = pathValidation.normalized || candidate.path;
       const contentValidation = validateFileContent(candidate.content);
