@@ -21,6 +21,14 @@ export const styles = StyleSheet.create({
     marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  guardBadgeStack: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
     gap: 8,
   },
   guardBadge: {
@@ -141,6 +149,13 @@ export const styles = StyleSheet.create({
     alignSelf: "flex-end",
     marginRight: 14,
     marginBottom: 6,
+    fontSize: 11,
+    color: theme.palette.text.secondary,
+  },
+  charCounterTop: {
+    flexShrink: 0,
+    minWidth: 38,
+    textAlign: "right",
     fontSize: 11,
     color: theme.palette.text.secondary,
   },
