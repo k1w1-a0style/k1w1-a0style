@@ -15,6 +15,7 @@ export const getRuntimeEnv = (key: string): string | undefined => {
 };
 
 export const getAdminSecret = (): string | null => getRuntimeEnv("K1W1_EDGE_ADMIN_KEY") ?? null;
+export const getWorkflowAdminSecret = (): string | null => getRuntimeEnv("K1W1_EDGE_WORKFLOW_ADMIN_KEY") ?? null;
 export const getSigningAdminSecret = (): string | null => getRuntimeEnv("SIGNING_ADMIN_KEY") ?? null;
 export const getServiceRoleSecret = (): string | null => getRuntimeEnv("K1W1_SUPABASE_SERVICE_ROLE_KEY") ?? getRuntimeEnv("SUPABASE_SERVICE_ROLE_KEY") ?? null;
 export const getSupabaseUrlSecret = (): string | null => getRuntimeEnv("K1W1_SUPABASE_URL") ?? getRuntimeEnv("SUPABASE_URL") ?? null;
