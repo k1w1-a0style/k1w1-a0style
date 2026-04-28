@@ -1,4 +1,5 @@
 import { Buffer } from "buffer";
+import * as sealedBoxModule from "tweetnacl-sealedbox-js";
 
 type SodiumRuntime = {
   ready: Promise<void>;
@@ -7,18 +8,19 @@ type SodiumRuntime = {
 
 type SodiumModule = SodiumRuntime & { default?: SodiumRuntime };
 
+type SealedBoxRuntime = {
+  seal?: (message: Uint8Array, publicKey: Uint8Array) => Uint8Array;
+  default?: {
+    seal?: (message: Uint8Array, publicKey: Uint8Array) => Uint8Array;
+  };
+};
+
 let sodiumPromise: Promise<SodiumRuntime> | null = null;
 
 const isReactNativeRuntime = (): boolean =>
   typeof navigator !== "undefined" && navigator.product === "ReactNative";
 
 const loadSodium = async (): Promise<SodiumRuntime> => {
-  if (isReactNativeRuntime()) {
-    throw new Error(
-      "Diese Aktion ist in der Android-Dev-Build nicht verfuegbar, weil die benoetigte Kryptobibliothek unter React Native nicht stabil geladen werden kann. Bitte die Werte einmal per Terminal setzen.",
-    );
-  }
-
   if (!sodiumPromise) {
     sodiumPromise = (async () => {
       const modulePath: string = "libsodium-wrappers-sumo";
@@ -29,7 +31,15 @@ const loadSodium = async (): Promise<SodiumRuntime> => {
   return sodiumPromise;
 };
 
-// ✅ FIX: Buffer Polyfill Check (lazy + zuverlässig)
+const resolveReactNativeSeal = (): ((message: Uint8Array, publicKey: Uint8Array) => Uint8Array) => {
+  const mod = sealedBoxModule as unknown as SealedBoxRuntime;
+  const seal = mod.seal ?? mod.default?.seal;
+  if (typeof seal !== "function") {
+    throw new Error("tweetnacl-sealedbox-js seal ist nicht verfuegbar.");
+  }
+  return seal;
+};
+
 export const ensureBuffer = () => {
   if (typeof Buffer === "undefined" || typeof Buffer.from !== "function") {
     throw new Error(
@@ -38,9 +48,6 @@ export const ensureBuffer = () => {
   }
 };
 
-// Unterstützt "base64:" prefix für Binärdateien (z.B. PNG im Template).
-// - Wenn content mit "base64:" beginnt, wird der Rest 1:1 als Base64 an GitHub gesendet.
-// - Sonst wird UTF-8 Inhalt normal base64-encodiert.
 export const encodeGitHubFileContent = (content: string): string => {
   ensureBuffer();
   const trimmed = (content ?? "").toString();
@@ -52,13 +59,22 @@ export const encodeGitHubFileContent = (content: string): string => {
 
 export const encryptSecret = async (publicKey: string, value: string): Promise<string> => {
   ensureBuffer();
+
+  const messageBytes = Buffer.from(value, "utf8");
+  const keyBytes = Buffer.from(publicKey, "base64");
+
+  if (isReactNativeRuntime()) {
+    const seal = resolveReactNativeSeal();
+    const encryptedBytes = seal(messageBytes, keyBytes);
+    return Buffer.from(encryptedBytes).toString("base64");
+  }
+
   const sodium = await loadSodium();
   await sodium.ready;
   if (!sodium.crypto_box_seal) {
     throw new Error("libsodium crypto_box_seal ist nicht verfügbar.");
   }
-  const messageBytes = Buffer.from(value);
-  const keyBytes = Buffer.from(publicKey, "base64");
+
   const encryptedBytes = sodium.crypto_box_seal(messageBytes, keyBytes);
   return Buffer.from(encryptedBytes).toString("base64");
 };
