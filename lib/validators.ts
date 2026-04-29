@@ -10,22 +10,67 @@ export type ValidationResult = { valid: true; errors: string[] } | { valid: fals
 const bytesToMB = (bytes: number) => Math.round((bytes / (1024 * 1024)) * 100) / 100;
 
 /**
- * Projekt-Policy (Single Source of Truth):
- * - Root-Dateien nur über CONFIG.PATHS.ALLOWED_ROOT
- * - Unterordner nur über CONFIG.PATHS.SRC_FOLDERS (plus .github)
+ * Projekt-Pfad-Policy:
+ * - erlaubt normale relative Repo-Dateien und Unterordner
+ * - blockiert Pfad-Traversal, absolute/Windows/file:-Pfade und gefährliche Runtime-/Secret-Pfade
+ * - hält weiter eine Textdatei-Endungs-Policy ein
  */
-const ROOT_ALLOWLIST = new Set<string>([...(CONFIG.PATHS?.ALLOWED_ROOT ?? [])]);
-const ALLOWED_TOP_LEVEL_DIRS = new Set<string>([...(CONFIG.PATHS?.SRC_FOLDERS ?? []), '.github']);
+const EXTRA_PROJECT_TEXT_EXTENSIONS = new Set<string>([
+  '.css',
+  '.html',
+  '.txt',
+  '.xml',
+  '.kt',
+  '.kts',
+  '.java',
+  '.gradle',
+  '.properties',
+  '.toml',
+  '.pro',
+  '.sh',
+  '.env.example',
+  '.env.sample',
+  '.env.template',
+]);
+
+const BLOCKED_TOP_LEVEL_DIRS = new Set<string>([
+  '.git',
+  '.expo',
+  '.expo-shared',
+  '.next',
+  '.turbo',
+  'android',
+  'build',
+  'coverage',
+  'dist',
+  'ios',
+  'node_modules',
+]);
+
+const BLOCKED_BASENAMES = new Set<string>([
+  '.DS_Store',
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.preview',
+  '.env.production',
+  '.env.test',
+]);
+
+const BLOCKED_SENSITIVE_FILE_RE = /(^|\/)(?:.*\.(?:jks|keystore|p12|pfx|pem|key)|id_rsa|id_dsa|id_ecdsa|id_ed25519)$/i;
 
 const hasAllowedExtension = (normalizedPath: string): boolean => {
   const allowed = CONFIG.PATHS?.ALLOWED_EXT ?? [];
   if (!allowed || allowed.length === 0) return true;
 
   const base = normalizedPath.split('/').pop() ?? normalizedPath;
-  // Special case: filenames like ".gitignore" are listed as "extensions" in config.
   if (allowed.includes(base)) return true;
 
-  return allowed.some((ext) => normalizedPath.endsWith(ext));
+  const lowerPath = normalizedPath.toLowerCase();
+  if (allowed.some((ext) => lowerPath.endsWith(ext.toLowerCase()))) return true;
+
+  const ext = lowerPath.match(/\.[^.]+$/)?.[0] ?? '';
+  return EXTRA_PROJECT_TEXT_EXTENSIONS.has(ext) || EXTRA_PROJECT_TEXT_EXTENSIONS.has(base.toLowerCase());
 };
 
 const INVALID_PATH_CHARS = /[\\:*?"<>|]/; // Windows reserved
@@ -41,14 +86,14 @@ export const isBlockedRawPath = (raw: string): boolean => {
   return RAW_FILE_URL.test(input) || RAW_WINDOWS_DRIVE.test(input) || RAW_WINDOWS_UNC.test(input) || RAW_ABSOLUTE.test(input);
 };
 
-// ✅ FIX (einziger inhaltlicher Change): führendes "./" entfernen (auch mehrfach)
+// ✅ führendes "./" entfernen (auch mehrfach)
 export const normalizePath = (p: string) =>
   String(p ?? '')
     .replace(/\r/g, '')
     .trim()
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
-    .replace(/^(\.\/)+/, '') // führende "./" Segmente entfernen
+    .replace(/^(\.\/)+/, '')
     .replace(/\/+$/g, '')
     .replace(/\/{2,}/g, '/');
 
@@ -68,6 +113,8 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
   }
 
   const normalized = normalizePath(path);
+  const base = normalized.split('/').pop() ?? normalized;
+  const top = normalized.split('/')[0] ?? '';
 
   // Must not keep leading "./" (tests expect reject in validateFilePath)
   if (LEADING_DOTSLASH.test(path.trim())) {
@@ -90,27 +137,14 @@ export const validateFilePath = (path: string): { valid: boolean; errors: string
     errors.push('Ungültige Zeichen im Pfad');
   }
 
-  // Disallow node_modules & native folders via policy
-  if (normalized === 'node_modules' || normalized.startsWith('node_modules/')) {
-    errors.push('node_modules ist nicht erlaubt');
-  }
-  if (normalized === 'ios' || normalized.startsWith('ios/')) {
-    errors.push('ios ist nicht erlaubt');
+  if (BLOCKED_TOP_LEVEL_DIRS.has(top)) {
+    errors.push(`Ordner "${top}" ist nicht erlaubt`);
   }
 
-  // Root policy: allowlist only
-  if (!normalized.includes('/')) {
-    if (!ROOT_ALLOWLIST.has(normalized)) {
-      errors.push('Root-Dateien sind nur über eine Allowlist erlaubt');
-    }
-  } else {
-    const top = normalized.split('/')[0];
-    if (!ALLOWED_TOP_LEVEL_DIRS.has(top)) {
-      errors.push(`Ordner "${top}" ist nicht erlaubt`);
-    }
+  if (BLOCKED_BASENAMES.has(base) || BLOCKED_SENSITIVE_FILE_RE.test(normalized)) {
+    errors.push('Sensitive Datei ist nicht erlaubt');
   }
 
-  // Extension policy (keeps chat-utils + file-writer consistent)
   if (normalized && !hasAllowedExtension(normalized)) {
     errors.push('Ungültige Dateiendung');
   }
