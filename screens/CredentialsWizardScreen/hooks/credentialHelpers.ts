@@ -60,7 +60,7 @@ export async function invokeEdgeJson(
   supabaseUrl: string,
   fn: string,
   adminKey: string,
-  userJwt: string,
+  userJwt: string | null | undefined,
   payload: Record<string, unknown> | null,
 ): Promise<
   | { ok: true; data: unknown; debug: WizardHttpDebug }
@@ -70,20 +70,22 @@ export async function invokeEdgeJson(
 
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
 
+  const trimmedJwt = userJwt?.trim() ?? "";
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-k1w1-admin-key": adminKey.trim(),
+  };
+  if (trimmedJwt) {
+    headers.Authorization = `Bearer ${trimmedJwt}`;
+  }
+
   let res: Response;
   try {
     res = await fetchWithTimeout(url, {
       timeoutMs: REQUEST_TIMEOUT_MS,
       timeoutMessage: `Edge request timeout after ${REQUEST_TIMEOUT_MS}ms`,
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        // Scoped keystore caller contract:
-        // Authorization carries the current Supabase user JWT; x-k1w1-admin-key carries
-        // the dedicated local androidKeystoreExportAdminKey.
-        Authorization: `Bearer ${userJwt.trim()}`,
-        "x-k1w1-admin-key": adminKey.trim(),
-      },
+      headers,
       body: JSON.stringify(payload ?? {}),
     });
   } catch (error: unknown) {

@@ -39,7 +39,7 @@ export const useCredentialsWizardActions = (params: {
   persistWizardStatus: (mode: UiModeId, status: StatusResult | null) => Promise<void>;
   refreshStatusCore: (
     mode: UiModeId,
-    userJwt: string,
+    userJwt: string | null | undefined,
     opts?: { preservePendingOnError?: boolean },
   ) => Promise<boolean>;
   hydrateAdminKey: () => Promise<string | null>;
@@ -106,8 +106,7 @@ export const useCredentialsWizardActions = (params: {
 
   const refreshStatus = useCallback(async (mode: UiModeId) => {
     if (!params.ensureCanRunOrAlert()) return;
-    const userJwt = await params.requireUserJwtOrAlert();
-    if (!userJwt) return;
+    const userJwt = null;
 
     const actionKey = `status:${mode}`;
     if (!tryBeginAction(actionKey)) return;
@@ -121,8 +120,7 @@ export const useCredentialsWizardActions = (params: {
 
   const refreshAll = useCallback(async () => {
     if (!params.ensureCanRunOrAlert()) return;
-    const userJwt = await params.requireUserJwtOrAlert();
-    if (!userJwt) return;
+    const userJwt = null;
 
     const actionKey = "status:all";
     if (!tryBeginAction(actionKey)) return;
@@ -144,8 +142,7 @@ export const useCredentialsWizardActions = (params: {
 
   const generate = useCallback(async (mode: UiModeId) => {
     if (!params.ensureCanRunOrAlert()) return;
-    const userJwt = await params.requireUserJwtOrAlert();
-    if (!userJwt) return;
+    const userJwt = null;
 
     const actionKey = `generate:${mode}`;
     if (!tryBeginAction(actionKey)) return;

@@ -16,7 +16,7 @@ type SetStatusByMode = (
 
 type RefreshStatusCoreParams = {
   mode: UiModeId;
-  userJwt: string;
+  userJwt: string | null | undefined;
   supabaseUrl: string;
   adminKey: string;
   repoFullName: string;
@@ -116,7 +116,7 @@ export async function runStatusRefreshAction(params: RefreshStatusCoreParams): P
 
 type GenerateActionParams = {
   mode: UiModeId;
-  userJwt: string;
+  userJwt: string | null | undefined;
   supabaseUrl: string;
   adminKey: string;
   repoFullName: string;

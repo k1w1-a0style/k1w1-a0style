@@ -218,7 +218,7 @@ export function useCredentialsWizardScreen() {
   const refreshStatusCore = useCallback(
     async (
       mode: UiModeId,
-      userJwt: string,
+      userJwt: string | null | undefined,
       opts?: { preservePendingOnError?: boolean },
     ) =>
       runStatusRefreshAction({
