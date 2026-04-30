@@ -14,9 +14,9 @@ import {
   rateLimit,
   requireDurableRateLimit,
   repoOk,
-  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   resolveMode,
+  resolveVerifiedJwtActor,
   safeString,
 } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -32,9 +32,12 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-status");
-  if (jwtActorGuard.guard) return jwtActorGuard.guard;
-  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+
+  // The local keystore-admin key is the scoped operator secret for this route.
+  // A verified JWT is useful for rate-limit attribution, but not required after the
+  // scoped admin key has already passed timing-safe validation.
+  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
+  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-status",
@@ -69,7 +72,6 @@ Deno.serve(async (req) => {
       return errorResponse("Repo not allowed", req, 403, { repo });
     }
     const resolvedMode = resolveMode(body?.mode);
-
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
