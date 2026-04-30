@@ -36,10 +36,42 @@ function parseCsvEnv(name: string): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+function parseRepoFullName(repo: string): { owner: string; name: string; normalized: string } | null {
+  const normalized = repo.trim().toLowerCase();
+  const parts = normalized.split("/");
+  if (parts.length !== 2) return null;
+  const [owner, name] = parts;
+  if (!owner || !name) return null;
+  if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(owner)) return null;
+  if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(name)) return null;
+  return { owner, name, normalized };
+}
+
+function repoAllowEntryMatches(entry: string, repo: string): boolean {
+  const target = parseRepoFullName(repo);
+  if (!target) return false;
+
+  const normalizedEntry = entry.trim().toLowerCase();
+  if (!normalizedEntry) return false;
+
+  // Exact allowlist entry: owner/repo
+  if (normalizedEntry === target.normalized) return true;
+
+  // Owner wildcard: owner/*
+  // This keeps the route fail-closed by default, but avoids adding every future repo one-by-one.
+  if (normalizedEntry.endsWith("/*")) {
+    const owner = normalizedEntry.slice(0, -2);
+    if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(owner)) return false;
+    return owner === target.owner;
+  }
+
+  return false;
+}
+
 export function isAllowedGithubRepo(repo: string): boolean {
   const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
   if (allow.length === 0) return false;
-  return allow.includes(repo);
+  return allow.some((entry) => repoAllowEntryMatches(entry, repo));
 }
 
 export function isAllowedGitRef(ref: string | null | undefined): boolean {
