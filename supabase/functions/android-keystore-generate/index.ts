@@ -6,7 +6,7 @@ import {
   isAllowedGithubRepo,
   encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requirePrivilegedOperatorJwtRoleWithVerifiedActor, requireScopedEdgeAuth,
+  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requireScopedEdgeAuth, resolveVerifiedJwtActor,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
