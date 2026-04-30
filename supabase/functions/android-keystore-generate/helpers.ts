@@ -23,6 +23,7 @@ export {
   requireDurableRateLimit,
   requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
+  resolveVerifiedJwtActor,
 } from "../_shared/auth.ts";
 
 
