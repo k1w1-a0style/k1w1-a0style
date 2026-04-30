@@ -30,9 +30,11 @@ Deno.serve(async (req) => {
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
   if (auth) return auth;
-  const jwtActorGuard = await requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate");
-  if (jwtActorGuard.guard) return jwtActorGuard.guard;
-  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+
+  // Lokaler Android-Keystore-Admin-Key ist hier der Operator-Key.
+  // Nach erfolgreichem x-k1w1-admin-key braucht Generate keinen zusätzlichen build_admin-JWT.
+  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
+  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",
