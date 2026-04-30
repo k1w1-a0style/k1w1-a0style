@@ -54,11 +54,10 @@ function repoAllowEntryMatches(entry: string, repo: string): boolean {
   const normalizedEntry = entry.trim().toLowerCase();
   if (!normalizedEntry) return false;
 
-  // Exact allowlist entry: owner/repo
+  // Exact optional policy entry: owner/repo
   if (normalizedEntry === target.normalized) return true;
 
-  // Owner wildcard: owner/*
-  // This keeps the route fail-closed by default, but avoids adding every future repo one-by-one.
+  // Optional owner wildcard policy entry: owner/*
   if (normalizedEntry.endsWith("/*")) {
     const owner = normalizedEntry.slice(0, -2);
     if (!/^[a-z0-9][a-z0-9._-]{0,99}$/.test(owner)) return false;
@@ -69,9 +68,14 @@ function repoAllowEntryMatches(entry: string, repo: string): boolean {
 }
 
 export function isAllowedGithubRepo(repo: string): boolean {
+  const target = parseRepoFullName(repo);
+  if (!target) return false;
+
+  // No env policy = the selected valid repo is the source of truth.
+  // If K1W1_ALLOWED_GITHUB_REPOS is set, it acts as an optional self-hosting restriction.
   const allow = parseCsvEnv("K1W1_ALLOWED_GITHUB_REPOS");
-  if (allow.length === 0) return false;
-  return allow.some((entry) => repoAllowEntryMatches(entry, repo));
+  if (allow.length === 0) return true;
+  return allow.some((entry) => repoAllowEntryMatches(entry, target.normalized));
 }
 
 export function isAllowedGitRef(ref: string | null | undefined): boolean {
@@ -87,8 +91,11 @@ export function isAllowedGitRef(ref: string | null | undefined): boolean {
   if (/[\\~^?*\[]/.test(r)) return false;
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(r)) return false;
 
+  // No env policy = any syntactically safe branch/tag is allowed.
+  // If K1W1_ALLOWED_REF_REGEX is set, it becomes an optional restriction.
   const regexStr = (getRuntimeEnv("K1W1_ALLOWED_REF_REGEX") ?? "").trim();
-  if (!regexStr) return false;
+  if (!regexStr) return true;
+
   const wrapped = regexStr.match(/^\^\((.+)\)\$$/);
   if (!wrapped) return false;
   const tokens = wrapped[1].split("|").map((token) => token.trim()).filter(Boolean);
