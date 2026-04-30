@@ -2,6 +2,7 @@
 // Extracted from useCredentialsWizardScreen.ts: utility functions.
 
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
+import { readSupabaseRuntimeConfigDetailed } from "../../../lib/supabaseRuntimeConfig";
 import { theme } from "../../../theme";
 
 import type { ApiModeId, ModeDef, StatusResult, UiModeId, WizardHttpDebug } from "../types";
@@ -56,6 +57,17 @@ export function paletteError() {
   return theme.palette.error;
 }
 
+async function resolveEdgeBearerToken(userJwt: string | null | undefined): Promise<string> {
+  const trimmedJwt = userJwt?.trim() ?? "";
+  if (trimmedJwt) return trimmedJwt;
+  try {
+    const runtimeConfig = await readSupabaseRuntimeConfigDetailed();
+    return runtimeConfig.anonKey?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export async function invokeEdgeJson(
   supabaseUrl: string,
   fn: string,
@@ -70,13 +82,13 @@ export async function invokeEdgeJson(
 
   const url = `${supabaseUrl.replace(/\/$/, "")}/functions/v1/${fn}`;
 
-  const trimmedJwt = userJwt?.trim() ?? "";
+  const bearerToken = await resolveEdgeBearerToken(userJwt);
   const headers: Record<string, string> = {
     "content-type": "application/json",
     "x-k1w1-admin-key": adminKey.trim(),
   };
-  if (trimmedJwt) {
-    headers.Authorization = `Bearer ${trimmedJwt}`;
+  if (bearerToken) {
+    headers.Authorization = `Bearer ${bearerToken}`;
   }
 
   let res: Response;
@@ -115,8 +127,6 @@ export async function invokeEdgeJson(
   try {
     const data: unknown = bodyText ? JSON.parse(bodyText) : null;
 
-    // Edge functions can reply with HTTP 200 but `{ ok: false, error }`.
-    // Normalize this branch so all callers get the same error-path behavior.
     if (
       data &&
       typeof data === "object" &&
