@@ -3,15 +3,16 @@ import path from "path";
 
 const read = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 
-describe("keystore routes enforce repo allowlist + durable fail-closed", () => {
+describe("keystore routes validate selected repo + durable fail-closed", () => {
   const routes = [
     "supabase/functions/android-keystore-generate/index.ts",
     "supabase/functions/android-keystore-status/index.ts",
     "supabase/functions/android-keystore-export/index.ts",
   ] as const;
 
-  it.each(routes)("%s checks K1W1_ALLOWED_GITHUB_REPOS via isAllowedGithubRepo", (route) => {
+  it.each(routes)("%s validates repo format before using selected repo", (route) => {
     const src = read(route);
+    expect(src).toContain("repoOk(repo)");
     expect(src).toContain("isAllowedGithubRepo");
     expect(src).toContain('return errorResponse("Repo not allowed", req, 403, { repo })');
   });
