@@ -131,19 +131,18 @@ describe("buildPollingService", () => {
   });
 
   it("marks local auth/key blockers as terminal (non-retryable)", async () => {
-    const { getWorkflowAdminKey } = jest.requireMock("../infra/github/githubService") as {
-      getWorkflowAdminKey: jest.Mock;
-    };
+    const { getWorkflowAdminKey } = jest.requireMock("../infra/github/githubService") as { getWorkflowAdminKey: jest.Mock };
+    const { ensureSupabaseClient } = jest.requireMock("../lib/supabase") as { ensureSupabaseClient: jest.Mock };
     getWorkflowAdminKey.mockResolvedValueOnce(null);
+    ensureSupabaseClient.mockResolvedValueOnce({ auth: { getSession: jest.fn(async () => ({ data: { session: null } })) } });
     global.fetch = jest.fn() as unknown as typeof fetch;
 
     const result = await pollBuildStatusOnce("job-terminal");
 
-    expect(result).toEqual({
-      ok: false,
-      error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
-      retryable: false,
-    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.retryable).toBe(false);
+    expect(result.error).toContain("JWT-Precheck");
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });

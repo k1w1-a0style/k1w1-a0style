@@ -105,13 +105,6 @@ export async function pollBuildStatusOnce(
   if (!trimmedAdminKey && !accessToken) {
     return { ok: false, error: buildOperatorPrecheckMessage({ action: "Build-Status", reason: "missing_jwt" }), retryable: false };
   }
-  if (!trimmedAdminKey && !accessToken) {
-    return {
-      ok: false,
-      error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
-      retryable: false,
-    };
-  }
 
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
