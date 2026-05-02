@@ -245,9 +245,6 @@ export async function startBuildJob(params: {
   if (!trimmedAdminKey && accessToken && !hasLikelyAllowedOperatorRoleForUiPrecheck(accessToken)) {
     throw new Error(buildOperatorPrecheckMessage({ action: "Build-Start", reason: "invalid_role" }));
   }
-  if (!trimmedAdminKey && !accessToken) {
-    throw new Error("Build-Start blockiert: Lokaler Workflow-Admin-Key oder Supabase-Login-JWT fehlt.");
-  }
 
   const invokeOpts: { body: Record<string, string>; headers?: Record<string, string> } = {
     body: { githubRepo, buildProfile: profile, branch: buildBranch },
