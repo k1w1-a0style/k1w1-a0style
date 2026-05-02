@@ -43,6 +43,7 @@ function getPreviewEdgeErrorCode(error: unknown): PreviewEdgeErrorCode | null {
 
 export function describeRemotePreviewFailure(params: {
   bearerJwt?: string | null;
+  adminKey?: string | null;
   statusCode?: number | null;
   error: unknown;
 }): string {
@@ -84,8 +85,10 @@ export function describeRemotePreviewFailure(params: {
     return EMPTY_REMOTE_PREVIEW_FILES_ERROR;
   }
 
-  if (!String(params.bearerJwt ?? "").trim()) {
-    return "Remote-Preview blockiert: Supabase-Login-JWT fehlt oder ist lokal nicht verfuegbar.";
+  const hasJwt = Boolean(String(params.bearerJwt ?? "").trim());
+  const hasAdminKey = Boolean(String(params.adminKey ?? "").trim());
+  if (!hasJwt && !hasAdminKey) {
+    return "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key wird benötigt.";
   }
 
   if (

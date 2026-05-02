@@ -1,6 +1,7 @@
 import { buildSandpackHtml } from "../lib/sandpackBuilder";
 import { ensureSupabaseClient } from "../lib/supabase";
 import { logger } from "../lib/logger";
+import { getWorkflowAdminKey } from "../infra/github/githubService";
 import type { LastPreviewMeta, ProjectData } from "../shared/types/project";
 import type { PreviewFiles } from "../types/preview";
 import {
@@ -49,6 +50,7 @@ export const tryCreateSupabasePreview = async ({
   setters: PreviewStateSetters;
 }): Promise<{ result: PreviewResult | null; handledFailure: boolean }> => {
   let userJwt: string | null = null;
+  let workflowAdminKey: string | null = null;
   try {
     const supabase = await ensureSupabaseClient().catch((error: unknown) => {
       const message = error instanceof Error && error.message.trim() ? error.message.trim() : String(error);
@@ -60,8 +62,10 @@ export const tryCreateSupabasePreview = async ({
     });
     userJwt = extractSessionAccessToken(sessionResult);
 
-    if (!userJwt) {
-      throw new Error("Missing Supabase Preview JWT");
+    workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
+    const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
+    if (!userJwt && !trimmedAdminKey) {
+      throw new Error("Missing Supabase Preview JWT or Workflow Admin Key");
     }
 
     const snackFiles: PreviewFiles = buildSnackPreviewFiles(files);
@@ -71,6 +75,7 @@ export const tryCreateSupabasePreview = async ({
 
     const resp = await invokeSavePreview({
       bearerJwt: userJwt,
+      adminKey: trimmedAdminKey,
       payload: {
         projectId: projectData.id,
         name: projectData.name || "Preview",
@@ -113,6 +118,7 @@ export const tryCreateSupabasePreview = async ({
     setters.setRemoteFailure(
       describeRemotePreviewFailure({
         bearerJwt: userJwt,
+        adminKey: workflowAdminKey,
         statusCode: getErrorStatusCode(supErr),
         error: supErr,
       }),
