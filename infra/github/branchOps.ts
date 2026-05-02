@@ -161,8 +161,9 @@ export const renameBranch = async (
 export const getBranches = async (
   owner: string,
   repo: string,
+  explicitToken?: string | null,
 ): Promise<GitHubBranch[]> => {
-  const token = await getGitHubToken();
+  const token = explicitToken?.trim() || await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();
@@ -202,8 +203,9 @@ export const getBranches = async (
 export const getDefaultBranch = async (
   owner: string,
   repo: string,
+  explicitToken?: string | null,
 ): Promise<string> => {
-  const token = await getGitHubToken();
+  const token = explicitToken?.trim() || await getGitHubToken();
   if (!token) throw new Error("GitHub token fehlt.");
 
   await githubLimiter.checkLimit();

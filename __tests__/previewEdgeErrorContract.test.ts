@@ -244,4 +244,44 @@ describe("preview edge error contract", () => {
       "Remote-Preview konnte serverseitig nicht gespeichert oder geladen werden.",
     );
   });
+
+  it("uses admin-key transport fallback without empty bearer header", async () => {
+    process.env.EXPO_PUBLIC_SUPABASE_URL = "https://preview.example.com";
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, previewUrl: "https://preview.example.com/p/abc" }),
+    });
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      invokeSavePreview({
+        bearerJwt: null,
+        adminKey: "workflow-admin-key",
+        payload: {
+          name: "Preview",
+          files: { "/App.tsx": { contents: "export default function App() { return null; }" } },
+          dependencies: {},
+          meta: {},
+        },
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+    expect(headers["x-k1w1-admin-key"]).toBe("workflow-admin-key");
+  });
+
+  it("reports a precise auth requirement when jwt and admin-key are both missing", () => {
+    const clientMessage = describeRemotePreviewFailure({
+      bearerJwt: null,
+      adminKey: null,
+      statusCode: 401,
+      error: new Error("Missing auth"),
+    });
+    expect(clientMessage).toBe(
+      "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key wird benötigt.",
+    );
+  });
 });

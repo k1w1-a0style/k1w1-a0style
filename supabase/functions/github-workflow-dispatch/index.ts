@@ -3,7 +3,7 @@ import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRoleWithVerifiedActor,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import {
@@ -12,7 +12,6 @@ import {
   GITHUB_API_BASE,
   isGitRefPolicyConfigured,
   isAllowedGitRef,
-  isAllowedGithubRepo,
 } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
@@ -89,14 +88,12 @@ Deno.serve(async (req) => {
 
   try {
     // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
-    const auth = requireScopedEdgeAuth(req, {
+    const auth = await requireOwnerOrJwtAuth(req, {
       scope: "github-workflow-dispatch",
-      allowAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      requireJwtRoleWithVerifiedActor: requireWorkflowOperatorJwtRoleWithVerifiedActor,
     });
-    if (auth) return auth;
-    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-dispatch");
-    if (jwtActorGuard.guard) return jwtActorGuard.guard;
+    if (auth.guard) return auth.guard;
 
     const parsed = await parseJsonBody(req, 200_000);
     if (isParsedJsonBodyError(parsed)) return errorResponse(parsed.error, req, 400);
@@ -113,14 +110,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!isAllowedGithubRepo(githubRepo)) {
-      return jsonResponse(
-        { ok: false, error: "githubRepo not allowed", details: { githubRepo } },
-        req,
-        403,
-      );
-    }
-
     if (!isGitRefPolicyConfigured()) {
       return errorResponse("ref policy unavailable", req, 503, {
         code: "ref_policy_unavailable",
@@ -131,7 +120,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: "ref not allowed", details: { ref } }, req, 403);
     }
 
-    const actorSubject = jwtActorGuard.actor;
+    const actorSubject = auth.actor;
     const rateLimitSubject = getRequestRateLimitSubject(req, actorSubject);
 
     const durableRl = await requireDurableRateLimit(req, {

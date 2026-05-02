@@ -9,6 +9,7 @@ export {
   getRequestRateLimitSubject,
   rateLimit,
   requireDurableRateLimit,
+  requireOwnerOrJwtAuth,
   requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   requireScopedEdgeAuth,
   resolveVerifiedJwtActor,

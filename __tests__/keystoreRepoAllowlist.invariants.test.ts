@@ -13,8 +13,8 @@ describe("keystore routes validate selected repo + durable fail-closed", () => {
   it.each(routes)("%s validates repo format before using selected repo", (route) => {
     const src = read(route);
     expect(src).toContain("repoOk(repo)");
-    expect(src).toContain("isAllowedGithubRepo");
-    expect(src).toContain('return errorResponse("Repo not allowed", req, 403, { repo })');
+    expect(src).not.toContain("isAllowedGithubRepo(");
+    expect(src).not.toContain('return errorResponse("Repo not allowed", req, 403, { repo })');
   });
 
   it.each(routes)("%s sets enforceDurable=true", (route) => {

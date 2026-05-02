@@ -9,11 +9,10 @@ import {
   jsonResponse,
   rateLimit,
   getRequestClientIp, getRequestRateLimitSubject,
-  isAllowedGithubRepo,
   requireDurableRateLimit,
   repoOk,
   requireServiceRoleJwtWithVerifiedActor,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   resolveMode,
   safeString,
 } from "./helpers.ts";
@@ -25,15 +24,13 @@ Deno.serve(async (req) => {
   if (cors) return cors;
 
   // Scoped route auth replaces the former shared admin/service-role guard.
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-export",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+    requireJwtRoleWithVerifiedActor: requireServiceRoleJwtWithVerifiedActor,
   });
-  if (auth) return auth;
-  const jwtActorGuard = await requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export");
-  if (jwtActorGuard.guard) return jwtActorGuard.guard;
-  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+  if (auth.guard) return auth.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-export",
@@ -83,16 +80,6 @@ Deno.serve(async (req) => {
         "Invalid repo format. Expected 'owner/name'.",
         400,
       );
-    }
-    if (!isAllowedGithubRepo(repo)) {
-      const denyRepo = () => {
-        return errorResponse("Repo not allowed", req, 403, { repo });
-      };
-      const denied = denyRepo();
-      denied.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-      denied.headers.set("Pragma", "no-cache");
-      denied.headers.set("Expires", "0");
-      return denied;
     }
     const resolvedMode = resolveMode(body?.mode);
 
@@ -164,7 +151,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const actor = jwtActorGuard.actor ?? "service_role";
+      const actor = auth.actor ?? "scoped_admin";
       const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
       const { error: auditError } = await supabase.from("signing_audit_log").insert({

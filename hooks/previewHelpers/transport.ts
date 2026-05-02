@@ -6,7 +6,8 @@ import { buildPreviewInvokeError, safeJson } from "./failure";
 import type { PreviewInvokePayload } from "./types";
 
 export async function invokeSavePreview(params: {
-  bearerJwt: string;
+  bearerJwt?: string | null;
+  adminKey?: string | null;
   payload: PreviewInvokePayload;
   timeoutMs?: number;
 }): Promise<PreviewResponse> {
@@ -18,15 +19,23 @@ export async function invokeSavePreview(params: {
 
   const timeoutMs = params.timeoutMs ?? 12_000;
 
+  const trimmedJwt = String(params.bearerJwt ?? "").trim();
+  const trimmedAdminKey = String(params.adminKey ?? "").trim();
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  if (trimmedJwt) {
+    headers.Authorization = `Bearer ${trimmedJwt}`;
+  } else if (trimmedAdminKey) {
+    headers["x-k1w1-admin-key"] = trimmedAdminKey;
+  }
+
   try {
     const res = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {
       timeoutMs,
       timeoutMessage: `Supabase Preview Timeout (${timeoutMs}ms)`,
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        Authorization: `Bearer ${params.bearerJwt.trim()}`,
-      },
+      headers,
       body: JSON.stringify(params.payload),
     });
 

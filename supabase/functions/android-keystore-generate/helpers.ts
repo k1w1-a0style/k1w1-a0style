@@ -9,7 +9,6 @@ import {
   encryptKeystorePayload,
 } from "../_shared/androidKeystoreCrypto.ts";
 import { isSafeGitHubRepoFullName } from "../_shared/validation.ts";
-import { isAllowedGithubRepo } from "../_shared/github.ts";
 export { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";
@@ -22,8 +21,8 @@ export {
   rateLimit,
   requireDurableRateLimit,
   requirePrivilegedOperatorJwtRoleWithVerifiedActor,
+  requireOwnerOrJwtAuth,
   requireScopedEdgeAuth,
-  resolveVerifiedJwtActor,
 } from "../_shared/auth.ts";
 
 
@@ -152,7 +151,6 @@ export function repoOk(repo: string): boolean {
 }
 
 export { encryptKeystorePayload };
-export { isAllowedGithubRepo };
 
 export function bytesToBinaryString(bytes: Uint8Array): string {
   let out = "";

@@ -4,7 +4,7 @@ import {
   getServiceRoleKey,
   getSupabaseUrl,
   requireWorkflowOperatorJwtRoleWithVerifiedActor,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   rateLimit,
   requireDurableRateLimit,
 } from "../_shared/auth.ts";
@@ -16,7 +16,6 @@ import {
 import {
   getGithubToken,
   isAllowedGitRef,
-  isAllowedGithubRepo,
 } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import { runTriggerBuildFlow } from "./flow.ts";
@@ -56,15 +55,13 @@ export async function handleTriggerEasBuildRequest(
   if (cors) return cors;
 
   try {
-    const auth = requireScopedEdgeAuth(req, {
+    const auth = await requireOwnerOrJwtAuth(req, {
       scope: "trigger-eas-build",
-      allowAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      requireJwtRoleWithVerifiedActor: requireWorkflowOperatorJwtRoleWithVerifiedActor,
     });
-    if (auth) return auth;
-    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "trigger-eas-build");
-    if (jwtActorGuard.guard) return jwtActorGuard.guard;
-    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+    if (auth.guard) return auth.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "trigger-eas-build",
@@ -99,9 +96,6 @@ export async function handleTriggerEasBuildRequest(
     const supabase = deps.createSupabaseClient(supabaseUrl, serviceRoleKey);
     const { githubRepo, buildProfile, branch } = validation.data!;
 
-    if (!isAllowedGithubRepo(githubRepo)) {
-      return errorResponse("githubRepo not allowed", req, 403, { githubRepo });
-    }
     if (!isAllowedGitRef(branch)) {
       return errorResponse("branch/ref not allowed", req, 403, { branch });
     }

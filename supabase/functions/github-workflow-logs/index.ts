@@ -6,11 +6,11 @@ import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRoleWithVerifiedActor,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
-import { getGithubToken, githubFetch, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
+import { getGithubToken, githubFetch, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import {
   jsonOk, jsonErr, asNumber, parseGithubRepo, type Json,
@@ -47,15 +47,13 @@ Deno.serve(async (req) => {
 
   try {
     // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
-    const auth = requireScopedEdgeAuth(req, {
+    const auth = await requireOwnerOrJwtAuth(req, {
       scope: "github-workflow-logs",
-      allowAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      requireJwtRoleWithVerifiedActor: requireWorkflowOperatorJwtRoleWithVerifiedActor,
     });
-    if (auth) return auth;
-    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-logs");
-    if (jwtActorGuard.guard) return jwtActorGuard.guard;
-    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+    if (auth.guard) return auth.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-logs",
@@ -86,14 +84,6 @@ Deno.serve(async (req) => {
     }
 
     const normalizedGithubRepo = `${repoObj.owner}/${repoObj.repo}`;
-    if (!isAllowedGithubRepo(normalizedGithubRepo)) {
-      return jsonErr(
-        req,
-        "githubRepo not allowed",
-        { githubRepo: normalizedGithubRepo },
-        403,
-      );
-    }
 
     const runIdRaw =
       asNumber(body.runId) ??

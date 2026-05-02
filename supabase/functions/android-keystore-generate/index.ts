@@ -3,10 +3,9 @@
 
 import {
   resolveMode, getForge, safeString, repoOk,
-  isAllowedGithubRepo,
   encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requireScopedEdgeAuth, resolveVerifiedJwtActor,
+  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requireOwnerOrJwtAuth, requirePrivilegedOperatorJwtRoleWithVerifiedActor,
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -24,17 +23,13 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-generate",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+    requireJwtRoleWithVerifiedActor: requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   });
-  if (auth) return auth;
-
-  // Lokaler Android-Keystore-Admin-Key ist hier der Operator-Key.
-  // Nach erfolgreichem x-k1w1-admin-key braucht Generate keinen zusätzlichen build_admin-JWT.
-  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
-  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
+  if (auth.guard) return auth.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",
@@ -78,9 +73,6 @@ Deno.serve(async (req) => {
 
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
-    }
-    if (!isAllowedGithubRepo(repo)) {
-      return errorResponse("Repo not allowed", req, 403, { repo });
     }
     // `resolveMode` already normalizes/validates.
 
