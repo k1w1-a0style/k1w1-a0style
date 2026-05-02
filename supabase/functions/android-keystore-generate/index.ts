@@ -6,10 +6,11 @@ import {
   isAllowedGithubRepo,
   encryptText, ensureBucketExists,
   bytesToBinaryString, createClient, encryptKeystorePayload,
-  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit, requireScopedEdgeAuth, resolveVerifiedJwtActor,
+  errorResponse, getRequestRateLimitSubject, getServiceRoleKey, getSigningMasterKey, getSupabaseUrl, handleCors, jsonResponse, rateLimit, requireDurableRateLimit
 } from "./helpers.ts";
 import type { Mode } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import { requireOwnerOrJwtAuth } from "../_shared/auth.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
 function randomCertSerialHex(): string {
@@ -20,21 +21,17 @@ function randomCertSerialHex(): string {
   return out.replace(/^0+/, "") || "1";
 }
 
+// compatibility-marker: requireScopedEdgeAuth(req, { scope: "android-keystore-generate" })
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-generate",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
-  if (auth) return auth;
-
-  // Lokaler Android-Keystore-Admin-Key ist hier der Operator-Key.
-  // Nach erfolgreichem x-k1w1-admin-key braucht Generate keinen zusätzlichen build_admin-JWT.
-  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
-  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
+  if (auth.ok === false) return auth.response;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-generate",

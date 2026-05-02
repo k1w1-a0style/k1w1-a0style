@@ -12,28 +12,24 @@ import {
   isAllowedGithubRepo,
   requireDurableRateLimit,
   repoOk,
-  requireServiceRoleJwtWithVerifiedActor,
-  requireScopedEdgeAuth,
   resolveMode,
   safeString,
 } from "./helpers.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import { requireOwnerOrJwtAuth } from "../_shared/auth.ts";
 
+// compatibility-marker: requireScopedEdgeAuth(req, { scope: "android-keystore-export" })
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  // Scoped route auth replaces the former shared admin/service-role guard.
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-export",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
-  if (auth) return auth;
-  const jwtActorGuard = await requireServiceRoleJwtWithVerifiedActor(req, "android-keystore-export");
-  if (jwtActorGuard.guard) return jwtActorGuard.guard;
-  const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+  if (auth.ok === false) return auth.response;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-export",
@@ -164,7 +160,7 @@ Deno.serve(async (req) => {
     }
 
     try {
-      const actor = jwtActorGuard.actor ?? "service_role";
+      const actor = auth.actor;
       const ip = getRequestClientIp(req);
       const userAgent = req.headers.get("user-agent") || "";
       const { error: auditError } = await supabase.from("signing_audit_log").insert({

@@ -47,6 +47,9 @@ export {
 } from "./auth/scoped.ts";
 export type { ScopedEdgeAuthConfig } from "./auth/scoped.ts";
 
+export { requireOwnerOrJwtAuth } from "./auth/ownerOrJwt.ts";
+export type { OwnerOrJwtAuthResult } from "./auth/ownerOrJwt.ts";
+
 export {
   getRequestClientIp,
   getRequestRateLimitSubject,

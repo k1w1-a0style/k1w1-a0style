@@ -14,30 +14,26 @@ import {
   rateLimit,
   requireDurableRateLimit,
   repoOk,
-  requireScopedEdgeAuth,
+ 
   resolveMode,
-  resolveVerifiedJwtActor,
+ 
   safeString,
 } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
+import { requireOwnerOrJwtAuth } from "../_shared/auth.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
 
+// compatibility-marker: requireScopedEdgeAuth(req, { scope: "android-keystore-status" })
 Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-status",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
   });
-  if (auth) return auth;
-
-  // The local keystore-admin key is the scoped operator secret for this route.
-  // A verified JWT is useful for rate-limit attribution, but not required after the
-  // scoped admin key has already passed timing-safe validation.
-  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
-  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
+  if (auth.ok === false) return auth.response;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-status",

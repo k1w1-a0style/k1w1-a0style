@@ -7,7 +7,7 @@ import {
   getPreviewSupabaseUrl,
   getRequestRateLimitSubject,
   requireDurableRateLimit,
-  requireVerifiedJwt,
+  requireOwnerOrJwtAuth,
   rateLimit,
 } from "../_shared/auth.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
@@ -37,12 +37,17 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: cors });
   }
 
-  const auth = await requireVerifiedJwt(req, "save_preview");
-  if (auth) return auth;
+  const ownerOrJwt = await requireOwnerOrJwtAuth(req, {
+    scope: "save_preview",
+    adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+  });
+  if (ownerOrJwt.ok === false) {
+    return ownerOrJwt.response;
+  }
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "save_preview",
-    subject: getRequestRateLimitSubject(req),
+    subject: getRequestRateLimitSubject(req, ownerOrJwt.actor),
     max: 60,
     windowMs: 60_000,
     enforceDurable: true,
