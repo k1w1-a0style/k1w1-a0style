@@ -25,7 +25,9 @@ exports[`ChatComposer staged progress snapshots matches staged block-1 snapshot 
         "alignItems": "center",
         "flexDirection": "row",
         "gap": 8,
+        "justifyContent": "space-between",
         "marginHorizontal": 12,
+        "marginRight": 58,
         "marginTop": 8,
       }
     }
@@ -285,11 +287,13 @@ exports[`ChatComposer staged progress snapshots matches staged block-1 snapshot 
     style={
       [
         {
-          "alignSelf": "flex-end",
           "color": "#999999",
           "fontSize": 11,
-          "marginBottom": 6,
-          "marginRight": 14,
+          "minWidth": 38,
+          "position": "absolute",
+          "right": 14,
+          "textAlign": "right",
+          "top": 8,
         },
         false,
         false,
@@ -326,7 +330,9 @@ exports[`ChatComposer staged progress snapshots matches staged block-2 snapshot 
         "alignItems": "center",
         "flexDirection": "row",
         "gap": 8,
+        "justifyContent": "space-between",
         "marginHorizontal": 12,
+        "marginRight": 58,
         "marginTop": 8,
       }
     }
@@ -586,11 +592,13 @@ exports[`ChatComposer staged progress snapshots matches staged block-2 snapshot 
     style={
       [
         {
-          "alignSelf": "flex-end",
           "color": "#999999",
           "fontSize": 11,
-          "marginBottom": 6,
-          "marginRight": 14,
+          "minWidth": 38,
+          "position": "absolute",
+          "right": 14,
+          "textAlign": "right",
+          "top": 8,
         },
         false,
         false,

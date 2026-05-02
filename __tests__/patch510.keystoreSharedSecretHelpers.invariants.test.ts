@@ -54,13 +54,13 @@ describe("patch510 keystore shared secret helper invariants", () => {
   });
 
   it("keeps keystore auth contracts on scoped admin secret + privileged JWT roles", () => {
-    expect(read(exportIndex)).toContain("requireScopedEdgeAuth(req, {");
+    expect(read(exportIndex)).toContain("requireOwnerOrJwtAuth(req, {");
     expect(read(exportIndex)).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-        expect(read(exportIndex)).toContain("requireServiceRoleJwtWithVerifiedActor(req, \"android-keystore-export\")");
-    expect(read(statusIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(generateIndex)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(statusIndex)).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-status")');
-    expect(read(generateIndex)).toContain('requirePrivilegedOperatorJwtRoleWithVerifiedActor(req, "android-keystore-generate")');
+    expect(read(exportIndex)).toContain("requireJwtRoleWithVerifiedActor: requireServiceRoleJwtWithVerifiedActor");
+    expect(read(statusIndex)).toContain("requireOwnerOrJwtAuth(req, {");
+    expect(read(generateIndex)).toContain("requireOwnerOrJwtAuth(req, {");
+    expect(read(statusIndex)).toContain("requireJwtRoleWithVerifiedActor: requirePrivilegedOperatorJwtRoleWithVerifiedActor");
+    expect(read(generateIndex)).toContain("requireJwtRoleWithVerifiedActor: requirePrivilegedOperatorJwtRoleWithVerifiedActor");
     expect(read(statusIndex)).not.toContain("requireAdminKey(req)");
     expect(read(generateIndex)).not.toContain("requireAdminKey(req)");
   });

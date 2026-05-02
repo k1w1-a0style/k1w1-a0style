@@ -13,7 +13,7 @@ describe("patch615 preview auth boundary", () => {
     const previewEdge = fs.readFileSync(path.join(ROOT, "supabase/functions/save_preview/index.ts"), "utf8");
     const cfg = fs.readFileSync(path.join(ROOT, "supabase/config.toml"), "utf8");
 
-    expect(previewCreation).toContain("Missing Supabase Preview JWT or Workflow Admin Key");
+    expect(previewCreation).toContain("Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt");
     expect(previewCreation).toContain("bearerJwt: userJwt");
     expect(previewCreation).toContain("adminKey: trimmedAdminKey");
     expect(previewCreation).toContain("getWorkflowAdminKey()");

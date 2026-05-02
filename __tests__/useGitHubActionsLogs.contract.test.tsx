@@ -107,48 +107,43 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(logsBody).not.toHaveProperty('githubToken');
   });
 
-  it('fails fast locally when the workflow admin key is missing', async () => {
+  it('allows JWT-only workflow reads when workflow admin key is missing', async () => {
     (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('');
-    const fetchMock = jest.fn();
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { workflow_runs: [{ id: 123 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, logsText: '' }) });
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const { result } = renderHook(() =>
-      useGitHubActionsLogs({
-        githubRepo: 'owner/repo',
-        runId: null,
-        workflowId: 'k1w1-ci-lite.yml',
-        autoRefresh: false,
-      }),
+      useGitHubActionsLogs({ githubRepo: 'owner/repo', runId: null, workflowId: 'k1w1-ci-lite.yml', autoRefresh: false }),
     );
 
-    await act(async () => {
-      await result.current.refreshLogs();
-    });
+    await act(async () => { await result.current.refreshLogs(); });
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(result.current.error).toMatch(/Admin-Key fehlt/i);
+    expect(fetchMock).toHaveBeenCalled();
+    const headers = ((fetchMock.mock.calls[0]?.[1] as RequestInit)?.headers ?? {}) as Record<string, string>;
+    expect(headers.Authorization).toMatch(/^Bearer /);
+    expect(headers['x-k1w1-admin-key']).toBeUndefined();
+    expect(result.current.error).toBeNull();
   });
 
-  it('fails fast locally when the workflow admin key is formally invalid', async () => {
+  it('ignores formally invalid admin key when JWT is available', async () => {
     (getWorkflowAdminKey as jest.Mock).mockResolvedValueOnce('short');
-    const fetchMock = jest.fn();
+    const fetchMock = jest.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { workflow_runs: [{ id: 123 }] } }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ ok: true, logsText: '' }) });
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const { result } = renderHook(() =>
-      useGitHubActionsLogs({
-        githubRepo: 'owner/repo',
-        runId: null,
-        workflowId: 'k1w1-ci-lite.yml',
-        autoRefresh: false,
-      }),
+      useGitHubActionsLogs({ githubRepo: 'owner/repo', runId: null, workflowId: 'k1w1-ci-lite.yml', autoRefresh: false }),
     );
 
-    await act(async () => {
-      await result.current.refreshLogs();
-    });
+    await act(async () => { await result.current.refreshLogs(); });
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(result.current.error).toMatch(/formal ungueltig/i);
+    const headers = ((fetchMock.mock.calls[0]?.[1] as RequestInit)?.headers ?? {}) as Record<string, string>;
+    expect(headers.Authorization).toMatch(/^Bearer /);
+    expect(headers['x-k1w1-admin-key']).toBe('short');
+    expect(result.current.error).toBeNull();
   });
 
   it('uses the current workflowId for github-workflow-runs after rerender', async () => {

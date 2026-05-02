@@ -14,7 +14,6 @@ describe("buildEdgeOwnerAuthHeaders", () => {
 
   it("uses user JWT when available", async () => {
     const headers = await buildEdgeOwnerAuthHeaders({ action: "X", userJwt: "jwt", adminKey: "adm" });
-    expect(headers["Content-Type"]).toBe("application/json");
     expect(headers["content-type"]).toBe("application/json");
     expect(headers.Authorization).toBe("Bearer jwt");
     expect(headers["x-k1w1-admin-key"]).toBe("adm");

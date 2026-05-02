@@ -24,8 +24,14 @@ const loadSodium = async (): Promise<SodiumRuntime> => {
   if (!sodiumPromise) {
     sodiumPromise = (async () => {
       const modulePath: string = "libsodium-wrappers-sumo";
-      const mod = (await import(modulePath)) as SodiumModule;
-      return mod.default ?? mod;
+      try {
+        const mod = (await import(modulePath)) as SodiumModule;
+        return mod.default ?? mod;
+      } catch {
+        // Jest/node-cjs fallback without experimental VM modules.
+        const mod = require(modulePath) as SodiumModule;
+        return mod.default ?? mod;
+      }
     })();
   }
   return sodiumPromise;

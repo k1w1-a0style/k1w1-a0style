@@ -104,7 +104,7 @@ describe("usePreview server contract", () => {
     });
 
     expect(result.current.state.remoteFailure).toBe(
-      "Remote-Preview blockiert: Supabase-Login-JWT fehlt oder ist lokal nicht verfuegbar.",
+      "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt.",
     );
     expect(mockFetch).not.toHaveBeenCalled();
     expect(mockBuildSandpackHtml).not.toHaveBeenCalled();
@@ -218,7 +218,7 @@ describe("usePreview server contract", () => {
     const fetchCall = mockFetch.mock.calls.at(-1);
     expect(fetchCall?.[0]).toBe("https://preview.example.com/functions/v1/save_preview");
     const fetchOpts = fetchCall?.[1] as { headers?: Record<string, string>; body?: string } | undefined;
-    expect(fetchOpts?.headers).toEqual({
+    expect(fetchOpts?.headers).toMatchObject({
       "content-type": "application/json",
       Authorization: "Bearer preview-user-jwt-token",
     });

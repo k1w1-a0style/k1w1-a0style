@@ -99,17 +99,14 @@ export function useGitHubActionsLogs({
       const edgeUrl = await requireSupabaseEdgeUrl();
       const workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
       const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
-      if (!trimmedAdminKey) {
-        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte im Credentials-Wizard setzen und erneut versuchen.");
-      }
-      if (!isLikelyWellFormedAdminKeyForUiPrecheck(trimmedAdminKey)) {
-        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
-      }
       const supabase = await ensureSupabaseClient().catch(() => null);
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
       if (!userJwt && !trimmedAdminKey) {
         throw new Error(buildOperatorPrecheckMessage({ action: "Workflow-Read", reason: "missing_jwt" }));
+      }
+      if (!userJwt && trimmedAdminKey && !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedAdminKey)) {
+        throw new Error("Workflow-Read blockiert: Lokaler Workflow-Admin-Key ist formal ungueltig. Bitte im Credentials-Wizard korrigieren und erneut versuchen.");
       }
       const edgeHeaders = await buildEdgeOwnerAuthHeaders({ action: "Workflow-Read", userJwt, adminKey: trimmedAdminKey, contentType: "application/json" });
 

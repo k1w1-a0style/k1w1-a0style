@@ -79,7 +79,7 @@ describe("android-keystore-export route behavior", () => {
       rateLimit: jest.fn(() => null),
       repoOk: jest.fn(() => true),
       requireDurableRateLimit: jest.fn(async () => null),
-      requireScopedEdgeAuth: jest.fn(() => null),
+      requireOwnerOrJwtAuth: jest.fn(async () => ({ guard: null, actor: "workflow-actor" })),
       requireServiceRoleJwtWithVerifiedActor: jest.fn(async () => ({ guard: null, actor: "workflow-actor" })),
       resolveMode: jest.fn(() => "production"),
       safeString: jest.fn((value: unknown) => (typeof value === "string" ? value.trim() : "")),

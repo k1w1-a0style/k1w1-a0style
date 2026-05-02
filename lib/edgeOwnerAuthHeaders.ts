@@ -20,7 +20,6 @@ export async function buildEdgeOwnerAuthHeaders(params: {
   }
 
   const headers: Record<string, string> = {
-    "Content-Type": contentType,
     "content-type": contentType,
   };
 
