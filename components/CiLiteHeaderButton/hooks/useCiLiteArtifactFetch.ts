@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { requireSupabaseEdgeUrl } from "../../../lib/supabaseEdge";
 import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
+import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
 import {
   buildArtifactFetchContextKey,
@@ -19,7 +20,7 @@ type UseCiLiteArtifactFetchParams = {
   workflowRunId: number | null;
   workflowStatus: string | null | undefined;
   artifactAttemptedContextRef: { current: string | null };
-  resolveOperatorAccess: (context: "artifact") => Promise<{ adminKey: string; userJwt: string }>;
+  resolveOperatorAccess: (context: "artifact") => Promise<{ adminKey: string; userJwt: string | null }>;
   setArtifactLoading: (value: boolean) => void;
   setArtifactError: (value: string | null) => void;
   setArtifactResult: (value: CiLiteArtifactResult | null) => void;
@@ -64,11 +65,11 @@ export function useCiLiteArtifactFetch({
           timeoutMs: 15_000,
           timeoutMessage: "CI-Lite-Artefakt konnte nicht rechtzeitig geladen werden. Bitte erneut versuchen.",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${operatorAccess.userJwt}`,
-            "x-k1w1-admin-key": operatorAccess.adminKey,
-          },
+          headers: await buildEdgeOwnerAuthHeaders({
+            action: "CI Lite Artefakt-Download",
+            userJwt: operatorAccess.userJwt,
+            adminKey: operatorAccess.adminKey,
+          }),
           body: JSON.stringify({
             githubRepo,
             runId: workflowRunId,

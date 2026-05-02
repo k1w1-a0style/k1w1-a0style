@@ -184,7 +184,7 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
 
-  it("sends JWT + x-k1w1-admin-key on the CI Lite dispatch edge call", async () => {
+  it("sends JWT-only headers on the CI Lite dispatch edge call when user JWT is present", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -200,13 +200,12 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(dispatchCall).toBeTruthy();
     const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
-      "Content-Type": "application/json",
       Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
+    expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
-  it("sends JWT + x-k1w1-admin-key on the CI Lite workflow run lookup call", async () => {
+  it("sends JWT-only headers on the CI Lite workflow run lookup call when user JWT is present", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -222,10 +221,9 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(runsCall).toBeTruthy();
     const headers = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
-      "Content-Type": "application/json",
       Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
+    expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
   it("blocks workflow run lookup locally when the admin key is missing", async () => {
@@ -250,7 +248,7 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
 
-  it("sends JWT + x-k1w1-admin-key on the artifact-json call", async () => {
+  it("sends JWT-only headers on the artifact-json call when user JWT is present", async () => {
     const completedRunId = 901;
     mockUseGitHubActionsLogs.mockImplementation(() => ({
       logs: [],
@@ -278,10 +276,9 @@ describe("useCiLiteWorkflow behavior", () => {
       expect(artifactCall).toBeTruthy();
       const headers = ((artifactCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
       expect(headers).toMatchObject({
-        "Content-Type": "application/json",
         Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-        "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
       });
+      expect(headers["x-k1w1-admin-key"]).toBeUndefined();
     });
   });
 

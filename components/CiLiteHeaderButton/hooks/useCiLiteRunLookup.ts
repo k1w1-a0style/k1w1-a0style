@@ -5,6 +5,7 @@ import { fetchWithTimeout } from "../../../lib/network/fetchWithTimeout";
 import { SUPABASE_EDGE_FUNCTIONS } from "../../../shared/constants/supabase";
 import { getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { logger } from "../../../lib/logger";
+import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { chooseWorkflowRunCandidateDetailed, type WorkflowRunLookupDiagnosis } from "./workflowRunMatching";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
@@ -35,7 +36,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
       branch: string;
       jobId: string;
       workflow: string;
-      userJwt: string;
+      userJwt: string | null;
       expectedEvent: "repository_dispatch" | "workflow_dispatch";
       startedAtMs: number;
       sourceHeadSha?: string | null;
@@ -59,11 +60,11 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
         timeoutMs: 15_000,
         timeoutMessage: "Workflow-Run-Lookup hat das Zeitlimit erreicht. Bitte erneut versuchen.",
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${opts.userJwt}`,
-          "x-k1w1-admin-key": trimmedWorkflowAdminKey,
-        },
+        headers: await buildEdgeOwnerAuthHeaders({
+          action: "CI Lite Workflow-Run-Lookup",
+          userJwt: opts.userJwt,
+          adminKey: trimmedWorkflowAdminKey,
+        }),
         body: JSON.stringify({ githubRepo: opts.githubRepo, workflowId: opts.workflow, ref: opts.branch, perPage: 30 }),
       });
 

@@ -4,7 +4,6 @@ import { getWorkflowAdminKey } from "../../../infra/github/githubService";
 import { SecureTokenReadError } from "../../../infra/github/tokenStore";
 import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../../../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { normalizeCiLiteWorkflowError } from "./ciLiteWorkflowErrors";
-import { resolveCiLiteMissingJwtMessage } from "./useCiLiteWorkflowContracts";
 
 export type CiLiteAccessContext = "artifact" | "lookup" | "dispatch";
 type OperatorJwtReadReason = "ok" | "missing" | "session_unreadable" | "supabase_init_failed";
@@ -35,7 +34,7 @@ export async function readOperatorJwt(context: CiLiteAccessContext): Promise<str
   return result.reason === "ok" ? result.jwt : null;
 }
 
-export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext, "lookup">): Promise<{ adminKey: string; userJwt: string }> {
+export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext, "lookup">): Promise<{ adminKey: string; userJwt: string | null }> {
   const adminKey = await getWorkflowAdminKey().catch((error: unknown) => {
     logger.warn("[CiLiteWorkflow] getWorkflowAdminKey failed while resolving operator access", { context, error });
     if (error instanceof SecureTokenReadError) {
@@ -52,19 +51,8 @@ export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext
     throw new Error(normalized.userMessage);
   }
 
-  const userJwtResult = await readOperatorJwtResult(context);
-  if (userJwtResult.reason !== "ok") {
-    if (userJwtResult.reason === "missing") {
-      throw new Error(resolveCiLiteMissingJwtMessage(context));
-    }
-    if (userJwtResult.reason === "session_unreadable") {
-      throw new Error("Supabase-Session konnte nicht gelesen werden. Bitte Login erneuern und erneut versuchen.");
-    }
-    throw new Error("Supabase-Initialisierung fehlgeschlagen. Bitte Verbindungen prüfen und erneut versuchen.");
-  }
-
   return {
     adminKey: trimmedAdminKey,
-    userJwt: userJwtResult.jwt,
+    userJwt: await readOperatorJwt(context),
   };
 }
