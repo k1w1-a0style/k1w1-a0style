@@ -44,8 +44,9 @@ export {
 
 export {
   requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
 } from "./auth/scoped.ts";
-export type { ScopedEdgeAuthConfig } from "./auth/scoped.ts";
+export type { ScopedEdgeAuthConfig, OwnerOrJwtAuthResult } from "./auth/scoped.ts";
 
 export {
   getRequestClientIp,

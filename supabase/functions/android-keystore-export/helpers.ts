@@ -22,6 +22,7 @@ export {
   requireDurableRateLimit,
   requireAdminKey,
   requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   hasAdminKeySecretConfigured,
   getServiceRoleKey,
   getSigningMasterKey,
