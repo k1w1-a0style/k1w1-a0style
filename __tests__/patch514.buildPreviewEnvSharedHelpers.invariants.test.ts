@@ -95,8 +95,8 @@ describe("patch514 build/preview env helper hygiene invariants", () => {
 
   it("keeps build/preview guard contracts on the existing paths", () => {
     expect(read(checkRouteCore)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(triggerRouteCore)).toContain("requireScopedEdgeAuth(req, {");
-    expect(read(savePreviewIndex)).toContain('requireVerifiedJwt(req, "save_preview")');
+    expect(read(triggerRouteCore)).toContain("requireOwnerOrJwtAuth(req, {");
+    expect(read(savePreviewIndex)).toContain('guard: await requireVerifiedJwt(request, scope)');
     expect(read(savePreviewIndex)).not.toContain("requireScopedEdgeAuth(req, {");
     expect(read(savePreviewIndex)).not.toContain('adminSecretEnv: "K1W1_EDGE_ADMIN_KEY"');
     expect(read(previewHelpers)).toContain(

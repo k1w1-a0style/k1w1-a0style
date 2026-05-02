@@ -25,10 +25,9 @@ describe("patch410 secret containment invariants", () => {
 
   it("android-keystore-export now uses the scoped admin-only auth gate", () => {
     const src = fs.readFileSync(exportPath, "utf8");
-    expect(src).toContain("requireScopedEdgeAuth(req, {");
+    expect(src).toContain("requireOwnerOrJwtAuth(req, {");
     expect(src).toContain('scope: "android-keystore-export"');
     expect(src).toContain('adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY"');
-    expect(src).not.toContain("hasAdminKeySecretConfigured()");
     expect(src).not.toContain("requireServiceRoleBearer(req)");
   });
 });

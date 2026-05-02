@@ -17,6 +17,7 @@ import {
   markRepoSyncSignature,
 } from "../../lib/repoSyncOrchestration";
 import { hasLikelyAllowedOperatorRoleForUiPrecheck } from "../../lib/auth/operatorJwt";
+import { buildEdgeOwnerAuthHeaders } from "../../lib/edgeOwnerAuthHeaders";
 import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
 import { getCanonicalProjectFilesForOps, getSourceProjectFiles } from "../../lib/getMaterializedProjectFiles";
 import {
@@ -237,32 +238,22 @@ export async function startBuildJob(params: {
   });
   const accessToken = session?.data?.session?.access_token ?? null;
 
-  if (!accessToken) {
-    throw new Error(buildOperatorPrecheckMessage({
-      action: "Build-Start",
-      reason: "missing_jwt",
-    }));
+  const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
+  if (!trimmedAdminKey && !accessToken) {
+    throw new Error(buildOperatorPrecheckMessage({ action: "Build-Start", reason: "missing_jwt" }));
   }
-  // Client-side preflight only: decode-only role read from JWT payload.
-  // Security-relevant authorization remains enforced server-/edge-side.
-  if (!hasLikelyAllowedOperatorRoleForUiPrecheck(accessToken)) {
-    throw new Error(buildOperatorPrecheckMessage({
-      action: "Build-Start",
-      reason: "invalid_role",
-    }));
-  }
-  if (!workflowAdminKey) {
-    throw new Error(
-      "Build-Start blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen und erneut versuchen.",
-    );
+  if (!trimmedAdminKey && accessToken && !hasLikelyAllowedOperatorRoleForUiPrecheck(accessToken)) {
+    throw new Error(buildOperatorPrecheckMessage({ action: "Build-Start", reason: "invalid_role" }));
   }
 
   const invokeOpts: { body: Record<string, string>; headers?: Record<string, string> } = {
     body: { githubRepo, buildProfile: profile, branch: buildBranch },
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "x-k1w1-admin-key": workflowAdminKey,
-    },
+    headers: await buildEdgeOwnerAuthHeaders({
+      action: "Build-Start",
+      userJwt: accessToken,
+      adminKey: trimmedAdminKey || null,
+      contentType: "application/json",
+    }),
   };
 
   const { data, error } = await supabase.functions.invoke(

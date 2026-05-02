@@ -189,7 +189,7 @@ describe("startBuildJob (integration)", () => {
 
     expect(typeof fnName).toBe("string");
     expect(opts?.headers?.Authorization).toBe("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl");
-    expect(opts?.headers?.["x-k1w1-admin-key"]).toBe("adminkey");
+    expect(opts?.headers?.["x-k1w1-admin-key"]).toBeUndefined();
     expect(opts?.body).toEqual({
       githubRepo: "k1w1-a0style/musik-player",
       buildProfile: "development",
@@ -422,7 +422,7 @@ describe("startBuildJob (integration)", () => {
     mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
 
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview", deps })).rejects.toThrow(
-      /Operator-Rolle|build_admin/i,
+      /Supabase-Anon-Key fehlt|Operator-Rolle|build_admin/i,
     );
     expect(mockInvoke).not.toHaveBeenCalled();
   });

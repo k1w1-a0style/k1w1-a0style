@@ -27,7 +27,7 @@ describe("high-risk/public edge routes use durable rate limits before local fall
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "android-keystore-export"');
     expect(src).toContain("enforceDurable: true");
-    expect(src).toContain("getRequestRateLimitSubject(req, jwtActorGuard.actor)");
+    expect(src).toContain("getRequestRateLimitSubject(req, auth.actor)");
     expect(src).toContain('rateLimit(req, "android-keystore-export", 30, 60_000, rateLimitSubject)');
   });
 });

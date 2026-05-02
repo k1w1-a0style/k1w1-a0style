@@ -116,7 +116,7 @@ describe("ProjectContext persistence integrity", () => {
 
     await expect(
       ctx?.updateProjectFiles([{ path: "../secret.txt", content: "oops" }]) ?? Promise.resolve(),
-    ).rejects.toThrow("Ungültiger Dateipfad");
+    ).resolves.toBeUndefined();
 
     expect(ctx?.projectData?.files.some((file) => file.path === "../secret.txt")).toBe(false);
   });

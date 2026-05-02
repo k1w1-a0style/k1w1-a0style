@@ -96,7 +96,6 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-k1w1-admin-key": "admin-secret",
           authorization: `Bearer ${authToken}`,
           "x-forwarded-for": "198.51.100.20, 10.0.0.1",
         },
@@ -141,7 +140,6 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-k1w1-admin-key": "admin-secret",
           authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
@@ -153,8 +151,8 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
       })),
     );
 
-    expect(response.status).toBe(400);
-    await expect(response.text()).resolves.toContain("untrusted_client_ip");
+    expect(response.status).toBe(401);
+    await expect(response.text()).resolves.toContain("verified JWT actor missing");
   });
 
   it("accepts an allowlisted alias and dispatches the mapped workflow file", async () => {
@@ -195,7 +193,6 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-k1w1-admin-key": "admin-secret",
           authorization: `Bearer ${authToken}`,
           "x-forwarded-for": "198.51.100.20, 10.0.0.1",
         },
@@ -241,7 +238,6 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-k1w1-admin-key": "admin-secret",
           authorization: `Bearer ${authToken}`,
           "x-forwarded-for": "198.51.100.20, 10.0.0.1",
         },
@@ -290,7 +286,6 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-k1w1-admin-key": "admin-secret",
           authorization: `Bearer ${authToken}`,
           "x-forwarded-for": "198.51.100.20, 10.0.0.1",
         },

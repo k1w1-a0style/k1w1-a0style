@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "../../lib/network/fetchWithTimeout";
 import { readSupabaseRuntimeConfig } from "../../lib/supabaseRuntimeConfig";
+import { buildEdgeOwnerAuthHeaders } from "../../lib/edgeOwnerAuthHeaders";
 import { isPreviewEdgeErrorCode } from "../../shared/previewErrorContract";
 import type { PreviewResponse } from "../../types/preview";
 import { buildPreviewInvokeError, safeJson } from "./failure";
@@ -19,16 +20,13 @@ export async function invokeSavePreview(params: {
 
   const timeoutMs = params.timeoutMs ?? 12_000;
 
-  const trimmedJwt = String(params.bearerJwt ?? "").trim();
-  const trimmedAdminKey = String(params.adminKey ?? "").trim();
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  if (trimmedJwt) {
-    headers.Authorization = `Bearer ${trimmedJwt}`;
-  } else if (trimmedAdminKey) {
-    headers["x-k1w1-admin-key"] = trimmedAdminKey;
-  }
+  const headers = await buildEdgeOwnerAuthHeaders({
+    action: "Remote-Preview",
+    userJwt: params.bearerJwt,
+    adminKey: params.adminKey,
+    contentType: "application/json",
+    anonKeyOverride: supabaseConfig.anonKey,
+  });
 
   try {
     const res = await fetchWithTimeout(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/save_preview`, {

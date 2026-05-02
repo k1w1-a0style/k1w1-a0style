@@ -36,7 +36,7 @@ describe("patch515 github token stays server-side for workflow/log edge paths", 
 
   it("keeps the existing admin or service-role guards unchanged on the three edge entry points", () => {
     for (const rel of [runsEdge, logsEdge, dispatchEdge]) {
-      expect(read(rel)).toContain("requireScopedEdgeAuth(req, {");
+      expect(read(rel)).toContain("requireOwnerOrJwtAuth(req, {");
     }
   });
 });

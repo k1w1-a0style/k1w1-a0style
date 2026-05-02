@@ -88,7 +88,7 @@ export function describeRemotePreviewFailure(params: {
   const hasJwt = Boolean(String(params.bearerJwt ?? "").trim());
   const hasAdminKey = Boolean(String(params.adminKey ?? "").trim());
   if (!hasJwt && !hasAdminKey) {
-    return "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key wird benötigt.";
+    return "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt.";
   }
 
   if (

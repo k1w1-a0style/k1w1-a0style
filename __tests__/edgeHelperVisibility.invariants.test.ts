@@ -42,7 +42,7 @@ describe("Edge helper visibility invariants", () => {
         "jsonResponse",
         "rateLimit",
         "requireServiceRoleJwtWithVerifiedActor",
-        "requireScopedEdgeAuth",
+        "requireOwnerOrJwtAuth",
       ],
       reexports: [
         'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
@@ -71,13 +71,13 @@ describe("Edge helper visibility invariants", () => {
         "handleCors",
         "jsonResponse",
         "rateLimit",
-        "requireScopedEdgeAuth",
+        "requireOwnerOrJwtAuth",
         "requirePrivilegedOperatorJwtRoleWithVerifiedActor",
       ],
       reexports: [
         'export { createClient } from "https://esm.sh/@supabase/supabase-js@2";',
         'export { handleCors, errorResponse, jsonResponse } from "../_shared/cors.ts";',
-        'requireScopedEdgeAuth',
+        'requireOwnerOrJwtAuth',
         'requirePrivilegedOperatorJwtRoleWithVerifiedActor',
       ],
     },
@@ -116,7 +116,7 @@ describe("Edge direct-import invariants", () => {
     {
       name: "trigger-eas-build",
       index: "supabase/functions/trigger-eas-build/routeCore.ts",
-      imports: ["handleCors", "requireScopedEdgeAuth", "rateLimit", "getGithubToken"],
+      imports: ["handleCors", "requireOwnerOrJwtAuth", "rateLimit", "getGithubToken"],
     },
   ];
 

@@ -189,6 +189,7 @@ describe("preview edge error contract", () => {
 
   it("reads structured preview edge errors in invokeSavePreview and maps them to honest client copy", async () => {
     process.env.EXPO_PUBLIC_SUPABASE_URL = "https://preview.example.com";
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "preview-anon-key";
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 502,
@@ -247,6 +248,7 @@ describe("preview edge error contract", () => {
 
   it("uses admin-key transport fallback without empty bearer header", async () => {
     process.env.EXPO_PUBLIC_SUPABASE_URL = "https://preview.example.com";
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "preview-anon-key";
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -269,7 +271,7 @@ describe("preview edge error contract", () => {
 
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const headers = (init?.headers ?? {}) as Record<string, string>;
-    expect(headers.Authorization).toBeUndefined();
+    expect(headers.Authorization).toBe("Bearer preview-anon-key");
     expect(headers["x-k1w1-admin-key"]).toBe("workflow-admin-key");
   });
 
@@ -281,7 +283,7 @@ describe("preview edge error contract", () => {
       error: new Error("Missing auth"),
     });
     expect(clientMessage).toBe(
-      "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key wird benötigt.",
+      "Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt.",
     );
   });
 });

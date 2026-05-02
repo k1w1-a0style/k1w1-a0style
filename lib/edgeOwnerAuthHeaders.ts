@@ -1,0 +1,41 @@
+import { readSupabaseRuntimeConfigDetailed } from "./supabaseRuntimeConfig";
+
+function trim(v: string | null | undefined): string {
+  return String(v ?? "").trim();
+}
+
+export async function buildEdgeOwnerAuthHeaders(params: {
+  action: string;
+  userJwt?: string | null;
+  adminKey?: string | null;
+  contentType?: string;
+  anonKeyOverride?: string | null;
+}): Promise<Record<string, string>> {
+  const userJwt = trim(params.userJwt);
+  const adminKey = trim(params.adminKey);
+  const contentType = params.contentType ?? "application/json";
+
+  if (!userJwt && !adminKey) {
+    throw new Error(`${params.action} blockiert: Entweder Supabase-Login-JWT oder lokaler Admin-Key wird benötigt.`);
+  }
+
+  const headers: Record<string, string> = {
+    "content-type": contentType,
+  };
+
+  if (userJwt) {
+    headers.Authorization = `Bearer ${userJwt}`;
+    return headers;
+  }
+
+  const anonKeyOverride = trim(params.anonKeyOverride);
+  const runtimeConfig = anonKeyOverride ? null : await readSupabaseRuntimeConfigDetailed();
+  const anonKey = anonKeyOverride || trim(runtimeConfig?.anonKey);
+  if (!anonKey) {
+    throw new Error(`${params.action} blockiert: Lokaler Admin-Key vorhanden, aber Supabase-Anon-Key fehlt oder ist nicht lesbar.`);
+  }
+
+  headers.Authorization = `Bearer ${anonKey}`;
+  headers["x-k1w1-admin-key"] = adminKey;
+  return headers;
+}
