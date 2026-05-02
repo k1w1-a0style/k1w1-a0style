@@ -14,6 +14,8 @@ describe("buildEdgeOwnerAuthHeaders", () => {
 
   it("uses user JWT when available", async () => {
     const headers = await buildEdgeOwnerAuthHeaders({ action: "X", userJwt: "jwt", adminKey: "adm" });
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers["content-type"]).toBe("application/json");
     expect(headers.Authorization).toBe("Bearer jwt");
     expect(headers["x-k1w1-admin-key"]).toBe("adm");
   });
@@ -33,4 +35,10 @@ describe("buildEdgeOwnerAuthHeaders", () => {
     mockedRead.mockResolvedValue({ url: null, anonKey: null, urlReason: "missing", anonKeyReason: "missing" });
     await expect(buildEdgeOwnerAuthHeaders({ action: "X", adminKey: "adm" })).rejects.toThrow("Supabase-Anon-Key fehlt");
   });
+  it("uses anonKeyOverride without runtime lookup", async () => {
+    const headers = await buildEdgeOwnerAuthHeaders({ action: "X", adminKey: "adm", anonKeyOverride: "anon2" });
+    expect(headers.Authorization).toBe("Bearer anon2");
+    expect(mockedRead).not.toHaveBeenCalled();
+  });
+
 });

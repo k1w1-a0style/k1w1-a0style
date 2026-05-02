@@ -25,6 +25,7 @@ export async function invokeSavePreview(params: {
     userJwt: params.bearerJwt,
     adminKey: params.adminKey,
     contentType: "application/json",
+    anonKeyOverride: supabaseConfig.anonKey,
   });
 
   try {

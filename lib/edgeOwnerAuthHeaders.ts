@@ -9,6 +9,7 @@ export async function buildEdgeOwnerAuthHeaders(params: {
   userJwt?: string | null;
   adminKey?: string | null;
   contentType?: string;
+  anonKeyOverride?: string | null;
 }): Promise<Record<string, string>> {
   const userJwt = trim(params.userJwt);
   const adminKey = trim(params.adminKey);
@@ -20,6 +21,7 @@ export async function buildEdgeOwnerAuthHeaders(params: {
 
   const headers: Record<string, string> = {
     "Content-Type": contentType,
+    "content-type": contentType,
   };
 
   if (userJwt) {
@@ -28,8 +30,9 @@ export async function buildEdgeOwnerAuthHeaders(params: {
     return headers;
   }
 
-  const runtimeConfig = await readSupabaseRuntimeConfigDetailed();
-  const anonKey = trim(runtimeConfig.anonKey);
+  const anonKeyOverride = trim(params.anonKeyOverride);
+  const runtimeConfig = anonKeyOverride ? null : await readSupabaseRuntimeConfigDetailed();
+  const anonKey = anonKeyOverride || trim(runtimeConfig?.anonKey);
   if (!anonKey) {
     throw new Error(`${params.action} blockiert: Lokaler Admin-Key vorhanden, aber Supabase-Anon-Key fehlt oder ist nicht lesbar.`);
   }
