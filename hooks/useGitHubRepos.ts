@@ -155,7 +155,7 @@ export const useGitHubRepos = (
     async (owner: string, repo: string): Promise<GitHubBranch[]> => {
       if (!token) return [];
       try {
-        return await apiBranches(owner, repo);
+        return await apiBranches(owner, repo, token);
       } catch (e: unknown) {
         logger.error("[useGitHubRepos] Branches error:", e);
         return [];
@@ -187,7 +187,7 @@ export const useGitHubRepos = (
         throw new Error("GitHub-Token fehlt. Default-Branch kann nicht geladen werden.");
       }
       try {
-        const branch = await apiDefaultBranch(owner, repo);
+        const branch = await apiDefaultBranch(owner, repo, token);
         const normalizedBranch = String(branch ?? "").trim();
         if (!normalizedBranch) {
           throw new Error("GitHub lieferte keinen gueltigen Default-Branch.");

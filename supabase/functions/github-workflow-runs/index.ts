@@ -3,10 +3,10 @@ import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
   requireWorkflowOperatorJwtRoleWithVerifiedActor,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
   rateLimit,
 } from "../_shared/auth.ts";
-import { githubFetch, getGithubToken, GITHUB_API_BASE, isAllowedGithubRepo } from "../_shared/github.ts";
+import { githubFetch, getGithubToken, GITHUB_API_BASE } from "../_shared/github.ts";
 import { sanitizeErrorText, sanitizeGitHubFailure } from "../_shared/errorSanitization.ts";
 import { isParsedJsonBodyError, isSafeGitHubRepoFullName, parseJsonBody } from "../_shared/validation.ts";
 
@@ -58,15 +58,13 @@ Deno.serve(async (req) => {
 
   try {
     // Legacy guard lineage: generic admin-or-CI bearer guard (removed).
-    const auth = requireScopedEdgeAuth(req, {
+    const auth = await requireOwnerOrJwtAuth(req, {
       scope: "github-workflow-runs",
-      allowAdmin: true,
       adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      requireJwtRoleWithVerifiedActor: requireWorkflowOperatorJwtRoleWithVerifiedActor,
     });
-    if (auth) return auth;
-    const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-runs");
-    if (jwtActorGuard.guard) return jwtActorGuard.guard;
-    const rateLimitSubject = getRequestRateLimitSubject(req, jwtActorGuard.actor);
+    if (auth.guard) return auth.guard;
+    const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-workflow-runs",
@@ -108,15 +106,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!isAllowedGithubRepo(githubRepo)) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "githubRepo not allowed", details: { githubRepo } }),
-        {
-          status: 403,
-          headers: { ...responseCorsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
 
     const workflowId = readStringLike(body, "workflowId", "workflow_id", "workflowFile", "workflow_file", "workflow", "path");
 

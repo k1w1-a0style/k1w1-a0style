@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
   const auth = await requireOwnerOrJwtAuth(req, {
     scope: "save_preview",
-    adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+    adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
     requireJwtRoleWithVerifiedActor: async (request, scope) => ({
       guard: await requireVerifiedJwt(request, scope),
       actor: null,

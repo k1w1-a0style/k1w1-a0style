@@ -69,15 +69,16 @@ export async function requireOwnerOrJwtAuth(
   req: Request,
   cfg: { scope: string; adminSecretEnv: string; requireJwtRoleWithVerifiedActor?: (req: Request, scope: string) => Promise<{ guard: Response | null; actor: string | null }>; },
 ): Promise<OwnerOrJwtAuthResult> {
-  const adminRes = requireScopedEdgeAuth(req, {
-    scope: cfg.scope,
-    allowAdmin: true,
-    adminSecretEnv: cfg.adminSecretEnv,
-  });
-  if (adminRes === null) return { guard: null, actor: "scoped_admin", via: "admin_key" };
-
   const hasAdminHeader = !!getAdminKeyHeader(req);
-  if (hasAdminHeader) return { guard: adminRes, actor: null, via: null };
+  if (hasAdminHeader) {
+    const adminRes = requireScopedEdgeAuth(req, {
+      scope: cfg.scope,
+      allowAdmin: true,
+      adminSecretEnv: cfg.adminSecretEnv,
+    });
+    if (adminRes === null) return { guard: null, actor: "scoped_admin", via: "admin_key" };
+    return { guard: adminRes, actor: null, via: null };
+  }
 
   const hasBearer = !!getBearerToken(req);
   if (!hasBearer) {
@@ -91,7 +92,25 @@ export async function requireOwnerOrJwtAuth(
     };
   }
 
-  if (!cfg.requireJwtRoleWithVerifiedActor) return { guard: adminRes, actor: null, via: null };
+  if (!cfg.requireJwtRoleWithVerifiedActor) {
+    return {
+      guard: errorResponse("Unauthorized: bearer auth is not enabled for this route.", req, 401, {
+        scope: cfg.scope,
+        required: "x-k1w1-admin-key",
+      }),
+      actor: null,
+      via: null,
+    };
+  }
+
   const jwt = await cfg.requireJwtRoleWithVerifiedActor(req, cfg.scope);
-  return { guard: jwt.guard, actor: jwt.actor, via: jwt.guard ? null : "jwt" };
+  if (jwt.guard) return { guard: jwt.guard, actor: null, via: null };
+  if (!jwt.actor || !jwt.actor.trim()) {
+    return {
+      guard: errorResponse("Unauthorized: verified JWT actor missing.", req, 401, { scope: cfg.scope }),
+      actor: null,
+      via: null,
+    };
+  }
+  return { guard: null, actor: jwt.actor, via: "jwt" };
 }
