@@ -10,13 +10,12 @@ import {
   getSupabaseUrl,
   handleCors,
   jsonResponse,
-  isAllowedGithubRepo,
   rateLimit,
   requireDurableRateLimit,
   repoOk,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
+  requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   resolveMode,
-  resolveVerifiedJwtActor,
   safeString,
 } from "./helpers.ts";
 import { sanitizeErrorText } from "../_shared/errorSanitization.ts";
@@ -26,18 +25,13 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  const auth = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "android-keystore-status",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY",
+    requireJwtRoleWithVerifiedActor: requirePrivilegedOperatorJwtRoleWithVerifiedActor,
   });
-  if (auth) return auth;
-
-  // The local keystore-admin key is the scoped operator secret for this route.
-  // A verified JWT is useful for rate-limit attribution, but not required after the
-  // scoped admin key has already passed timing-safe validation.
-  const verifiedActor = await resolveVerifiedJwtActor(req, "scoped_admin");
-  const rateLimitSubject = getRequestRateLimitSubject(req, verifiedActor.actor);
+  if (auth.guard) return auth.guard;
+  const rateLimitSubject = getRequestRateLimitSubject(req, auth.actor);
 
   const durableRl = await requireDurableRateLimit(req, {
     scope: "android-keystore-status",
@@ -67,9 +61,6 @@ Deno.serve(async (req) => {
     const repo = safeString(body?.repo);
     if (!repoOk(repo)) {
       return errorResponse("Invalid repo format. Expected 'owner/name'.", req, 400);
-    }
-    if (!isAllowedGithubRepo(repo)) {
-      return errorResponse("Repo not allowed", req, 403, { repo });
     }
     const resolvedMode = resolveMode(body?.mode);
 
