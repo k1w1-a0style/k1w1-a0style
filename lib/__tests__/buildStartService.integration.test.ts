@@ -422,7 +422,7 @@ describe("startBuildJob (integration)", () => {
     mockSupabase.auth.getSession.mockResolvedValueOnce({ data: { session: null } });
 
     await expect(startBuildJob({ project: makeProject(), buildProfile: "preview", deps })).rejects.toThrow(
-      /Operator-Rolle|build_admin/i,
+      /Supabase-Anon-Key fehlt|Operator-Rolle|build_admin/i,
     );
     expect(mockInvoke).not.toHaveBeenCalled();
   });
