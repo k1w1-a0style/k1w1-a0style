@@ -25,7 +25,6 @@ export async function buildEdgeOwnerAuthHeaders(params: {
 
   if (userJwt) {
     headers.Authorization = `Bearer ${userJwt}`;
-    if (adminKey) headers["x-k1w1-admin-key"] = adminKey;
     return headers;
   }
 

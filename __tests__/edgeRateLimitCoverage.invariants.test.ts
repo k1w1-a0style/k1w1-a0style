@@ -7,7 +7,7 @@ const read = (rel: string) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 describe("edge durable rate-limit coverage for sensitive routes", () => {
   it("keeps save_preview behind verified JWT plus durable+local rate limiting", () => {
     const src = read("supabase/functions/save_preview/index.ts");
-    expect(src).toContain("requireJwtRoleWithVerifiedActor: async (request, scope) => ({");
+    expect(src).toContain("requireJwtRoleWithVerifiedActor: async (request, scope) => {");
     expect(src).toContain('requireDurableRateLimit(req, {');
     expect(src).toContain('scope: "save_preview"');
     expect(src).toContain("enforceDurable: true");

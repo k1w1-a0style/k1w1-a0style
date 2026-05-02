@@ -16,7 +16,7 @@ describe("buildEdgeOwnerAuthHeaders", () => {
     const headers = await buildEdgeOwnerAuthHeaders({ action: "X", userJwt: "jwt", adminKey: "adm" });
     expect(headers["content-type"]).toBe("application/json");
     expect(headers.Authorization).toBe("Bearer jwt");
-    expect(headers["x-k1w1-admin-key"]).toBe("adm");
+    expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
   it("uses anon key + admin key fallback", async () => {
@@ -37,6 +37,7 @@ describe("buildEdgeOwnerAuthHeaders", () => {
   it("uses anonKeyOverride without runtime lookup", async () => {
     const headers = await buildEdgeOwnerAuthHeaders({ action: "X", adminKey: "adm", anonKeyOverride: "anon2" });
     expect(headers.Authorization).toBe("Bearer anon2");
+    expect(headers["x-k1w1-admin-key"]).toBe("adm");
     expect(mockedRead).not.toHaveBeenCalled();
   });
 

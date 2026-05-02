@@ -9,6 +9,7 @@ import {
   requireDurableRateLimit,
   requireVerifiedJwt,
   requireOwnerOrJwtAuth,
+  resolveVerifiedJwtActor,
   rateLimit,
 } from "../_shared/auth.ts";
 import { isParsedJsonBodyError, parseJsonBody } from "../_shared/validation.ts";
@@ -41,10 +42,14 @@ Deno.serve(async (req) => {
   const auth = await requireOwnerOrJwtAuth(req, {
     scope: "save_preview",
     adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
-    requireJwtRoleWithVerifiedActor: async (request, scope) => ({
-      guard: await requireVerifiedJwt(request, scope),
-      actor: null,
-    }),
+    requireJwtRoleWithVerifiedActor: async (request, scope) => {
+      const verifiedJwt = {
+        guard: await requireVerifiedJwt(request, scope),
+      };
+      if (verifiedJwt.guard) return { guard: verifiedJwt.guard, actor: null };
+      const actor = await resolveVerifiedJwtActor(request, "verified_jwt");
+      return { guard: null, actor: actor.actor };
+    },
   });
   if (auth.guard) return auth.guard;
 

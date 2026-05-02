@@ -92,7 +92,7 @@ describe("patch415 edge auth guard invariants", () => {
 
   it("keeps save_preview on verified JWT", () => {
     const previewSrc = read("supabase/functions/save_preview/index.ts");
-    expect(previewSrc).toContain("requireJwtRoleWithVerifiedActor: async (request, scope) => ({");
+    expect(previewSrc).toContain("requireJwtRoleWithVerifiedActor: async (request, scope) => {");
     expect(previewSrc).not.toContain("requireScopedEdgeAuth(req, {");
     expect(previewSrc).not.toContain('x-k1w1-admin-key');
   });

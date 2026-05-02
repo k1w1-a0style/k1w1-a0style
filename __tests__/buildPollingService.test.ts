@@ -117,7 +117,7 @@ describe("buildPollingService", () => {
     expect((init.headers as Record<string, string>)?.Authorization).toBe(
       "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4ifQ.signature",
     );
-    expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBe("workflow-key");
+    expect((init.headers as Record<string, string>)?.["x-k1w1-admin-key"]).toBeUndefined();
   });
 
   it("preserves the shared timeout contract for poll requests", async () => {

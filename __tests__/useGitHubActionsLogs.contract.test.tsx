@@ -97,12 +97,12 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
     expect(logsBody).toEqual({ githubRepo: 'owner/repo', runId: 123, mode: 'raw' });
     expect(runsHeaders).toMatchObject({
       Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl',
-      'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
+    expect(runsHeaders['x-k1w1-admin-key']).toBeUndefined();
     expect(logsHeaders).toMatchObject({
       Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl',
-      'x-k1w1-admin-key': 'aaaaaaaabbbbbbbb.ccccccccdddddddd.eeeeeeeeffffffff',
     });
+    expect(logsHeaders['x-k1w1-admin-key']).toBeUndefined();
     expect(runsBody).not.toHaveProperty('githubToken');
     expect(logsBody).not.toHaveProperty('githubToken');
   });
@@ -142,7 +142,7 @@ describe('useGitHubActionsLogs edge contract mapping', () => {
 
     const headers = ((fetchMock.mock.calls[0]?.[1] as RequestInit)?.headers ?? {}) as Record<string, string>;
     expect(headers.Authorization).toMatch(/^Bearer /);
-    expect(headers['x-k1w1-admin-key']).toBe('short');
+    expect(headers['x-k1w1-admin-key']).toBeUndefined();
     expect(result.current.error).toBeNull();
   });
 
