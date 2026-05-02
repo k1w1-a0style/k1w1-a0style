@@ -10,7 +10,6 @@ import {
   githubHeaders,
   getGithubToken,
   GITHUB_API_BASE,
-  isGitRefPolicyConfigured,
   isAllowedGitRef,
 } from "../_shared/github.ts";
 import { fetchWithTimeout } from "../_shared/fetchWithTimeout.ts";
@@ -107,12 +106,6 @@ Deno.serve(async (req) => {
     if (!token) {
       return errorResponse("Missing GitHub token", req, 500, {
         expected: ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_API_TOKEN"],
-      });
-    }
-
-    if (!isGitRefPolicyConfigured()) {
-      return errorResponse("ref policy unavailable", req, 503, {
-        code: "ref_policy_unavailable",
       });
     }
 

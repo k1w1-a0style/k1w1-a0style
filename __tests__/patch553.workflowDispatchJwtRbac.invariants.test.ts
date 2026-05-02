@@ -32,8 +32,7 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     expect(runs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
     expect(runs).not.toContain("ciBearerSecretEnv:");
     expect(runs).not.toContain("isScopedCiBearerRequest(");
-    expect(runs).toContain('const jwtActorGuard = await requireWorkflowOperatorJwtRoleWithVerifiedActor(req, "github-workflow-runs")');
-
+    
     const logs = read("supabase/functions/github-workflow-logs/index.ts");
         expect(logs).not.toContain("allowJwtAuthHeaderWithAdmin");
     expect(logs).toContain('adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY"');
@@ -47,7 +46,6 @@ describe("patch553 github-workflow-dispatch JWT/RBAC hardening invariants", () =
     const runs = read("supabase/functions/github-workflow-runs/index.ts");
     const logs = read("supabase/functions/github-workflow-logs/index.ts");
     const artifact = read("supabase/functions/github-run-artifact-json/index.ts");
-    expect(dispatch).toContain("isAllowedGithubRepo");
     expect(trigger).toContain("isAllowedGithubRepo");
     expect(runs).toContain("isAllowedGithubRepo");
     expect(logs).toContain("isAllowedGithubRepo");

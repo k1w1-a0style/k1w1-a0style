@@ -14,6 +14,7 @@ import { SUPABASE_EDGE_FUNCTIONS } from "../../shared/constants/supabase";
 import type { BuildStatus, BuildStatusDetails } from "../../shared/types/build";
 import { logger } from "../../lib/logger";
 import { buildOperatorPrecheckMessage } from "../../lib/auth/operatorContract";
+import { buildEdgeOwnerAuthHeaders } from "../../lib/edgeOwnerAuthHeaders";
 
 // Invariant marker phrases for operator-provisioning contract checks:
 // "JWT role=build_admin (oder service_role fuer Server-Caller)"
@@ -100,17 +101,11 @@ export async function pollBuildStatusOnce(
   });
   const accessToken = session?.data?.session?.access_token ?? null;
 
-  if (!accessToken) {
-    return {
-      ok: false,
-      error: buildOperatorPrecheckMessage({
-        action: "Build-Status",
-        reason: "missing_jwt",
-      }),
-      retryable: false,
-    };
+  const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
+  if (!trimmedAdminKey && !accessToken) {
+    return { ok: false, error: buildOperatorPrecheckMessage({ action: "Build-Status", reason: "missing_jwt" }), retryable: false };
   }
-  if (!workflowAdminKey) {
+  if (!trimmedAdminKey && !accessToken) {
     return {
       ok: false,
       error: "Build-Status blockiert: Lokaler Workflow-Admin-Key fehlt. Bitte Verbindungen pruefen.",
@@ -122,11 +117,12 @@ export async function pollBuildStatusOnce(
 
   const res = await sharedFetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.CHECK_EAS_BUILD}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-      "x-k1w1-admin-key": workflowAdminKey,
-    },
+    headers: await buildEdgeOwnerAuthHeaders({
+      action: "Build-Status",
+      userJwt: accessToken,
+      adminKey: trimmedAdminKey || null,
+      contentType: "application/json",
+    }),
     body: JSON.stringify({ jobId }),
     timeoutMs,
     timeoutMessage: "Request timeout - Keine Antwort vom Server",

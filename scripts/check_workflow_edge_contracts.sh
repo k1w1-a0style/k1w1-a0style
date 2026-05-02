@@ -194,7 +194,7 @@ require_fixed "$WIZARD_HOOK" "saveAndroidKeystoreExportAdminKey"
 forbid_fixed "$WIZARD_HOOK" "getLegacyEdgeAdminKey"
 require_fixed "$SIGNING_GATE" "getAndroidKeystoreExportAdminKey"
 forbid_fixed "$SIGNING_GATE" "getLegacyEdgeAdminKey"
-require_fixed "$PREVIEW_CREATION_HELPER" 'Missing Supabase Preview JWT'
+require_fixed "$PREVIEW_CREATION_HELPER" 'Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt'
 require_fixed "$PREVIEW_CREATION_HELPER" 'bearerJwt: userJwt'
 forbid_fixed "$PREVIEW_HOOK" 'isLegacyPreviewOperatorModeEnabled'
 forbid_fixed "$PREVIEW_HOOK" 'LEGACY_PREVIEW_OPERATOR_MODE_REQUIRED'

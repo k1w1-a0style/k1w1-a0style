@@ -11,6 +11,7 @@ import { logger } from '../lib/logger';
 import { isLikelyWellFormedAdminKeyForUiPrecheck } from "../lib/security/isLikelyWellFormedAdminKeyForUiPrecheck";
 import { fetchWithTimeout as fetchWithAbortTimeout, isAbortError } from "../lib/network/fetchWithTimeout";
 import { buildOperatorPrecheckMessage } from "../lib/auth/operatorContract";
+import { buildEdgeOwnerAuthHeaders } from "../lib/edgeOwnerAuthHeaders";
 
 import { POLL_INTERVAL_MS, MAX_LOG_ENTRIES, sanitizeLogLine, describeEdgeFailure } from "./actionsLogsTypes";
 import type { UseGitHubActionsLogsOptions, UseGitHubActionsLogsResult, LogEntry, WorkflowRun } from "./actionsLogsTypes";
@@ -107,23 +108,17 @@ export function useGitHubActionsLogs({
       const supabase = await ensureSupabaseClient().catch(() => null);
       const session = await supabase?.auth.getSession().catch(() => null);
       const userJwt = String(session?.data?.session?.access_token ?? "").trim();
-      if (!userJwt) {
-        throw new Error(buildOperatorPrecheckMessage({
-          action: "Workflow-Read",
-          reason: "missing_jwt",
-        }));
+      if (!userJwt && !trimmedAdminKey) {
+        throw new Error(buildOperatorPrecheckMessage({ action: "Workflow-Read", reason: "missing_jwt" }));
       }
+      const edgeHeaders = await buildEdgeOwnerAuthHeaders({ action: "Workflow-Read", userJwt, adminKey: trimmedAdminKey, contentType: "application/json" });
 
       if (!targetRunId) {
         const runsResponse = await fetchWithTimeout(
           `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_RUNS}`,
           {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedAdminKey,
-          },
+          headers: edgeHeaders,
           body: JSON.stringify({ githubRepo, workflowId }),
           },
         );
@@ -174,11 +169,7 @@ export function useGitHubActionsLogs({
         `${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_LOGS}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${userJwt}`,
-            "x-k1w1-admin-key": trimmedAdminKey,
-          },
+          headers: edgeHeaders,
           body: JSON.stringify({
             githubRepo,
             runId: targetRunId,

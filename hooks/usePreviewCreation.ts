@@ -65,7 +65,7 @@ export const tryCreateSupabasePreview = async ({
     workflowAdminKey = await getWorkflowAdminKey().catch(() => null);
     const trimmedAdminKey = String(workflowAdminKey ?? "").trim();
     if (!userJwt && !trimmedAdminKey) {
-      throw new Error("Missing Supabase Preview JWT or Workflow Admin Key");
+      throw new Error("Remote-Preview blockiert: Entweder Supabase-Login-JWT oder Workflow-Admin-Key plus Supabase-Anon-Key wird benötigt.");
     }
 
     const snackFiles: PreviewFiles = buildSnackPreviewFiles(files);
