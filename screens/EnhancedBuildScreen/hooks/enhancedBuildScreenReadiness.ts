@@ -134,6 +134,7 @@ export function createChecklistItems(params: {
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,
+    verifiedOperatorAccess,
     operatorJwtReason,
     hasDiagOk,
     diagnosticReason,
@@ -174,11 +175,13 @@ export function createChecklistItems(params: {
     },
     {
       id: "operator_jwt",
-      label: "Operator-JWT-Precheck (clientseitig)",
-      status: hasOperatorJwt ? "ok" : "fail",
+      label: "Operator access (JWT oder Owner/Admin fallback)",
+      status: hasOperatorJwt || verifiedOperatorAccess === true ? "ok" : "fail",
       detail: hasOperatorJwt
-        ? "Clientseitiger JWT-Payload-Precheck erfüllt (decode-only, ohne Signaturprüfung); server-/edge-seitige Prüfung bleibt maßgeblich"
-        : (operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich"),
+        ? "Operator access via JWT-Precheck erfüllt (decode-only, ohne Signaturprüfung); server-/edge-seitige Prüfung bleibt maßgeblich"
+        : verifiedOperatorAccess === true
+          ? "Operator access via Owner/Admin fallback lokal verfügbar; server-/edge-seitige Autorisierung bleibt maßgeblich"
+          : (operatorJwtReason || "Operator access fehlt: weder Operator-JWT-Precheck noch Owner/Admin fallback verfügbar; server-/edge-seitige Autorisierung bleibt maßgeblich"),
     },
     {
       id: "diagnostic",

@@ -126,9 +126,39 @@ describe("enhancedBuildScreenReadiness", () => {
       projectFilesCount: 3,
     });
     const operatorJwt = items.find((item) => item.id === "operator_jwt");
-    expect(operatorJwt?.label).toContain("Precheck (clientseitig)");
-    expect(operatorJwt?.detail).toContain("decode-only");
+    expect(operatorJwt?.label).toContain("Operator access");
+    expect(operatorJwt?.detail).toContain("JWT-Precheck");
     expect(operatorJwt?.detail).toContain("ohne Signaturprüfung");
     expect(operatorJwt?.detail).toContain("maßgeblich");
   });
+  test("marks operator checklist as ok when owner/admin fallback is verified without operator JWT", () => {
+    const items = createChecklistItems({
+      buildProfile: "preview",
+      repoFullName: "o/r",
+      branchName: "main",
+      hasSigningKey: true,
+      signingKeyReason: null,
+      hasTokens: true,
+      tokenReason: null,
+      hasWorkflowAdminKey: true,
+      workflowAdminKeyReason: null,
+      hasOperatorJwt: false,
+      verifiedOperatorAccess: true,
+      operatorJwtReason: "jwt missing",
+      hasDiagOk: true,
+      diagnosticReason: null,
+      hasCiLiteOk: true,
+      ciLiteReason: null,
+      hasProjectFiles: true,
+      projectFilesReason: null,
+      repoSyncState: "in_sync",
+      repoSyncReason: null,
+      projectFilesCount: 3,
+    });
+
+    const operatorAccess = items.find((item) => item.id === "operator_jwt");
+    expect(operatorAccess?.status).toBe("ok");
+    expect(operatorAccess?.detail).toContain("Owner/Admin fallback");
+  });
+
 });
