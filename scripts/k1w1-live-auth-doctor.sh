@@ -35,13 +35,27 @@ if is_empty "${EDGE_BASE_URL:-}"; then
   fi
 fi
 
+if is_empty "${SUPABASE_ANON_KEY:-}"; then
+  if [[ -n "${K1W1_SUPABASE_ANON_KEY:-}" ]]; then
+    export SUPABASE_ANON_KEY="${K1W1_SUPABASE_ANON_KEY}"
+  elif [[ -n "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]]; then
+    export SUPABASE_ANON_KEY="${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+  fi
+fi
+
 TARGET_GITHUB_REPO="${GITHUB_REPO_FULL_NAME:-k1w1-a0style/musik-player}"
 TARGET_GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
 
 mask(){ local v="${1:-}"; local n=${#v}; [[ $n -eq 0 ]] && { echo missing; return; }; [[ $n -le 8 ]] && { echo "set(len=$n)"; return; }; echo "${v:0:4}...${v: -4} (len=$n)"; }
 
 required=(EDGE_BASE_URL SUPABASE_ANON_KEY K1W1_EDGE_WORKFLOW_ADMIN_KEY K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY)
-for k in "${required[@]}"; do [[ -z "${!k:-}" ]] && { echo "missing env: $k"; exit 2; }; done
+for k in "${required[@]}"; do
+  if [[ -z "${!k:-}" ]]; then
+    echo "missing env: $k"
+    echo "env presence (sanitized): SUPABASE_ANON_KEY=$([[ -n "${SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing), K1W1_SUPABASE_ANON_KEY=$([[ -n "${K1W1_SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing), EXPO_PUBLIC_SUPABASE_ANON_KEY=$([[ -n "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing)"
+    exit 2
+  fi
+done
 
 echo "live auth doctor (sanitized)"
 echo "EDGE_BASE_URL=$(mask "$EDGE_BASE_URL")"
