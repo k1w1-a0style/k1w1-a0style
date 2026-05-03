@@ -53,7 +53,7 @@ export function resolveBuildBlockedAction(params: {
       screen: "Connections",
     };
   }
-  const operatorAccessOk = typeof verifiedOperatorAccess === "boolean" ? verifiedOperatorAccess : (hasWorkflowAdminKey && hasOperatorJwt);
+  const operatorAccessOk = (hasWorkflowAdminKey && hasOperatorJwt) || verifiedOperatorAccess === true;
   if (!operatorAccessOk) {
     return {
       title: "Operator access fehlt",

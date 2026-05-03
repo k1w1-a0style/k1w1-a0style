@@ -28,6 +28,8 @@ call_route(){
   if [[ $rc -ne 0 ]]; then diag="timeout"; ok="fail"; code="000"; fi
   if [[ "$code" == "401" || "$code" == "403" ]]; then diag="auth rejected"; ok="fail"; fi
   if [[ "$code" == "404" ]]; then diag="route not deployed"; ok="fail"; fi
+  if [[ "$code" == "422" ]]; then diag="payload invalid/too large"; ok="fail"; fi
+  if [[ "$code" =~ ^5[0-9][0-9]$ ]]; then diag="server error"; ok="fail"; fi
   printf "%-28s | %-13s | %-4s | %-5s | %-4s | %s\n" "$route" "$mode" "$code" "$ms" "$ok" "$diag"
   [[ "$ok" == "ok" ]]
 }
