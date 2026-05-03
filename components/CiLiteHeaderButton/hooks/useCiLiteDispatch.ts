@@ -21,7 +21,7 @@ type UseCiLiteDispatchParams = {
   githubRepo: string;
   branch: string;
   projectFiles: ProjectFile[];
-  resolveOperatorAccess: (context: "dispatch") => Promise<{ adminKey: string; userJwt: string | null }>;
+  resolveOperatorAccess: (context: "dispatch") => Promise<{ authMode: "jwt" | "ownerFallback"; adminKey: string | null; userJwt: string | null }>;
   startLookupTracking: (params: {
     githubRepo: string;
     branch: string;
@@ -122,6 +122,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
+            authMode: operatorAccess.authMode,
             adminKey: operatorAccess.adminKey,
             statusCode: r.status,
             statusText: r.statusText,

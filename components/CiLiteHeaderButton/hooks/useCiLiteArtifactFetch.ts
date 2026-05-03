@@ -20,7 +20,7 @@ type UseCiLiteArtifactFetchParams = {
   workflowRunId: number | null;
   workflowStatus: string | null | undefined;
   artifactAttemptedContextRef: { current: string | null };
-  resolveOperatorAccess: (context: "artifact") => Promise<{ adminKey: string; userJwt: string | null }>;
+  resolveOperatorAccess: (context: "artifact") => Promise<{ authMode: "jwt" | "ownerFallback"; adminKey: string | null; userJwt: string | null }>;
   setArtifactLoading: (value: boolean) => void;
   setArtifactError: (value: string | null) => void;
   setArtifactResult: (value: CiLiteArtifactResult | null) => void;
@@ -82,6 +82,7 @@ export function useCiLiteArtifactFetch({
         if (!resp.ok) {
           const normalized = normalizeCiLiteWorkflowError({
             context: "artifact",
+            authMode: operatorAccess.authMode,
             adminKey: operatorAccess.adminKey,
             statusCode: resp.status,
             statusText: resp.statusText,

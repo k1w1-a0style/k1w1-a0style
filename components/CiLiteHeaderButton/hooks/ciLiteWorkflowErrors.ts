@@ -22,6 +22,7 @@ type JsonRecord = Record<string, unknown>;
 
 type NormalizeCiLiteWorkflowErrorParams = {
   context: CiLiteWorkflowErrorContext;
+  authMode?: "jwt" | "ownerFallback" | null;
   adminKey?: string | null;
   statusCode?: number | null;
   statusText?: string | null;
@@ -210,10 +211,11 @@ export function normalizeCiLiteWorkflowError(
     statusCode: params.statusCode,
     error: detail || params.error,
   });
-  const prioritizeAdminKeyIssue =
+  const prioritizeAdminKeyIssue = params.authMode !== "jwt" && (
     adminKeyIssue === "rejected" ||
     ((adminKeyIssue === "missing" || adminKeyIssue === "invalid") &&
-      (!params.statusCode || params.statusCode === 401 || params.statusCode === 403));
+      (!params.statusCode || params.statusCode === 401 || params.statusCode === 403))
+  );
 
   if (prioritizeAdminKeyIssue) {
     const adminReason = describeLocalEdgeAdminKeyIssue({

@@ -9,7 +9,8 @@ export const BUILD_ADMIN_PROVISIONING_NOTE = "ausserhalb dieses Repos per Supaba
 export type CiLiteOperatorContext = "artifact" | "lookup" | "dispatch";
 
 export type CiLiteOperatorAccess = {
-  adminKey: string;
+  authMode: "jwt" | "ownerFallback";
+  adminKey: string | null;
   userJwt: string | null;
 };
 

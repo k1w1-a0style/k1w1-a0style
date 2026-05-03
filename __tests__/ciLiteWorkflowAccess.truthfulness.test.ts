@@ -40,7 +40,7 @@ describe("CiLite workflow access truthfulness", () => {
     });
     (getWorkflowAdminKey as jest.Mock).mockRejectedValue(new Error("must not be called"));
 
-    await expect(resolveOperatorAccess("dispatch")).resolves.toEqual({ adminKey: "", userJwt: "user-jwt-token" });
+    await expect(resolveOperatorAccess("dispatch")).resolves.toEqual({ authMode: "jwt", adminKey: null, userJwt: "user-jwt-token" });
   });
 
   it("uses admin fallback when session token is missing", async () => {
@@ -51,6 +51,7 @@ describe("CiLite workflow access truthfulness", () => {
     });
 
     await expect(resolveOperatorAccess("dispatch")).resolves.toEqual({
+      authMode: "ownerFallback",
       adminKey: "workflow-admin-key-12345678901234567890",
       userJwt: null,
     });

@@ -34,11 +34,12 @@ export async function readOperatorJwt(context: CiLiteAccessContext): Promise<str
   return result.reason === "ok" ? result.jwt : null;
 }
 
-export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext, "lookup">): Promise<{ adminKey: string; userJwt: string | null }> {
+export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext, "lookup">): Promise<{ authMode: "jwt" | "ownerFallback"; adminKey: string | null; userJwt: string | null }> {
   const userJwt = await readOperatorJwt(context);
   if (userJwt) {
     return {
-      adminKey: "",
+      authMode: "jwt",
+      adminKey: null,
       userJwt,
     };
   }
@@ -60,6 +61,7 @@ export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext
   }
 
   return {
+    authMode: "ownerFallback",
     adminKey: trimmedAdminKey,
     userJwt: null,
   };

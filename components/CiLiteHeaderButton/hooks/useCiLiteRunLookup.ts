@@ -44,6 +44,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
     }) => {
       const edgeUrl = await requireSupabaseEdgeUrl();
       const needsAdminKeyFallback = !opts.userJwt;
+      const authMode = needsAdminKeyFallback ? "ownerFallback" : "jwt";
       const workflowAdminKey = needsAdminKeyFallback
         ? await getWorkflowAdminKey().catch((error: unknown) => {
             logger.warn("[CiLiteRunLookup] getWorkflowAdminKey failed", { error });
@@ -54,6 +55,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
       if (needsAdminKeyFallback && (!trimmedWorkflowAdminKey || !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedWorkflowAdminKey))) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
+          authMode,
           adminKey: trimmedWorkflowAdminKey,
         });
         throw new Error(normalized.userMessage);
@@ -75,6 +77,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
         const { payload, text } = await readCiLiteErrorResponse(r);
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
+          authMode,
           adminKey: trimmedWorkflowAdminKey,
           statusCode: r.status,
           statusText: r.statusText,
@@ -90,6 +93,7 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
       if (workflowLookupNote) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
+          authMode,
           adminKey: trimmedWorkflowAdminKey,
           note: workflowLookupNote,
         });
