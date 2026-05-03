@@ -1,11 +1,21 @@
 describe("lib/supabaseEdge startup validation", () => {
-  const originalEnvUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const envKeys = [
+    "EXPO_PUBLIC_SUPABASE_URL",
+    "SUPABASE_URL",
+    "K1W1_SUPABASE_URL",
+    "EXPO_PUBLIC_SUPABASE_EDGE_URL",
+    "EDGE_BASE_URL",
+  ] as const;
+  const originalEnv = new Map<string, string | undefined>(envKeys.map((key) => [key, process.env[key]]));
 
   afterEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    if (originalEnvUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
-    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalEnvUrl;
+    for (const key of envKeys) {
+      const originalValue = originalEnv.get(key);
+      if (originalValue === undefined) delete process.env[key];
+      else process.env[key] = originalValue;
+    }
   });
 
   it("throws a clear error when no runtime/configured Supabase URL exists", async () => {
@@ -16,6 +26,7 @@ describe("lib/supabaseEdge startup validation", () => {
     jest.doMock("../config", () => ({
       CONFIG: { API: { SUPABASE_EDGE_URL: "" } },
     }));
+    for (const key of envKeys) delete process.env[key];
 
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { requireSupabaseEdgeUrl, SUPABASE_URL_MISSING_ERROR } = require("../lib/supabaseEdge");
