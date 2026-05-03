@@ -42,6 +42,19 @@ describe("requireOwnerOrJwtAuth owner fallback contract", () => {
     expect(auth.via).toBe("admin_key");
   });
 
+  it("accepts jwt bearer even when admin header is present", async () => {
+    const req = new Request("https://x.test", {
+      headers: { Authorization: "Bearer service-role-jwt", "x-k1w1-admin-key": "admin-key-123" },
+    });
+    const auth = await requireOwnerOrJwtAuth(req, {
+      scope: "t",
+      adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+      requireJwtRoleWithVerifiedActor: async () => ({ guard: null, actor: "svc-actor" }),
+    });
+    expect(auth.guard).toBeNull();
+    expect(auth.via).toBe("jwt");
+  });
+
   it("rejects admin-only", async () => {
     const req = new Request("https://x.test", { headers: { "x-k1w1-admin-key": "admin-key-123" } });
     const auth = await requireOwnerOrJwtAuth(req, { scope: "t", adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY" });
