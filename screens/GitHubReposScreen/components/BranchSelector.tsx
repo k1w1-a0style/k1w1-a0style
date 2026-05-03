@@ -26,6 +26,7 @@ interface BranchSelectorProps {
   onDeleteBranch?: () => void;
   loadBranches: (owner: string, repo: string) => Promise<GitHubBranch[]>;
   loadDefaultBranch: (owner: string, repo: string) => Promise<string>;
+  canResolveDefaultBranch?: boolean;
 }
 
 export const BranchSelector = memo(function BranchSelector({
@@ -37,6 +38,7 @@ export const BranchSelector = memo(function BranchSelector({
   onDeleteBranch,
   loadBranches,
   loadDefaultBranch,
+  canResolveDefaultBranch = true,
 }: BranchSelectorProps) {
   const [branches, setBranches] = useState<GitHubBranch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,6 +78,7 @@ export const BranchSelector = memo(function BranchSelector({
         setBranches(branchList);
 
         try {
+          if (!canResolveDefaultBranch) return;
           const defaultBranch = await loadDefaultBranch(owner, repo);
           if (currentGen !== generationRef.current) return;
           if (!activeBranch && defaultBranch) {
@@ -83,7 +86,11 @@ export const BranchSelector = memo(function BranchSelector({
           }
         } catch (defaultBranchError) {
           if (currentGen !== generationRef.current) return;
-          console.warn("[BranchSelector] Default-Branch konnte nicht ermittelt werden:", defaultBranchError);
+          const msg = defaultBranchError instanceof Error ? defaultBranchError.message : String(defaultBranchError);
+          const tokenMissing = /GitHub-Token fehlt/i.test(msg);
+          if (!tokenMissing || canResolveDefaultBranch) {
+            console.warn("[BranchSelector] Default-Branch konnte nicht ermittelt werden:", defaultBranchError);
+          }
         }
       } catch (e) {
         if (currentGen !== generationRef.current) return;
@@ -94,7 +101,7 @@ export const BranchSelector = memo(function BranchSelector({
     };
 
     load();
-  }, [activeRepo, loadBranches, loadDefaultBranch, activeBranch, onSelectBranch]);
+  }, [activeRepo, loadBranches, loadDefaultBranch, activeBranch, onSelectBranch, canResolveDefaultBranch]);
 
   // Load recent branches (best-effort) when opening or repo changes
   useEffect(() => {

@@ -103,6 +103,8 @@ type FooterParams = Pick<UseGitHubReposScreenModel,
   | "handleDeleteBranch"
   | "loadBranches"
   | "loadDefaultBranch"
+  | "token"
+  | "tokenLoading"
   | "easLinkStatus"
   | "easProjectId"
   | "setEasProjectId"
@@ -174,6 +176,7 @@ export function buildListFooter(params: FooterParams) {
           onDeleteBranch={params.handleDeleteBranch}
           loadBranches={params.loadBranches}
           loadDefaultBranch={params.loadDefaultBranch}
+          canResolveDefaultBranch={!!params.token && !params.tokenLoading}
         />
       )}
 
