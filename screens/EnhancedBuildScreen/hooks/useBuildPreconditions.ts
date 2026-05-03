@@ -24,6 +24,7 @@ export type LocalBuildGateState = {
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
+  verifiedOperatorAccess: boolean;
   operatorJwtReason: string | null;
 };
 
@@ -72,6 +73,7 @@ export async function readLocalBuildGateState(): Promise<LocalBuildGateState> {
           ? "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen"
           : "Workflow-Admin-Key konnte nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – lokalen Read prüfen und erneut laden",
     hasOperatorJwt: operatorJwtResult.state === "present" && hasValidOperatorJwt,
+    verifiedOperatorAccess: false,
     operatorJwtReason:
       operatorJwtResult.state === "missing"
         ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
@@ -104,6 +106,7 @@ export function useBuildPreconditions(
   const [hasWorkflowAdminKey, setHasWorkflowAdminKey] = useState(false);
   const [workflowAdminKeyReason, setWorkflowAdminKeyReason] = useState<string | null>(null);
   const [hasOperatorJwt, setHasOperatorJwt] = useState(false);
+  const [verifiedOperatorAccess, setVerifiedOperatorAccess] = useState(false);
   const [operatorJwtReason, setOperatorJwtReason] = useState<string | null>(null);
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [signingKeyReason, setSigningKeyReason] = useState<string | null>(null);
@@ -140,6 +143,7 @@ export function useBuildPreconditions(
       setHasWorkflowAdminKey(localGate.hasWorkflowAdminKey);
       setWorkflowAdminKeyReason(localGate.workflowAdminKeyReason);
       setHasOperatorJwt(localGate.hasOperatorJwt);
+      setVerifiedOperatorAccess(localGate.verifiedOperatorAccess);
       setOperatorJwtReason(localGate.operatorJwtReason);
     });
 
@@ -266,6 +270,7 @@ export function useBuildPreconditions(
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,
+    verifiedOperatorAccess,
     operatorJwtReason,
     hasSigningKey,
     hasDiagOk,
