@@ -213,6 +213,8 @@ export default function GitHubReposScreen() {
     handleDeleteBranch,
     loadBranches,
     loadDefaultBranch,
+    token,
+    tokenLoading,
     easLinkStatus,
     easProjectId,
     setEasProjectId,

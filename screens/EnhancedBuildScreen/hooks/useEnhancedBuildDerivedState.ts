@@ -40,6 +40,7 @@ export const useEnhancedBuildDerivedState = (params: {
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
+  verifiedOperatorAccess?: boolean;
   operatorJwtReason: string | null;
   hasSigningKey: boolean;
   signingKeyReason: string | null;
@@ -59,9 +60,9 @@ export const useEnhancedBuildDerivedState = (params: {
     if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
     if (!params.branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!params.hasTokens) return params.tokenReason || "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
-    if (!params.hasWorkflowAdminKey) return params.workflowAdminKeyReason || "Workflow-Admin-Key fehlt";
-    if (!params.hasOperatorJwt) {
-      return params.operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich";
+    const operatorAccessOk = (params.hasWorkflowAdminKey && params.hasOperatorJwt) || params.verifiedOperatorAccess === true;
+    if (!operatorAccessOk) {
+      return params.workflowAdminKeyReason || params.operatorJwtReason || "Operator access fehlt";
     }
     if (!params.hasProjectFiles) return params.projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!params.hasDiagOk) return params.diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";
@@ -82,13 +83,14 @@ export const useEnhancedBuildDerivedState = (params: {
       hasTokens: params.hasTokens,
       hasWorkflowAdminKey: params.hasWorkflowAdminKey,
       hasOperatorJwt: params.hasOperatorJwt,
+      verifiedOperatorAccess: params.verifiedOperatorAccess,
       hasDiagOk: params.hasDiagOk,
       hasCiLiteOk: params.hasCiLiteOk,
       repoSyncState: params.repoSyncState,
       hasSigningKey: params.hasSigningKey,
       buildBlockedReason,
     });
-  }, [repoValidation.valid, params.branchName, params.hasTokens, params.hasWorkflowAdminKey, params.hasOperatorJwt, params.hasDiagOk, params.hasCiLiteOk, params.repoSyncState, params.hasSigningKey, buildBlockedReason]);
+  }, [repoValidation.valid, params.branchName, params.hasTokens, params.hasWorkflowAdminKey, params.hasOperatorJwt, params.verifiedOperatorAccess, params.hasDiagOk, params.hasCiLiteOk, params.repoSyncState, params.hasSigningKey, buildBlockedReason]);
 
   const {
     shouldLoadLogs,
@@ -125,6 +127,7 @@ export const useEnhancedBuildDerivedState = (params: {
       hasWorkflowAdminKey: params.hasWorkflowAdminKey,
       workflowAdminKeyReason: params.workflowAdminKeyReason,
       hasOperatorJwt: params.hasOperatorJwt,
+      verifiedOperatorAccess: params.verifiedOperatorAccess,
       operatorJwtReason: params.operatorJwtReason,
       hasDiagOk: params.hasDiagOk,
       diagnosticReason: params.diagnosticReason,
@@ -136,7 +139,7 @@ export const useEnhancedBuildDerivedState = (params: {
       repoSyncReason: params.repoSyncReason,
       projectFilesCount: params.projectData?.files?.length ?? 0,
     });
-  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.tokenReason, params.hasWorkflowAdminKey, params.workflowAdminKeyReason, params.hasOperatorJwt, params.operatorJwtReason, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
+  }, [params.buildProfile, params.repoFullName, params.branchName, params.hasSigningKey, params.signingKeyReason, params.hasTokens, params.tokenReason, params.hasWorkflowAdminKey, params.workflowAdminKeyReason, params.hasOperatorJwt, params.verifiedOperatorAccess, params.operatorJwtReason, params.hasDiagOk, params.diagnosticReason, params.hasCiLiteOk, params.ciLiteReason, params.hasProjectFiles, params.projectFilesReason, params.repoSyncState, params.repoSyncReason, params.projectData?.files?.length]);
 
   return {
     repoValidation,

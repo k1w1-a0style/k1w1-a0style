@@ -151,6 +151,7 @@ describe("useBuildPreconditions selection truthfulness", () => {
   });
 
   it("keeps operator jwt cases separated: missing vs unreadable vs unauthorized", async () => {
+    getWorkflowAdminKeyMock.mockResolvedValue(null);
     ensureSupabaseClientMock.mockResolvedValue({
       auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },
     } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
@@ -204,4 +205,46 @@ describe("useBuildPreconditions selection truthfulness", () => {
     });
     unauthorized.unmount();
   });
+  it("sets verifiedOperatorAccess via owner/admin fallback even without operator JWT", async () => {
+    getWorkflowAdminKeyMock.mockResolvedValue("adminkey");
+    ensureSupabaseClientMock.mockResolvedValue({
+      auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },
+    } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
+
+    const { result } = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-fallback",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.hasWorkflowAdminKey).toBe(true);
+      expect(result.current.hasOperatorJwt).toBe(false);
+      expect(result.current.verifiedOperatorAccess).toBe(true);
+      expect(result.current.operatorJwtReason).toBeNull();
+    });
+  });
+
+  it("keeps operator access blocked when both JWT and owner/admin fallback are unavailable", async () => {
+    getWorkflowAdminKeyMock.mockResolvedValue(null);
+    ensureSupabaseClientMock.mockResolvedValue({
+      auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },
+    } as unknown as Awaited<ReturnType<typeof ensureSupabaseClient>>);
+
+    const { result } = renderHook(() =>
+      useBuildPreconditions("preview", "owner/repo", "main", {
+        id: "project-no-access",
+        files: [{ path: "App.tsx", content: "export default 1;" }],
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.hasWorkflowAdminKey).toBe(false);
+      expect(result.current.hasOperatorJwt).toBe(false);
+      expect(result.current.verifiedOperatorAccess).toBe(false);
+      expect(String(result.current.operatorJwtReason || "")).toMatch(/fallback/i);
+    });
+  });
+
 });

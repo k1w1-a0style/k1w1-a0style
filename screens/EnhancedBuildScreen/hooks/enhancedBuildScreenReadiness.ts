@@ -16,6 +16,7 @@ export function resolveBuildBlockedAction(params: {
   hasTokens: boolean;
   hasWorkflowAdminKey: boolean;
   hasOperatorJwt: boolean;
+  verifiedOperatorAccess?: boolean;
   hasDiagOk: boolean;
   hasCiLiteOk: boolean;
   repoSyncState: RepoSyncState;
@@ -28,6 +29,7 @@ export function resolveBuildBlockedAction(params: {
     hasTokens,
     hasWorkflowAdminKey,
     hasOperatorJwt,
+    verifiedOperatorAccess,
     hasDiagOk,
     hasCiLiteOk,
     repoSyncState,
@@ -51,12 +53,13 @@ export function resolveBuildBlockedAction(params: {
       screen: "Connections",
     };
   }
-  if (!hasWorkflowAdminKey || !hasOperatorJwt) {
+  const operatorAccessOk = (hasWorkflowAdminKey && hasOperatorJwt) || verifiedOperatorAccess === true;
+  if (!operatorAccessOk) {
     return {
-      title: "Clientseitiger Operator-Precheck fehlt",
+      title: "Operator access fehlt",
       detail:
         buildBlockedReason ||
-        "Workflow-Admin-Key und Supabase Operator-JWT-Precheck (build_admin/service_role) fehlen. Clientseitig wird nur JWT-Payload gelesen (ohne Signaturprüfung); maßgeblich bleibt die server-/edge-seitige Autorisierung.",
+        "Operator access: JWT oder Owner/Admin fallback erforderlich. Maßgeblich bleibt die server-/edge-seitige Autorisierung.",
       ctaLabel: "Verbindungen öffnen",
       screen: "Connections",
     };
@@ -108,6 +111,7 @@ export function createChecklistItems(params: {
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
+  verifiedOperatorAccess?: boolean;
   operatorJwtReason: string | null;
   hasDiagOk: boolean;
   diagnosticReason: string | null;
@@ -130,6 +134,7 @@ export function createChecklistItems(params: {
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,
+    verifiedOperatorAccess,
     operatorJwtReason,
     hasDiagOk,
     diagnosticReason,
@@ -170,11 +175,13 @@ export function createChecklistItems(params: {
     },
     {
       id: "operator_jwt",
-      label: "Operator-JWT-Precheck (clientseitig)",
-      status: hasOperatorJwt ? "ok" : "fail",
+      label: "Operator access (JWT oder Owner/Admin fallback)",
+      status: hasOperatorJwt || verifiedOperatorAccess === true ? "ok" : "fail",
       detail: hasOperatorJwt
-        ? "Clientseitiger JWT-Payload-Precheck erfüllt (decode-only, ohne Signaturprüfung); server-/edge-seitige Prüfung bleibt maßgeblich"
-        : (operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich"),
+        ? "Operator access via JWT-Precheck erfüllt (decode-only, ohne Signaturprüfung); server-/edge-seitige Prüfung bleibt maßgeblich"
+        : verifiedOperatorAccess === true
+          ? "Operator access via Owner/Admin fallback lokal verfügbar; server-/edge-seitige Autorisierung bleibt maßgeblich"
+          : (operatorJwtReason || "Operator access fehlt: weder Operator-JWT-Precheck noch Owner/Admin fallback verfügbar; server-/edge-seitige Autorisierung bleibt maßgeblich"),
     },
     {
       id: "diagnostic",

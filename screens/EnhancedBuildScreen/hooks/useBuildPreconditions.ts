@@ -24,6 +24,7 @@ export type LocalBuildGateState = {
   hasWorkflowAdminKey: boolean;
   workflowAdminKeyReason: string | null;
   hasOperatorJwt: boolean;
+  verifiedOperatorAccess: boolean;
   operatorJwtReason: string | null;
 };
 
@@ -56,6 +57,8 @@ export async function readLocalBuildGateState(): Promise<LocalBuildGateState> {
   const hasTokens = Boolean(ghResult.value && expoResult.value);
   const hasWorkflowAdminKey = Boolean(workflowAdminKeyResult.value);
   const hasValidOperatorJwt = hasLikelyAllowedOperatorRoleForUiPrecheck(operatorJwtResult.value);
+  const hasOwnerAdminFallback = hasWorkflowAdminKey;
+  const verifiedOperatorAccess = hasValidOperatorJwt || hasOwnerAdminFallback;
   return {
     hasTokens,
     tokenReason:
@@ -72,14 +75,17 @@ export async function readLocalBuildGateState(): Promise<LocalBuildGateState> {
           ? "Workflow-Admin-Key fehlt – im Verbindungen-Screen setzen"
           : "Workflow-Admin-Key konnte nicht gelesen werden (SecureStore/Storage-Read fehlgeschlagen) – lokalen Read prüfen und erneut laden",
     hasOperatorJwt: operatorJwtResult.state === "present" && hasValidOperatorJwt,
+    verifiedOperatorAccess,
     operatorJwtReason:
-      operatorJwtResult.state === "missing"
-        ? "Supabase Operator-JWT fehlt – clientseitiger Readiness-Precheck kann lokal nicht erfüllt werden. Der Client liest JWT-Claims nur decode-only aus der Payload (ohne Signaturprüfung); maßgeblich bleibt die serverseitige/edge-seitige Autorisierungsprüfung."
-        : operatorJwtResult.state === "unreadable"
-          ? "Supabase Session/JWT konnte nicht gelesen werden (Session-/Storage-Read fehlgeschlagen) – clientseitiger Precheck fail-closed"
-          : !hasValidOperatorJwt
-            ? "Supabase JWT ist vorhanden, aber Rolle nicht berechtigt (unauthorized: erwartet build_admin/service_role) – clientseitiger Precheck nicht erfüllt (decode-only, ohne Signaturprüfung; serverseitige/edge-seitige Autorisierungsprüfung bleibt maßgeblich)"
-            : null,
+      verifiedOperatorAccess
+        ? null
+        : operatorJwtResult.state === "missing"
+          ? "Supabase Operator-JWT fehlt und kein Owner/Admin-Fallback gefunden – clientseitiger Readiness-Precheck nicht erfüllt."
+          : operatorJwtResult.state === "unreadable"
+            ? "Supabase Session/JWT konnte nicht gelesen werden und kein Owner/Admin-Fallback ist verfügbar – clientseitiger Precheck fail-closed"
+            : !hasValidOperatorJwt
+              ? "Supabase JWT ist vorhanden, aber Rolle nicht berechtigt (unauthorized: erwartet build_admin/service_role) und kein Owner/Admin-Fallback ist verfügbar"
+              : null,
   };
 }
 
@@ -104,6 +110,7 @@ export function useBuildPreconditions(
   const [hasWorkflowAdminKey, setHasWorkflowAdminKey] = useState(false);
   const [workflowAdminKeyReason, setWorkflowAdminKeyReason] = useState<string | null>(null);
   const [hasOperatorJwt, setHasOperatorJwt] = useState(false);
+  const [verifiedOperatorAccess, setVerifiedOperatorAccess] = useState(false);
   const [operatorJwtReason, setOperatorJwtReason] = useState<string | null>(null);
   const [hasSigningKey, setHasSigningKey] = useState(false);
   const [signingKeyReason, setSigningKeyReason] = useState<string | null>(null);
@@ -140,6 +147,7 @@ export function useBuildPreconditions(
       setHasWorkflowAdminKey(localGate.hasWorkflowAdminKey);
       setWorkflowAdminKeyReason(localGate.workflowAdminKeyReason);
       setHasOperatorJwt(localGate.hasOperatorJwt);
+      setVerifiedOperatorAccess(localGate.verifiedOperatorAccess);
       setOperatorJwtReason(localGate.operatorJwtReason);
     });
 
@@ -266,6 +274,7 @@ export function useBuildPreconditions(
     hasWorkflowAdminKey,
     workflowAdminKeyReason,
     hasOperatorJwt,
+    verifiedOperatorAccess,
     operatorJwtReason,
     hasSigningKey,
     hasDiagOk,
