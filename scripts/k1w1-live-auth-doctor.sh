@@ -99,7 +99,7 @@ printf '%s\n' "-----------------------------------------------------------------
 fail=0
 call_route save_preview ownerFallback "$K1W1_EDGE_WORKFLOW_ADMIN_KEY" '{"githubRepo":"'"$TARGET_GITHUB_REPO"'","branch":"'"$TARGET_GITHUB_BRANCH"'","files":{"App.tsx":"import React from \"react\";\nimport { Text, View } from \"react-native\";\n\nexport default function App(): JSX.Element {\n  return (\n    <View><Text>Hello from preview</Text></View>\n  );\n}\n"}}' || fail=1
 call_route github-workflow-runs ownerFallback "$K1W1_EDGE_WORKFLOW_ADMIN_KEY" '{"githubRepo":"'"$TARGET_GITHUB_REPO"'"}' || fail=1
-call_route android-keystore-status ownerFallback "$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY" '{"githubRepo":"'"$TARGET_GITHUB_REPO"'","profile":"development"}' || fail=1
+call_route android-keystore-status ownerFallback "$K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY" '{"repo":"'"$TARGET_GITHUB_REPO"'","profile":"development"}' || fail=1
 if [[ -n "${EDGE_OPERATOR_JWT:-}" ]]; then
   call_route save_preview jwt "" '{"githubRepo":"'"$TARGET_GITHUB_REPO"'","branch":"'"$TARGET_GITHUB_BRANCH"'","files":{"App.tsx":"import React from \"react\";\nexport default function App(){ return null; }\n"}}' || fail=1
 fi
