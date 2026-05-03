@@ -10,8 +10,7 @@ function makeRequest(body: Record<string, unknown>): Request {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-k1w1-admin-key": "admin-secret",
-      authorization: `Bearer ${makeJwt({ role: "service_role" })}`,
+      authorization: `Bearer ${makeJwt({ role: "service_role", sub: "operator-1" })}`,
       "x-forwarded-for": "198.51.100.8, 10.0.0.1",
     },
     body: JSON.stringify(body),

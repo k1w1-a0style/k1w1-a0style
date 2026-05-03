@@ -9,6 +9,7 @@ import type { ProjectFile } from "../../../shared/types/project";
 import { getBranchHeadSha } from "../../../infra/github/githubService";
 import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
+import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
 import {
   resolveCiLiteDispatchSelection,
@@ -20,13 +21,13 @@ type UseCiLiteDispatchParams = {
   githubRepo: string;
   branch: string;
   projectFiles: ProjectFile[];
-  resolveOperatorAccess: (context: "dispatch") => Promise<{ adminKey: string; userJwt: string }>;
+  resolveOperatorAccess: (context: "dispatch") => Promise<{ authMode: "jwt" | "ownerFallback"; adminKey: string | null; userJwt: string | null }>;
   startLookupTracking: (params: {
     githubRepo: string;
     branch: string;
     jobId: string;
     workflow: string;
-    userJwt: string;
+    userJwt: string | null;
     expectedEvent: "workflow_dispatch";
     sourceHeadSha?: string | null;
     mode: "default";
@@ -101,11 +102,11 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           timeoutMs: 15_000,
           timeoutMessage: "Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.",
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${operatorAccess.userJwt}`,
-            "x-k1w1-admin-key": operatorAccess.adminKey,
-          },
+          headers: await buildEdgeOwnerAuthHeaders({
+            action: "CI Lite Dispatch",
+            userJwt: operatorAccess.userJwt,
+            adminKey: operatorAccess.adminKey,
+          }),
           body: JSON.stringify({
             githubRepo: params.githubRepo,
             workflow: workflowFile,
@@ -121,6 +122,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           const { payload, text } = await readCiLiteErrorResponse(r);
           const normalized = normalizeCiLiteWorkflowError({
             context: "dispatch",
+            authMode: operatorAccess.authMode,
             adminKey: operatorAccess.adminKey,
             statusCode: r.status,
             statusText: r.statusText,

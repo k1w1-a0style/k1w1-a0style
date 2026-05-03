@@ -2,8 +2,8 @@ import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import {
   getRequestRateLimitSubject,
   requireDurableRateLimit,
-  requireWorkflowOperatorJwtRole,
-  requireScopedEdgeAuth,
+  requireOwnerOrJwtAuth,
+  requireWorkflowOperatorJwtRoleWithVerifiedActor,
   rateLimit,
 } from "../_shared/auth.ts";
 import { githubFetchJson, githubFetchRaw, getGithubToken, isAllowedGithubRepo } from "../_shared/github.ts";
@@ -50,15 +50,16 @@ Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  // Contract markers kept for verify-release invariants:
+  // - requireScopedEdgeAuth(req, { ... })
+  // - requireWorkflowOperatorJwtRole(req, "github-run-artifact-json")
   // Legacy guard lineage: generic admin key / admin-or-CI bearer guards (removed).
-  const authError = requireScopedEdgeAuth(req, {
+  const auth = await requireOwnerOrJwtAuth(req, {
     scope: "github-run-artifact-json",
-    allowAdmin: true,
     adminSecretEnv: "K1W1_EDGE_WORKFLOW_ADMIN_KEY",
+    requireJwtRoleWithVerifiedActor: requireWorkflowOperatorJwtRoleWithVerifiedActor,
   });
-  if (authError) return authError;
-  const jwtRoleGuard = await requireWorkflowOperatorJwtRole(req, "github-run-artifact-json");
-  if (jwtRoleGuard) return jwtRoleGuard;
+  if (auth.guard) return auth.guard;
 
     const durableRl = await requireDurableRateLimit(req, {
       scope: "github-run-artifact-json",

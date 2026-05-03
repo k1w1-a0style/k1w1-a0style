@@ -184,7 +184,7 @@ describe("useCiLiteWorkflow behavior", () => {
   });
 
 
-  it("sends JWT + x-k1w1-admin-key on the CI Lite dispatch edge call", async () => {
+  it("sends JWT-only headers on the CI Lite dispatch edge call when user JWT is present", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -200,13 +200,12 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(dispatchCall).toBeTruthy();
     const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
-      "Content-Type": "application/json",
       Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
+    expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
-  it("sends JWT + x-k1w1-admin-key on the CI Lite workflow run lookup call", async () => {
+  it("sends JWT-only headers on the CI Lite workflow run lookup call when user JWT is present", async () => {
     mockStorageGetItem.mockResolvedValue(null);
 
     const { result } = renderHook(() => useCiLiteWorkflow());
@@ -222,13 +221,12 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(runsCall).toBeTruthy();
     const headers = ((runsCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
     expect(headers).toMatchObject({
-      "Content-Type": "application/json",
       Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-      "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
     });
+    expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
-  it("blocks workflow run lookup locally when the admin key is missing", async () => {
+  it("does not block workflow run lookup when JWT is present even if admin key lookup later fails", async () => {
     mockStorageGetItem.mockResolvedValue(null);
     mockGetWorkflowAdminKey
       .mockResolvedValueOnce("workflow-admin-key-12345678901234567890")
@@ -244,13 +242,12 @@ describe("useCiLiteWorkflow behavior", () => {
       String(url).includes("github-workflow-runs"),
     );
 
-    expect(runsCall).toBeFalsy();
-    expect(result.current.showError).toMatch(/Workflow-Run-Lookup blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
+    expect(runsCall).toBeTruthy();
+    expect(result.current.showError ?? "").not.toMatch(/Workflow-Run-Lookup blockiert/i);
   });
 
 
-  it("sends JWT + x-k1w1-admin-key on the artifact-json call", async () => {
+  it("sends JWT-only headers on the artifact-json call when user JWT is present", async () => {
     const completedRunId = 901;
     mockUseGitHubActionsLogs.mockImplementation(() => ({
       logs: [],
@@ -278,10 +275,9 @@ describe("useCiLiteWorkflow behavior", () => {
       expect(artifactCall).toBeTruthy();
       const headers = ((artifactCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
       expect(headers).toMatchObject({
-        "Content-Type": "application/json",
         Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYnVpbGRfYWRtaW4iLCJzdWIiOiJ0ZXN0IiwiZXhwIjo0MTAyNDQ0ODAwfQ.c2lnbmF0dXJl",
-        "x-k1w1-admin-key": "workflow-admin-key-12345678901234567890",
       });
+      expect(headers["x-k1w1-admin-key"]).toBeUndefined();
     });
   });
 
@@ -323,7 +319,7 @@ describe("useCiLiteWorkflow behavior", () => {
     await waitFor(() => {
       expect(result.current.artifactNotice).toContain("Workflow war erfolgreich");
       expect(result.current.artifactNotice).toContain("Detail:");
-      expect(result.current.artifactNotice).toContain("CI Lite Ergebnisabruf blockiert");
+      expect(result.current.artifactNotice).toContain("CI Lite Ergebnisabruf wurde vom Server verweigert");
       expect(result.current.artifactNotice).not.toContain("ghp_superSecretTokenValue");
       expect(result.current.artifactNotice).not.toContain("adminSecret");
     });
@@ -409,6 +405,64 @@ describe("useCiLiteWorkflow behavior", () => {
     });
 
     expect(result.current.showError).toBe("Workflow-Dispatch hat das Zeitlimit erreicht. Bitte erneut versuchen.");
+  });
+
+  it("classifies dispatch 403 as JWT auth/role issue (not local admin key) in jwt mode", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 403,
+          statusText: "Forbidden",
+          text: async () => "forbidden: build_admin role required",
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError ?? "").toContain("vom Server verweigert");
+    expect(result.current.showError ?? "").not.toContain("Workflow Admin Key");
+  });
+
+  it("keeps owner fallback 401/403 classified as local admin key issues", async () => {
+    mockStorageGetItem.mockResolvedValue(null);
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key-for-owner-fallback-tests";
+    mockEnsureSupabaseClient.mockResolvedValue({
+      auth: { getSession: jest.fn(async () => ({ data: { session: null } })) },
+    });
+    (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("github-workflow-dispatch")) {
+        return {
+          ok: false,
+          status: 401,
+          statusText: "Unauthorized",
+          text: async () => "missing or invalid admin key",
+        } as Response;
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { result } = renderHook(() => useCiLiteWorkflow());
+    await act(async () => {
+      await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
+    });
+
+    expect(result.current.showError ?? "").toContain("Admin Key");
+    const dispatchCall = (global.fetch as jest.Mock).mock.calls.find(([url]) =>
+      String(url).includes("github-workflow-dispatch"),
+    );
+    const headers = ((dispatchCall?.[1] as RequestInit | undefined)?.headers ?? {}) as Record<string, string>;
+    expect(headers.Authorization).toContain("Bearer ");
+    expect(headers["x-k1w1-admin-key"]).toBe("workflow-admin-key-12345678901234567890");
+    delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
   });
 
 
@@ -1112,8 +1166,13 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.showError).toMatch(/nicht workflow-spezifisch abgesichert/i);
   });
 
-  it("classifies a server-rejected local Workflow Admin Key honestly during CI-Lite dispatch", async () => {
+  it("shows honest fallback error when owner fallback lacks anon bearer config", async () => {
     mockStorageGetItem.mockResolvedValue(null);
+    mockEnsureSupabaseClient.mockResolvedValue({
+      auth: {
+        getSession: jest.fn(async () => ({ data: { session: null } })),
+      },
+    });
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("github-workflow-dispatch")) {
@@ -1134,10 +1193,7 @@ describe("useCiLiteWorkflow behavior", () => {
     });
 
     expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? ist lokal vorhanden/i);
-    expect(result.current.showError).toMatch(/abgelehnt/i);
-    expect(result.current.showError).not.toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
-    expect(result.current.showError).not.toContain("workflow-admin-key");
+    expect(result.current.showError).toMatch(/Legacy Workflow Admin Key .* fehlt/i);
   });
 
   it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {
