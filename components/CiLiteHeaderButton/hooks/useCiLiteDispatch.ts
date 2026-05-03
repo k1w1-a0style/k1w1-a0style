@@ -11,6 +11,9 @@ import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
 import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
+import { ensureCiLiteWorkflowBootstrap } from "../../../lib/ciLiteWorkflowBootstrap";
+import { buildPersistCiLiteEntries } from "../../../lib/ciLitePersistence";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   resolveCiLiteDispatchSelection,
   resolveCiLiteSyncStateError,
@@ -96,6 +99,15 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           return null;
         });
 
+        const workflowBootstrap = await ensureCiLiteWorkflowBootstrap({ owner, repo, branch: targetBranch });
+        logger.info("[CiLiteDispatch] workflow bootstrap preflight", {
+          owner,
+          repo,
+          branch: targetBranch,
+          workflow: workflowBootstrap.workflowFile,
+          status: workflowBootstrap.status,
+        });
+
         const operatorAccess = await params.resolveOperatorAccess("dispatch");
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
@@ -129,8 +141,30 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
             payload,
             text,
           });
-          throw new Error(normalized.userMessage);
+          const payloadRecord = (payload ?? {}) as { details?: { message?: string }; error?: string };
+          const detail = typeof payloadRecord.details?.message === "string"
+            ? payloadRecord.details.message
+            : (typeof payloadRecord.error === "string" ? payloadRecord.error : "");
+          const actionable = r.status === 422 && detail ? `${normalized.userMessage} · Ursache: ${detail}` : normalized.userMessage;
+          throw new Error(actionable);
         }
+
+        await AsyncStorage.multiSet(
+          buildPersistCiLiteEntries({
+            snapshot: {
+              repo: params.githubRepo,
+              branch: targetBranch,
+              sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
+              runAtMs: Date.now(),
+              workflowId: workflowFile,
+              jobId: newJobId,
+              runId: null,
+              conclusion: "queued",
+              lintOk: false,
+              typecheckOk: false,
+            },
+          }),
+        );
 
         await params.startLookupTracking({
           githubRepo: params.githubRepo,
