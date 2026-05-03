@@ -43,12 +43,15 @@ export function useCiLiteRunLookup(params: UseCiLiteRunLookupParams) {
       requireJobIdMarker?: boolean;
     }) => {
       const edgeUrl = await requireSupabaseEdgeUrl();
-      const workflowAdminKey = await getWorkflowAdminKey().catch((error: unknown) => {
-        logger.warn("[CiLiteRunLookup] getWorkflowAdminKey failed", { error });
-        return null;
-      });
+      const needsAdminKeyFallback = !opts.userJwt;
+      const workflowAdminKey = needsAdminKeyFallback
+        ? await getWorkflowAdminKey().catch((error: unknown) => {
+            logger.warn("[CiLiteRunLookup] getWorkflowAdminKey failed", { error });
+            return null;
+          })
+        : null;
       const trimmedWorkflowAdminKey = String(workflowAdminKey ?? "").trim();
-      if (!trimmedWorkflowAdminKey || !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedWorkflowAdminKey)) {
+      if (needsAdminKeyFallback && (!trimmedWorkflowAdminKey || !isLikelyWellFormedAdminKeyForUiPrecheck(trimmedWorkflowAdminKey))) {
         const normalized = normalizeCiLiteWorkflowError({
           context: "lookup",
           adminKey: trimmedWorkflowAdminKey,
