@@ -10,7 +10,7 @@ set_if_empty_from_file() {
 }
 
 if [[ -f .env.edge.live ]]; then
-  while IFS= read -r line; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
     line="${line#export }"
     key="${line%%=*}"; raw="${line#*=}"

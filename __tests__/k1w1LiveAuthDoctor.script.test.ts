@@ -44,6 +44,31 @@ describe("k1w1-live-auth-doctor script", () => {
     expect(run.status).toBe(0);
   });
 
+
+  it("loads final .env.edge.live line without trailing newline", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "live-auth-doctor-no-newline-"));
+    fs.writeFileSync(
+      path.join(tmp, ".env.edge.live"),
+      [
+        "SUPABASE_ANON_KEY=anon-key-123456",
+        "K1W1_EDGE_WORKFLOW_ADMIN_KEY=workflow-key-123456",
+        "K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY=keystore-key-from-final-line",
+      ].join("\n"),
+    );
+
+    const run = runDoctor({
+      cwd: tmp,
+      env: {
+        EDGE_BASE_URL: "https://shell.example/functions/v1",
+        SUPABASE_ANON_KEY: "",
+        K1W1_EDGE_WORKFLOW_ADMIN_KEY: "",
+        K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: "",
+      },
+    });
+
+    expect(run.status).toBe(0);
+  });
+
   it("fails on non-2xx responses including 400/409/429", () => {
     for (const code of ["400", "409", "429"]) {
       const run = runDoctor({ env: { EDGE_BASE_URL: "https://x/functions/v1" }, curlStatus: code });
