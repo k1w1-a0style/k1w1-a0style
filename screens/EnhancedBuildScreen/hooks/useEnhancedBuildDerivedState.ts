@@ -60,9 +60,9 @@ export const useEnhancedBuildDerivedState = (params: {
     if (!repoValidation.valid) return REPO_MISSING_BLOCK_REASON;
     if (!params.branchName.trim()) return BRANCH_MISSING_BLOCK_REASON;
     if (!params.hasTokens) return params.tokenReason || "Tokens fehlen (GitHub + Expo) – im Verbindungen-Screen setzen";
-    if (!params.hasWorkflowAdminKey) return params.workflowAdminKeyReason || "Workflow-Admin-Key fehlt";
-    if (!(params.hasOperatorJwt || params.verifiedOperatorAccess === true)) {
-      return params.operatorJwtReason || "Supabase Operator-JWT-Precheck fehlt (clientseitig, decode-only ohne Signaturprüfung); server-/edge-seitige Autorisierung bleibt maßgeblich";
+    const operatorAccessOk = (params.hasWorkflowAdminKey && params.hasOperatorJwt) || params.verifiedOperatorAccess === true;
+    if (!operatorAccessOk) {
+      return params.workflowAdminKeyReason || params.operatorJwtReason || "Operator access fehlt";
     }
     if (!params.hasProjectFiles) return params.projectFilesReason || "Projekt ist leer – zuerst Dateien erzeugen oder importieren";
     if (!params.hasDiagOk) return params.diagnosticReason || "Diagnostik noch nicht sicher bestaetigt – im Diagnostic-Screen ausfuehren";

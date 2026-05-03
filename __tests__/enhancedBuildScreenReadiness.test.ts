@@ -84,7 +84,7 @@ describe("enhancedBuildScreenReadiness", () => {
     });
 
     expect(action?.screen).toBe("Connections");
-    expect(action?.title).toContain("Operator-Precheck");
+    expect(action?.title).toContain("Operator access fehlt");
   });
 
   test("uses explicit client-side precheck wording for operator JWT checklist and blocked action", () => {
@@ -100,7 +100,7 @@ describe("enhancedBuildScreenReadiness", () => {
       hasSigningKey: true,
       buildBlockedReason: null,
     });
-    expect(action?.detail).toContain("ohne Signaturprüfung");
+    expect(action?.detail).toContain("Owner/Admin fallback");
     expect(action?.detail).toContain("server-/edge-seitige Autorisierung");
 
     const items = createChecklistItems({
