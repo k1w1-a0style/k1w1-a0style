@@ -71,6 +71,35 @@ export async function requireOwnerOrJwtAuth(
 ): Promise<OwnerOrJwtAuthResult> {
   const hasAdminHeader = !!getAdminKeyHeader(req);
   if (hasAdminHeader) {
+    const bearerToken = getBearerToken(req);
+    const anonKey = getStrictEnvSecret("K1W1_SUPABASE_ANON_KEY") ?? getStrictEnvSecret("SUPABASE_ANON_KEY");
+    if (!anonKey) {
+      return {
+        guard: errorResponse("Missing required auth secrets for this Edge Function.", req, 500, { scope: cfg.scope, missing: ["SUPABASE_ANON_KEY"] }),
+        actor: null,
+        via: null,
+      };
+    }
+    if (!bearerToken) {
+      return {
+        guard: errorResponse("Unauthorized: owner fallback requires anon bearer + admin key.", req, 401, {
+          scope: cfg.scope,
+          required: ["Authorization: Bearer <anon key>", "x-k1w1-admin-key"],
+        }),
+        actor: null,
+        via: null,
+      };
+    }
+    if (!timingSafeSecretEqual(bearerToken, anonKey)) {
+      return {
+        guard: errorResponse("Unauthorized: owner fallback requires configured Supabase anon bearer.", req, 401, {
+          scope: cfg.scope,
+          required: "Authorization: Bearer <anon key>",
+        }),
+        actor: null,
+        via: null,
+      };
+    }
     const adminRes = requireScopedEdgeAuth(req, {
       scope: cfg.scope,
       allowAdmin: true,

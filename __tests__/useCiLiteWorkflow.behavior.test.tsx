@@ -226,7 +226,7 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(headers["x-k1w1-admin-key"]).toBeUndefined();
   });
 
-  it("blocks workflow run lookup locally when the admin key is missing", async () => {
+  it("does not block workflow run lookup when JWT is present even if admin key lookup later fails", async () => {
     mockStorageGetItem.mockResolvedValue(null);
     mockGetWorkflowAdminKey
       .mockResolvedValueOnce("workflow-admin-key-12345678901234567890")
@@ -242,9 +242,8 @@ describe("useCiLiteWorkflow behavior", () => {
       String(url).includes("github-workflow-runs"),
     );
 
-    expect(runsCall).toBeFalsy();
-    expect(result.current.showError).toMatch(/Workflow-Run-Lookup blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
+    expect(runsCall).toBeTruthy();
+    expect(result.current.showError ?? "").not.toMatch(/Workflow-Run-Lookup blockiert/i);
   });
 
 
@@ -1109,8 +1108,13 @@ describe("useCiLiteWorkflow behavior", () => {
     expect(result.current.showError).toMatch(/nicht workflow-spezifisch abgesichert/i);
   });
 
-  it("classifies a server-rejected local Workflow Admin Key honestly during CI-Lite dispatch", async () => {
+  it("shows honest fallback error when owner fallback lacks anon bearer config", async () => {
     mockStorageGetItem.mockResolvedValue(null);
+    mockEnsureSupabaseClient.mockResolvedValue({
+      auth: {
+        getSession: jest.fn(async () => ({ data: { session: null } })),
+      },
+    });
     (global.fetch as jest.Mock).mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("github-workflow-dispatch")) {
@@ -1131,10 +1135,7 @@ describe("useCiLiteWorkflow behavior", () => {
     });
 
     expect(result.current.showError).toMatch(/CI Lite Dispatch blockiert/i);
-    expect(result.current.showError).toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? ist lokal vorhanden/i);
-    expect(result.current.showError).toMatch(/abgelehnt/i);
-    expect(result.current.showError).not.toMatch(/lokaler (legacy )?workflow admin key(?: \(compat(?:, Sunset)?\))? fehlt/i);
-    expect(result.current.showError).not.toContain("workflow-admin-key");
+    expect(result.current.showError).toMatch(/Supabase-Anon-Key fehlt/i);
   });
 
   it("persists completed CI-Lite runs under the repo/branch-scoped snapshot contract", async () => {

@@ -35,6 +35,14 @@ export async function readOperatorJwt(context: CiLiteAccessContext): Promise<str
 }
 
 export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext, "lookup">): Promise<{ adminKey: string; userJwt: string | null }> {
+  const userJwt = await readOperatorJwt(context);
+  if (userJwt) {
+    return {
+      adminKey: "",
+      userJwt,
+    };
+  }
+
   const adminKey = await getWorkflowAdminKey().catch((error: unknown) => {
     logger.warn("[CiLiteWorkflow] getWorkflowAdminKey failed while resolving operator access", { context, error });
     if (error instanceof SecureTokenReadError) {
@@ -53,6 +61,6 @@ export async function resolveOperatorAccess(context: Exclude<CiLiteAccessContext
 
   return {
     adminKey: trimmedAdminKey,
-    userJwt: await readOperatorJwt(context),
+    userJwt: null,
   };
 }
