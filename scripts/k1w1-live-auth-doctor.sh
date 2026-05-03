@@ -49,10 +49,29 @@ TARGET_GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
 mask(){ local v="${1:-}"; local n=${#v}; [[ $n -eq 0 ]] && { echo missing; return; }; [[ $n -le 8 ]] && { echo "set(len=$n)"; return; }; echo "${v:0:4}...${v: -4} (len=$n)"; }
 
 required=(EDGE_BASE_URL SUPABASE_ANON_KEY K1W1_EDGE_WORKFLOW_ADMIN_KEY K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY)
+echo "env presence (sanitized)"
+for env_name in \
+  SUPABASE_ANON_KEY \
+  K1W1_SUPABASE_ANON_KEY \
+  EXPO_PUBLIC_SUPABASE_ANON_KEY \
+  K1W1_EDGE_WORKFLOW_ADMIN_KEY \
+  K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY \
+  EDGE_OPERATOR_JWT; do
+  if [[ -n "${!env_name:-}" ]]; then
+    echo "  ${env_name}=present"
+  else
+    echo "  ${env_name}=missing"
+  fi
+done
+
+if [[ -z "${SUPABASE_ANON_KEY:-}" && -z "${K1W1_SUPABASE_ANON_KEY:-}" && -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]]; then
+  echo "Codex shell does not see anon key secret aliases; restart task after secrets are configured or fix Codex secret scope."
+  exit 2
+fi
+
 for k in "${required[@]}"; do
   if [[ -z "${!k:-}" ]]; then
     echo "missing env: $k"
-    echo "env presence (sanitized): SUPABASE_ANON_KEY=$([[ -n "${SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing), K1W1_SUPABASE_ANON_KEY=$([[ -n "${K1W1_SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing), EXPO_PUBLIC_SUPABASE_ANON_KEY=$([[ -n "${EXPO_PUBLIC_SUPABASE_ANON_KEY:-}" ]] && echo present || echo missing)"
     exit 2
   fi
 done
