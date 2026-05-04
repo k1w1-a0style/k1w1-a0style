@@ -153,22 +153,26 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           throw new Error(actionable);
         }
 
-        await AsyncStorage.multiSet(
-          buildPersistCiLiteEntries({
-            snapshot: {
-              repo: params.githubRepo,
-              branch: targetBranch,
-              sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
-              runAtMs: Date.now(),
-              workflowId: effectiveWorkflowFile,
-              jobId: newJobId,
-              runId: null,
-              conclusion: "queued",
-              lintOk: false,
-              typecheckOk: false,
-            },
-          }),
-        );
+        try {
+          await AsyncStorage.multiSet(
+            buildPersistCiLiteEntries({
+              snapshot: {
+                repo: params.githubRepo,
+                branch: targetBranch,
+                sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
+                runAtMs: Date.now(),
+                workflowId: effectiveWorkflowFile,
+                jobId: newJobId,
+                runId: null,
+                conclusion: "queued",
+                lintOk: false,
+                typecheckOk: false,
+              },
+            }),
+          );
+        } catch (persistError: unknown) {
+          console.warn("[ci-lite] queued snapshot persist failed", persistError);
+        }
 
         await params.startLookupTracking({
           githubRepo: params.githubRepo,
