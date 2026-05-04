@@ -27,6 +27,17 @@ function isTokenlessLocalAccessError(message: string): boolean {
   return lower.includes("github token fehlt") || lower.includes("missing github token") || lower.includes("requires github token");
 }
 
+function isLocalGithubAuthError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("401") ||
+    lower.includes("403") ||
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden") ||
+    lower.includes("bad credentials")
+  );
+}
+
 export async function ensureCiLiteWorkflowBootstrap(params: {
   owner: string;
   repo: string;
@@ -54,11 +65,11 @@ export async function ensureCiLiteWorkflowBootstrap(params: {
     if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
       missing = true;
       current = "";
-    } else if (isTokenlessLocalAccessError(msg)) {
+    } else if (isTokenlessLocalAccessError(msg) || isLocalGithubAuthError(msg)) {
       return {
         status: "skipped_tokenless",
         workflowFile: params.workflowFile,
-        warning: "CI-Lite bootstrap skipped locally (GitHub token unavailable). Dispatch continues via Edge path.",
+        warning: "CI-Lite bootstrap skipped locally (GitHub auth unavailable/invalid). Dispatch continues via Edge path.",
       };
     } else {
       throw error;

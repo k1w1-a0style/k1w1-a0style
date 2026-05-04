@@ -49,6 +49,13 @@ describe("ensureCiLiteWorkflowBootstrap", () => {
     expect(mockWrite).not.toHaveBeenCalled();
   });
 
+  it("skips invalid local github auth bootstrap errors", async () => {
+    mockGet.mockRejectedValueOnce(new Error("File read Fehler (401): bad credentials"));
+    const result = await ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "main", workflowFile: "k1w1-ci-lite.yml" });
+    expect(result.status).toBe("skipped_tokenless");
+    expect(mockWrite).not.toHaveBeenCalled();
+  });
+
   it("supports autofix workflow bootstrap", async () => {
     mockGet.mockRejectedValueOnce(new Error("404 not found"));
     const result = await ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "main", workflowFile: "k1w1-ci-lite-autofix.yml" });
