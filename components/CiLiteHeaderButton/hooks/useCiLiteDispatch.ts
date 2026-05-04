@@ -78,6 +78,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
       params.setJobId(newJobId);
 
       try {
+        let effectiveWorkflowFile = workflowFile;
         const syncState = await getRepoSyncState({
           linkedRepo: params.githubRepo,
           linkedBranch: targetBranch,
@@ -99,13 +100,16 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           return null;
         });
 
-        const workflowBootstrap = await ensureCiLiteWorkflowBootstrap({ owner, repo, branch: targetBranch });
+        const workflowBootstrap = await ensureCiLiteWorkflowBootstrap({ owner, repo, branch: targetBranch, workflowFile });
+        effectiveWorkflowFile = workflowBootstrap.workflowFile;
+        params.setWorkflowId(effectiveWorkflowFile);
         logger.info("[CiLiteDispatch] workflow bootstrap preflight", {
           owner,
           repo,
           branch: targetBranch,
           workflow: workflowBootstrap.workflowFile,
           status: workflowBootstrap.status,
+          warning: workflowBootstrap.warning,
         });
 
         const operatorAccess = await params.resolveOperatorAccess("dispatch");
@@ -121,7 +125,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           }),
           body: JSON.stringify({
             githubRepo: params.githubRepo,
-            workflow: workflowFile,
+            workflow: effectiveWorkflowFile,
             ref: targetBranch,
             // GitHub workflow_dispatch requires the target ref twice:
             // - top-level `ref` selects the branch/SHA to run on
@@ -156,7 +160,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
               branch: targetBranch,
               sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
               runAtMs: Date.now(),
-              workflowId: workflowFile,
+              workflowId: effectiveWorkflowFile,
               jobId: newJobId,
               runId: null,
               conclusion: "queued",
@@ -170,7 +174,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           githubRepo: params.githubRepo,
           branch: targetBranch,
           jobId: newJobId,
-          workflow: workflowFile,
+          workflow: effectiveWorkflowFile,
           userJwt: operatorAccess.userJwt,
           expectedEvent: "workflow_dispatch",
           sourceHeadSha,
