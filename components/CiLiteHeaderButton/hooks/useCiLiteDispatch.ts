@@ -11,6 +11,8 @@ import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
 import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
+import { buildPersistCiLiteEntries, CI_LITE_WORKFLOW_ID } from "../../../lib/ciLitePersistence";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   resolveCiLiteDispatchSelection,
   resolveCiLiteSyncStateError,
@@ -75,6 +77,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
       params.setJobId(newJobId);
 
       try {
+        let effectiveWorkflowFile = workflowFile;
         const syncState = await getRepoSyncState({
           linkedRepo: params.githubRepo,
           linkedBranch: targetBranch,
@@ -96,6 +99,13 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           return null;
         });
 
+        logger.info("[CiLiteDispatch] dispatch preflight (no workflow mutation)", {
+          owner,
+          repo,
+          branch: targetBranch,
+          workflow: effectiveWorkflowFile,
+        });
+
         const operatorAccess = await params.resolveOperatorAccess("dispatch");
         const edgeUrl = await requireSupabaseEdgeUrl();
         const r = await fetchWithTimeout(`${edgeUrl}/${SUPABASE_EDGE_FUNCTIONS.GITHUB_WORKFLOW_DISPATCH}`, {
@@ -109,7 +119,7 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           }),
           body: JSON.stringify({
             githubRepo: params.githubRepo,
-            workflow: workflowFile,
+            workflow: effectiveWorkflowFile,
             ref: targetBranch,
             // GitHub workflow_dispatch requires the target ref twice:
             // - top-level `ref` selects the branch/SHA to run on
@@ -129,14 +139,42 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
             payload,
             text,
           });
-          throw new Error(normalized.userMessage);
+          const payloadRecord = (payload ?? {}) as { details?: { message?: string }; error?: string };
+          const detail = typeof payloadRecord.details?.message === "string"
+            ? payloadRecord.details.message
+            : (typeof payloadRecord.error === "string" ? payloadRecord.error : "");
+          const actionable = r.status === 422 && detail ? `${normalized.userMessage} · Ursache: ${detail}` : normalized.userMessage;
+          throw new Error(actionable);
+        }
+
+        if (effectiveWorkflowFile === CI_LITE_WORKFLOW_ID) {
+          try {
+            await AsyncStorage.multiSet(
+              buildPersistCiLiteEntries({
+                snapshot: {
+                  repo: params.githubRepo,
+                  branch: targetBranch,
+                  sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
+                  runAtMs: Date.now(),
+                  workflowId: effectiveWorkflowFile,
+                  jobId: newJobId,
+                  runId: null,
+                  conclusion: "queued",
+                  lintOk: false,
+                  typecheckOk: false,
+                },
+              }),
+            );
+          } catch (persistError: unknown) {
+            console.warn("[ci-lite] queued snapshot persist failed", persistError);
+          }
         }
 
         await params.startLookupTracking({
           githubRepo: params.githubRepo,
           branch: targetBranch,
           jobId: newJobId,
-          workflow: workflowFile,
+          workflow: effectiveWorkflowFile,
           userJwt: operatorAccess.userJwt,
           expectedEvent: "workflow_dispatch",
           sourceHeadSha,

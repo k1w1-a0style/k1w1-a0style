@@ -131,7 +131,7 @@ async function getRandomBytes(length: number): Promise<Uint8Array> {
 function requireSubtleCrypto(): SubtleCrypto {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
-    throw new Error("WebCrypto/AES-GCM ist auf diesem Gerät nicht verfügbar.");
+    throw new Error("WebCrypto/AES-GCM ist auf diesem Gerät nicht verfügbar. Secure Backup bleibt fail-closed; nutze ein Runtime mit WebCrypto SubtleCrypto (z. B. iOS/Web oder Android mit passender Crypto-Bridge).");
   }
   return subtle;
 }
