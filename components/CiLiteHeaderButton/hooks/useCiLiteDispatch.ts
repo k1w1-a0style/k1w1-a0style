@@ -11,7 +11,7 @@ import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
 import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
-import { buildPersistCiLiteEntries } from "../../../lib/ciLitePersistence";
+import { buildPersistCiLiteEntries, CI_LITE_WORKFLOW_ID } from "../../../lib/ciLitePersistence";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   resolveCiLiteDispatchSelection,
@@ -147,25 +147,27 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           throw new Error(actionable);
         }
 
-        try {
-          await AsyncStorage.multiSet(
-            buildPersistCiLiteEntries({
-              snapshot: {
-                repo: params.githubRepo,
-                branch: targetBranch,
-                sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
-                runAtMs: Date.now(),
-                workflowId: effectiveWorkflowFile,
-                jobId: newJobId,
-                runId: null,
-                conclusion: "queued",
-                lintOk: false,
-                typecheckOk: false,
-              },
-            }),
-          );
-        } catch (persistError: unknown) {
-          console.warn("[ci-lite] queued snapshot persist failed", persistError);
+        if (effectiveWorkflowFile === CI_LITE_WORKFLOW_ID) {
+          try {
+            await AsyncStorage.multiSet(
+              buildPersistCiLiteEntries({
+                snapshot: {
+                  repo: params.githubRepo,
+                  branch: targetBranch,
+                  sha: String(sourceHeadSha ?? "").trim().toLowerCase(),
+                  runAtMs: Date.now(),
+                  workflowId: effectiveWorkflowFile,
+                  jobId: newJobId,
+                  runId: null,
+                  conclusion: "queued",
+                  lintOk: false,
+                  typecheckOk: false,
+                },
+              }),
+            );
+          } catch (persistError: unknown) {
+            console.warn("[ci-lite] queued snapshot persist failed", persistError);
+          }
         }
 
         await params.startLookupTracking({
