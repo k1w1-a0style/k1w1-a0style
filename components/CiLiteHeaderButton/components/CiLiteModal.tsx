@@ -68,6 +68,7 @@ interface CiLiteModalProps {
   isTrackingRun: boolean;
   addChatMessage: (msg: ChatMessage) => void | Promise<void>;
   dispatchWorkflow: (workflowFile: string) => void;
+  repairWorkflow?: (workflowFile: string) => void;
 }
 
 export function CiLiteModal(props: CiLiteModalProps) {
@@ -78,7 +79,7 @@ export function CiLiteModal(props: CiLiteModalProps) {
     progressAnim, shimmerAnim, progressPctClamped, progressLabel,
     patchPanelOpen, patchText, onChangePatchText, patchBusy, patchInfo,
     onPaste, onValidate, onApply, onClosePatch, onOpenPatchPanel,
-    runUrl, workflowRunUrl, dispatching, isTrackingRun, addChatMessage, dispatchWorkflow,
+    runUrl, workflowRunUrl, dispatching, isTrackingRun, addChatMessage, dispatchWorkflow, repairWorkflow,
   } = props;
 
   const showDispatchSourceNotice =
@@ -237,6 +238,7 @@ export function CiLiteModal(props: CiLiteModalProps) {
             isTrackingRun={isTrackingRun}
             addChatMessage={addChatMessage}
             dispatchWorkflow={dispatchWorkflow}
+            repairWorkflow={repairWorkflow}
             onOpenPatchPanel={onOpenPatchPanel}
           />
         </Pressable>

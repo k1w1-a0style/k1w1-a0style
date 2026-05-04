@@ -122,6 +122,7 @@ export default function CiLiteHeaderButton(): React.ReactElement {
         isTrackingRun={wf.isTrackingRun}
         addChatMessage={addChatMessage}
         dispatchWorkflow={wf.dispatchWorkflow}
+        repairWorkflow={wf.repairWorkflow}
       />
     </>
   );

@@ -23,12 +23,13 @@ interface ActionButtonsProps {
   // `await` works for both sync + async functions.
   addChatMessage: (msg: ChatMessage) => void | Promise<void>;
   dispatchWorkflow: (workflowFile: string) => void;
+  repairWorkflow?: (workflowFile: string) => void;
   onOpenPatchPanel: () => void;
 }
 
 export function ActionButtons({
   onlyErrors, runUrl, workflowRunUrl, dispatching, isTrackingRun,
-  addChatMessage, dispatchWorkflow, onOpenPatchPanel,
+  addChatMessage, dispatchWorkflow, repairWorkflow, onOpenPatchPanel,
 }: ActionButtonsProps) {
   const viewUrl = runUrl || workflowRunUrl;
   const runStartDisabled = dispatching || isTrackingRun;
@@ -119,6 +120,17 @@ export function ActionButtons({
         <Ionicons name="hammer-outline" size={16} color={theme.palette.primary} />
         <Text style={styles.actionBtnText}>Patch</Text>
       </Pressable>
+
+      {repairWorkflow ? (
+        <Pressable
+          accessibilityLabel="CI Lite Workflow reparieren"
+          onPress={() => repairWorkflow(WORKFLOW_CI_LITE)}
+          style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
+        >
+          <Ionicons name="build-outline" size={16} color={theme.palette.primary} />
+          <Text style={styles.actionBtnText}>Repair</Text>
+        </Pressable>
+      ) : null}
 
       {/* Autofix dispatch */}
       <Pressable

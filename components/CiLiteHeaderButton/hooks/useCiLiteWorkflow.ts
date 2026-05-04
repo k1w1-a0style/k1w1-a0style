@@ -34,6 +34,7 @@ import { useCiLiteRunLookup } from "./useCiLiteRunLookup";
 import { useCiLiteArtifactFetch } from "./useCiLiteArtifactFetch";
 import { useCiLitePersistenceHydration, useCiLitePersistenceSnapshot } from "./useCiLitePersistence";
 import { useCiLiteAutofixChainRun } from "./useCiLiteAutofixChainRun";
+import { useCiLiteWorkflowProvision } from "./useCiLiteWorkflowProvision";
 import {
   BUILD_ADMIN_FAIL_CLOSED_NOTE,
   BUILD_ADMIN_PROVISIONING_NOTE,
@@ -335,12 +336,18 @@ export function useCiLiteWorkflow() {
     setJobId,
     setTargetRef,
   });
+  const repairWorkflow = useCiLiteWorkflowProvision({
+    githubRepo,
+    branch,
+    setLocalError,
+  });
 
   const runMeta = useMemo(() => buildCiLiteRunMeta({ workflowRun, runUrl }), [workflowRun, runUrl]);
 
   return {
     visible, setVisible,
     dispatching, dispatchWorkflow,
+    repairWorkflow,
     runLookupActive: locatingRun,
     isTrackingRun,
     headerState,

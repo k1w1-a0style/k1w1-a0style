@@ -19,4 +19,10 @@ describe("patch 613 dispatch/bootstrap separation invariants", () => {
     expect(src).toContain("missing_workflow");
     expect(src).toContain("Dispatch is mutation-free");
   });
+
+  it("keeps CI Lite client dispatch path free of bootstrap/repair writes", () => {
+    const src = read("components/CiLiteHeaderButton/hooks/useCiLiteDispatch.ts");
+    expect(src).not.toContain("ensureCiLiteWorkflowBootstrap(");
+    expect(src).not.toContain("createOrUpdateFile(");
+  });
 });
