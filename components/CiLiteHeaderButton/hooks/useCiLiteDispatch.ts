@@ -11,7 +11,6 @@ import { getRepoSyncState } from "../../../lib/repoSyncOrchestration";
 import { logger } from "../../../lib/logger";
 import { buildEdgeOwnerAuthHeaders } from "../../../lib/edgeOwnerAuthHeaders";
 import { normalizeCiLiteWorkflowError, readCiLiteErrorResponse } from "./ciLiteWorkflowErrors";
-import { ensureCiLiteWorkflowBootstrap } from "../../../lib/ciLiteWorkflowBootstrap";
 import { buildPersistCiLiteEntries } from "../../../lib/ciLitePersistence";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -100,16 +99,11 @@ export function useCiLiteDispatch(params: UseCiLiteDispatchParams) {
           return null;
         });
 
-        const workflowBootstrap = await ensureCiLiteWorkflowBootstrap({ owner, repo, branch: targetBranch, workflowFile });
-        effectiveWorkflowFile = workflowBootstrap.workflowFile;
-        params.setWorkflowId(effectiveWorkflowFile);
-        logger.info("[CiLiteDispatch] workflow bootstrap preflight", {
+        logger.info("[CiLiteDispatch] dispatch preflight (no workflow mutation)", {
           owner,
           repo,
           branch: targetBranch,
-          workflow: workflowBootstrap.workflowFile,
-          status: workflowBootstrap.status,
-          warning: workflowBootstrap.warning,
+          workflow: effectiveWorkflowFile,
         });
 
         const operatorAccess = await params.resolveOperatorAccess("dispatch");
