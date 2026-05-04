@@ -4,7 +4,6 @@ import { WORKFLOW_K1W1_CI_LITE_TEMPLATE } from "./templates/ciLiteTemplate";
 import { WORKFLOW_K1W1_DIAGNOSTICS_TEMPLATE } from "./templates/k1w1DiagnosticsTemplate";
 
 export {
-  CI_LITE_ALLOWED_REF_REGEX,
   CI_LITE_WORKFLOW_VERSION,
   CI_LITE_WORKFLOW_VERSION_MARKER,
   MANAGED_BY_MARKER,

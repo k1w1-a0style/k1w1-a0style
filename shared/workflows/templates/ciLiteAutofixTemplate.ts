@@ -1,4 +1,4 @@
-import { CI_LITE_ALLOWED_REF_REGEX, CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
+import { CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
 
 export const WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE = `
 # managed-by: k1w1
@@ -35,7 +35,6 @@ jobs:
       contents: write
 
     env:
-      ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
       WORKFLOW_VERSION: "${CI_LITE_WORKFLOW_VERSION}"
 
     steps:
@@ -46,7 +45,6 @@ jobs:
           input_ref: \${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:
@@ -232,11 +230,6 @@ jobs:
             exit 0
           fi
 
-          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
-            echo "::warning::Writeback disabled for branch '$BR' (regex: \${ALLOWED_REF_REGEX})." | tee -a ci-logs/autofix.log
-            exit 0
-          fi
-
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback." | tee -a ci-logs/autofix.log
             exit 0
@@ -392,11 +385,6 @@ jobs:
 
           if echo "$BR" | grep -qE '[: ]'; then
             echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
-            exit 0
-          fi
-
-          if ! echo "$BR" | grep -qE "\${ALLOWED_REF_REGEX}"; then
-            echo "::warning::CI Lite chain-run disabled for '$BR' (regex: \${ALLOWED_REF_REGEX})."
             exit 0
           fi
 
