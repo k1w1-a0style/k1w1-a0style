@@ -1,11 +1,25 @@
+import { getBranchHeadSha, getDefaultBranch } from "../infra/github/branchOps";
 import { createOrUpdateFile, getRepoFileText } from "../infra/github/files";
 import { WORKFLOW_TEMPLATES } from "../shared/workflows/managedWorkflowTemplates";
 
 export type CiLiteWorkflowBootstrapStatus = "created" | "repaired" | "current" | "skipped_tokenless" | "skipped_unknown_workflow";
+export type CiLiteWorkflowBranchStatus = "missing" | "current" | "stale" | "unmanaged";
+
+type WorkflowReadStatus = { status: CiLiteWorkflowBranchStatus; content: string };
 
 export type CiLiteWorkflowBootstrapResult = {
   status: CiLiteWorkflowBootstrapStatus;
   workflowFile: string;
+  targetRepo: string;
+  targetBranch: string;
+  defaultBranch: string | null;
+  workflowDefinitionBranch: string | null;
+  targetBranchWorkflowStatus: CiLiteWorkflowBranchStatus | "unknown";
+  defaultBranchWorkflowStatus: CiLiteWorkflowBranchStatus | "unknown";
+  hasWorkflowDispatch: boolean;
+  hasRequiredInputs: boolean;
+  githubIndexMayLag: boolean;
+  recommendedWaitSeconds: number;
   warning?: string;
 };
 
@@ -17,25 +31,82 @@ function isManagedCiLiteWorkflow(content: string): boolean {
   return content.includes("# managed-by: k1w1") && content.includes("# workflow-version:");
 }
 
+function hasWorkflowDispatch(content: string): boolean {
+  return normalizeContent(content).includes("workflow_dispatch:");
+}
+
 function hasRequiredDispatchInputs(content: string): boolean {
   const normalized = normalizeContent(content);
-  return normalized.includes("workflow_dispatch:") && normalized.includes("job_id:") && normalized.includes("ref:");
+  return hasWorkflowDispatch(normalized) && normalized.includes("job_id:") && normalized.includes("ref:");
 }
 
-function isTokenlessLocalAccessError(message: string): boolean {
-  const lower = message.toLowerCase();
-  return lower.includes("github token fehlt") || lower.includes("missing github token") || lower.includes("requires github token");
-}
-
-function isLocalGithubAuthError(message: string): boolean {
-  const lower = message.toLowerCase();
+export function isLocalGithubAuthUnavailableError(message: string): boolean {
+  const lower = String(message || "").toLowerCase();
   return (
-    lower.includes("401") ||
-    lower.includes("403") ||
+    lower.includes("missing github token") ||
+    lower.includes("github token fehlt") ||
+    lower.includes("token ungültig") ||
+    lower.includes("bad credentials") ||
     lower.includes("unauthorized") ||
     lower.includes("forbidden") ||
-    lower.includes("bad credentials")
+    lower.includes("keine berechtigung") ||
+    lower.includes("requires github token") ||
+    /\b401\b/.test(lower) ||
+    /\b403\b/.test(lower)
   );
+}
+
+
+export function isBranchOrRepoMissingError(message: string): boolean {
+  const lower = String(message || "").toLowerCase();
+  return (
+    /\b404\b/.test(lower) ||
+    lower.includes("not found") ||
+    lower.includes("branch oder repo nicht gefunden") ||
+    lower.includes("repository nicht gefunden") ||
+    lower.includes("base-branch nicht gefunden") ||
+    lower.includes("branch not found") ||
+    lower.includes("repo not found")
+  );
+}
+
+function sanitizeBootstrapErrorMessage(message: string): string {
+  return String(message || "unknown error")
+    .replace(/\r\n/g, "\n")
+    .replace(/\bBearer\s+[^\s"']+/gi, "Bearer [REDACTED_TOKEN]")
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]+\b/g, "[REDACTED_TOKEN]")
+    .replace(/\b((?:token|secret|password|api[_-]?key|authorization)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED_SECRET]")
+    .slice(0, 500);
+}
+
+function buildTokenlessResult(base: Omit<CiLiteWorkflowBootstrapResult, "status" | "warning">): CiLiteWorkflowBootstrapResult {
+  return {
+    status: "skipped_tokenless",
+    ...base,
+    warning: "CI-Lite bootstrap skipped locally (GitHub auth unavailable/invalid). Dispatch continues via Edge path.",
+  };
+}
+
+async function readWorkflowStatus(params: {
+  owner: string;
+  repo: string;
+  branch: string;
+  workflowPath: string;
+  normalizedTemplate: string;
+}): Promise<WorkflowReadStatus> {
+  try {
+    const content = await getRepoFileText({ owner: params.owner, repo: params.repo, path: params.workflowPath, ref: params.branch });
+    const normalized = normalizeContent(content);
+    if (!normalized) return { status: "missing", content: "" };
+    if (!isManagedCiLiteWorkflow(normalized)) return { status: "unmanaged", content: normalized };
+    return { status: normalized === params.normalizedTemplate ? "current" : "stale", content: normalized };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("404") || /not found/i.test(message)) {
+      return { status: "missing", content: "" };
+    }
+    throw error;
+  }
 }
 
 export async function ensureCiLiteWorkflowBootstrap(params: {
@@ -44,72 +115,134 @@ export async function ensureCiLiteWorkflowBootstrap(params: {
   branch: string;
   workflowFile: string;
 }): Promise<CiLiteWorkflowBootstrapResult> {
-  const template = WORKFLOW_TEMPLATES[params.workflowFile];
+  const { owner, repo, branch: targetBranch, workflowFile } = params;
+  const targetRepo = `${owner}/${repo}`;
+  const template = WORKFLOW_TEMPLATES[workflowFile];
+
+  const base: Omit<CiLiteWorkflowBootstrapResult, "status" | "warning"> = {
+    workflowFile,
+    targetRepo,
+    targetBranch,
+    defaultBranch: null,
+    workflowDefinitionBranch: null,
+    targetBranchWorkflowStatus: "unknown",
+    defaultBranchWorkflowStatus: "unknown",
+    hasWorkflowDispatch: false,
+    hasRequiredInputs: false,
+    githubIndexMayLag: false,
+    recommendedWaitSeconds: 60,
+  };
+
   if (!template) {
     return {
       status: "skipped_unknown_workflow",
-      workflowFile: params.workflowFile,
-      warning: `CI-Lite bootstrap skipped: unmanaged workflow '${params.workflowFile}'.`,
+      ...base,
+      warning: `CI-Lite bootstrap skipped: unmanaged workflow '${workflowFile}'.`,
     };
   }
 
-  const workflowPath = `.github/workflows/${params.workflowFile}`;
+  const workflowPath = `.github/workflows/${workflowFile}`;
   const normalizedTemplate = normalizeContent(template);
 
-  let current = "";
-  let missing = false;
   try {
-    current = await getRepoFileText({ owner: params.owner, repo: params.repo, path: workflowPath, ref: params.branch });
+    await getBranchHeadSha(owner, repo, targetBranch);
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
-      missing = true;
-      current = "";
-    } else if (isTokenlessLocalAccessError(msg) || isLocalGithubAuthError(msg)) {
-      return {
-        status: "skipped_tokenless",
-        workflowFile: params.workflowFile,
-        warning: "CI-Lite bootstrap skipped locally (GitHub auth unavailable/invalid). Dispatch continues via Edge path.",
-      };
-    } else {
-      throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    if (isLocalGithubAuthUnavailableError(message)) {
+      return buildTokenlessResult(base);
+    }
+    if (isBranchOrRepoMissingError(message)) {
+      throw new Error(`CI-Lite target branch '${targetBranch}' does not exist or is not readable.`);
+    }
+    throw new Error(`CI-Lite target branch validation failed: ${sanitizeBootstrapErrorMessage(message)}`);
+  }
+
+  let defaultBranch: string;
+  try {
+    defaultBranch = await getDefaultBranch(owner, repo);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isLocalGithubAuthUnavailableError(message)) {
+      return buildTokenlessResult(base);
+    }
+    throw error;
+  }
+
+  const workflowDefinitionBranch = defaultBranch;
+
+  const defaultBranchWorkflow = await readWorkflowStatus({
+    owner,
+    repo,
+    branch: workflowDefinitionBranch,
+    workflowPath,
+    normalizedTemplate,
+  });
+
+  const targetBranchWorkflow = targetBranch === workflowDefinitionBranch
+    ? defaultBranchWorkflow
+    : await readWorkflowStatus({
+      owner,
+      repo,
+      branch: targetBranch,
+      workflowPath,
+      normalizedTemplate,
+    });
+
+  const diagnostics: Omit<CiLiteWorkflowBootstrapResult, "status" | "warning"> = {
+    ...base,
+    defaultBranch,
+    workflowDefinitionBranch,
+    targetBranchWorkflowStatus: targetBranchWorkflow.status,
+    defaultBranchWorkflowStatus: defaultBranchWorkflow.status,
+    hasWorkflowDispatch: hasWorkflowDispatch(defaultBranchWorkflow.content),
+    hasRequiredInputs: hasRequiredDispatchInputs(defaultBranchWorkflow.content),
+  };
+
+  if (defaultBranchWorkflow.status === "unmanaged") {
+    throw new Error(`CI-Lite Workflow '${workflowFile}' exists on definition branch '${workflowDefinitionBranch}' but is unmanaged. Auto-repair aborted.`);
+  }
+  if (targetBranchWorkflow.status === "unmanaged") {
+    throw new Error(`CI-Lite Workflow '${workflowFile}' exists on target branch '${targetBranch}' but is unmanaged. Auto-repair aborted.`);
+  }
+
+  let status: CiLiteWorkflowBootstrapStatus = "current";
+
+  if (defaultBranchWorkflow.status !== "current" || !hasRequiredDispatchInputs(defaultBranchWorkflow.content)) {
+    await createOrUpdateFile(
+      owner,
+      repo,
+      workflowPath,
+      `${template}`.replace(/\r\n/g, "\n"),
+      defaultBranchWorkflow.status === "missing" ? `chore(ci-lite): bootstrap ${workflowFile}` : `fix(ci-lite): repair ${workflowFile}`,
+      workflowDefinitionBranch,
+    );
+    status = defaultBranchWorkflow.status === "missing" ? "created" : "repaired";
+  }
+
+  const targetNeedsUpdate =
+    targetBranch !== workflowDefinitionBranch &&
+    (targetBranchWorkflow.status === "missing" || targetBranchWorkflow.status === "stale" || !hasRequiredDispatchInputs(targetBranchWorkflow.content));
+
+  if (targetNeedsUpdate) {
+    await createOrUpdateFile(
+      owner,
+      repo,
+      workflowPath,
+      `${template}`.replace(/\r\n/g, "\n"),
+      targetBranchWorkflow.status === "missing" ? `chore(ci-lite): bootstrap ${workflowFile}` : `fix(ci-lite): repair ${workflowFile}`,
+      targetBranch,
+    );
+    if (status === "current") {
+      status = targetBranchWorkflow.status === "missing" ? "created" : "repaired";
     }
   }
 
-  const normalizedCurrent = normalizeContent(current);
-  if (!missing && normalizedCurrent === normalizedTemplate) {
-    return { status: "current", workflowFile: params.workflowFile };
-  }
+  const changed = status !== "current";
 
-  if (!missing && !isManagedCiLiteWorkflow(normalizedCurrent)) {
-    throw new Error(
-      `CI-Lite Workflow '${params.workflowFile}' ist vorhanden, aber nicht als managed k1w1-Workflow markiert. Automatische Reparatur wurde aus Sicherheitsgründen nicht durchgeführt.`,
-    );
-  }
-
-  if (!missing && !hasRequiredDispatchInputs(normalizedCurrent)) {
-    await createOrUpdateFile(
-      params.owner,
-      params.repo,
-      workflowPath,
-      `${template}`.replace(/\r\n/g, "\n"),
-      `fix(ci-lite): repair ${params.workflowFile}`,
-      params.branch,
-    );
-    return { status: "repaired", workflowFile: params.workflowFile };
-  }
-
-  if (missing || normalizedCurrent !== normalizedTemplate) {
-    await createOrUpdateFile(
-      params.owner,
-      params.repo,
-      workflowPath,
-      `${template}`.replace(/\r\n/g, "\n"),
-      missing ? `chore(ci-lite): bootstrap ${params.workflowFile}` : `fix(ci-lite): sync ${params.workflowFile}`,
-      params.branch,
-    );
-    return { status: missing ? "created" : "repaired", workflowFile: params.workflowFile };
-  }
-
-  return { status: "current", workflowFile: params.workflowFile };
+  return {
+    ...diagnostics,
+    status,
+    githubIndexMayLag: changed,
+    recommendedWaitSeconds: changed ? 60 : 0,
+  };
 }
