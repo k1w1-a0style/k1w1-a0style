@@ -33,6 +33,51 @@ describe("secure backup crypto provider", () => {
     expect(provider?.profile).toBe("noble-js");
   });
 
+
+  test("cross-provider: webcrypto encrypt -> noble decrypt", async () => {
+    const webcrypto = require("crypto").webcrypto;
+    Object.defineProperty(global, "crypto", { value: webcrypto, configurable: true });
+
+    const payload = createSecretBackupPayload({
+      connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
+      tokens: { githubToken: "g", expoToken: "e", workflowAdminKey: "w", androidKeystoreExportAdminKey: "k", legacyEdgeAdminKey: null, signingAdminKey: "s", signingMasterKey: "m" },
+      ciSecrets: {},
+      github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+    });
+
+    const encrypted = await encryptScopedBackup({ scope: "secrets", passphrase: "correct-horse", appVersion: "1.0.0", payload });
+
+    Object.defineProperty(global, "crypto", {
+      value: { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) },
+      configurable: true,
+    });
+
+    const decrypted = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
+    expect(decrypted.kind).toBe("secret-snapshot");
+  });
+
+  test("cross-provider: noble encrypt -> webcrypto decrypt", async () => {
+    const webcrypto = require("crypto").webcrypto;
+    Object.defineProperty(global, "crypto", {
+      value: { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) },
+      configurable: true,
+    });
+
+    const payload = createSecretBackupPayload({
+      connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
+      tokens: { githubToken: "g", expoToken: "e", workflowAdminKey: "w", androidKeystoreExportAdminKey: "k", legacyEdgeAdminKey: null, signingAdminKey: "s", signingMasterKey: "m" },
+      ciSecrets: {},
+      github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+    });
+
+    const encrypted = await encryptScopedBackup({ scope: "secrets", passphrase: "correct-horse", appVersion: "1.0.0", payload });
+
+    Object.defineProperty(global, "crypto", { value: webcrypto, configurable: true });
+
+    const decrypted = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
+    expect(decrypted.kind).toBe("secret-snapshot");
+  });
+
   test("roundtrip still works without subtle", async () => {
     Object.defineProperty(global, "crypto", { value: { getRandomValues: require("crypto").webcrypto.getRandomValues.bind(require("crypto").webcrypto) }, configurable: true });
     const payload = createSecretBackupPayload({
