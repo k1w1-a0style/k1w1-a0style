@@ -42,6 +42,23 @@ describe("secure backup crypto provider", () => {
     expect(provider?.profile).toBe("noble-js");
   });
 
+
+
+  test("returns null provider when neither webcrypto nor secure RNG fallback is available", async () => {
+    const expoCrypto = jest.requireMock("expo-crypto");
+    const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
+    expoCrypto.getRandomBytesAsync = jest.fn(async () => {
+      throw new Error("rng unavailable");
+    });
+
+    Object.defineProperty(global, "crypto", { value: undefined, configurable: true });
+
+    const provider = await resolveSecureBackupCryptoProvider();
+    expect(provider).toBeNull();
+
+    expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
+  });
+
   test("uses noble-js provider when subtle is unavailable", async () => {
     Object.defineProperty(global, "crypto", { value: { getRandomValues: require("crypto").webcrypto.getRandomValues.bind(require("crypto").webcrypto) }, configurable: true });
     const provider = await resolveSecureBackupCryptoProvider();
