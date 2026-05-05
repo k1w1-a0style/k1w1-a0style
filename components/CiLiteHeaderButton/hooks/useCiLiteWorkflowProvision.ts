@@ -30,7 +30,10 @@ export function useCiLiteWorkflowProvision(params: UseCiLiteWorkflowProvisionPar
         throw new Error(`Workflow '${workflowFile}' ist unmanaged und wird nicht automatisch überschrieben.`);
       }
       params.setLocalError(null);
-      Alert.alert("CI Lite Repair", `Workflow ${result.workflowFile}: ${result.status}.`);
+      const repoBranch = `${result.targetRepo}@${result.targetBranch}`;
+      const definition = result.workflowDefinitionBranch || "unknown";
+      const lagNotice = result.githubIndexMayLag ? ` GitHub Actions kann ${result.recommendedWaitSeconds || 60} Sekunden brauchen, bis workflow_dispatch verfügbar ist.` : "";
+      Alert.alert("CI Lite Repair", `Workflow ${result.workflowFile} wurde ${result.status}. Ziel: ${repoBranch}. Definition: defaultBranch ${definition}.${lagNotice}`);
       return true;
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);

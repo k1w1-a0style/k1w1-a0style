@@ -5,6 +5,10 @@ jest.mock("../infra/github/files", () => ({
   getRepoFileText: jest.fn(),
   createOrUpdateFile: jest.fn(),
 }));
+jest.mock("../infra/github/branchOps", () => ({
+  getBranchHeadSha: jest.fn(async () => "abc"),
+  getDefaultBranch: jest.fn(async () => "main"),
+}));
 
 import { getRepoFileText, createOrUpdateFile } from "../infra/github/files";
 
