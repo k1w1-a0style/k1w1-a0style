@@ -92,4 +92,31 @@ describe("CI Lite workflow error normalization", () => {
     expect(message).toMatch(/mehrere frische Kandidaten/i);
     expect(message).toMatch(/keine eindeutige Zuordnung/i);
   });
+
+  it("maps dispatch 422 trigger unavailable to retry wait guidance", () => {
+    const normalized = normalizeCiLiteWorkflowError({
+      context: "dispatch",
+      statusCode: 422,
+      payload: {
+        code: "workflow_dispatch_trigger_unavailable",
+        details: { githubMessage: "Workflow does not have 'workflow_dispatch' trigger" },
+      },
+    });
+    expect(normalized.code).toBe("workflow_dispatch_trigger_unavailable");
+    expect(normalized.userMessage).toMatch(/30–60 Sekunden warten/i);
+  });
+
+  it("maps dispatch missing workflow trigger to repair hint", () => {
+    const normalized = normalizeCiLiteWorkflowError({
+      context: "dispatch",
+      statusCode: 422,
+      payload: {
+        code: "workflow_dispatch_missing",
+        details: { defaultBranchHasWorkflowDispatch: false },
+      },
+    });
+    expect(normalized.code).toBe("workflow_dispatch_missing");
+    expect(normalized.userMessage).toMatch(/Repair ausführen/i);
+  });
+
 });

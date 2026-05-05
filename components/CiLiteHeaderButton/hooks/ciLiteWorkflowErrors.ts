@@ -5,6 +5,8 @@ import {
 } from "../../../screens/CredentialsWizardScreen/utils/localAdminKey";
 
 export type CiLiteWorkflowErrorCode =
+  | "workflow_dispatch_trigger_unavailable"
+  | "workflow_dispatch_missing"
   | "missing_github_token"
   | "invalid_or_missing_local_admin_key"
   | "workflow_not_found"
@@ -83,6 +85,7 @@ function collectStrings(payload: JsonRecord | null): string[] {
       : [];
 
   return [
+    readString(payload.code),
     readString(payload.error),
     readString(payload.message),
     readString(payload.hint),
@@ -234,6 +237,24 @@ export function normalizeCiLiteWorkflowError(
 
 
 
+
+  if (params.context === "dispatch" && (combined.includes("workflow_dispatch_trigger_unavailable") || combined.includes("does not have 'workflow_dispatch'"))) {
+    return {
+      code: "workflow_dispatch_trigger_unavailable",
+      statusCode: params.statusCode ?? null,
+      detail: normalizedDetail,
+      userMessage: "CI Lite kann noch nicht gestartet werden: GitHub hat den Workflow noch nicht für workflow_dispatch indexiert. Bitte 30–60 Sekunden warten und erneut starten.",
+    };
+  }
+
+  if (params.context === "dispatch" && (combined.includes("workflow_dispatch_missing") || combined.includes("defaultbranchhasworkflowdispatch") || combined.includes("targetbranchhasworkflowdispatch"))) {
+    return {
+      code: "workflow_dispatch_missing",
+      statusCode: params.statusCode ?? null,
+      detail: normalizedDetail,
+      userMessage: "CI Lite kann nicht gestartet werden: Workflow-Datei fehlt oder ist noch nicht dispatchbar. Bitte Repair ausführen.",
+    };
+  }
   if (
     combined.includes("missing github token") ||
     combined.includes("github token for artifact lookup") ||
