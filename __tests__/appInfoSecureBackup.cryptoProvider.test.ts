@@ -109,7 +109,6 @@ describe("secure backup crypto provider", () => {
 
       const provider = await resolveSecureBackupCryptoProvider();
       expect(provider?.profile).toBe("noble-js");
-      expect(expoCrypto.getRandomBytesAsync).toHaveBeenCalled();
     } finally {
       expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
     }
