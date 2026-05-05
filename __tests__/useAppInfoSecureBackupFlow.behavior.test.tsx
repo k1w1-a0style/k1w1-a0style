@@ -120,4 +120,71 @@ describe("useAppInfoSecureBackupFlow behavior", () => {
     expect(alertSpy.mock.calls.some((call) => call[0] === "Fehler beim gesicherten Backup"
       && call[1] === "Backup-Datei ist beschädigt oder kein gültiges JSON.")).toBe(true);
   });
+
+  it("shows success alert on secure export", async () => {
+    exportEncryptedScopedBackup.mockResolvedValueOnce({ fileName: "k1w1-secure-backup.json" });
+    const { result } = renderFlow();
+
+    await act(async () => {
+      result.current.handleExportSecretsBackup();
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitSecureBackupPassphrase("correct-horse");
+    });
+
+    expect(alertSpy.mock.calls.some((call) => call[0] === "✅ Export erfolgreich"
+      && String(call[1]).includes("wurde verschlüsselt"))).toBe(true);
+  });
+
+  it("shows success alert on secure import", async () => {
+    importEncryptedScopedBackup.mockResolvedValueOnce({
+      exportDate: "2026-05-05T00:00:00.000Z",
+      needsCryptoUpgrade: false,
+      data: {
+        kind: "secret-snapshot",
+        version: 1,
+        exportDate: "2026-05-05T00:00:00.000Z",
+        connections: {
+          supabaseRaw: "https://example.supabase.co\nANON=abc",
+          supabaseUrl: "https://example.supabase.co",
+          supabaseAnonKey: "sb-anon",
+          easProjectId: "project-123",
+        },
+        tokens: {
+          githubToken: null,
+          expoToken: null,
+          workflowAdminKey: null,
+          androidKeystoreExportAdminKey: null,
+          legacyEdgeAdminKey: null,
+          signingAdminKey: null,
+          signingMasterKey: null,
+        },
+        ciSecrets: {},
+        github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+      },
+    });
+
+    const { result } = renderFlow();
+
+    await act(async () => {
+      result.current.handleImportSecureBackup();
+    });
+
+    const confirmCall = [...alertSpy.mock.calls].reverse().find((call) => String(call[0]).includes("Gesichertes Backup importieren"));
+    const confirmButtons = (confirmCall?.[2] ?? []) as Array<{ text?: string; onPress?: () => void }>;
+    const continueButton = confirmButtons.find((button) => button.text === "Weiter");
+
+    await act(async () => {
+      continueButton?.onPress?.();
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitSecureBackupPassphrase("correct-horse");
+    });
+
+    expect(alertSpy.mock.calls.some((call) => call[0] === "✅ Import erfolgreich"
+      && String(call[1]).includes("Gesichertes Backup wurde importiert."))).toBe(true);
+  });
+
 });
