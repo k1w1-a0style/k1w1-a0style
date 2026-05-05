@@ -72,5 +72,6 @@ jobs:
   ci:
     needs: resolve
     uses: ./.github/workflows/ci-core.yml
+    secrets: inherit
     with:
       ref: ${{ needs.resolve.outputs.ref }}

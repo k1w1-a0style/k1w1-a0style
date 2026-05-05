@@ -12,6 +12,9 @@ on:
         required: false
         type: string
         default: "20"
+    secrets:
+      EAS_PROJECT_ID:
+        required: false
 
 jobs:
   ci:
@@ -54,6 +57,9 @@ jobs:
 
       - name: Expo config smoke test (projectId present)
         shell: bash
+        env:
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID || secrets.EAS_PROJECT_ID || '' }}
+          EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID || secrets.EAS_PROJECT_ID || '' }}
         run: |
           set -euo pipefail
           npx --no-install expo config --json > /tmp/expo-config.json
