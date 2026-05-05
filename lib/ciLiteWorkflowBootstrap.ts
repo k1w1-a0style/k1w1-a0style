@@ -56,6 +56,29 @@ export function isLocalGithubAuthUnavailableError(message: string): boolean {
   );
 }
 
+
+export function isBranchOrRepoMissingError(message: string): boolean {
+  const lower = String(message || "").toLowerCase();
+  return (
+    /\b404\b/.test(lower) ||
+    lower.includes("not found") ||
+    lower.includes("branch oder repo nicht gefunden") ||
+    lower.includes("repository nicht gefunden") ||
+    lower.includes("base-branch nicht gefunden") ||
+    lower.includes("branch not found") ||
+    lower.includes("repo not found")
+  );
+}
+
+function sanitizeBootstrapErrorMessage(message: string): string {
+  return String(message || "unknown error")
+    .replace(/\r\n/g, "\n")
+    .replace(/\bBearer\s+[^\s"']+/gi, "Bearer [REDACTED_TOKEN]")
+    .replace(/\bgh[pousr]_[A-Za-z0-9_]+\b/g, "[REDACTED_TOKEN]")
+    .replace(/\b((?:token|secret|password|api[_-]?key|authorization)\s*[:=]\s*)[^\s,;]+/gi, "$1[REDACTED_SECRET]")
+    .slice(0, 500);
+}
+
 function buildTokenlessResult(base: Omit<CiLiteWorkflowBootstrapResult, "status" | "warning">): CiLiteWorkflowBootstrapResult {
   return {
     status: "skipped_tokenless",
@@ -128,7 +151,10 @@ export async function ensureCiLiteWorkflowBootstrap(params: {
     if (isLocalGithubAuthUnavailableError(message)) {
       return buildTokenlessResult(base);
     }
-    throw new Error(`CI-Lite target branch '${targetBranch}' does not exist or is not readable.`);
+    if (isBranchOrRepoMissingError(message)) {
+      throw new Error(`CI-Lite target branch '${targetBranch}' does not exist or is not readable.`);
+    }
+    throw new Error(`CI-Lite target branch validation failed: ${sanitizeBootstrapErrorMessage(message)}`);
   }
 
   let defaultBranch: string;

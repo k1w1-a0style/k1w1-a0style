@@ -72,6 +72,113 @@ async function readWorkflowContent(owner: string, repo: string, token: string, b
   if (!c) return null;
   try { return atob(c.replace(/\n/g, "")); } catch { return null; }
 }
+
+type WorkflowDispatchDiagnostic = {
+  code: "workflow_dispatch_trigger_unavailable" | "workflow_dispatch_missing" | "workflow_definition_missing";
+  error: string;
+  details: {
+    githubRepo: string;
+    workflow: string;
+    targetRef: string;
+    defaultBranch: string | null;
+    workflowIndexed: boolean;
+    defaultBranchWorkflowExists: boolean;
+    defaultBranchHasWorkflowDispatch: boolean;
+    targetBranchWorkflowExists: boolean;
+    targetBranchHasWorkflowDispatch: boolean;
+    githubMessage: string;
+    retryable: boolean;
+    recommendedWaitSeconds: number;
+    hint: string;
+  };
+};
+
+function hasWorkflowDispatchTrigger(content: string | null): boolean {
+  return Boolean(content && content.includes("workflow_dispatch:"));
+}
+
+function isWorkflowDispatchTriggerUnavailable(details: { message?: string; error?: string; githubMessage?: string }, rawText: string): boolean {
+  const combined = [details.message, details.error, details.githubMessage, rawText]
+    .filter((entry): entry is string => typeof entry === "string")
+    .join(" | ")
+    .toLowerCase();
+  return combined.includes("does not have 'workflow_dispatch'") || combined.includes('does not have "workflow_dispatch"');
+}
+
+function buildWorkflowDispatchDiagnostic(params: {
+  owner: string;
+  repo: string;
+  workflowFile: string;
+  targetRef: string;
+  defaultBranch: string | null;
+  workflowIndexed: boolean;
+  defaultContent: string | null;
+  targetContent: string | null;
+  githubMessage: string;
+}): WorkflowDispatchDiagnostic {
+  const defaultBranchWorkflowExists = Boolean(params.defaultContent);
+  const targetBranchWorkflowExists = Boolean(params.targetContent);
+  const defaultBranchHasWorkflowDispatch = hasWorkflowDispatchTrigger(params.defaultContent);
+  const targetBranchHasWorkflowDispatch = hasWorkflowDispatchTrigger(params.targetContent);
+
+  const baseDetails = {
+    githubRepo: `${params.owner}/${params.repo}`,
+    workflow: params.workflowFile,
+    targetRef: params.targetRef,
+    defaultBranch: params.defaultBranch,
+    workflowIndexed: params.workflowIndexed,
+    defaultBranchWorkflowExists,
+    defaultBranchHasWorkflowDispatch,
+    targetBranchWorkflowExists,
+    targetBranchHasWorkflowDispatch,
+    githubMessage: params.githubMessage,
+  };
+
+  if (!defaultBranchWorkflowExists || !targetBranchWorkflowExists) {
+    return {
+      code: "workflow_definition_missing",
+      error: "GitHub workflow definition is missing or not readable.",
+      details: {
+        ...baseDetails,
+        retryable: false,
+        recommendedWaitSeconds: 0,
+        hint: "Run CI Lite Repair/Provisioning so the managed workflow file exists on the workflow definition branch and target branch.",
+      },
+    };
+  }
+
+  if (!defaultBranchHasWorkflowDispatch || !targetBranchHasWorkflowDispatch) {
+    return {
+      code: "workflow_dispatch_missing",
+      error: "GitHub workflow is missing the workflow_dispatch trigger.",
+      details: {
+        ...baseDetails,
+        retryable: false,
+        recommendedWaitSeconds: 0,
+        hint: "Run CI Lite Repair so the managed workflow contains workflow_dispatch.",
+      },
+    };
+  }
+
+  return {
+    code: "workflow_dispatch_trigger_unavailable",
+    error: "GitHub workflow_dispatch is not available for this workflow yet.",
+    details: {
+      ...baseDetails,
+      retryable: true,
+      recommendedWaitSeconds: 60,
+      hint: "GitHub Actions may still be indexing the workflow; wait and retry dispatch.",
+    },
+  };
+}
+
+function workflowDispatchDiagnosticResponse(diagnostic: WorkflowDispatchDiagnostic, req: Request): Response {
+  const response = jsonResponse({ ok: false, ...diagnostic }, req, 422);
+  if (diagnostic.details.retryable && diagnostic.details.recommendedWaitSeconds > 0) {
+    response.headers.set("Retry-After", String(diagnostic.details.recommendedWaitSeconds));
+  }
+  return response;
+}
 const ALLOWED_WORKFLOW_ALIASES: Record<string, string> = {
   "ci": "k1w1-ci-lite.yml",
   "ci-lite": "k1w1-ci-lite.yml",
@@ -227,30 +334,24 @@ Deno.serve(async (req) => {
         );
       }
 
-      if (status === 422 && String(details?.message || "").includes("does not have 'workflow_dispatch'")) {
+      if (status === 422 && isWorkflowDispatchTriggerUnavailable(details, txt)) {
+        const workflowFile = candidates[0];
         const defaultBranch = await getRepoDefaultBranch(owner, repo, token);
-        const defaultContent = defaultBranch ? await readWorkflowContent(owner, repo, token, defaultBranch, candidates[0]) : null;
-        const targetContent = await readWorkflowContent(owner, repo, token, ref, candidates[0]);
-        const indexedId = await findWorkflowIdByPath(owner, repo, token, candidates[0]);
-        return jsonResponse({
-          ok: false,
-          code: "workflow_dispatch_trigger_unavailable",
-          error: "GitHub workflow_dispatch is not available for this workflow yet.",
-          details: {
-            githubRepo: `${owner}/${repo}`,
-            workflow: candidates[0],
-            targetRef: ref,
-            defaultBranch,
-            workflowIndexed: Boolean(indexedId),
-            defaultBranchWorkflowExists: Boolean(defaultContent),
-            defaultBranchHasWorkflowDispatch: Boolean(defaultContent && defaultContent.includes("workflow_dispatch:")),
-            targetBranchWorkflowExists: Boolean(targetContent),
-            targetBranchHasWorkflowDispatch: Boolean(targetContent && targetContent.includes("workflow_dispatch:")),
-            githubMessage: details?.message || "",
-            retryable: true,
-            recommendedWaitSeconds: 60,
-          },
-        }, req, 422);
+        const defaultContent = defaultBranch ? await readWorkflowContent(owner, repo, token, defaultBranch, workflowFile) : null;
+        const targetContent = defaultBranch === ref && defaultContent ? defaultContent : await readWorkflowContent(owner, repo, token, ref, workflowFile);
+        const indexedId = await findWorkflowIdByPath(owner, repo, token, workflowFile);
+        const diagnostic = buildWorkflowDispatchDiagnostic({
+          owner,
+          repo,
+          workflowFile,
+          targetRef: ref,
+          defaultBranch,
+          workflowIndexed: Boolean(indexedId),
+          defaultContent,
+          targetContent,
+          githubMessage: details?.message || txt,
+        });
+        return workflowDispatchDiagnosticResponse(diagnostic, req);
       }
       return errorResponse("GitHub workflow dispatch failed", req, status, details);
     }

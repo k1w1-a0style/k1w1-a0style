@@ -1125,7 +1125,7 @@ describe("useCiLiteWorkflow behavior", () => {
       await result.current.dispatchWorkflow(WORKFLOW_CI_LITE);
     });
 
-    expect(result.current.showError).toMatch(/Workflow-Datei\/Workflow .* nicht gefunden/i);
+    expect(result.current.showError).toMatch(/Repair ausführen/i);
     expect(result.current.showError).not.toMatch(/github-workflow-dispatch failed/i);
   });
 

@@ -33,7 +33,8 @@ describe("CI Lite workflow error normalization", () => {
     });
 
     expect(normalized.code).toBe("workflow_not_found");
-    expect(normalized.userMessage).toMatch(/Workflow-Datei\/Workflow .* nicht gefunden/i);
+    expect(normalized.userMessage).toMatch(/Repair ausführen/i);
+    expect(normalized.userMessage).not.toMatch(/30–60 Sekunden warten/i);
   });
 
   it("prioritizes local admin-key diagnosis over generic upstream errors", () => {
@@ -116,7 +117,23 @@ describe("CI Lite workflow error normalization", () => {
       },
     });
     expect(normalized.code).toBe("workflow_dispatch_missing");
+    expect(normalized.userMessage).toMatch(/enthält kein workflow_dispatch/i);
     expect(normalized.userMessage).toMatch(/Repair ausführen/i);
+    expect(normalized.userMessage).not.toMatch(/30–60 Sekunden warten/i);
+  });
+
+  it("does not let generic GitHub 422 trigger text override workflow_dispatch_missing", () => {
+    const normalized = normalizeCiLiteWorkflowError({
+      context: "dispatch",
+      statusCode: 422,
+      payload: {
+        code: "workflow_dispatch_missing",
+        details: { githubMessage: "Workflow does not have 'workflow_dispatch' trigger" },
+      },
+    });
+    expect(normalized.code).toBe("workflow_dispatch_missing");
+    expect(normalized.userMessage).toMatch(/Repair ausführen/i);
+    expect(normalized.userMessage).not.toMatch(/30–60 Sekunden warten/i);
   });
 
 });

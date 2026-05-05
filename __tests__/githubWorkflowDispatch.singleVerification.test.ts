@@ -300,4 +300,120 @@ describe("github-workflow-dispatch single JWT verification contract", () => {
     expect(response.status).toBe(400);
     await expect(response.text()).resolves.toContain("disallowed_workflow_identifier");
   });
+
+  const dispatchRequest = (authToken: string, ref = "main") => new Request("http://localhost/github-workflow-dispatch", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${authToken}`,
+      "x-forwarded-for": "198.51.100.20, 10.0.0.1",
+    },
+    body: JSON.stringify({
+      githubRepo: "owner/repo",
+      workflow: "k1w1-ci-lite.yml",
+      ref,
+      inputs: {},
+    }),
+  });
+
+  const dispatchEnv = {
+    ENVIRONMENT: "development",
+    K1W1_EDGE_WORKFLOW_ADMIN_KEY: "admin-secret",
+    K1W1_SUPABASE_URL: "https://example.supabase.co",
+    K1W1_SUPABASE_SERVICE_ROLE_KEY: "service-role",
+    GITHUB_TOKEN: "ghp_secretTokenMustNotLeak12345",
+    K1W1_ALLOWED_GITHUB_REPOS: "owner/repo",
+    K1W1_ALLOWED_REF_REGEX: "^(main|feature/a)$",
+    K1W1_TRUSTED_PROXY_HOPS: "1",
+  };
+
+  const workflowContentResponse = (content: string) => new Response(JSON.stringify({
+    content: Buffer.from(content).toString("base64"),
+  }), { status: 200 });
+
+  it("returns retryable workflow_dispatch_trigger_unavailable when files contain workflow_dispatch", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+    const workflowContent = "name: CI\non:\n  workflow_dispatch:\n";
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "verified-user-id" }), { status: 200 });
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) return new Response(JSON.stringify([{ allowed: true }]), { status: 200 });
+      if (url.includes("/actions/workflows?")) return new Response(JSON.stringify({ workflows: [{ id: 77, path: ".github/workflows/k1w1-ci-lite.yml" }] }), { status: 200 });
+      if (url.includes("/actions/workflows/77/dispatches") || url.includes("/actions/workflows/k1w1-ci-lite.yml/dispatches")) return new Response(JSON.stringify({ message: "Workflow does not have 'workflow_dispatch' trigger" }), { status: 422 });
+      if (url.includes("/contents/.github/workflows/k1w1-ci-lite.yml")) return workflowContentResponse(workflowContent);
+      if (url.endsWith("/repos/owner/repo")) return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const response = await withEnv(dispatchEnv, () => loadDispatchHandler()(dispatchRequest(authToken, "feature/a")));
+    const payload = await response.json();
+    expect(response.status).toBe(422);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(payload.code).toBe("workflow_dispatch_trigger_unavailable");
+    expect(payload.details.retryable).toBe(true);
+    expect(payload.details.recommendedWaitSeconds).toBe(60);
+    expect(payload.details.defaultBranch).toBe("main");
+    expect(payload.details.workflowIndexed).toBe(true);
+    expect(payload.details.defaultBranchWorkflowExists).toBe(true);
+    expect(payload.details.defaultBranchHasWorkflowDispatch).toBe(true);
+    expect(payload.details.targetBranchWorkflowExists).toBe(true);
+    expect(payload.details.targetBranchHasWorkflowDispatch).toBe(true);
+    expect(JSON.stringify(payload)).not.toContain("ghp_secretTokenMustNotLeak12345");
+  });
+
+  it("returns workflow_dispatch_missing when default branch file lacks workflow_dispatch", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "verified-user-id" }), { status: 200 });
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) return new Response(JSON.stringify([{ allowed: true }]), { status: 200 });
+      if (url.includes("/actions/workflows?")) return new Response(JSON.stringify({ workflows: [{ id: 77, path: ".github/workflows/k1w1-ci-lite.yml" }] }), { status: 200 });
+      if (url.includes("/actions/workflows/77/dispatches") || url.includes("/actions/workflows/k1w1-ci-lite.yml/dispatches")) return new Response(JSON.stringify({ message: "Workflow does not have 'workflow_dispatch' trigger" }), { status: 422 });
+      if (url.includes("ref=main")) return workflowContentResponse("name: CI\non:\n  push:\n");
+      if (url.includes("ref=feature%2Fa")) return workflowContentResponse("name: CI\non:\n  workflow_dispatch:\n");
+      if (url.endsWith("/repos/owner/repo")) return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const response = await withEnv(dispatchEnv, () => loadDispatchHandler()(dispatchRequest(authToken, "feature/a")));
+    const payload = await response.json();
+    expect(response.status).toBe(422);
+    expect(response.headers.get("Retry-After")).toBeNull();
+    expect(payload.code).toBe("workflow_dispatch_missing");
+    expect(payload.details.retryable).toBe(false);
+    expect(payload.details.recommendedWaitSeconds).toBe(0);
+    expect(payload.details.defaultBranchHasWorkflowDispatch).toBe(false);
+    expect(payload.details.targetBranchHasWorkflowDispatch).toBe(true);
+    expect(payload.details.hint).toMatch(/Repair/i);
+    expect(JSON.stringify(payload)).not.toContain("ghp_secretTokenMustNotLeak12345");
+  });
+
+  it("returns workflow_definition_missing when workflow file cannot be read", async () => {
+    const authToken = makeJwt({ role: "build_admin", sub: "verified-subject" });
+
+    global.fetch = jest.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/auth/v1/user")) return new Response(JSON.stringify({ id: "verified-user-id" }), { status: 200 });
+      if (url.includes("/rest/v1/rpc/enforce_edge_rate_limit")) return new Response(JSON.stringify([{ allowed: true }]), { status: 200 });
+      if (url.includes("/actions/workflows?")) return new Response(JSON.stringify({ workflows: [{ id: 77, path: ".github/workflows/k1w1-ci-lite.yml" }] }), { status: 200 });
+      if (url.includes("/actions/workflows/77/dispatches") || url.includes("/actions/workflows/k1w1-ci-lite.yml/dispatches")) return new Response(JSON.stringify({ message: "Workflow does not have 'workflow_dispatch' trigger" }), { status: 422 });
+      if (url.includes("/contents/.github/workflows/k1w1-ci-lite.yml")) return new Response("not-found", { status: 404 });
+      if (url.endsWith("/repos/owner/repo")) return new Response(JSON.stringify({ default_branch: "main" }), { status: 200 });
+      return new Response("not-found", { status: 404 });
+    }) as typeof fetch;
+
+    const response = await withEnv(dispatchEnv, () => loadDispatchHandler()(dispatchRequest(authToken, "feature/a")));
+    const payload = await response.json();
+    expect(response.status).toBe(422);
+    expect(response.headers.get("Retry-After")).toBeNull();
+    expect(payload.code).toBe("workflow_definition_missing");
+    expect(payload.details.retryable).toBe(false);
+    expect(payload.details.defaultBranchWorkflowExists).toBe(false);
+    expect(payload.details.targetBranchWorkflowExists).toBe(false);
+    expect(payload.details.hint).toMatch(/Repair|Provisioning/i);
+    expect(JSON.stringify(payload)).not.toContain("ghp_secretTokenMustNotLeak12345");
+  });
+
 });

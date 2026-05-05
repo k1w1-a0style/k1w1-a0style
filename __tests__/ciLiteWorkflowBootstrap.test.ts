@@ -70,8 +70,12 @@ describe("ensureCiLiteWorkflowBootstrap", () => {
     await expect(ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "main", workflowFile: "k1w1-ci-lite.yml" })).rejects.toThrow(/unmanaged/i);
   });
 
-  it("returns skipped_tokenless on localized auth failure", async () => {
-    mockHead.mockRejectedValueOnce(new Error("Keine Berechtigung. Token benötigt Repo-Write Rechte."));
+  it.each([
+    "GitHub Token ungültig.",
+    "Keine Berechtigung.",
+    "Keine Berechtigung. Token benötigt Repo-Write Rechte.",
+  ])("returns skipped_tokenless on localized branch auth failure: %s", async (message) => {
+    mockHead.mockRejectedValueOnce(new Error(message));
     const result = await ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "main", workflowFile: "k1w1-ci-lite.yml" });
     expect(result.status).toBe("skipped_tokenless");
   });
@@ -82,8 +86,28 @@ describe("ensureCiLiteWorkflowBootstrap", () => {
     expect(result.status).toBe("skipped_tokenless");
   });
 
-  it("throws on real branch missing", async () => {
-    mockHead.mockRejectedValueOnce(new Error("Branch oder Repo nicht gefunden."));
+  it.each([
+    "Branch oder Repo nicht gefunden.",
+    "404 not found",
+  ])("throws branch-missing only for real missing branch/repo errors: %s", async (message) => {
+    mockHead.mockRejectedValueOnce(new Error(message));
     await expect(ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "missing", workflowFile: "k1w1-ci-lite.yml" })).rejects.toThrow(/does not exist/i);
+  });
+
+  it.each([
+    "Branch-HEAD Fehler (500)",
+    "rate limit exceeded",
+    "network request failed",
+  ])("preserves upstream branch validation failures: %s", async (message) => {
+    mockHead.mockRejectedValueOnce(new Error(message));
+    try {
+      await ensureCiLiteWorkflowBootstrap({ owner: "o", repo: "r", branch: "main", workflowFile: "k1w1-ci-lite.yml" });
+      throw new Error("expected ensureCiLiteWorkflowBootstrap to reject");
+    } catch (error: unknown) {
+      const text = error instanceof Error ? error.message : String(error);
+      expect(text).toContain("CI-Lite target branch validation failed:");
+      expect(text).toContain(message);
+      expect(text).not.toMatch(/does not exist/i);
+    }
   });
 });

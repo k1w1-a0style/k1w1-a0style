@@ -142,7 +142,7 @@ function buildMissingGitHubTokenMessage(context: CiLiteWorkflowErrorContext): st
 
 function buildWorkflowNotFoundMessage(detail: string): string {
   const suffix = detail ? ` (${safeUi(detail)})` : "";
-  return `CI Lite Dispatch blockiert: Workflow-Datei/Workflow auf dem gewählten Branch nicht gefunden.${suffix}`;
+  return `CI Lite kann nicht gestartet werden: Workflow-Datei fehlt oder ist noch nicht dispatchbar. Bitte Repair ausführen.${suffix}`;
 }
 
 function buildForbiddenMessage(context: CiLiteWorkflowErrorContext, detail: string): string {
@@ -238,21 +238,21 @@ export function normalizeCiLiteWorkflowError(
 
 
 
+  if (params.context === "dispatch" && combined.includes("workflow_dispatch_missing")) {
+    return {
+      code: "workflow_dispatch_missing",
+      statusCode: params.statusCode ?? null,
+      detail: normalizedDetail,
+      userMessage: "CI Lite kann nicht gestartet werden: Workflow-Datei fehlt oder enthält kein workflow_dispatch. Bitte Repair ausführen.",
+    };
+  }
+
   if (params.context === "dispatch" && (combined.includes("workflow_dispatch_trigger_unavailable") || combined.includes("does not have 'workflow_dispatch'"))) {
     return {
       code: "workflow_dispatch_trigger_unavailable",
       statusCode: params.statusCode ?? null,
       detail: normalizedDetail,
       userMessage: "CI Lite kann noch nicht gestartet werden: GitHub hat den Workflow noch nicht für workflow_dispatch indexiert. Bitte 30–60 Sekunden warten und erneut starten.",
-    };
-  }
-
-  if (params.context === "dispatch" && (combined.includes("workflow_dispatch_missing") || combined.includes("defaultbranchhasworkflowdispatch") || combined.includes("targetbranchhasworkflowdispatch"))) {
-    return {
-      code: "workflow_dispatch_missing",
-      statusCode: params.statusCode ?? null,
-      detail: normalizedDetail,
-      userMessage: "CI Lite kann nicht gestartet werden: Workflow-Datei fehlt oder ist noch nicht dispatchbar. Bitte Repair ausführen.",
     };
   }
   if (
@@ -274,6 +274,7 @@ export function normalizeCiLiteWorkflowError(
     (params.statusCode === 404 ||
       combined.includes("workflow not found") ||
       combined.includes("workflow missing") ||
+      combined.includes("workflow_definition_missing") ||
       combined.includes("workflow-datei") ||
       combined.includes(".github/workflows"))
   ) {
