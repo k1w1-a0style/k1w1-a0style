@@ -247,6 +247,7 @@ export function renderFragmentBootstrapPage(params: { nonce: string }): string {
     <div id="err" class="err" role="alert" aria-live="polite"></div>
   </div>
   <script type="module" nonce="${nonce}">
+    const CSP_NONCE = ${JSON.stringify(nonce)};
     const errEl = document.getElementById("err");
     const writeError = (msg) => {
       if (!errEl) return;
@@ -291,8 +292,10 @@ export function renderFragmentBootstrapPage(params: { nonce: string }): string {
           if (!page.includes('data-k1w1-preview-context="isolated"')) {
             throw new Error("Preview bootstrap rejected unisolated HTML.");
           }
+          const noncePattern = /nonce=(["']).*?\\1/gi;
+          const normalizedPage = page.replace(noncePattern, 'nonce="' + CSP_NONCE + '"');
           document.open();
-          document.write(page);
+          document.write(normalizedPage);
           document.close();
         })
         .catch((err) => {

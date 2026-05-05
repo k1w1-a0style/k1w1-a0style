@@ -15,7 +15,7 @@ import { styles } from "./PreviewFullscreenScreen.styles";
 
 export default function PreviewFullscreenScreen() {
   const {
-    title, url, html, baseUrl,
+    title, url, html, baseUrl, webViewSource,
     mode, hasUrlParseError,
     originWhitelist,
     loading, error,
@@ -165,7 +165,7 @@ export default function PreviewFullscreenScreen() {
           startInLoadingState
           style={styles.webView}
           mixedContentMode={getPreviewMixedContentMode()}
-          source={mode === 'html' ? { html, baseUrl } : { uri: url! }}
+          source={webViewSource?.type === 'html' ? { html: webViewSource.html, baseUrl: webViewSource.baseUrl } : { uri: webViewSource?.type === 'url' ? webViewSource.uri : url!, headers: webViewSource?.type === 'url' ? webViewSource.headers : undefined }}
         />
         {loading && (
           <View style={styles.loadingOverlay}>
