@@ -51,4 +51,34 @@ describe("importExportErrorHelpers", () => {
       expect(isIgnorableImportExportCleanupError(new Error("permission denied"))).toBe(false);
     });
   });
+
+
+  describe("secure backup user-facing error contract", () => {
+    const fallback = "Gesichertes Backup fehlgeschlagen.";
+
+    it("keeps missing-provider fail-closed message visible", () => {
+      const message = getImportExportErrorMessage(
+        new Error("Gesichertes Backup ist auf diesem Gerät nicht verfügbar: Crypto-Provider fehlt."),
+        fallback,
+      );
+      expect(message).toContain("Crypto-Provider fehlt");
+    });
+
+    it("keeps wrong-passphrase message visible", () => {
+      const message = getImportExportErrorMessage(
+        new Error("Backup konnte nicht entschlüsselt werden. Passphrase prüfen."),
+        fallback,
+      );
+      expect(message).toBe("Backup konnte nicht entschlüsselt werden. Passphrase prüfen.");
+    });
+
+    it("keeps corrupted-file message visible", () => {
+      const message = getImportExportErrorMessage(
+        new Error("Backup-Datei ist beschädigt oder kein gültiges JSON."),
+        fallback,
+      );
+      expect(message).toBe("Backup-Datei ist beschädigt oder kein gültiges JSON.");
+    });
+  });
+
 });
