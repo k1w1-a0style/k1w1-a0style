@@ -18,6 +18,7 @@ concurrency:
 jobs:
   ci:
     uses: ./.github/workflows/ci-core.yml
-    secrets: inherit
+    secrets:
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
     with:
       ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
