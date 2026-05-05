@@ -7,7 +7,10 @@ import { getPreviewMixedContentMode } from '../../../hooks/previewHelpers';
 import type { PreviewPhase } from '../hooks/usePreviewScreen';
 import { s } from '../PreviewScreen.styles';
 
-type PreviewSource = { type: 'url'; uri: string } | { type: 'html'; html: string } | null;
+type PreviewSource =
+  | { type: 'url'; uri: string; headers?: Record<string, string> }
+  | { type: 'html'; html: string }
+  | null;
 
 type DeviceFrameProps = {
   webViewRef: React.RefObject<WebView | null>;
@@ -87,7 +90,7 @@ export function DeviceFrame({
               style={s.webView}
               source={
                 renderablePreviewSource.type === 'url'
-                  ? { uri: renderablePreviewSource.uri }
+                  ? { uri: renderablePreviewSource.uri, headers: renderablePreviewSource.headers }
                   : { html: renderablePreviewSource.html }
               }
               originWhitelist={originWhitelist}

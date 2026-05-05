@@ -22,6 +22,7 @@ import { isHttpUrl } from '../../../utils/url';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
 import { redactPreviewUrl } from '../../shared/preview/previewUrlRedaction';
+import { resolveWebViewPreviewSource } from '../../shared/preview/previewTransport';
 import type { WebView } from 'react-native-webview';
 import type { RootStackParamList } from '../../../types/preview';
 
@@ -113,6 +114,7 @@ export function usePreviewScreen() {
     }
     return null;
   }, [lastPreview, hasExpiredSupabaseUrl, remoteUrlStatus]);
+  const webViewPreviewSource = useMemo(() => resolveWebViewPreviewSource(previewSource), [previewSource]);
 
   const mode = previewSource?.type ?? null;
   const url = previewSource?.type === 'url' ? previewSource.uri : null;
@@ -140,7 +142,7 @@ export function usePreviewScreen() {
       resolvePreviewDisplayState({
         phase,
         previewKind: previewKind,
-        previewSourceType: previewSource?.type ?? null,
+        previewSourceType: webViewPreviewSource?.type ?? null,
         remoteUrlStatus,
         hasExpiredRemoteUrl: hasExpiredSupabaseUrl,
         remoteFailure: state.remoteFailure,
@@ -151,7 +153,7 @@ export function usePreviewScreen() {
     [
       phase,
       previewKind,
-      previewSource?.type,
+      webViewPreviewSource?.type,
       remoteUrlStatus,
       hasExpiredSupabaseUrl,
       state.remoteFailure,
@@ -172,9 +174,9 @@ export function usePreviewScreen() {
   }, [displayState.kind, previewKind]);
   const runtimeHint = useMemo(() => {
     const sourceKind = previewKind ?? 'none';
-    const sourceType = previewSource?.type ?? 'none';
+    const sourceType = webViewPreviewSource?.type ?? 'none';
     return `active=PreviewScreen source=${sourceKind}/${sourceType} state=${displayState.kind} phase=${phase}`;
-  }, [displayState.kind, phase, previewKind, previewSource?.type]);
+  }, [displayState.kind, phase, previewKind, webViewPreviewSource?.type]);
 
   // ─── Shared navigation (eliminiert Duplikat mit PreviewFullscreenScreen) ──
   const { originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
@@ -268,13 +270,13 @@ export function usePreviewScreen() {
     if (autoCreated) return;
     if (isLoading || !projectData) return;
     if (autoCreateDismissedByResetRef.current) return;
-    if (previewSource) {
+    if (webViewPreviewSource) {
       lastFingerprintRef.current = filesFingerprint;
       return;
     }
     setAutoCreated(true);
     handleCreate();
-  }, [isLoading, projectData, previewSource, autoCreated, handleCreate, filesFingerprint]);
+  }, [isLoading, projectData, webViewPreviewSource, autoCreated, handleCreate, filesFingerprint]);
 
   // ─── Hot Reload ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -419,7 +421,7 @@ export function usePreviewScreen() {
     isLoading,
     state,
     lastPreview,
-    previewSource,
+    previewSource: webViewPreviewSource,
     previewKind,
     previewUrl,
     previewUrlDisplay,

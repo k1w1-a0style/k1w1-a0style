@@ -10,6 +10,7 @@ import { getPreviewRemoteUrlStatus } from '../../../hooks/previewHelpers';
 import { useWebViewNavigation } from '../../shared/preview/useWebViewNavigation';
 import { useWebViewCrashRecovery } from '../../shared/preview/useWebViewCrashRecovery';
 import { redactPreviewUrl } from '../../shared/preview/previewUrlRedaction';
+import { resolveWebViewPreviewSource } from '../../shared/preview/previewTransport';
 import { logger } from '../../../lib/logger';
 import type { RootStackParamList } from '../../../types/preview';
 
@@ -71,6 +72,12 @@ export function usePreviewFullscreen() {
       return true;
     }
   }, [mode, url]);
+
+  const webViewSource = useMemo(() => {
+    if (mode === 'html') return resolveWebViewPreviewSource({ type: 'html', html, baseUrl });
+    if (mode === 'url' && url) return resolveWebViewPreviewSource({ type: 'url', uri: url });
+    return null;
+  }, [mode, html, baseUrl, url]);
 
   // ─── Shared WebView navigation ─────────────────────────────────────────────
   const { baseOrigin, originWhitelist, handleShouldStartLoad } = useWebViewNavigation({
@@ -219,7 +226,7 @@ export function usePreviewFullscreen() {
   );
 
   return {
-    title, url, html, baseUrl,
+    title, url, html, baseUrl, webViewSource,
     mode,
     hasUrlParseError,
     baseOrigin,
