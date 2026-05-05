@@ -1,6 +1,9 @@
 import { Buffer } from "buffer";
 import * as SecureStore from "expo-secure-store";
-import { resolveRawAesGcmCryptoProvider } from "../../lib/appInfoScopedBackup.cryptoProvider";
+import {
+  resolveRawAesGcmCryptoProviderForDecrypt,
+  resolveRawAesGcmCryptoProviderForEncrypt,
+} from "../../lib/appInfoScopedBackup.cryptoProvider";
 
 const PROJECT_STORAGE_ENCRYPTION_KEY = "k1w1_project_storage_key_v1";
 const ENCRYPTED_PROJECT_BLOB_TYPE = "k1w1-project-storage";
@@ -25,9 +28,17 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 async function requireProjectStorageCryptoProvider() {
-  const provider = await resolveRawAesGcmCryptoProvider();
+  const provider = await resolveRawAesGcmCryptoProviderForEncrypt();
   if (!provider) {
     throw new Error("Projekt-Persistenz-Crypto-Provider fehlt auf diesem Gerät.");
+  }
+  return provider;
+}
+
+async function requireProjectStorageDecryptCryptoProvider() {
+  const provider = await resolveRawAesGcmCryptoProviderForDecrypt();
+  if (!provider) {
+    throw new Error("Projekt-Persistenz-Decrypt-Crypto-Provider fehlt auf diesem Gerät.");
   }
   return provider;
 }
@@ -113,7 +124,7 @@ export async function decryptProjectStoragePayload(serialized: string): Promise<
     throw new Error("Projektzustand ist nicht im erwarteten verschlüsselten Format gespeichert.");
   }
 
-  const provider = await requireProjectStorageCryptoProvider();
+  const provider = await requireProjectStorageDecryptCryptoProvider();
   const key = await getExistingProjectStorageKeyBytesOrThrow();
   const iv = base64ToBytes(parsed.ivBase64);
   const ciphertext = base64ToBytes(parsed.ciphertextBase64);

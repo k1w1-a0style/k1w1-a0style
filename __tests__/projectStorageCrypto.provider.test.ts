@@ -61,6 +61,21 @@ describe("project storage crypto provider fallback", () => {
     await expect(decryptProjectStoragePayload(encrypted)).rejects.toThrow(/Schluessel fehlt/i);
   });
 
+  test("decrypt still works when RNG is unavailable but key and decrypt crypto are available", async () => {
+    setCrypto(webcrypto);
+    const encrypted = await encryptProjectStoragePayload('{"name":"decrypt-only"}');
+
+    const expoCrypto = jest.requireMock("expo-crypto");
+    const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
+    expoCrypto.getRandomBytesAsync = jest.fn(async () => {
+      throw new Error("rng unavailable");
+    });
+    setCrypto({ subtle: webcrypto.subtle });
+
+    await expect(decryptProjectStoragePayload(encrypted)).resolves.toBe('{"name":"decrypt-only"}');
+    expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
+  });
+
   test("deserialize legacy plaintext marks migration", async () => {
     const raw = '{"name":"legacy"}';
     const parsed = await deserializeProjectStoragePayload(raw);

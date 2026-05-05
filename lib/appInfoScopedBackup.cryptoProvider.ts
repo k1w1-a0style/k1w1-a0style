@@ -41,10 +41,10 @@ async function hasSecureRandomBytes(): Promise<boolean> {
       try {
         const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
         await expoCrypto.getRandomBytesAsync(1);
+        return true;
       } catch {
-        // keep probe tolerant
+        return false;
       }
-      return true;
     }
   }
 
@@ -101,9 +101,14 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
   isAvailable: probeWebCryptoCapability,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
-      return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      try {
+        return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      } catch {
+        const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
+        return expoCrypto.getRandomBytesAsync(length);
+      }
     }
-    const expoCrypto = await import("expo-crypto");
+    const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
     return expoCrypto.getRandomBytesAsync(length);
   },
   async deriveAesGcmKey({ passphrase, salt, iterations }) {
@@ -143,15 +148,33 @@ const webCryptoRawProvider: RawAesGcmCryptoProvider = {
   },
 };
 
+async function probeWebCryptoRawDecryptCapability(): Promise<boolean> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return false;
+  try {
+    const key = await subtle.importKey("raw", new Uint8Array(32), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const ciphertext = await subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(12) }, key, new Uint8Array([1, 2, 3]));
+    const plain = await subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(12) }, key, ciphertext);
+    return new Uint8Array(plain).length === 3;
+  } catch {
+    return false;
+  }
+}
+
 const nobleProvider: SecureBackupCryptoProvider = {
   name: "noble-js-aes-gcm-pbkdf2",
   profile: "noble-js",
   isAvailable: hasSecureRandomBytes,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
-      return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      try {
+        return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      } catch {
+        const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
+        return expoCrypto.getRandomBytesAsync(length);
+      }
     }
-    const expoCrypto = await import("expo-crypto");
+    const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
     return expoCrypto.getRandomBytesAsync(length);
   },
   async deriveAesGcmKey({ passphrase, salt, iterations }) {
@@ -189,7 +212,17 @@ export async function resolveSecureBackupCryptoProvider(): Promise<SecureBackupC
 }
 
 export async function resolveRawAesGcmCryptoProvider(): Promise<RawAesGcmCryptoProvider | null> {
+  return resolveRawAesGcmCryptoProviderForEncrypt();
+}
+
+export async function resolveRawAesGcmCryptoProviderForEncrypt(): Promise<RawAesGcmCryptoProvider | null> {
   if (await webCryptoRawProvider.isAvailable()) return webCryptoRawProvider;
   if (await nobleRawProvider.isAvailable()) return nobleRawProvider;
+  return null;
+}
+
+export async function resolveRawAesGcmCryptoProviderForDecrypt(): Promise<RawAesGcmCryptoProvider | null> {
+  if (await probeWebCryptoRawDecryptCapability()) return webCryptoRawProvider;
+  if (nobleRawProvider) return nobleRawProvider;
   return null;
 }

@@ -1,6 +1,9 @@
 import { webcrypto } from "crypto";
 
-import { resolveSecureBackupCryptoProvider } from "../lib/appInfoScopedBackup.cryptoProvider";
+import {
+  resolveRawAesGcmCryptoProviderForEncrypt,
+  resolveSecureBackupCryptoProvider,
+} from "../lib/appInfoScopedBackup.cryptoProvider";
 import {
   createSecretBackupPayload,
   decryptScopedBackup,
@@ -125,6 +128,11 @@ describe("secure backup crypto provider", () => {
       setCrypto(undefined);
       const provider = await resolveSecureBackupCryptoProvider();
       expect(provider).toBeNull();
+      const rawEncryptProvider = await resolveRawAesGcmCryptoProviderForEncrypt();
+      expect(rawEncryptProvider).toBeNull();
+
+      const status = await getSecureBackupCryptoRuntimeStatus();
+      expect(status.available).toBe(false);
     } finally {
       expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
     }
