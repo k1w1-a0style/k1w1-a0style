@@ -27,6 +27,21 @@ describe("secure backup crypto provider", () => {
     expect(status.providerName).toBe("webcrypto-subtle");
   });
 
+
+
+  test("falls back to noble when subtle exists but required methods are missing", async () => {
+    const webcrypto = require("crypto").webcrypto;
+    Object.defineProperty(global, "crypto", {
+      value: {
+        getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
+        subtle: {},
+      },
+      configurable: true,
+    });
+    const provider = await resolveSecureBackupCryptoProvider();
+    expect(provider?.profile).toBe("noble-js");
+  });
+
   test("uses noble-js provider when subtle is unavailable", async () => {
     Object.defineProperty(global, "crypto", { value: { getRandomValues: require("crypto").webcrypto.getRandomValues.bind(require("crypto").webcrypto) }, configurable: true });
     const provider = await resolveSecureBackupCryptoProvider();

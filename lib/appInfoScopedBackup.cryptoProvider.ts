@@ -1,5 +1,5 @@
 import { gcm } from "@noble/ciphers/aes";
-import { pbkdf2 } from "@noble/hashes/pbkdf2";
+import { pbkdf2Async } from "@noble/hashes/pbkdf2";
 import { sha256 } from "@noble/hashes/sha2";
 import { toBufferSource } from "./appInfoScopedBackup.cryptoHelpers";
 
@@ -25,9 +25,18 @@ function isLikelyCryptoKey(value: SecureBackupAesKey): value is CryptoKey {
 const webCryptoProvider: SecureBackupCryptoProvider = {
   name: "webcrypto-subtle",
   profile: "webcrypto",
-  isAvailable: () => Boolean(globalThis.crypto?.subtle),
+  isAvailable: () => {
+    const subtle = globalThis.crypto?.subtle as Partial<SubtleCrypto> | undefined;
+    return Boolean(
+      subtle
+      && typeof subtle.importKey === "function"
+      && typeof subtle.deriveKey === "function"
+      && typeof subtle.encrypt === "function"
+      && typeof subtle.decrypt === "function",
+    );
+  },
   async getRandomBytes(length) {
-    if (globalThis.crypto?.getRandomValues) {
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
       return globalThis.crypto.getRandomValues(new Uint8Array(length));
     }
     const expoCrypto = await import("expo-crypto");
@@ -54,16 +63,27 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
 const nobleProvider: SecureBackupCryptoProvider = {
   name: "noble-js-aes-gcm-pbkdf2",
   profile: "noble-js",
-  isAvailable: () => true,
+  async isAvailable() {
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
+      return true;
+    }
+    try {
+      const expoCrypto = await import("expo-crypto");
+      await expoCrypto.getRandomBytesAsync(1);
+      return true;
+    } catch {
+      return false;
+    }
+  },
   async getRandomBytes(length) {
-    if (globalThis.crypto?.getRandomValues) {
+    if (typeof globalThis.crypto?.getRandomValues === "function") {
       return globalThis.crypto.getRandomValues(new Uint8Array(length));
     }
     const expoCrypto = await import("expo-crypto");
     return expoCrypto.getRandomBytesAsync(length);
   },
   async deriveAesGcmKey({ passphrase, salt, iterations }) {
-    return pbkdf2(sha256, new TextEncoder().encode(passphrase), salt, { c: iterations, dkLen: 32 });
+    return pbkdf2Async(sha256, new TextEncoder().encode(passphrase), salt, { c: iterations, dkLen: 32 });
   },
   async encryptAesGcm({ key, iv, plaintext }) {
     if (!(key instanceof Uint8Array)) throw new Error("Secure Backup Crypto-Provider-Schlüssel ungültig.");
