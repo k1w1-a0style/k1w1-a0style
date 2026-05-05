@@ -57,6 +57,43 @@ describe("secure backup crypto provider", () => {
     expect(provider?.profile).toBe("noble-js");
   });
 
+
+
+  test("does not select webcrypto when pbkdf2/aes-gcm probe fails", async () => {
+    const subtleMock = {
+      importKey: jest.fn(async () => ({ type: "secret", usages: ["deriveKey"] })),
+      deriveKey: jest.fn(async () => {
+        const error = new Error("NotSupportedError");
+        error.name = "NotSupportedError";
+        throw error;
+      }),
+      encrypt: jest.fn(),
+      decrypt: jest.fn(),
+    };
+    setCrypto({ getRandomValues: rngOnlyCrypto.getRandomValues, subtle: subtleMock });
+    const provider = await resolveSecureBackupCryptoProvider();
+    expect(provider?.profile).toBe("noble-js");
+  });
+
+  test("webcrypto availability requires rng capability", async () => {
+    const expoCrypto = jest.requireMock("expo-crypto");
+    const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
+    try {
+      expoCrypto.getRandomBytesAsync = jest.fn(async () => {
+        throw new Error("rng unavailable");
+      });
+
+      setCrypto({ subtle: webcrypto.subtle });
+      const provider = await resolveSecureBackupCryptoProvider();
+      expect(provider?.profile).not.toBe("webcrypto");
+
+      const status = await getSecureBackupCryptoRuntimeStatus();
+      expect(status.providerProfile).not.toBe("webcrypto");
+    } finally {
+      expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
+    }
+  });
+
   test("returns null provider when neither webcrypto nor secure RNG fallback is available", async () => {
     const expoCrypto = jest.requireMock("expo-crypto");
     const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
@@ -77,6 +114,30 @@ describe("secure backup crypto provider", () => {
     setCrypto(rngOnlyCrypto);
     const provider = await resolveSecureBackupCryptoProvider();
     expect(provider?.profile).toBe("noble-js");
+  });
+
+
+
+  test("encrypt stays fail-closed when no provider is available", async () => {
+    const expoCrypto = jest.requireMock("expo-crypto");
+    const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
+    try {
+      expoCrypto.getRandomBytesAsync = jest.fn(async () => {
+        throw new Error("rng unavailable");
+      });
+
+      setCrypto(undefined);
+      await expect(
+        encryptScopedBackup({
+          scope: "secrets",
+          passphrase: "correct-horse",
+          appVersion: "1.0.0",
+          payload: makePayload(),
+        }),
+      ).rejects.toThrow("Crypto-Provider fehlt");
+    } finally {
+      expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
+    }
   });
 
   test("cross-provider: webcrypto encrypt -> noble decrypt", async () => {

@@ -15,6 +15,30 @@ export type SecureBackupCryptoProvider = {
   decryptAesGcm(params: { key: SecureBackupAesKey; iv: Uint8Array; ciphertext: Uint8Array }): Promise<Uint8Array>;
 };
 
+const CAPABILITY_PROBE_PASSPHRASE = "k1w1-capability-probe";
+const CAPABILITY_PROBE_SALT = new Uint8Array(16);
+const CAPABILITY_PROBE_IV = new Uint8Array(12);
+const CAPABILITY_PROBE_PLAINTEXT = new TextEncoder().encode("probe");
+const CAPABILITY_PROBE_ITERATIONS = 2;
+
+async function hasSecureRandomBytes(): Promise<boolean> {
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    try {
+      globalThis.crypto.getRandomValues(new Uint8Array(1));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  try {
+    const expoCrypto = await import("expo-crypto");
+    await expoCrypto.getRandomBytesAsync(1);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function isLikelyCryptoKey(value: SecureBackupAesKey): value is CryptoKey {
   if (!value || typeof value !== "object" || value instanceof Uint8Array) return false;
@@ -22,19 +46,42 @@ function isLikelyCryptoKey(value: SecureBackupAesKey): value is CryptoKey {
   return typeof candidate.type === "string" && Array.isArray(candidate.usages);
 }
 
+async function probeWebCryptoCapability(): Promise<boolean> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return false;
+  if (!(await hasSecureRandomBytes())) return false;
+
+  try {
+    const passphraseBytes = new TextEncoder().encode(CAPABILITY_PROBE_PASSPHRASE);
+    const baseKey = await subtle.importKey("raw", passphraseBytes, "PBKDF2", false, ["deriveKey"]);
+    const derivedKey = await subtle.deriveKey(
+      { name: "PBKDF2", hash: "SHA-256", salt: toBufferSource(CAPABILITY_PROBE_SALT), iterations: CAPABILITY_PROBE_ITERATIONS },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+    const ciphertext = await subtle.encrypt(
+      { name: "AES-GCM", iv: toBufferSource(CAPABILITY_PROBE_IV) },
+      derivedKey,
+      toBufferSource(CAPABILITY_PROBE_PLAINTEXT),
+    );
+    const decrypted = await subtle.decrypt(
+      { name: "AES-GCM", iv: toBufferSource(CAPABILITY_PROBE_IV) },
+      derivedKey,
+      ciphertext,
+    );
+    const decoded = new Uint8Array(decrypted);
+    return decoded.length === CAPABILITY_PROBE_PLAINTEXT.length && decoded.every((entry, index) => entry === CAPABILITY_PROBE_PLAINTEXT[index]);
+  } catch {
+    return false;
+  }
+}
+
 const webCryptoProvider: SecureBackupCryptoProvider = {
   name: "webcrypto-subtle",
   profile: "webcrypto",
-  isAvailable: () => {
-    const subtle = globalThis.crypto?.subtle as Partial<SubtleCrypto> | undefined;
-    return Boolean(
-      subtle
-      && typeof subtle.importKey === "function"
-      && typeof subtle.deriveKey === "function"
-      && typeof subtle.encrypt === "function"
-      && typeof subtle.decrypt === "function",
-    );
-  },
+  isAvailable: probeWebCryptoCapability,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
       return globalThis.crypto.getRandomValues(new Uint8Array(length));
@@ -63,18 +110,7 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
 const nobleProvider: SecureBackupCryptoProvider = {
   name: "noble-js-aes-gcm-pbkdf2",
   profile: "noble-js",
-  async isAvailable() {
-    if (typeof globalThis.crypto?.getRandomValues === "function") {
-      return true;
-    }
-    try {
-      const expoCrypto = await import("expo-crypto");
-      await expoCrypto.getRandomBytesAsync(1);
-      return true;
-    } catch {
-      return false;
-    }
-  },
+  isAvailable: hasSecureRandomBytes,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
       return globalThis.crypto.getRandomValues(new Uint8Array(length));
