@@ -320,7 +320,7 @@ export async function decryptScopedBackup(input: {
 
   const provider = await resolveSecureBackupCryptoProvider();
   if (!provider) {
-    throw new Error("Gesichertes Backup ist auf diesem Gerät nicht verfügbar: Crypto-Provider fehlt. Backup wurde nicht erstellt.");
+    throw new Error("Gesichertes Backup ist auf diesem Gerät nicht verfügbar: Crypto-Provider fehlt.");
   }
   const salt = base64ToBytes(input.backup.encryption.saltBase64);
   const iv = base64ToBytes(input.backup.encryption.ivBase64);

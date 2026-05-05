@@ -1,9 +1,9 @@
+import { gcm } from "@noble/ciphers/aes";
 import { pbkdf2 } from "@noble/hashes/pbkdf2";
 import { sha256 } from "@noble/hashes/sha2";
-import { gcm } from "@noble/ciphers/aes";
 import { toBufferSource } from "./appInfoScopedBackup.cryptoHelpers";
 
-export type SecureBackupAesKey = CryptoKey | Uint8Array;
+export type SecureBackupAesKey = unknown | Uint8Array;
 
 export type SecureBackupCryptoProvider = {
   name: string;
@@ -14,6 +14,11 @@ export type SecureBackupCryptoProvider = {
   encryptAesGcm(params: { key: SecureBackupAesKey; iv: Uint8Array; plaintext: Uint8Array }): Promise<Uint8Array>;
   decryptAesGcm(params: { key: SecureBackupAesKey; iv: Uint8Array; ciphertext: Uint8Array }): Promise<Uint8Array>;
 };
+
+
+function isLikelyCryptoKey(value: unknown): value is CryptoKey {
+  return Boolean(value) && typeof value === "object";
+}
 
 const webCryptoProvider: SecureBackupCryptoProvider = {
   name: "webcrypto-subtle",
@@ -34,12 +39,12 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
   },
   async encryptAesGcm({ key, iv, plaintext }) {
     const subtle = globalThis.crypto?.subtle;
-    if (!subtle || !(key instanceof CryptoKey)) throw new Error("Secure Backup Crypto-Provider fehlt auf diesem Gerät.");
+    if (!subtle || !isLikelyCryptoKey(key)) throw new Error("Secure Backup Crypto-Provider fehlt auf diesem Gerät.");
     return new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: toBufferSource(iv) }, key, toBufferSource(plaintext)));
   },
   async decryptAesGcm({ key, iv, ciphertext }) {
     const subtle = globalThis.crypto?.subtle;
-    if (!subtle || !(key instanceof CryptoKey)) throw new Error("Secure Backup Crypto-Provider fehlt auf diesem Gerät.");
+    if (!subtle || !isLikelyCryptoKey(key)) throw new Error("Secure Backup Crypto-Provider fehlt auf diesem Gerät.");
     return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: toBufferSource(iv) }, key, toBufferSource(ciphertext)));
   },
 };
