@@ -3,7 +3,7 @@ import { pbkdf2 } from "@noble/hashes/pbkdf2";
 import { sha256 } from "@noble/hashes/sha2";
 import { toBufferSource } from "./appInfoScopedBackup.cryptoHelpers";
 
-export type SecureBackupAesKey = unknown | Uint8Array;
+export type SecureBackupAesKey = CryptoKey | Uint8Array;
 
 export type SecureBackupCryptoProvider = {
   name: string;
@@ -16,8 +16,10 @@ export type SecureBackupCryptoProvider = {
 };
 
 
-function isLikelyCryptoKey(value: unknown): value is CryptoKey {
-  return Boolean(value) && typeof value === "object";
+function isLikelyCryptoKey(value: SecureBackupAesKey): value is CryptoKey {
+  if (!value || typeof value !== "object" || value instanceof Uint8Array) return false;
+  const candidate = value as Partial<CryptoKey>;
+  return typeof candidate.type === "string" && Array.isArray(candidate.usages);
 }
 
 const webCryptoProvider: SecureBackupCryptoProvider = {
