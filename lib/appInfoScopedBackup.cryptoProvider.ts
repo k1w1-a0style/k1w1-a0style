@@ -15,6 +15,15 @@ export type SecureBackupCryptoProvider = {
   decryptAesGcm(params: { key: SecureBackupAesKey; iv: Uint8Array; ciphertext: Uint8Array }): Promise<Uint8Array>;
 };
 
+export type RawAesGcmCryptoProvider = {
+  name: string;
+  profile: "webcrypto" | "noble-js";
+  isAvailable(): Promise<boolean> | boolean;
+  getRandomBytes(length: number): Promise<Uint8Array>;
+  encryptAesGcmRaw(params: { rawKey: Uint8Array; iv: Uint8Array; plaintext: Uint8Array }): Promise<Uint8Array>;
+  decryptAesGcmRaw(params: { rawKey: Uint8Array; iv: Uint8Array; ciphertext: Uint8Array }): Promise<Uint8Array>;
+};
+
 const CAPABILITY_PROBE_PASSPHRASE = "k1w1-capability-probe";
 const CAPABILITY_PROBE_SALT = new Uint8Array(16);
 const CAPABILITY_PROBE_IV = new Uint8Array(12);
@@ -29,6 +38,13 @@ async function hasSecureRandomBytes(): Promise<boolean> {
     } catch {
       // React Native/Hermes can expose getRandomValues but still throw at runtime.
       // Continue to expo-crypto fallback instead of failing closed here.
+      try {
+        const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
+        await expoCrypto.getRandomBytesAsync(1);
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 
@@ -85,9 +101,14 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
   isAvailable: probeWebCryptoCapability,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
-      return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      try {
+        return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      } catch {
+        const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
+        return expoCrypto.getRandomBytesAsync(length);
+      }
     }
-    const expoCrypto = await import("expo-crypto");
+    const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
     return expoCrypto.getRandomBytesAsync(length);
   },
   async deriveAesGcmKey({ passphrase, salt, iterations }) {
@@ -108,15 +129,52 @@ const webCryptoProvider: SecureBackupCryptoProvider = {
   },
 };
 
+const webCryptoRawProvider: RawAesGcmCryptoProvider = {
+  name: "webcrypto-subtle",
+  profile: "webcrypto",
+  isAvailable: probeWebCryptoCapability,
+  getRandomBytes: webCryptoProvider.getRandomBytes,
+  async encryptAesGcmRaw({ rawKey, iv, plaintext }) {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new Error("Crypto-Provider fehlt auf diesem Gerät.");
+    const key = await subtle.importKey("raw", toBufferSource(rawKey), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    return new Uint8Array(await subtle.encrypt({ name: "AES-GCM", iv: toBufferSource(iv) }, key, toBufferSource(plaintext)));
+  },
+  async decryptAesGcmRaw({ rawKey, iv, ciphertext }) {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) throw new Error("Crypto-Provider fehlt auf diesem Gerät.");
+    const key = await subtle.importKey("raw", toBufferSource(rawKey), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    return new Uint8Array(await subtle.decrypt({ name: "AES-GCM", iv: toBufferSource(iv) }, key, toBufferSource(ciphertext)));
+  },
+};
+
+async function probeWebCryptoRawDecryptCapability(): Promise<boolean> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return false;
+  try {
+    const key = await subtle.importKey("raw", new Uint8Array(32), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    const ciphertext = await subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(12) }, key, new Uint8Array([1, 2, 3]));
+    const plain = await subtle.decrypt({ name: "AES-GCM", iv: new Uint8Array(12) }, key, ciphertext);
+    return new Uint8Array(plain).length === 3;
+  } catch {
+    return false;
+  }
+}
+
 const nobleProvider: SecureBackupCryptoProvider = {
   name: "noble-js-aes-gcm-pbkdf2",
   profile: "noble-js",
   isAvailable: hasSecureRandomBytes,
   async getRandomBytes(length) {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
-      return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      try {
+        return globalThis.crypto.getRandomValues(new Uint8Array(length));
+      } catch {
+        const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
+        return expoCrypto.getRandomBytesAsync(length);
+      }
     }
-    const expoCrypto = await import("expo-crypto");
+    const expoCrypto = require("expo-crypto") as typeof import("expo-crypto");
     return expoCrypto.getRandomBytesAsync(length);
   },
   async deriveAesGcmKey({ passphrase, salt, iterations }) {
@@ -132,8 +190,39 @@ const nobleProvider: SecureBackupCryptoProvider = {
   },
 };
 
+const nobleRawProvider: RawAesGcmCryptoProvider = {
+  name: "noble-js-aes-gcm-pbkdf2",
+  profile: "noble-js",
+  isAvailable: hasSecureRandomBytes,
+  getRandomBytes: nobleProvider.getRandomBytes,
+  async encryptAesGcmRaw({ rawKey, iv, plaintext }) {
+    if (!(rawKey instanceof Uint8Array)) throw new Error("Crypto-Provider-Schlüssel ungültig.");
+    return gcm(rawKey, iv).encrypt(plaintext);
+  },
+  async decryptAesGcmRaw({ rawKey, iv, ciphertext }) {
+    if (!(rawKey instanceof Uint8Array)) throw new Error("Crypto-Provider-Schlüssel ungültig.");
+    return gcm(rawKey, iv).decrypt(ciphertext);
+  },
+};
+
 export async function resolveSecureBackupCryptoProvider(): Promise<SecureBackupCryptoProvider | null> {
   if (await webCryptoProvider.isAvailable()) return webCryptoProvider;
   if (await nobleProvider.isAvailable()) return nobleProvider;
+  return null;
+}
+
+export async function resolveRawAesGcmCryptoProvider(): Promise<RawAesGcmCryptoProvider | null> {
+  return resolveRawAesGcmCryptoProviderForEncrypt();
+}
+
+export async function resolveRawAesGcmCryptoProviderForEncrypt(): Promise<RawAesGcmCryptoProvider | null> {
+  if (await webCryptoRawProvider.isAvailable()) return webCryptoRawProvider;
+  if (await nobleRawProvider.isAvailable()) return nobleRawProvider;
+  return null;
+}
+
+export async function resolveRawAesGcmCryptoProviderForDecrypt(): Promise<RawAesGcmCryptoProvider | null> {
+  if (await probeWebCryptoRawDecryptCapability()) return webCryptoRawProvider;
+  if (nobleRawProvider) return nobleRawProvider;
   return null;
 }

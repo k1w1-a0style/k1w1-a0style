@@ -15,7 +15,7 @@ import { styles } from "./PreviewFullscreenScreen.styles";
 
 export default function PreviewFullscreenScreen() {
   const {
-    title, url, html, baseUrl, webViewSource,
+    title, url, webViewSource,
     mode, hasUrlParseError,
     originWhitelist,
     loading, error,

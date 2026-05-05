@@ -38,7 +38,7 @@ const encryptProjectStoragePayloadOrPlaintextFallback = async (
   try {
     return { payload: await encryptProjectStoragePayload(projectString), encrypted: true };
   } catch (error) {
-    logger.warn("[projectStorage] Verschlüsselte Persistenz nicht verfügbar; speichere Legacy-Plaintext-Fallback", {
+    logger.warn("[projectStorage] Projekt-Persistenz-Crypto nicht verfügbar; Legacy-Plaintext-Fallback aktiviert", {
       err: error,
     });
     return { payload: projectString, encrypted: false };
