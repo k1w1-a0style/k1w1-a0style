@@ -27,7 +27,8 @@ async function hasSecureRandomBytes(): Promise<boolean> {
       globalThis.crypto.getRandomValues(new Uint8Array(1));
       return true;
     } catch {
-      return false;
+      // React Native/Hermes can expose getRandomValues but still throw at runtime.
+      // Continue to expo-crypto fallback instead of failing closed here.
     }
   }
 

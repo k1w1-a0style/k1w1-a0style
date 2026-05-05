@@ -94,6 +94,27 @@ describe("secure backup crypto provider", () => {
     }
   });
 
+
+  test("falls back to expo RNG when getRandomValues exists but throws", async () => {
+    const expoCrypto = jest.requireMock("expo-crypto");
+    const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
+    try {
+      expoCrypto.getRandomBytesAsync = jest.fn(async (length: number) => new Uint8Array(length));
+
+      setCrypto({
+        getRandomValues: jest.fn(() => {
+          throw new Error("RNG runtime failure");
+        }),
+      });
+
+      const provider = await resolveSecureBackupCryptoProvider();
+      expect(provider?.profile).toBe("noble-js");
+      expect(expoCrypto.getRandomBytesAsync).toHaveBeenCalled();
+    } finally {
+      expoCrypto.getRandomBytesAsync = originalGetRandomBytesAsync;
+    }
+  });
+
   test("returns null provider when neither webcrypto nor secure RNG fallback is available", async () => {
     const expoCrypto = jest.requireMock("expo-crypto");
     const originalGetRandomBytesAsync = expoCrypto.getRandomBytesAsync;
