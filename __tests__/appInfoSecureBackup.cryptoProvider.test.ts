@@ -1,3 +1,5 @@
+import { webcrypto } from "crypto";
+
 import { resolveSecureBackupCryptoProvider } from "../lib/appInfoScopedBackup.cryptoProvider";
 import {
   createSecretBackupPayload,
@@ -6,43 +8,54 @@ import {
   getSecureBackupCryptoRuntimeStatus,
 } from "../lib/appInfoScopedBackup";
 
+function setCrypto(value: unknown) {
+  Object.defineProperty(global, "crypto", { value, configurable: true });
+}
+
+function makePayload() {
+  return createSecretBackupPayload({
+    connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
+    tokens: {
+      githubToken: "g",
+      expoToken: "e",
+      workflowAdminKey: "w",
+      androidKeystoreExportAdminKey: "k",
+      legacyEdgeAdminKey: null,
+      signingAdminKey: "s",
+      signingMasterKey: "m",
+    },
+    ciSecrets: {},
+    github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+  });
+}
+
 describe("secure backup crypto provider", () => {
   const originalCrypto = global.crypto;
+  const rngOnlyCrypto = { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) };
+
   afterEach(() => {
-    Object.defineProperty(global, "crypto", { value: originalCrypto, configurable: true });
+    setCrypto(originalCrypto);
   });
 
   test("uses webcrypto provider when subtle is available", async () => {
-    Object.defineProperty(global, "crypto", { value: require("crypto").webcrypto, configurable: true });
+    setCrypto(webcrypto);
     const provider = await resolveSecureBackupCryptoProvider();
     expect(provider?.profile).toBe("webcrypto");
   });
 
-
   test("runtime crypto status exposes provider metadata", async () => {
-    Object.defineProperty(global, "crypto", { value: require("crypto").webcrypto, configurable: true });
+    setCrypto(webcrypto);
     const status = await getSecureBackupCryptoRuntimeStatus();
     expect(status.available).toBe(true);
     expect(status.providerProfile).toBe("webcrypto");
     expect(status.providerName).toBe("webcrypto-subtle");
   });
 
-
-
   test("falls back to noble when subtle exists but required methods are missing", async () => {
-    const webcrypto = require("crypto").webcrypto;
-    Object.defineProperty(global, "crypto", {
-      value: {
-        getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
-        subtle: {},
-      },
-      configurable: true,
-    });
+    setCrypto({ getRandomValues: rngOnlyCrypto.getRandomValues, subtle: {} });
     const provider = await resolveSecureBackupCryptoProvider();
     expect(provider?.profile).toBe("noble-js");
   });
-
-
 
   test("returns null provider when neither webcrypto nor secure RNG fallback is available", async () => {
     const expoCrypto = jest.requireMock("expo-crypto");
@@ -52,8 +65,7 @@ describe("secure backup crypto provider", () => {
         throw new Error("rng unavailable");
       });
 
-      Object.defineProperty(global, "crypto", { value: undefined, configurable: true });
-
+      setCrypto(undefined);
       const provider = await resolveSecureBackupCryptoProvider();
       expect(provider).toBeNull();
     } finally {
@@ -62,65 +74,47 @@ describe("secure backup crypto provider", () => {
   });
 
   test("uses noble-js provider when subtle is unavailable", async () => {
-    Object.defineProperty(global, "crypto", { value: { getRandomValues: require("crypto").webcrypto.getRandomValues.bind(require("crypto").webcrypto) }, configurable: true });
+    setCrypto(rngOnlyCrypto);
     const provider = await resolveSecureBackupCryptoProvider();
     expect(provider?.profile).toBe("noble-js");
   });
 
-
   test("cross-provider: webcrypto encrypt -> noble decrypt", async () => {
-    const webcrypto = require("crypto").webcrypto;
-    Object.defineProperty(global, "crypto", { value: webcrypto, configurable: true });
-
-    const payload = createSecretBackupPayload({
-      connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
-      tokens: { githubToken: "g", expoToken: "e", workflowAdminKey: "w", androidKeystoreExportAdminKey: "k", legacyEdgeAdminKey: null, signingAdminKey: "s", signingMasterKey: "m" },
-      ciSecrets: {},
-      github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+    setCrypto(webcrypto);
+    const encrypted = await encryptScopedBackup({
+      scope: "secrets",
+      passphrase: "correct-horse",
+      appVersion: "1.0.0",
+      payload: makePayload(),
     });
 
-    const encrypted = await encryptScopedBackup({ scope: "secrets", passphrase: "correct-horse", appVersion: "1.0.0", payload });
-
-    Object.defineProperty(global, "crypto", {
-      value: { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) },
-      configurable: true,
-    });
-
+    setCrypto(rngOnlyCrypto);
     const decrypted = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
     expect(decrypted.kind).toBe("secret-snapshot");
   });
 
   test("cross-provider: noble encrypt -> webcrypto decrypt", async () => {
-    const webcrypto = require("crypto").webcrypto;
-    Object.defineProperty(global, "crypto", {
-      value: { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) },
-      configurable: true,
+    setCrypto(rngOnlyCrypto);
+    const encrypted = await encryptScopedBackup({
+      scope: "secrets",
+      passphrase: "correct-horse",
+      appVersion: "1.0.0",
+      payload: makePayload(),
     });
 
-    const payload = createSecretBackupPayload({
-      connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
-      tokens: { githubToken: "g", expoToken: "e", workflowAdminKey: "w", androidKeystoreExportAdminKey: "k", legacyEdgeAdminKey: null, signingAdminKey: "s", signingMasterKey: "m" },
-      ciSecrets: {},
-      github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
-    });
-
-    const encrypted = await encryptScopedBackup({ scope: "secrets", passphrase: "correct-horse", appVersion: "1.0.0", payload });
-
-    Object.defineProperty(global, "crypto", { value: webcrypto, configurable: true });
-
+    setCrypto(webcrypto);
     const decrypted = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
     expect(decrypted.kind).toBe("secret-snapshot");
   });
 
   test("roundtrip still works without subtle", async () => {
-    Object.defineProperty(global, "crypto", { value: { getRandomValues: require("crypto").webcrypto.getRandomValues.bind(require("crypto").webcrypto) }, configurable: true });
-    const payload = createSecretBackupPayload({
-      connections: { supabaseRaw: "r", supabaseUrl: "u", supabaseAnonKey: "a", easProjectId: "e" },
-      tokens: { githubToken: "g", expoToken: "e", workflowAdminKey: "w", androidKeystoreExportAdminKey: "k", legacyEdgeAdminKey: null, signingAdminKey: "s", signingMasterKey: "m" },
-      ciSecrets: {},
-      github: { linkedRepo: null, linkedBranch: null, recentRepos: [] },
+    setCrypto(rngOnlyCrypto);
+    const encrypted = await encryptScopedBackup({
+      scope: "secrets",
+      passphrase: "correct-horse",
+      appVersion: "1.0.0",
+      payload: makePayload(),
     });
-    const encrypted = await encryptScopedBackup({ scope: "secrets", passphrase: "correct-horse", appVersion: "1.0.0", payload });
     const decrypted = await decryptScopedBackup({ passphrase: "correct-horse", backup: encrypted });
     expect(decrypted.kind).toBe("secret-snapshot");
   });
