@@ -1,7 +1,8 @@
 import type { AIConfig } from "../contexts/AIContext/models";
 import { BACKUP_AI_CONFIG_FALLBACK, sanitizeAiConfigFromBackup } from "./appInfoBackup";
 import { asRecord, isRecord, readFiniteNumber, readString } from "./validation/recordReaders";
-import { base64ToBytes, bytesToBase64, toBufferSource } from "./appInfoScopedBackup.cryptoHelpers";
+import { base64ToBytes, bytesToBase64 } from "./appInfoScopedBackup.cryptoHelpers";
+import { resolveSecureBackupCryptoProvider } from "./appInfoScopedBackup.cryptoProvider";
 import {
   buildCiSecretsSnapshot,
   buildSecretConnectionsSnapshot,
@@ -14,7 +15,6 @@ export const SECURE_BACKUP_VERSION = 1 as const;
 export const SECURE_BACKUP_PBKDF2_ITERATIONS = 250000;
 export const SECURE_BACKUP_LEGACY_PBKDF2_ITERATIONS = [100000, 150000] as const;
 export const SECURE_BACKUP_MIN_PASSPHRASE_LENGTH = 10;
-const AES_KEY_LENGTH = 256;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
 const UNSUPPORTED_CRYPTO_PROFILE_ERROR = "Nicht unterstütztes oder unbekanntes Secure-Backup-Crypto-Profil.";
@@ -119,42 +119,6 @@ export const SECURE_BACKUP_CRYPTO_POLICY: SecureBackupCryptoPolicy = {
   })),
 };
 
-async function getRandomBytes(length: number): Promise<Uint8Array> {
-  if (globalThis.crypto?.getRandomValues) {
-    return globalThis.crypto.getRandomValues(new Uint8Array(length));
-  }
-
-  const expoCrypto = await import("expo-crypto");
-  return expoCrypto.getRandomBytesAsync(length);
-}
-
-function requireSubtleCrypto(): SubtleCrypto {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) {
-    throw new Error("WebCrypto/AES-GCM ist auf diesem Gerät nicht verfügbar. Secure Backup bleibt fail-closed; nutze ein Runtime mit WebCrypto SubtleCrypto (z. B. iOS/Web oder Android mit passender Crypto-Bridge).");
-  }
-  return subtle;
-}
-
-async function deriveAesKey(passphrase: string, salt: Uint8Array, iterations: number): Promise<CryptoKey> {
-  const subtle = requireSubtleCrypto();
-  const passphraseBytes = new TextEncoder().encode(passphrase);
-  const baseKey = await subtle.importKey("raw", passphraseBytes, "PBKDF2", false, ["deriveKey"]);
-
-  return subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      hash: "SHA-256",
-      salt: toBufferSource(salt),
-      iterations,
-    },
-    baseKey,
-    { name: "AES-GCM", length: AES_KEY_LENGTH },
-    false,
-    ["encrypt", "decrypt"],
-  );
-}
-
 function resolveCryptoProfileForEncryptedBackup(backup: EncryptedScopedBackupV1): SecureBackupCryptoProfile {
   if (backup.version !== SECURE_BACKUP_CRYPTO_POLICY.version) {
     throw new Error("Ungültiges Backup-Format");
@@ -233,16 +197,20 @@ export async function encryptScopedBackup(input: {
 }): Promise<EncryptedScopedBackupV1> {
   ensurePassphrase(input.passphrase);
 
-  const salt = await getRandomBytes(SALT_BYTES);
-  const iv = await getRandomBytes(IV_BYTES);
-  const subtle = requireSubtleCrypto();
-  const key = await deriveAesKey(input.passphrase.trim(), salt, SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations);
+  const provider = await resolveSecureBackupCryptoProvider();
+  if (!provider) {
+    throw new Error("Gesichertes Backup ist auf diesem Gerät nicht verfügbar: Crypto-Provider fehlt. Backup wurde nicht erstellt.");
+  }
+
+  const salt = await provider.getRandomBytes(SALT_BYTES);
+  const iv = await provider.getRandomBytes(IV_BYTES);
+  const key = await provider.deriveAesGcmKey({
+    passphrase: input.passphrase.trim(),
+    salt,
+    iterations: SECURE_BACKUP_CRYPTO_POLICY.currentWrite.iterations,
+  });
   const plaintext = new TextEncoder().encode(JSON.stringify(input.payload));
-  const encrypted = await subtle.encrypt(
-    { name: "AES-GCM", iv: toBufferSource(iv) },
-    key,
-    toBufferSource(plaintext),
-  );
+  const encrypted = await provider.encryptAesGcm({ key, iv, plaintext });
 
   return {
     type: "k1w1-secure-backup",
@@ -350,18 +318,21 @@ export async function decryptScopedBackup(input: {
 }): Promise<SecureBackupPayloadV1> {
   ensurePassphrase(input.passphrase);
 
-  const subtle = requireSubtleCrypto();
+  const provider = await resolveSecureBackupCryptoProvider();
+  if (!provider) {
+    throw new Error("Gesichertes Backup ist auf diesem Gerät nicht verfügbar: Crypto-Provider fehlt. Backup wurde nicht erstellt.");
+  }
   const salt = base64ToBytes(input.backup.encryption.saltBase64);
   const iv = base64ToBytes(input.backup.encryption.ivBase64);
   const ciphertext = base64ToBytes(input.backup.ciphertextBase64);
-  const key = await deriveAesKey(input.passphrase.trim(), salt, input.backup.encryption.iterations);
+  const key = await provider.deriveAesGcmKey({
+    passphrase: input.passphrase.trim(),
+    salt,
+    iterations: input.backup.encryption.iterations,
+  });
 
   try {
-    const decrypted = await subtle.decrypt(
-      { name: "AES-GCM", iv: toBufferSource(iv) },
-      key,
-      toBufferSource(ciphertext),
-    );
+    const decrypted = await provider.decryptAesGcm({ key, iv, ciphertext });
     const decoded = new TextDecoder().decode(new Uint8Array(decrypted));
     const parsed = JSON.parse(decoded) as unknown;
     return validateSecureBackupPayload(parsed);
