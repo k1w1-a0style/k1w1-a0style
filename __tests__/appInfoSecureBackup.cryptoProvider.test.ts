@@ -1,5 +1,10 @@
 import { resolveSecureBackupCryptoProvider } from "../lib/appInfoScopedBackup.cryptoProvider";
-import { createSecretBackupPayload, decryptScopedBackup, encryptScopedBackup } from "../lib/appInfoScopedBackup";
+import {
+  createSecretBackupPayload,
+  decryptScopedBackup,
+  encryptScopedBackup,
+  getSecureBackupCryptoRuntimeStatus,
+} from "../lib/appInfoScopedBackup";
 
 describe("secure backup crypto provider", () => {
   const originalCrypto = global.crypto;
@@ -11,6 +16,15 @@ describe("secure backup crypto provider", () => {
     Object.defineProperty(global, "crypto", { value: require("crypto").webcrypto, configurable: true });
     const provider = await resolveSecureBackupCryptoProvider();
     expect(provider?.profile).toBe("webcrypto");
+  });
+
+
+  test("runtime crypto status exposes provider metadata", async () => {
+    Object.defineProperty(global, "crypto", { value: require("crypto").webcrypto, configurable: true });
+    const status = await getSecureBackupCryptoRuntimeStatus();
+    expect(status.available).toBe(true);
+    expect(status.providerProfile).toBe("webcrypto");
+    expect(status.providerName).toBe("webcrypto-subtle");
   });
 
   test("uses noble-js provider when subtle is unavailable", async () => {

@@ -149,6 +149,22 @@ export function secureBackupNeedsCryptoUpgrade(backup: EncryptedScopedBackupV1):
   return resolveCryptoProfileForEncryptedBackup(backup).support !== "current-write";
 }
 
+
+export type SecureBackupCryptoRuntimeStatus = {
+  available: boolean;
+  providerName: string | null;
+  providerProfile: "webcrypto" | "noble-js" | null;
+};
+
+export async function getSecureBackupCryptoRuntimeStatus(): Promise<SecureBackupCryptoRuntimeStatus> {
+  const provider = await resolveSecureBackupCryptoProvider();
+  return {
+    available: Boolean(provider),
+    providerName: provider?.name ?? null,
+    providerProfile: provider?.profile ?? null,
+  };
+}
+
 function ensurePassphrase(passphrase: string) {
   if (typeof passphrase !== "string" || passphrase.trim().length < SECURE_BACKUP_MIN_PASSPHRASE_LENGTH) {
     throw new Error(`Bitte eine starke Passphrase mit mindestens ${SECURE_BACKUP_MIN_PASSPHRASE_LENGTH} Zeichen eingeben.`);
