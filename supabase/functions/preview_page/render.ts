@@ -292,7 +292,7 @@ export function renderFragmentBootstrapPage(params: { nonce: string }): string {
           if (!page.includes('data-k1w1-preview-context="isolated"')) {
             throw new Error("Preview bootstrap rejected unisolated HTML.");
           }
-          const noncePattern = /nonce=(["']).*?/gi;
+          const noncePattern = /nonce=(["']).*?\\1/gi;
           const normalizedPage = page.replace(noncePattern, 'nonce="' + CSP_NONCE + '"');
           document.open();
           document.write(normalizedPage);
