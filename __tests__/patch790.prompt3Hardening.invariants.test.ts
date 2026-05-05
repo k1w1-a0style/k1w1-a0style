@@ -20,7 +20,7 @@ describe("patch790 prompt-3 hardening invariants", () => {
 
     for (const src of [ciLite, autofix]) {
       expect(src).toContain("run-${{ github.run_id }}-${{ github.run_attempt }}");
-      expect(src).toContain("allowed_refs_csv: work,codex,dev,develop");
+      expect(src).not.toContain("allowed_refs_csv:");
       expect(src).toContain("printf 'JOB_ID=%s\\n'");
       expect(src).not.toContain("echo \"JOB_ID=${{ ");
       expect(src).not.toContain('RAW_JOB_ID="${{');

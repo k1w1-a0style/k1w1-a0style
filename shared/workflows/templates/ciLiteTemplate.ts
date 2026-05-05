@@ -1,4 +1,4 @@
-import { CI_LITE_ALLOWED_REF_REGEX, CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
+import { CI_LITE_WORKFLOW_VERSION } from "../templateContracts";
 
 export const WORKFLOW_K1W1_CI_LITE_TEMPLATE = `
 # managed-by: k1w1
@@ -37,7 +37,6 @@ jobs:
       contents: read
 
     env:
-      ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"
       WORKFLOW_VERSION: "${CI_LITE_WORKFLOW_VERSION}"
 
     steps:
@@ -50,7 +49,6 @@ jobs:
           input_ref: \${{ inputs.ref || '' }}
           github_ref_name: \${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:

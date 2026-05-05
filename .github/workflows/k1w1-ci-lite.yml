@@ -34,7 +34,6 @@ jobs:
       contents: read
 
     env:
-      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -47,7 +46,6 @@ jobs:
           input_ref: ${{ inputs.ref || '' }}
           github_ref_name: ${{ github.event_name != 'repository_dispatch' && github.ref_name || '' }}
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:

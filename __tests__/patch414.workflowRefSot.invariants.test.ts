@@ -127,7 +127,6 @@ const extractTemplateContent = (jsonSrc: string, workflowPath: string) => {
   return entries.find((entry) => entry.path === workflowPath)?.content ?? "";
 };
 
-const CI_LITE_ALLOWED_REF_REGEX = "^(work|codex|dev|develop)$";
 
 const extractYamlInputDefault = (src: string, inputName: string) => {
   const header = `${inputName}:`;
@@ -232,19 +231,19 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     expect(fullEas).toContain('process.env.WORKFLOW_REF || "",');
   });
 
-  it("keeps determine-ref generic while CI Lite callers set the narrower branch policy explicitly", () => {
+  it("keeps determine-ref generic while CI Lite callers avoid hardcoded branch allowlists", () => {
     const determineRef = read(".github/actions/determine-ref/action.yml");
     const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
     const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
 
     expect(extractYamlInputDefault(determineRef, "allowed_refs_csv")).toBe("");
-    expect(ciLite).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
-    expect(ciLite).toContain("allowed_refs_csv: work,codex,dev,develop");
-    expect(autofix).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
-    expect(autofix).toContain("allowed_refs_csv: work,codex,dev,develop");
+    expect(ciLite).not.toContain("ALLOWED_REF_REGEX");
+    expect(ciLite).not.toContain("allowed_refs_csv:");
+    expect(autofix).not.toContain("ALLOWED_REF_REGEX");
+    expect(autofix).not.toContain("allowed_refs_csv:");
   });
 
-  it("keeps the CI Lite ref policy aligned across live workflows, infra templates, and edge dispatch templates", () => {
+  it("keeps CI Lite workflows/template paths free of hardcoded branch allowlists", () => {
     const ciLite = read(".github/workflows/k1w1-ci-lite.yml");
     const autofix = read(".github/workflows/k1w1-ci-lite-autofix.yml");
     const sharedTemplates = read("shared/workflows/managedWorkflowTemplates.ts");
@@ -258,27 +257,18 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     const legacyRegex = "^(work|main|dev|develop|release/.+|feature/.+|hotfix/.+)$";
     expect(sharedTemplates).toContain('"k1w1-ci-lite.yml": WORKFLOW_K1W1_CI_LITE_TEMPLATE');
     expect(sharedTemplates).toContain('"k1w1-ci-lite-autofix.yml": WORKFLOW_K1W1_CI_LITE_AUTOFIX_TEMPLATE');
-    expect(sharedContracts).toContain(`CI_LITE_ALLOWED_REF_REGEX = "${CI_LITE_ALLOWED_REF_REGEX}"`);
-    expect(ciLite).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
-    expect(ciLite).toContain("allowed_refs_csv: work,codex,dev,develop");
     expect(ciLite).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(ciLite).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
     for (const src of [sharedCiLite]) {
-      expect(src).toContain('ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"');
-      expect(src).toContain("allowed_refs_csv: work,codex,dev,develop");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
     }
 
-    expect(autofix).toContain(`ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"`);
-    expect(autofix).toContain("allowed_refs_csv: work,codex,dev,develop");
     expect(autofix).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
     expect(autofix).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
 
     for (const src of [sharedAutofix]) {
-      expect(src).toContain('ALLOWED_REF_REGEX: "${CI_LITE_ALLOWED_REF_REGEX}"');
-      expect(src).toContain("allowed_refs_csv: work,codex,dev,develop");
       expect(src).not.toContain(`ALLOWED_REF_REGEX: "${legacyRegex}"`);
       expect(src).not.toContain(`allowed_ref_regex: "${legacyRegex}"`);
     }
@@ -300,16 +290,6 @@ describe("Patch 414 workflow ref SoT invariants", () => {
     }
   });
 
-  it("accepts codex while continuing to block unsafe CI Lite refs", () => {
-    const allowed = new RegExp(CI_LITE_ALLOWED_REF_REGEX);
-
-    expect(allowed.test("codex")).toBe(true);
-    expect(isGuardedCiLiteBranch("codex", allowed)).toBe(true);
-
-    expect(allowed.test("refs/pull/1/head")).toBe(false);
-    expect(isGuardedCiLiteBranch("main:evil", allowed)).toBe(false);
-    expect(isGuardedCiLiteBranch("deadbeef", allowed)).toBe(false);
-  });
 
   it("documents CI Lite as a branch-oriented exception instead of a ref-only path", () => {
     const workflowReadme = read(".github/workflows/README.md");

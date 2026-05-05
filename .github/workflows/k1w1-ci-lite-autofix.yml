@@ -32,7 +32,6 @@ jobs:
       contents: write
 
     env:
-      ALLOWED_REF_REGEX: "^(work|codex|dev|develop)$"
       WORKFLOW_VERSION: "399"
 
     steps:
@@ -43,7 +42,6 @@ jobs:
           input_ref: ${{ inputs.ref }}
           github_ref_name: ""
           default_ref: ""
-          allowed_refs_csv: work,codex,dev,develop
 
       - name: Sanitize run metadata
         env:
@@ -242,11 +240,6 @@ jobs:
             exit 0
           fi
 
-          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
-            echo "::warning::Writeback disabled for branch '$BR' (regex: ${ALLOWED_REF_REGEX})." | tee -a ci-logs/autofix.log
-            exit 0
-          fi
-
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
             echo "::warning::Ref '$BR' is not a remote branch. Skipping writeback." | tee -a ci-logs/autofix.log
@@ -405,11 +398,6 @@ jobs:
 
           if echo "$BR" | grep -qE '[ :]'; then
             echo "::warning::Unsafe ref ($BR); skipping CI Lite chain-run."
-            exit 0
-          fi
-
-          if ! echo "$BR" | grep -qE "${ALLOWED_REF_REGEX}"; then
-            echo "::warning::CI Lite chain-run disabled for '$BR' (regex: ${ALLOWED_REF_REGEX})."
             exit 0
           fi
 

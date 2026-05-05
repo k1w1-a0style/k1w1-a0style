@@ -287,11 +287,6 @@ jobs:
             echo "::warning::Unsafe ref ($TARGET_REF). Skipping writeback."
             exit 0
           fi
-          if ! echo "$TARGET_REF" | grep -qE '^(work|codex|dev|develop)$'; then
-            echo "::warning::Writeback disabled for ref '$TARGET_REF' (policy regex)."
-            exit 0
-          fi
-
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if ! git ls-remote --exit-code --heads origin "$TARGET_REF" >/dev/null 2>&1; then
             echo "::warning::Ref '$TARGET_REF' is not a remote branch. Skipping writeback."
