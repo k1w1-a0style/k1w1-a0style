@@ -72,6 +72,7 @@ jobs:
   ci:
     needs: resolve
     uses: ./.github/workflows/ci-core.yml
-    secrets: inherit
+    secrets:
+      EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
     with:
       ref: ${{ needs.resolve.outputs.ref }}
