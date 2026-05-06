@@ -14,7 +14,9 @@ import { logger } from "../../lib/logger";
 
 export const PROJECT_STORAGE_KEY = 'k1w1_project_data';
 export const PROJECT_STORAGE_SOFT_LIMIT_BYTES = 1_500_000;
-export const PROJECT_STORAGE_HARD_LIMIT_BYTES = 1_900_000;
+export const PROJECT_STORAGE_HARD_LIMIT_BYTES = 3_800_000;
+export const PROJECT_STORAGE_CHUNK_MAX_BYTES = 900_000;
+export const PROJECT_STORAGE_CHUNK_KEY_PREFIX = `${PROJECT_STORAGE_KEY}__chunk__`;
 export const CACHE_DIR = FileSystem.cacheDirectory + 'zip_temp/';
 // === Binary file handling (assets etc.) ===
 export const BINARY_EXTENSIONS = new Set([

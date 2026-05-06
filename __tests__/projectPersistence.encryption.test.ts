@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 
 import { loadProjectFromStorage, saveProjectToStorage } from "../infra/storage/projectPersistence";
-import { PROJECT_STORAGE_KEY } from "../infra/storage/persistenceHelpers";
+import { PROJECT_STORAGE_CHUNK_KEY_PREFIX, PROJECT_STORAGE_KEY } from "../infra/storage/persistenceHelpers";
 import { makeProjectData, makeProjectFile } from "./helpers/projectTestHelpers";
 import { resetMockAsyncStorage, seedMockAsyncStorage } from "./helpers/asyncStorageMockHelpers";
 
@@ -62,6 +62,61 @@ describe("project persistence encryption", () => {
 
     expect(restored?.name).toBe("Roundtrip");
     expect(restored?.files?.[0]?.path).toBe("src/index.ts");
+  });
+
+  it("stores large encrypted payloads in chunks and round-trips correctly", async () => {
+    const largeContent = "x".repeat(2_250_000);
+    const project = makeProjectData({
+      name: "Chunked Roundtrip",
+      files: [makeProjectFile("src/large.txt", largeContent)],
+      chatHistory: [],
+    });
+
+    await saveProjectToStorage(project);
+    const rootPayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    expect(rootPayload).toContain('"type":"k1w1-project-storage-chunk-manifest"');
+
+    const allKeys = await AsyncStorage.getAllKeys();
+    const chunkKeys = allKeys.filter((key) => key.startsWith(PROJECT_STORAGE_CHUNK_KEY_PREFIX));
+    expect(chunkKeys.length).toBeGreaterThan(1);
+
+    const restored = await loadProjectFromStorage();
+    expect(restored?.name).toBe("Chunked Roundtrip");
+    expect(restored?.files?.[0]?.content).toBe(largeContent);
+  });
+
+  it("fails closed with explicit recovery error when chunk manifest exists but a chunk is missing", async () => {
+    const project = makeProjectData({
+      name: "Chunk Missing",
+      files: [makeProjectFile("src/large.txt", "x".repeat(2_250_000))],
+      chatHistory: [],
+    });
+
+    await saveProjectToStorage(project);
+    await AsyncStorage.removeItem(`${PROJECT_STORAGE_CHUNK_KEY_PREFIX}1`);
+    jest.clearAllMocks();
+
+    await expect(loadProjectFromStorage()).rejects.toThrow(/beschaedigt|unlesbar|unvollstaendig/i);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.multiSet).not.toHaveBeenCalled();
+  });
+
+  it("round-trips chunked plaintext fallback payloads with non-BMP unicode safely", async () => {
+    const emojiPayload = "🧪".repeat(275_000);
+    const project = makeProjectData({
+      name: "Plaintext Emoji Chunked",
+      files: [makeProjectFile("src/emoji.txt", emojiPayload)],
+      chatHistory: [],
+    });
+
+    (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error("securestore read failed"));
+    await saveProjectToStorage(project);
+
+    const rootPayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    expect(rootPayload).toContain('"type":"k1w1-project-storage-chunk-manifest"');
+
+    const restored = await loadProjectFromStorage();
+    expect(restored?.files?.[0]?.content).toBe(emojiPayload);
   });
 
   it("loads legacy plaintext storage and opportunistically migrates it to encrypted storage", async () => {
