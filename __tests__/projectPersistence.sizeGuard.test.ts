@@ -48,6 +48,7 @@ describe("project persistence size guard", () => {
       "Projekt konnte nicht gespeichert werden",
     );
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.multiSet).not.toHaveBeenCalled();
   });
 
   it("fails loudly when encryption overhead pushes the persisted blob above the hard limit", async () => {
@@ -64,5 +65,6 @@ describe("project persistence size guard", () => {
       "Projekt konnte nicht gespeichert werden",
     );
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(AsyncStorage.multiSet).not.toHaveBeenCalled();
   });
 });

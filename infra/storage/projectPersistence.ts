@@ -26,11 +26,114 @@ import {
 
 import {
   PROJECT_STORAGE_KEY, CACHE_DIR,
+  PROJECT_STORAGE_CHUNK_KEY_PREFIX,
+  PROJECT_STORAGE_CHUNK_MAX_BYTES,
   isBinaryFilePath, stripBase64Prefix, trimChatHistory,
   ensureChatHistoryHasIds,
   readDirectoryRecursive,
   assertProjectStoragePayloadSafe,
+  getUtf8ByteSize,
 } from "./persistenceHelpers";
+
+type ChunkedProjectStorageManifest = {
+  type: "k1w1-project-storage-chunk-manifest";
+  version: 1;
+  chunkCount: number;
+  chunkKeyPrefix: string;
+  chunkBytes: number[];
+  totalBytes: number;
+};
+
+const isChunkManifest = (value: unknown): value is ChunkedProjectStorageManifest => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ChunkedProjectStorageManifest>;
+  return (
+    candidate.type === "k1w1-project-storage-chunk-manifest" &&
+    candidate.version === 1 &&
+    typeof candidate.chunkCount === "number" &&
+    candidate.chunkCount >= 1 &&
+    typeof candidate.chunkKeyPrefix === "string" &&
+    Array.isArray(candidate.chunkBytes)
+  );
+};
+
+const createChunkKey = (index: number): string => `${PROJECT_STORAGE_CHUNK_KEY_PREFIX}${index}`;
+const chunkPayloadByBytes = (payload: string, maxBytes: number): string[] => {
+  if (payload.length === 0) return [""];
+  const chunks: string[] = [];
+  let cursor = 0;
+  while (cursor < payload.length) {
+    let next = Math.min(payload.length, cursor + maxBytes);
+    while (next > cursor && getUtf8ByteSize(payload.slice(cursor, next)) > maxBytes) {
+      next -= 1;
+    }
+    if (next === cursor) {
+      throw new Error("Projekt-Payload konnte nicht sicher in Storage-Chunks aufgeteilt werden.");
+    }
+    chunks.push(payload.slice(cursor, next));
+    cursor = next;
+  }
+  return chunks;
+};
+
+const cleanupChunkKeys = async (): Promise<void> => {
+  const keys = await AsyncStorage.getAllKeys();
+  const staleChunkKeys = keys.filter((key) => key.startsWith(PROJECT_STORAGE_CHUNK_KEY_PREFIX));
+  if (staleChunkKeys.length > 0) {
+    await AsyncStorage.multiRemove(staleChunkKeys);
+  }
+};
+
+const readPersistedProjectPayload = async (): Promise<string | null> => {
+  const rootPayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+  if (!rootPayload) return null;
+  let parsed: unknown = null;
+  try {
+    parsed = JSON.parse(rootPayload);
+  } catch {
+    return rootPayload;
+  }
+  if (!isChunkManifest(parsed)) {
+    return rootPayload;
+  }
+  const manifest = parsed;
+  const chunkKeys = Array.from({ length: manifest.chunkCount }, (_, index) => createChunkKey(index));
+  const chunkEntries = await AsyncStorage.multiGet(chunkKeys);
+  const chunkMap = new Map(chunkEntries);
+  const missingChunkKey = chunkKeys.find((key) => typeof chunkMap.get(key) !== "string");
+  if (missingChunkKey) {
+    throw new Error(`Projekt-Storage-Chunk fehlt: ${missingChunkKey}`);
+  }
+  return chunkKeys.map((key) => chunkMap.get(key) as string).join("");
+};
+
+const writePersistedProjectPayload = async (payload: string): Promise<void> => {
+  const payloadBytes = getUtf8ByteSize(payload);
+  if (payloadBytes <= PROJECT_STORAGE_CHUNK_MAX_BYTES) {
+    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, payload);
+    await cleanupChunkKeys();
+    return;
+  }
+  const chunks = chunkPayloadByBytes(payload, PROJECT_STORAGE_CHUNK_MAX_BYTES);
+  const chunkEntries = chunks.map((chunk, index) => [createChunkKey(index), chunk] as const);
+  await AsyncStorage.multiSet(chunkEntries as [string, string][]);
+  const manifest: ChunkedProjectStorageManifest = {
+    type: "k1w1-project-storage-chunk-manifest",
+    version: 1,
+    chunkCount: chunkEntries.length,
+    chunkKeyPrefix: PROJECT_STORAGE_CHUNK_KEY_PREFIX,
+    chunkBytes: chunks.map((chunk) => getUtf8ByteSize(chunk)),
+    totalBytes: payloadBytes,
+  };
+  await AsyncStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(manifest));
+  const keys = await AsyncStorage.getAllKeys();
+  const staleChunkKeys = keys
+    .filter((key) => key.startsWith(PROJECT_STORAGE_CHUNK_KEY_PREFIX))
+    .filter((key) => !chunkEntries.some(([chunkKey]) => chunkKey === key));
+  if (staleChunkKeys.length > 0) {
+    await AsyncStorage.multiRemove(staleChunkKeys);
+  }
+};
 
 const encryptProjectStoragePayloadOrPlaintextFallback = async (
   projectString: string,
@@ -58,7 +161,7 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
 
     const { payload: persistedProjectString, encrypted } = await encryptProjectStoragePayloadOrPlaintextFallback(projectString);
     const persistedPayloadState = assertProjectStoragePayloadSafe(persistedProjectString);
-    await AsyncStorage.setItem(PROJECT_STORAGE_KEY, persistedProjectString);
+    await writePersistedProjectPayload(persistedProjectString);
 
     if (plaintextPayloadState.nearLimit || persistedPayloadState.nearLimit) {
       logger.warn("[projectStorage] Projektzustand nahe Storage-Limit gespeichert", {
@@ -79,7 +182,7 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
 export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
   let rawStoragePayload: string | null = null;
   try {
-    rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+    rawStoragePayload = await readPersistedProjectPayload();
     if (!rawStoragePayload) {
       logger.info('📂 Kein gespeichertes Projekt gefunden');
       return null;
@@ -144,6 +247,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
 export const clearProjectFromStorage = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(PROJECT_STORAGE_KEY);
+    await cleanupChunkKeys();
     logger.info('🗑️ Projekt aus Storage gelöscht');
   } catch (error) {
     logger.error("[projectStorage] Fehler beim Löschen", { err: error });
@@ -152,7 +256,7 @@ export const clearProjectFromStorage = async (): Promise<void> => {
 };
 
 export const scrubChatHistoryFromStoredProject = async (): Promise<void> => {
-  const rawStoragePayload = await AsyncStorage.getItem(PROJECT_STORAGE_KEY);
+  const rawStoragePayload = await readPersistedProjectPayload();
   if (!rawStoragePayload) return;
 
   const { projectString } = await deserializeProjectStoragePayload(rawStoragePayload);
@@ -163,7 +267,7 @@ export const scrubChatHistoryFromStoredProject = async (): Promise<void> => {
   }
   const scrubbedPayload = JSON.stringify(parsed);
   const { payload } = await encryptProjectStoragePayloadOrPlaintextFallback(scrubbedPayload);
-  await AsyncStorage.setItem(PROJECT_STORAGE_KEY, payload);
+  await writePersistedProjectPayload(payload);
 };
 
 // === ECHTE ZIP-FUNKTIONEN ===
