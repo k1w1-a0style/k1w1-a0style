@@ -121,14 +121,7 @@ const unhandledRejectionErrors = [];
 
 const leakDebugEnabled = process.env.JEST_LEAK_DEBUG === "1";
 
-const getActiveHandleNames = () => {
-  if (typeof process._getActiveHandles !== "function") return [];
-  return process
-    ._getActiveHandles()
-    .map((handle) => handle?.constructor?.name)
-    .filter(Boolean)
-    .filter((name) => !["Socket", "WriteStream", "ReadStream", "TTY"].includes(name));
-};
+const leakDebugEvents = [];
 
 const logLeakDebugHints = () => {
   if (!leakDebugEnabled) return;
@@ -138,14 +131,9 @@ const logLeakDebugHints = () => {
     : "unknown-test";
 
   const pendingTimers = typeof jest.getTimerCount === "function" ? jest.getTimerCount() : 0;
-  const activeHandleNames = getActiveHandleNames();
+  if (pendingTimers === 0) return;
 
-  if (pendingTimers === 0 && activeHandleNames.length === 0) return;
-
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[jest-leak-debug] ${currentTestName} :: pendingTimers=${pendingTimers} activeHandles=${activeHandleNames.join(",") || "none"}`,
-  );
+  leakDebugEvents.push({ currentTestName, pendingTimers });
 };
 
 
@@ -189,6 +177,15 @@ afterEach(() => {
 
 afterAll(() => {
   process.off("unhandledRejection", onUnhandledRejection);
+
+  if (leakDebugEnabled && leakDebugEvents.length > 0) {
+    const summary = leakDebugEvents
+      .map(({ currentTestName, pendingTimers }) => `${currentTestName}: pendingTimers=${pendingTimers}`)
+      .join(" | ");
+    // eslint-disable-next-line no-console
+    console.warn(`[jest-leak-debug] ${summary}`);
+  }
+
   jest.clearAllTimers();
   jest.useRealTimers();
   global.fetch = originalFetch;
