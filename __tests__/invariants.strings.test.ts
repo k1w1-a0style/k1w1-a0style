@@ -169,7 +169,7 @@ describe("Invariant String Tests", () => {
       expect(source).toContain("set -o pipefail");
       expect(source).toContain("(data?.expo ?? data)?.extra?.eas?.projectId");
       expect(source).toContain("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5");
-      expect(source).toContain("actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020");
+      expect(source).toContain("actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e");
       expect(source).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
       expect(source).toContain('"expo_exit":');
       expect(source).toContain('"ok":');
