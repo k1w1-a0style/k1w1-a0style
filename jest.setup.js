@@ -119,6 +119,8 @@ const resetBlockedNetworkGlobals = () => {
 
 const unhandledRejectionErrors = [];
 
+const LISTENER_REF_KEY = "__k1w1UnhandledRejectionListenerRefCount";
+
 
 const onUnhandledRejection = (reason) => {
   if (reason instanceof Error) {
@@ -130,7 +132,11 @@ const onUnhandledRejection = (reason) => {
 };
 
 beforeAll(() => {
-  process.on("unhandledRejection", onUnhandledRejection);
+  const currentRefs = globalThis[LISTENER_REF_KEY] ?? 0;
+  if (currentRefs === 0) {
+    process.on("unhandledRejection", onUnhandledRejection);
+  }
+  globalThis[LISTENER_REF_KEY] = currentRefs + 1;
 });
 
 beforeEach(() => {
@@ -158,7 +164,12 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  process.off("unhandledRejection", onUnhandledRejection);
+  const currentRefs = globalThis[LISTENER_REF_KEY] ?? 0;
+  const nextRefs = Math.max(0, currentRefs - 1);
+  globalThis[LISTENER_REF_KEY] = nextRefs;
+  if (nextRefs === 0) {
+    process.off("unhandledRejection", onUnhandledRejection);
+  }
 
   jest.clearAllTimers();
   jest.useRealTimers();
