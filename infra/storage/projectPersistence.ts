@@ -58,13 +58,32 @@ const isChunkManifest = (value: unknown): value is ChunkedProjectStorageManifest
 };
 
 const createChunkKey = (index: number): string => `${PROJECT_STORAGE_CHUNK_KEY_PREFIX}${index}`;
+const isHighSurrogateCodeUnit = (value: number): boolean => value >= 0xd800 && value <= 0xdbff;
 const chunkPayloadByBytes = (payload: string, maxBytes: number): string[] => {
   if (payload.length === 0) return [""];
   const chunks: string[] = [];
   let cursor = 0;
   while (cursor < payload.length) {
     let next = Math.min(payload.length, cursor + maxBytes);
-    while (next > cursor && getUtf8ByteSize(payload.slice(cursor, next)) > maxBytes) {
+    if (getUtf8ByteSize(payload.slice(cursor, next)) > maxBytes) {
+      let low = cursor + 1;
+      let high = next;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const bytes = getUtf8ByteSize(payload.slice(cursor, mid));
+        if (bytes <= maxBytes) {
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      next = high;
+    }
+    if (
+      next < payload.length &&
+      next > cursor &&
+      isHighSurrogateCodeUnit(payload.charCodeAt(next - 1))
+    ) {
       next -= 1;
     }
     if (next === cursor) {
@@ -102,7 +121,7 @@ const readPersistedProjectPayload = async (): Promise<string | null> => {
   const chunkMap = new Map(chunkEntries);
   const missingChunkKey = chunkKeys.find((key) => typeof chunkMap.get(key) !== "string");
   if (missingChunkKey) {
-    throw new Error(`Projekt-Storage-Chunk fehlt: ${missingChunkKey}`);
+    throw new Error(`Gespeicherter Projektstand ist unvollstaendig (fehlender Storage-Chunk: ${missingChunkKey}).`);
   }
   return chunkKeys.map((key) => chunkMap.get(key) as string).join("");
 };
@@ -181,7 +200,9 @@ export const saveProjectToStorage = async (project: ProjectData): Promise<void> 
 
 export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
   let rawStoragePayload: string | null = null;
+  let hasProjectStorageRoot = false;
   try {
+    hasProjectStorageRoot = Boolean(await AsyncStorage.getItem(PROJECT_STORAGE_KEY));
     rawStoragePayload = await readPersistedProjectPayload();
     if (!rawStoragePayload) {
       logger.info('📂 Kein gespeichertes Projekt gefunden');
@@ -235,7 +256,7 @@ export const loadProjectFromStorage = async (): Promise<ProjectData | null> => {
         "Verschluesseltes Projekt konnte nicht entschluesselt werden (Key/Decrypt-Fehler). Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
       );
     }
-    if (rawStoragePayload) {
+    if (rawStoragePayload || hasProjectStorageRoot) {
       throw new Error(
         "Gespeicherter unverschluesselter Projektstand ist beschaedigt oder unlesbar. Bitte Daten wiederherstellen statt automatisch zu ueberschreiben.",
       );
