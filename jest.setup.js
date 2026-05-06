@@ -119,24 +119,6 @@ const resetBlockedNetworkGlobals = () => {
 
 const unhandledRejectionErrors = [];
 
-const leakDebugEnabled = process.env.JEST_LEAK_DEBUG === "1";
-
-const leakDebugByTest = new Map();
-
-const logLeakDebugHints = () => {
-  if (!leakDebugEnabled) return;
-
-  const currentTestName = typeof expect.getState === "function"
-    ? expect.getState().currentTestName
-    : "unknown-test";
-
-  const pendingTimers = typeof jest.getTimerCount === "function" ? jest.getTimerCount() : 0;
-  if (pendingTimers === 0) return;
-
-  const previousMax = leakDebugByTest.get(currentTestName) ?? 0;
-  leakDebugByTest.set(currentTestName, Math.max(previousMax, pendingTimers));
-};
-
 
 const onUnhandledRejection = (reason) => {
   if (reason instanceof Error) {
@@ -148,7 +130,6 @@ const onUnhandledRejection = (reason) => {
 };
 
 beforeAll(() => {
-  leakDebugByTest.clear();
   process.on("unhandledRejection", onUnhandledRejection);
 });
 
@@ -159,7 +140,6 @@ beforeEach(() => {
 
 // ✅ Global teardown to prevent Jest worker leaks (timers / listeners / DOM / async leftovers)
 afterEach(() => {
-  logLeakDebugHints();
   cleanup();
   jest.clearAllMocks();
   jest.clearAllTimers();
@@ -179,15 +159,6 @@ afterEach(() => {
 
 afterAll(() => {
   process.off("unhandledRejection", onUnhandledRejection);
-
-  if (leakDebugEnabled && leakDebugByTest.size > 0) {
-    const summary = [...leakDebugByTest.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([currentTestName, pendingTimers]) => `${currentTestName}: pendingTimers=${pendingTimers}`)
-      .join(" | ");
-    // eslint-disable-next-line no-console
-    console.warn(`[jest-leak-debug] ${summary}`);
-  }
 
   jest.clearAllTimers();
   jest.useRealTimers();
