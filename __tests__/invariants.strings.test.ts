@@ -170,7 +170,7 @@ describe("Invariant String Tests", () => {
       expect(source).toContain("(data?.expo ?? data)?.extra?.eas?.projectId");
       expect(source).toContain("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5");
       expect(source).toContain("actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e");
-      expect(source).toContain("actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02");
+      expect(source).toContain("actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a");
       expect(source).toContain('"expo_exit":');
       expect(source).toContain('"ok":');
     }
