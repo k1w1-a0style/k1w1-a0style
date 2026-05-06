@@ -154,4 +154,9 @@ jobs:
       platform: android
       autofix: ${{ fromJSON(needs.resolve.outputs.autofix) }}
       strict_lockfile: ${{ needs.resolve.outputs.strict_lockfile }}
-    secrets: inherit
+    secrets:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_APK_BUCKET: ${{ secrets.SUPABASE_APK_BUCKET }}
+      K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY: ${{ secrets.K1W1_EDGE_ANDROID_KEYSTORE_EXPORT_ADMIN_KEY }}
