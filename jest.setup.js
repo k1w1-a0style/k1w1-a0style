@@ -119,6 +119,19 @@ const resetBlockedNetworkGlobals = () => {
 
 const unhandledRejectionErrors = [];
 
+const leakDebugEnabled = process.env.JEST_LEAK_DEBUG === "1";
+
+const logTimerLeakHint = () => {
+  if (!leakDebugEnabled || typeof jest.getTimerCount !== "function") return;
+
+  const pendingTimers = jest.getTimerCount();
+  if (pendingTimers > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[jest-leak-debug] pending timers after test teardown: ${pendingTimers}`);
+  }
+};
+
+
 const onUnhandledRejection = (reason) => {
   if (reason instanceof Error) {
     unhandledRejectionErrors.push(reason);
@@ -144,6 +157,7 @@ afterEach(() => {
   jest.clearAllTimers();
   jest.useRealTimers();
   resetBlockedNetworkGlobals();
+  logTimerLeakHint();
 
   if (unhandledRejectionErrors.length === 1) {
     const [error] = unhandledRejectionErrors.splice(0, 1);
