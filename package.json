@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:all": "npm run typecheck && npm run typecheck:edge",
     "test": "jest",
-    "test:silent": "jest --silent --workerIdleMemoryLimit=512MB",
+    "test:silent": "jest --silent --workerIdleMemoryLimit=512MB --maxWorkers=2",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:verbose": "VERBOSE=true jest --verbose",
