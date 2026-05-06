@@ -121,14 +121,31 @@ const unhandledRejectionErrors = [];
 
 const leakDebugEnabled = process.env.JEST_LEAK_DEBUG === "1";
 
-const logTimerLeakHint = () => {
-  if (!leakDebugEnabled || typeof jest.getTimerCount !== "function") return;
+const getActiveHandleNames = () => {
+  if (typeof process._getActiveHandles !== "function") return [];
+  return process
+    ._getActiveHandles()
+    .map((handle) => handle?.constructor?.name)
+    .filter(Boolean)
+    .filter((name) => !["Socket", "WriteStream", "ReadStream", "TTY"].includes(name));
+};
 
-  const pendingTimers = jest.getTimerCount();
-  if (pendingTimers > 0) {
-    // eslint-disable-next-line no-console
-    console.warn(`[jest-leak-debug] pending timers after test teardown: ${pendingTimers}`);
-  }
+const logLeakDebugHints = () => {
+  if (!leakDebugEnabled) return;
+
+  const currentTestName = typeof expect.getState === "function"
+    ? expect.getState().currentTestName
+    : "unknown-test";
+
+  const pendingTimers = typeof jest.getTimerCount === "function" ? jest.getTimerCount() : 0;
+  const activeHandleNames = getActiveHandleNames();
+
+  if (pendingTimers === 0 && activeHandleNames.length === 0) return;
+
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[jest-leak-debug] ${currentTestName} :: pendingTimers=${pendingTimers} activeHandles=${activeHandleNames.join(",") || "none"}`,
+  );
 };
 
 
@@ -152,12 +169,12 @@ beforeEach(() => {
 
 // ✅ Global teardown to prevent Jest worker leaks (timers / listeners / DOM / async leftovers)
 afterEach(() => {
+  logLeakDebugHints();
   cleanup();
   jest.clearAllMocks();
   jest.clearAllTimers();
   jest.useRealTimers();
   resetBlockedNetworkGlobals();
-  logTimerLeakHint();
 
   if (unhandledRejectionErrors.length === 1) {
     const [error] = unhandledRejectionErrors.splice(0, 1);
