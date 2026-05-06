@@ -117,7 +117,64 @@ const resetBlockedNetworkGlobals = () => {
   global.WebSocket = BlockedWebSocket;
 };
 
+const TIMER_STATE_KEY = "__k1w1JestTimerState";
+
+const getTimerState = () => {
+  if (!globalThis[TIMER_STATE_KEY]) {
+    globalThis[TIMER_STATE_KEY] = {
+      fakeTimersActive: false,
+      patched: false,
+    };
+  }
+
+  return globalThis[TIMER_STATE_KEY];
+};
+
+const patchTimerLifecycleTracking = () => {
+  const timerState = getTimerState();
+  if (timerState.patched) {
+    return;
+  }
+
+  const originalUseFakeTimers = jest.useFakeTimers.bind(jest);
+  const originalUseRealTimers = jest.useRealTimers.bind(jest);
+
+  jest.useFakeTimers = (...args) => {
+    timerState.fakeTimersActive = true;
+    return originalUseFakeTimers(...args);
+  };
+
+  jest.useRealTimers = (...args) => {
+    timerState.fakeTimersActive = false;
+    return originalUseRealTimers(...args);
+  };
+
+  timerState.patched = true;
+};
+
+const logTimerLeakHint = () => {
+  if (process.env.JEST_LEAK_DEBUG !== "1") {
+    return;
+  }
+
+  const timerState = getTimerState();
+  if (!timerState.fakeTimersActive || typeof jest.getTimerCount !== "function") {
+    return;
+  }
+
+  const pendingTimers = jest.getTimerCount();
+  if (pendingTimers > 0) {
+    process.stderr.write(
+      `[jest leak debug] ${pendingTimers} pending fake timer(s) after test. Clear timers or restore real timers in test cleanup.\n`,
+    );
+  }
+};
+
+patchTimerLifecycleTracking();
+
 const unhandledRejectionErrors = [];
+
+const LISTENER_REF_KEY = "__k1w1UnhandledRejectionListenerRefCount";
 
 const onUnhandledRejection = (reason) => {
   if (reason instanceof Error) {
@@ -129,7 +186,11 @@ const onUnhandledRejection = (reason) => {
 };
 
 beforeAll(() => {
-  process.on("unhandledRejection", onUnhandledRejection);
+  const currentRefs = globalThis[LISTENER_REF_KEY] ?? 0;
+  if (currentRefs === 0) {
+    process.on("unhandledRejection", onUnhandledRejection);
+  }
+  globalThis[LISTENER_REF_KEY] = currentRefs + 1;
 });
 
 beforeEach(() => {
@@ -141,6 +202,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   jest.clearAllMocks();
+  logTimerLeakHint();
   jest.clearAllTimers();
   jest.useRealTimers();
   resetBlockedNetworkGlobals();
@@ -157,7 +219,13 @@ afterEach(() => {
 });
 
 afterAll(() => {
-  process.off("unhandledRejection", onUnhandledRejection);
+  const currentRefs = globalThis[LISTENER_REF_KEY] ?? 0;
+  const nextRefs = Math.max(0, currentRefs - 1);
+  globalThis[LISTENER_REF_KEY] = nextRefs;
+  if (nextRefs === 0) {
+    process.off("unhandledRejection", onUnhandledRejection);
+  }
+
   jest.clearAllTimers();
   jest.useRealTimers();
   global.fetch = originalFetch;
